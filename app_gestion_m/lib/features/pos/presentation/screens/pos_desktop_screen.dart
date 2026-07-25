@@ -8,6 +8,43 @@ import '../widgets/cart_table_widget.dart';
 import '../widgets/cobrar_dialog.dart';
 import '../widgets/pos_summary_panel.dart';
 import '../widgets/scale_visor_widget.dart';
+import 'inventory_catalog_screen.dart';
+import 'sales_history_screen.dart'; // <-- IMPORTA LA NUEVA PANTALLA
+
+// MODELOS PARA AUDITORÍA Y REGISTRO DE VENTAS
+class VentaItemModel {
+  final String nombreProducto;
+  final double precioUnidad;
+  final double cantidad;
+  final double subtotal;
+
+  VentaItemModel({
+    required this.nombreProducto,
+    required this.precioUnidad,
+    required this.cantidad,
+    required this.subtotal,
+  });
+}
+
+class VentaModel {
+  final String id;
+  final DateTime fecha;
+  final double total;
+  final String metodoPago;
+  final String cedulaCliente;
+  final String empleado;
+  final List<VentaItemModel> items;
+
+  VentaModel({
+    required this.id,
+    required this.fecha,
+    required this.total,
+    required this.metodoPago,
+    required this.cedulaCliente,
+    required this.empleado,
+    required this.items,
+  });
+}
 
 class PosDesktopScreen extends ConsumerStatefulWidget {
   const PosDesktopScreen({super.key});
@@ -19,6 +56,12 @@ class PosDesktopScreen extends ConsumerStatefulWidget {
 class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+
+  // Historial acumulado en memoria durante la sesión
+  final List<VentaModel> _historialVentas = [];
+
+  // Usuario activo en el POS (puedes enlazarlo a tu sistema de login luego)
+  final String _cajeroActual = "Yan Camacaro";
 
   final List<ProductItem> _productosDemo = const [
     ProductItem(
@@ -92,13 +135,17 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     if (query.trim().isEmpty) return;
 
     final productoEncontrado = _productosDemo.firstWhere(
-      (p) => p.codigoBarras == query.trim() || p.nombre.toLowerCase().contains(query.toLowerCase()),
+      (p) =>
+          p.codigoBarras == query.trim() ||
+          p.nombre.toLowerCase().contains(query.toLowerCase()),
       orElse: () => _productosDemo.first,
     );
 
     final cantidad = productoEncontrado.esPesado ? 1.250 : 1.0;
 
-    ref.read(cartProvider.notifier).agregarProducto(productoEncontrado, cantidad: cantidad);
+    ref
+        .read(cartProvider.notifier)
+        .agregarProducto(productoEncontrado, cantidad: cantidad);
     _searchController.clear();
     _enfocarBuscador();
   }
@@ -107,7 +154,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     final cartState = ref.read(cartProvider);
     if (cartState.total <= 0) return;
 
-    // 1. Abrimos CobrarDialog y esperamos el Map de resultado
+    // 1. Abrimos CobrarDialog y esperamos el resultado
     final resultado = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
@@ -116,19 +163,45 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
       ),
     );
 
-    // 2. Si el cobro fue confirmado, procesamos la impresión en el contexto activo de la pantalla
+    // 2. Procesar venta si fue confirmada
     if (resultado != null && resultado['procesado'] == true && mounted) {
       try {
-        // Mapeo adaptado a los parámetros esperados por TicketItem:
-        // 'precio' en lugar de 'precioUnidad', y 'cantidad' convertida a int
+        // Mapear los productos del carrito a ítems de auditoría
+        final itemsComprados = cartState.items.map((cartItem) {
+          return VentaItemModel(
+            nombreProducto: cartItem.producto.nombre,
+            precioUnidad: cartItem.producto.precioUnidad,
+            cantidad: cartItem.cantidad.toDouble(),
+            subtotal: cartItem.producto.precioUnidad * cartItem.cantidad.toDouble(),
+          );
+        }).toList();
+
+        // Registrar en el historial ampliado
+        setState(() {
+          _historialVentas.add(
+            VentaModel(
+              id: 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+              fecha: DateTime.now(),
+              total: cartState.total,
+              metodoPago: resultado['metodoPago'] ?? 'Efectivo',
+              cedulaCliente: resultado['cedulaCliente'] ?? 'V-00000000', // Cédula por defecto si es consumidor final
+              empleado: _cajeroActual,
+              items: itemsComprados,
+            ),
+          );
+        });
+
+        // Adaptar items para el servicio de ticket
         final ticketItems = cartState.items.map((cartItem) {
           return TicketItem(
             nombre: cartItem.producto.nombre,
             precio: cartItem.producto.precioUnidad,
-            cantidad: cartItem.cantidad.toInt(),
+            cantidad: cartItem.cantidad.toDouble(),
+            esPesado: cartItem.producto.esPesado,
           );
         }).toList();
 
+        // Emitir e imprimir PDF
         await TicketService.generarYProcesarPdf(
           items: ticketItems,
           subtotal: cartState.subtotal,
@@ -139,7 +212,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           vuelto: resultado['vuelto'],
         );
 
-        // 3. Limpiamos carrito y restablecemos foco
+        // Limpiar carrito
         ref.read(cartProvider.notifier).limpiarCarrito();
         _enfocarBuscador();
 
@@ -164,6 +237,145 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
+  // ===========================================================================
+  // MODAL DE CIERRE DE CAJA (Resumen Financiero y Acceso al Historial Completo)
+  // ===========================================================================
+  void _mostrarDialogoCaja(BuildContext context) {
+    final double totalEfectivo = _historialVentas
+        .where((v) => v.metodoPago.toLowerCase() == 'efectivo')
+        .fold(0.0, (sum, v) => sum + v.total);
+
+    final double totalTarjeta = _historialVentas
+        .where((v) => v.metodoPago.toLowerCase() == 'tarjeta')
+        .fold(0.0, (sum, v) => sum + v.total);
+
+    final double totalOtros = _historialVentas
+        .where((v) =>
+            v.metodoPago.toLowerCase() != 'efectivo' &&
+            v.metodoPago.toLowerCase() != 'tarjeta')
+        .fold(0.0, (sum, v) => sum + v.total);
+
+    final double granTotal =
+        _historialVentas.fold(0.0, (sum, v) => sum + v.total);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.point_of_sale, color: Color(0xFF0F172A)),
+                  SizedBox(width: 8),
+                  Text(
+                    'Caja del Día',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ],
+              ),
+              Chip(
+                label: Text(
+                  '${_historialVentas.length} ventas',
+                  style: const TextStyle(
+                    color: Color(0xFF10B981),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+                backgroundColor: const Color(0xFFECFDF5),
+                side: BorderSide.none,
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _filaDetalleCaja('Efectivo', totalEfectivo, Icons.payments_outlined, const Color(0xFF10B981)),
+                const SizedBox(height: 10),
+                _filaDetalleCaja('Tarjeta', totalTarjeta, Icons.credit_card, const Color(0xFF3B82F6)),
+                const SizedBox(height: 10),
+                _filaDetalleCaja('Otros / Transf.', totalOtros, Icons.qr_code, const Color(0xFF8B5CF6)),
+                const Divider(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'TOTAL EN CAJA',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      Text(
+                        '\$${granTotal.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Color(0xFF34D399),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            // BOTÓN SOLICITADO: Ver historial completo de Día/Semana/Mes
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              icon: const Icon(Icons.analytics_outlined, size: 18),
+              label: const Text('Ver Registro y Auditoría', style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () {
+                Navigator.of(context).pop(); // Cierra el modal antes de abrir la pantalla nueva
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => SalesHistoryScreen(historialVentas: _historialVentas),
+                  ),
+                );
+              },
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _filaDetalleCaja(String titulo, double monto, IconData icono, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Icon(icono, size: 18, color: color),
+            const SizedBox(width: 8),
+            Text(titulo, style: const TextStyle(fontSize: 14, color: Color(0xFF475569))),
+          ],
+        ),
+        Text(
+          '\$${monto.toStringAsFixed(2)}',
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
@@ -172,6 +384,25 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
       appBar: AppBar(
         title: const Text('app_gestion_m — POS Caja 01'),
         actions: [
+          // BOTÓN PARA VER EL CIERRE DE CAJA
+          IconButton(
+            icon: const Icon(Icons.point_of_sale),
+            tooltip: 'Ver Resumen de Caja',
+            onPressed: () => _mostrarDialogoCaja(context),
+          ),
+          // BOTÓN PARA ABRIR EL CATÁLOGO
+          IconButton(
+            icon: const Icon(Icons.inventory_2_outlined),
+            tooltip: 'Ver Catálogo de Inventario',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const InventoryCatalogScreen(),
+                ),
+              );
+            },
+          ),
+          // REINICIAR VENTA
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
@@ -180,6 +411,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             },
             tooltip: 'Reiniciar Venta (Esc)',
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Padding(
@@ -187,7 +419,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // PANEL IZQUIERDO
+            // PANEL IZQUIERDO: Buscador, Visor Balanza y Tabla de Carrito
             Expanded(
               flex: 3,
               child: Column(
@@ -231,7 +463,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             ),
             const SizedBox(width: 16),
 
-            // PANEL DERECHO
+            // PANEL DERECHO: Resumen de totales y Botón Cobrar
             Expanded(
               flex: 1,
               child: PosSummaryPanel(

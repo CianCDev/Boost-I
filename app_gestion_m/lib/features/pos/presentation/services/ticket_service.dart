@@ -1,25 +1,64 @@
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:path_provider/path_provider.dart';
 
 // Modelo simple para definir los artículos del ticket
 class TicketItem {
   final String nombre;
-  final int cantidad;
+  final double cantidad;
   final double precio;
+  final bool esPesado;
 
   TicketItem({
     required this.nombre,
     required this.cantidad,
     required this.precio,
+    required this.esPesado,
   });
 
   double get total => cantidad * precio;
 }
 
 class TicketService {
+  /// Método Adapter: Traduce los datos de la UI al formato que consume la generación de PDF
+  static Future<void> imprimirTicketVenta({
+    required List<Map<String, dynamic>> items,
+    required double total,
+    required String metodoPago,
+    required double montoRecibido,
+    required double cambio, // La UI envía 'cambio' (o vuelto)
+    double impuesto = 0.0,
+    double subtotal = 0.0,
+  }) async {
+    // 1. Mapear List<Map> a List<TicketItem>
+    final listItems = items.map((item) {
+      return TicketItem(
+        nombre: item['nombre']?.toString() ?? 'Producto',
+        cantidad: (item['cantidad'] as num?)?.toDouble() ?? 1.0,
+        precio: (item['precio'] as num?)?.toDouble() ?? 0.0,
+        esPesado: item['esPesado'] as bool? ?? false,
+      );
+    }).toList();
+
+    // 2. Calcular subtotal si no viene especificado
+    final subtotalCalculado = subtotal > 0
+        ? subtotal
+        : listItems.fold(0.0, (sum, item) => sum + item.total);
+
+    // 3. Invocar el flujo nativo de PDF que ya construiste
+    await generarYProcesarPdf(
+      items: listItems,
+      subtotal: subtotalCalculado,
+      impuesto: impuesto,
+      total: total,
+      metodoPago: metodoPago,
+      montoRecibido: montoRecibido,
+      vuelto: cambio,
+    );
+  }
+
   /// Diseña el PDF con formato de ticket térmico (80mm)
   static Future<pw.Document> generarDocumento({
     required List<TicketItem> items,
@@ -52,10 +91,12 @@ class TicketService {
                 child: pw.Column(
                   children: [
                     pw.Text(
-                      'PUNTO DE VENTA',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
+                      'Nombre Editable',
+                      style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold, fontSize: 14),
                     ),
-                    pw.Text('Comprobante de Pago', style: const pw.TextStyle(fontSize: 8)),
+                    pw.Text('Comprobante de Pago',
+                        style: const pw.TextStyle(fontSize: 8)),
                     pw.SizedBox(height: 4),
                     pw.Text(
                       '------------------------------------------',
@@ -67,66 +108,87 @@ class TicketService {
 
               // Datos de la transacción
               pw.SizedBox(height: 4),
-              pw.Text('Fecha: ${DateTime.now().toString().substring(0, 16)}', style: const pw.TextStyle(fontSize: 8)),
-              pw.Text('Método de pago: ${metodoPago.toUpperCase()}', style: const pw.TextStyle(fontSize: 8)),
+              pw.Text(
+                  'Fecha: ${DateTime.now().toString().substring(0, 16)}',
+                  style: const pw.TextStyle(fontSize: 8)),
+              pw.Text('Método de pago: ${metodoPago.toUpperCase()}',
+                  style: const pw.TextStyle(fontSize: 8)),
               pw.SizedBox(height: 4),
-              pw.Text('------------------------------------------', style: const pw.TextStyle(fontSize: 8)),
+              pw.Text('------------------------------------------',
+                  style: const pw.TextStyle(fontSize: 8)),
 
-              // Lista de Productos
+              // Encabezado de Productos
               pw.SizedBox(height: 4),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Expanded(
                     flex: 3,
-                    child: pw.Text('Cant x Producto', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                    child: pw.Text('Cant x Producto',
+                        style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold, fontSize: 8)),
                   ),
                   pw.Expanded(
                     flex: 1,
-                    child: pw.Text('Total', textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                    child: pw.Text('Total',
+                        textAlign: pw.TextAlign.right,
+                        style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold, fontSize: 8)),
                   ),
                 ],
               ),
               pw.SizedBox(height: 4),
 
+              // Lista de Productos con soporte para decimales
               ...items.map((item) => pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(vertical: 2),
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
-                  children: [
-                    pw.Expanded(
-                      flex: 3,
-                      child: pw.Text('${item.cantidad}x ${item.nombre}', style: const pw.TextStyle(fontSize: 8)),
+                    padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                    child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Expanded(
+                          flex: 3,
+                          child: pw.Text(
+                            '${item.cantidad % 1 == 0 ? item.cantidad.toInt() : item.cantidad.toStringAsFixed(3)}x ${item.nombre}',
+                            style: const pw.TextStyle(fontSize: 8),
+                          ),
+                        ),
+                        pw.Expanded(
+                          flex: 1,
+                          child: pw.Text('\$${item.total.toStringAsFixed(2)}',
+                              textAlign: pw.TextAlign.right,
+                              style: const pw.TextStyle(fontSize: 8)),
+                        ),
+                      ],
                     ),
-                    pw.Expanded(
-                      flex: 1,
-                      child: pw.Text('\$${item.total.toStringAsFixed(2)}', textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
-                    ),
-                  ],
-                ),
-              )),
+                  )),
 
               pw.SizedBox(height: 4),
-              pw.Text('------------------------------------------', style: const pw.TextStyle(fontSize: 8)),
+              pw.Text('------------------------------------------',
+                  style: const pw.TextStyle(fontSize: 8)),
 
               // Totales
               pw.SizedBox(height: 4),
               _filaTotal('Subtotal:', '\$${subtotal.toStringAsFixed(2)}'),
-              if (impuesto > 0) _filaTotal('Impuesto:', '\$${impuesto.toStringAsFixed(2)}'),
+              if (impuesto > 0)
+                _filaTotal('Impuesto:', '\$${impuesto.toStringAsFixed(2)}'),
               pw.SizedBox(height: 2),
-              _filaTotal('TOTAL:', '\$${total.toStringAsFixed(2)}', esBold: true),
+              _filaTotal('TOTAL:', '\$${total.toStringAsFixed(2)}',
+                  esBold: true),
 
-              if (metodoPago == 'efectivo') ...[
+              if (metodoPago.toLowerCase() == 'efectivo') ...[
                 pw.SizedBox(height: 2),
-                _filaTotal('Recibido:', '\$${montoRecibido.toStringAsFixed(2)}'),
+                _filaTotal(
+                    'Recibido:', '\$${montoRecibido.toStringAsFixed(2)}'),
                 _filaTotal('Vuelto:', '\$${vuelto.toStringAsFixed(2)}'),
               ],
 
               // Mensaje final
               pw.SizedBox(height: 10),
               pw.Center(
-                child: pw.Text('¡Gracias por su compra!', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                child: pw.Text('¡Gracias por su compra!',
+                    style: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold, fontSize: 9)),
               ),
             ],
           );
@@ -137,7 +199,8 @@ class TicketService {
     return pdf;
   }
 
-  static pw.Widget _filaTotal(String titulo, String valor, {bool esBold = false}) {
+  static pw.Widget _filaTotal(String titulo, String valor,
+      {bool esBold = false}) {
     final style = pw.TextStyle(
       fontSize: 8,
       fontWeight: esBold ? pw.FontWeight.bold : pw.FontWeight.normal,
@@ -193,7 +256,8 @@ class TicketService {
         await folder.create(recursive: true);
       }
 
-      final fileName = 'Ticket_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final fileName =
+          'Ticket_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final file = File('$folderPath/$fileName');
       await file.writeAsBytes(bytes);
     } catch (e) {
