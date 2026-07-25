@@ -18,7 +18,7 @@ class AppGestionM extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'app_gestion_m POS',
+      title: 'POS Desktop',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.desktopTheme,
       home: const PosDesktopScreen(),

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'pos_desktop_screen.dart'; // Para acceder al modelo VentaModel y VentaItemModel
+import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/venta_entity.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
-  final List<VentaModel> historialVentas;
-
-  const SalesHistoryScreen({super.key, required this.historialVentas});
+  const SalesHistoryScreen({super.key});
 
   @override
   State<SalesHistoryScreen> createState() => _SalesHistoryScreenState();
@@ -12,6 +11,7 @@ class SalesHistoryScreen extends StatefulWidget {
 
 class _SalesHistoryScreenState extends State<SalesHistoryScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final IsarService _isarService = IsarService();
 
   @override
   void initState() {
@@ -25,24 +25,8 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> with SingleTick
     super.dispose();
   }
 
-  // Filtrado lógico según fecha
-  List<VentaModel> _filtrarVentas(String periodo) {
-    final now = DateTime.now();
-    return widget.historialVentas.where((venta) {
-      final diferencia = now.difference(venta.fecha).inDays;
-      if (periodo == 'dia') {
-        return venta.fecha.day == now.day && venta.fecha.month == now.month && venta.fecha.year == now.year;
-      } else if (periodo == 'semana') {
-        return diferencia <= 7;
-      } else if (periodo == 'mes') {
-        return diferencia <= 30;
-      }
-      return true;
-    }).toList();
-  }
-
-  // Modal para ver los productos comprados en un registro
-  void _mostrarDetalleItems(BuildContext context, VentaModel venta) {
+  // Modal para ver los productos comprados de una venta de Isar
+  void _mostrarDetalleItems(BuildContext context, VentaEntity venta) {
     showDialog(
       context: context,
       builder: (context) {
@@ -52,7 +36,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> with SingleTick
             children: [
               const Icon(Icons.receipt_long, color: Color(0xFF10B981)),
               const SizedBox(width: 8),
-              Text('Detalle de Venta #${venta.id}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text('Detalle de Venta #${venta.ventaIdString}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           content: SizedBox(
@@ -120,7 +104,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> with SingleTick
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Registro y Auditoría de Ventas', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18)),
+        title: const Text('Registro y Auditoría de Ventas (Local)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18)),
         backgroundColor: const Color(0xFF0F172A),
         foregroundColor: Colors.white,
         elevation: 0,
@@ -140,81 +124,95 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> with SingleTick
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildTablaVentas(_filtrarVentas('dia')),
-          _buildTablaVentas(_filtrarVentas('semana')),
-          _buildTablaVentas(_filtrarVentas('mes')),
+          _buildPestanaVentas('dia'),
+          _buildPestanaVentas('semana'),
+          _buildPestanaVentas('mes'),
         ],
       ),
     );
   }
 
-  Widget _buildTablaVentas(List<VentaModel> ventas) {
-    if (ventas.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inbox_outlined, size: 48, color: Color(0xFFCBD5E1)),
-            SizedBox(height: 8),
-            Text('No hay registros de venta en este período.', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
-          ],
-        ),
-      );
-    }
+  Widget _buildPestanaVentas(String periodo) {
+    return FutureBuilder<List<VentaEntity>>(
+      future: _isarService.obtenerVentasPorPeriodo(periodo),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)));
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error al cargar registros: ${snapshot.error}'));
+        }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: DataTable(
-            headingRowColor: MaterialStateProperty.all(const Color(0xFFF1F5F9)),
-            dataRowMaxHeight: 56,
-            columns: const [
-              DataColumn(label: Text('ID Venta', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-              DataColumn(label: Text('Fecha y Hora', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-              DataColumn(label: Text('Cédula Cliente', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-              DataColumn(label: Text('Cajero / Empleado', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-              DataColumn(label: Text('Método', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-              DataColumn(label: Text('Total', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-              DataColumn(label: Text('Acción', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-            ],
-            rows: ventas.map((venta) {
-              final String horaFormatted = "${venta.fecha.hour.toString().padLeft(2, '0')}:${venta.fecha.minute.toString().padLeft(2, '0')}";
-              final String fechaFormatted = "${venta.fecha.day}/${venta.fecha.month}/${venta.fecha.year}";
+        final ventas = snapshot.data ?? [];
 
-              return DataRow(
-                cells: [
-                  DataCell(Text(venta.id, style: const TextStyle(fontWeight: FontWeight.bold))),
-                  DataCell(Text('$fechaFormatted - $horaFormatted')),
-                  DataCell(Text(venta.cedulaCliente)),
-                  DataCell(
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(6)),
-                      child: Text(venta.empleado, style: const TextStyle(fontSize: 12, color: Color(0xFF0369A1), fontWeight: FontWeight.w600)),
-                    )
-                  ),
-                  DataCell(Text(venta.metodoPago)),
-                  DataCell(Text('\$${venta.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF059669)))),
-                  DataCell(
-                    IconButton(
-                      icon: const Icon(Icons.visibility, color: Color(0xFF3B82F6), size: 20),
-                      tooltip: 'Ver productos comprados',
-                      onPressed: () => _mostrarDetalleItems(context, venta),
-                    ),
-                  ),
+        if (ventas.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inbox_outlined, size: 48, color: Color(0xFFCBD5E1)),
+                SizedBox(height: 8),
+                Text('No hay registros de venta en este período.', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
+              ],
+            ),
+          );
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: DataTable(
+                headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
+                dataRowMaxHeight: 56,
+                columns: const [
+                  DataColumn(label: Text('ID Venta', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
+                  DataColumn(label: Text('Fecha y Hora', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
+                  DataColumn(label: Text('Cédula Cliente', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
+                  DataColumn(label: Text('Cajero / Empleado', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
+                  DataColumn(label: Text('Método', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
+                  DataColumn(label: Text('Total', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
+                  DataColumn(label: Text('Acción', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
                 ],
-              );
-            }).toList(),
+                rows: ventas.map((venta) {
+                  final String horaFormatted = "${venta.fecha.hour.toString().padLeft(2, '0')}:${venta.fecha.minute.toString().padLeft(2, '0')}";
+                  final String fechaFormatted = "${venta.fecha.day}/${venta.fecha.month}/${venta.fecha.year}";
+
+                  return DataRow(
+                    cells: [
+                      DataCell(Text(venta.ventaIdString, style: const TextStyle(fontWeight: FontWeight.bold))),
+                      DataCell(Text('$fechaFormatted - $horaFormatted')),
+                      DataCell(Text(venta.cedulaCliente)),
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(6)),
+                          child: Text(venta.empleado, style: const TextStyle(fontSize: 12, color: Color(0xFF0369A1), fontWeight: FontWeight.w600)),
+                        )
+                      ),
+                      DataCell(Text(venta.metodoPago)),
+                      DataCell(Text('\$${venta.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF059669)))),
+                      DataCell(
+                        IconButton(
+                          icon: const Icon(Icons.visibility, color: Color(0xFF3B82F6), size: 20),
+                          tooltip: 'Ver productos comprados',
+                          onPressed: () => _mostrarDetalleItems(context, venta),
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

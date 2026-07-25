@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/widgets.dart'; // 👈 Importante para WidgetsFlutterBinding
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -32,6 +33,8 @@ class TicketService {
     double impuesto = 0.0,
     double subtotal = 0.0,
   }) async {
+    WidgetsFlutterBinding.ensureInitialized();
+
     // 1. Mapear List<Map> a List<TicketItem>
     final listItems = items.map((item) {
       return TicketItem(
@@ -47,7 +50,7 @@ class TicketService {
         ? subtotal
         : listItems.fold(0.0, (sum, item) => sum + item.total);
 
-    // 3. Invocar el flujo nativo de PDF que ya construiste
+    // 3. Invocar el flujo nativo de PDF
     await generarYProcesarPdf(
       items: listItems,
       subtotal: subtotalCalculado,
@@ -59,7 +62,7 @@ class TicketService {
     );
   }
 
-  /// Diseña el PDF con formato de ticket térmico (80mm)
+  /// Diseña el PDF con formato de ticket térmico (80mm) y fuentes Unicode activas
   static Future<pw.Document> generarDocumento({
     required List<TicketItem> items,
     required double subtotal,
@@ -69,7 +72,14 @@ class TicketService {
     required double montoRecibido,
     required double vuelto,
   }) async {
+    // 🔑 ASEGURA LOS BINDINGS ANTES DE PEDIR FUENTES A GOOGLE/ROOTBUNDLE
+    WidgetsFlutterBinding.ensureInitialized();
+
     final pdf = pw.Document();
+
+    // Cargar fuentes con soporte dinámico de Unicode (Evita advertencias de Helvetica)
+    final fontRegular = await PdfGoogleFonts.robotoRegular();
+    final fontBold = await PdfGoogleFonts.robotoBold();
 
     // Formato estándar para impresoras térmicas de 80mm
     final pageFormat = PdfPageFormat.roll80.copyWith(
@@ -82,6 +92,11 @@ class TicketService {
     pdf.addPage(
       pw.Page(
         pageFormat: pageFormat,
+        // Inyectamos las fuentes al tema de la página
+        theme: pw.ThemeData.withFont(
+          base: fontRegular,
+          bold: fontBold,
+        ),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -91,9 +106,9 @@ class TicketService {
                 child: pw.Column(
                   children: [
                     pw.Text(
-                      'Nombre Editable',
+                      'Mi Negocio / Tienda',
                       style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold, fontSize: 14),
+                          fontWeight: pw.FontWeight.bold, fontSize: 12),
                     ),
                     pw.Text('Comprobante de Pago',
                         style: const pw.TextStyle(fontSize: 8)),
@@ -224,6 +239,9 @@ class TicketService {
     required double montoRecibido,
     required double vuelto,
   }) async {
+    // 🔑 TAMBIÉN ASEGURAMOS BINDINGS AQUÍ
+    WidgetsFlutterBinding.ensureInitialized();
+
     final pdf = await generarDocumento(
       items: items,
       subtotal: subtotal,
@@ -261,7 +279,6 @@ class TicketService {
       final file = File('$folderPath/$fileName');
       await file.writeAsBytes(bytes);
     } catch (e) {
-      // Evita interrupciones en la pantalla si el SO niega permisos de archivo
       print('Aviso: No se pudo respaldar el PDF en disco: $e');
     }
   }
