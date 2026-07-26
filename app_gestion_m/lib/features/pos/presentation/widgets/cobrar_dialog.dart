@@ -81,183 +81,189 @@ class _CobrarDialogState extends State<CobrarDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       backgroundColor: const Color(0xFFF3F4F6),
-      child: Container(
-        width: 420,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: SingleChildScrollView( // Evita overflow si aparece el teclado
+        child: Container(
+          width: 420,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Título (CORREGIDO: const aplicado a nivel de la lista)
+              const Row(
           children: [
-            // Título
-            Row(
-              children: const [
-                Icon(Icons.point_of_sale, size: 24, color: Color(0xFF10B981)),
-                SizedBox(width: 8),
-                Text(
-                  'Procesar Cobro',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF111827),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Tarjeta superior oscura
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  const Text(
-                    'TOTAL A PAGAR',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF94A3B8),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '\$${widget.totalAPagar.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF10B981),
-                    ),
-                  ),
-                ],
+            Icon(
+             Icons.point_of_sale,
+             size: 24,
+             color: Color(0xFF10B981),
+           ),
+           SizedBox(width: 8),
+           Text(
+             'Procesar Cobro',
+             style: TextStyle(
+               fontSize: 20,
+               fontWeight: FontWeight.bold,
+               color: Color(0xFF111827),
               ),
             ),
-            const SizedBox(height: 16),
+          ],
+        ),
+              const SizedBox(height: 16),
 
-            // Selector de Método de Pago
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: 'efectivo',
-                  label: Text('Efectivo'),
-                  icon: Icon(Icons.check, size: 16),
-                ),
-                ButtonSegment(
-                  value: 'tarjeta',
-                  label: Text('Tarjeta'),
-                  icon: Icon(Icons.credit_card, size: 16),
-                ),
-                ButtonSegment(
-                  value: 'pago_movil',
-                  label: Text('Pago Móvil'),
-                  icon: Icon(Icons.smartphone, size: 16),
-                ),
-              ],
-              selected: {_metodoPago},
-              onSelectionChanged: (Set<String> newSelection) {
-                setState(() {
-                  _metodoPago = newSelection.first;
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Campos de Efectivo
-            if (_metodoPago == 'efectivo') ...[
-              TextField(
-                controller: _montoRecibidoController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: 'Monto Recibido (\$)',
-                  prefixText: '\$ ',
-                  filled: true,
-                  fillColor: Colors.grey.shade200,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                ),
-                onChanged: (val) {
-                  setState(() {
-                    _montoRecibido = double.tryParse(val) ?? 0.0;
-                  });
-                },
-              ),
-              const SizedBox(height: 12),
-
-              // Banner dinámico (Naranja si falta pago / Verde si hay cambio suficiente)
+              // Tarjeta superior oscura
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
                 decoration: BoxDecoration(
-                  color: bannerBgColor,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: bannerBorderColor),
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
                   children: [
-                    Text(
-                      _montoInsuficiente ? 'Falta por Pagar:' : 'Vuelto / Cambio:',
+                    const Text(
+                      'TOTAL A PAGAR',
                       style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: bannerTextColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF94A3B8),
+                        letterSpacing: 0.5,
                       ),
                     ),
+                    const SizedBox(height: 4),
                     Text(
-                      _montoInsuficiente
-                          ? '\$${(widget.totalAPagar - _montoRecibido).toStringAsFixed(2)}'
-                          : '\$${_vuelto.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 18,
+                      '\$${widget.totalAPagar.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontSize: 32,
                         fontWeight: FontWeight.bold,
-                        color: bannerMontoColor,
+                        color: Color(0xFF10B981),
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
-            const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-            // Botones de acción inferiores
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(null),
-                  child: const Text(
-                    'CANCELAR',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
+              // Selector de Método de Pago
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'efectivo',
+                    label: Text('Efectivo'),
+                    icon: Icon(Icons.check, size: 16),
+                  ),
+                  ButtonSegment(
+                    value: 'tarjeta',
+                    label: Text('Tarjeta'),
+                    icon: Icon(Icons.credit_card, size: 16),
+                  ),
+                  ButtonSegment(
+                    value: 'pago_movil',
+                    label: Text('Pago Móvil'),
+                    icon: Icon(Icons.smartphone, size: 16),
+                  ),
+                ],
+                selected: {_metodoPago},
+                onSelectionChanged: (Set<String> newSelection) {
+                  setState(() {
+                    _metodoPago = newSelection.first;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Campos de Efectivo
+              if (_metodoPago == 'efectivo') ...[
+                TextField(
+                  controller: _montoRecibidoController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: 'Monto Recibido (\$)',
+                    prefixText: '\$ ',
+                    filled: true,
+                    fillColor: Colors.grey.shade200,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Colors.grey),
                     ),
                   ),
+                  onChanged: (val) {
+                    setState(() {
+                      _montoRecibido = double.tryParse(val) ?? 0.0;
+                    });
+                  },
                 ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _confirmarPago,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                const SizedBox(height: 12),
+
+                // Banner dinámico (Naranja si falta pago / Verde si hay cambio suficiente)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: bannerBgColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: bannerBorderColor),
                   ),
-                  child: const Text(
-                    'CONFIRMAR PAGO',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _montoInsuficiente ? 'Falta por Pagar:' : 'Vuelto / Cambio:',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: bannerTextColor,
+                        ),
+                      ),
+                      Text(
+                        _montoInsuficiente
+                            ? '\$${(widget.totalAPagar - _montoRecibido).toStringAsFixed(2)}'
+                            : '\$${_vuelto.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: bannerMontoColor,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
-            ),
-          ],
+              const SizedBox(height: 20),
+
+              // Botones de acción inferiores
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(null),
+                    child: const Text(
+                      'CANCELAR',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _confirmarPago,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                    child: const Text(
+                      'CONFIRMAR PAGO',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

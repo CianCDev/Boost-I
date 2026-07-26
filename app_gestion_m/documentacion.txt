@@ -1,0 +1,110 @@
+# 📄 Documentación Técnica: Módulo POS Desktop (app_gestion_m)
+> **Estado del Módulo:** Operativo / Libre de errores de activos e impresión  
+> **Fecha de Actualización:** 25 de julio de 2026  
+> **Tecnologías:** Flutter, Riverpod, Isar DB, Printing / PDF
+
+---
+
+## 🌳 1. Árbol de Navegación de la Aplicación
+
+lib/
+├── main.dart                             # Punto de entrada (WidgetsFlutterBinding.ensureInitialized)
+├── features/
+│   ├── pos/
+│   │   ├── presentation/
+│   │   │   ├── screens/
+│   │   │   │   └── pos_desktop_screen.dart   # Pantalla principal del POS Desktop (Caja 01)
+│   │   │   └── widgets/
+│   │   │       ├── cobro_dialog.dart         # Modal interactivo de cobro y pago
+│   │   │       ├── scale_visor_widget.dart   # Visor/Módulo de integración con Báscula
+│   │   │       └── cierre_caja_dialog.dart   # Modal de resumen y arqueo diario
+│   │   ├── services/
+│   │   │   └── ticket_service.dart       # Generación PDF / Impresión de ticket térmico 80mm
+│   │   └── providers/
+│   │       ├── pos_provider.dart         # Gestión del estado del carrito y operaciones POS
+│   │       └── sync_provider.dart        # Contador y estado de sincronización pendiente
+│   ├── sales/
+│   │   └── presentation/
+│   │       └── sales_history_screen.dart # Consulta de historial de ventas grabadas en Isar DB
+│   └── database/
+│       ├── isar_service.dart             # Inicialización y queries de la BD Local
+│       └── models/
+│           ├── producto_entity.dart      # Esquema de producto (código, precio, esPesado)
+│           └── venta_entity.dart         # Esquema de la transacción consumada
+
+---
+
+## 📂 2. Documentación por Archivo
+
+### 🟢 lib/features/pos/presentation/screens/pos_desktop_screen.dart
+**Descripción:** Pantalla principal optimizada para terminales de escritorio. Maneja escuchas por teclado físico, caja de búsqueda predictiva y tabla dinámicas de productos.
+
+#### 🔹 Variables de Estado y Útiles
+- `_searchController` (TextEditingController): Controla la entrada del buscador principal de productos.
+- `_searchFocusNode` (FocusNode): Nodo de foco para capturar atajos de teclado (F2).
+- `_ventasPendientesSync` (int): Contador visual de ventas almacenadas localmente pendientes de subir a la nube.
+
+#### 🔹 Funciones Clave
+- `_handleRawKeyEvent(RawKeyEvent event)`: Escucha atajos globales de hardware (F2: buscador, F12: cobro, ESC: limpiar carrito).
+- `_onProductSelected(ProductoEntity producto)`: Procesa la selección del buscador. Detecta si `esPesado` para solicitar pesaje o lo agrega directamente.
+
+---
+
+### 🟢 lib/features/pos/presentation/widgets/cobro_dialog.dart
+**Descripción:** Modal flotante interactivo invocado al presionar el botón Cobrar o la tecla F12.
+
+#### 🔹 Variables de Estado y Útiles
+- `_montoRecibidoController` (TextEditingController): Almacena el valor ingresado en efectivo para calcular el cambio.
+- `_metodoPagoSeleccionado` (String): Método seleccionado ('efectivo', 'tarjeta', 'transferencia').
+- `_cambioCalculado` (double): Propiedad derivada: `montoRecibido - totalVenta`.
+
+#### 🔹 Funciones Clave
+- `_procesarCobro()`: Valida efectivo, persiste la venta en Isar DB, reinicia el carrito e invoca `TicketService.imprimirTicketVenta`.
+
+---
+
+### 🟢 lib/features/pos/services/ticket_service.dart
+**Descripción:** Motor de diseño, maquetación e impresión de comprobantes en formato térmico (80mm) con soporte offline.
+
+#### 🔹 Variables y Modelos Útiles
+- `TicketItem` (Class): Modelo intermedio para traducir el mapa de la UI a los datos del PDF.
+- `pageFormat` (PdfPageFormat): Formato estandarizado de rollo térmico de 80mm (`PdfPageFormat.roll80`).
+
+#### 🔹 Funciones Clave
+- `imprimirTicketVenta(...)`: Adapter que mapea `List<Map<String, dynamic>>` hacia `List<TicketItem>` y llama al flujo de impresión.
+- `generarDocumento(...)`: Diseña la estructura visual del PDF usando `pw.Font.helvetica()`.
+- `generarYProcesarPdf(...)`: Asegura bindings, compila los bytes en memoria, genera la copia local en disco sin bloquear la UI y abre el diálogo de impresión.
+- `_guardarEnDiscoSilencioso(List<int> bytes)`: Tarea secundaria que escribe el archivo `.pdf` en `Documents/Tickets_POS`.
+
+---
+
+### 🟢 lib/features/pos/presentation/widgets/scale_visor_widget.dart
+**Descripción:** Componente visual para la lectura y gestión de productos vendidos por peso.
+
+#### 🔹 Variables de Estado y Útiles
+- `pesoActual` (double): Valor en vivo reflejado por la báscula.
+- `estilokg` (TextStyle): Formato visual estilizado de dígitos LCD.
+
+#### 🔹 Funciones Clave
+- `obtenerPesoEstable()`: Retorna el valor capturado tras confirmar estabilidad en el pesaje.
+
+---
+
+### 🟢 lib/features/pos/presentation/widgets/cierre_caja_dialog.dart
+**Descripción:** Modal de arqueo e informe de auditoría diaria para el cajero.
+
+#### 🔹 Variables de Estado y Útiles
+- `totalEfectivo` (double): Acumulado de ventas por efectivo.
+- `totalTarjeta` (double): Acumulado de ventas por tarjeta/punto.
+- `totalTransferencia` (double): Acumulado de ventas por transferencias/digital.
+
+#### 🔹 Funciones Clave
+- `_calcularTotalesDia()`: Consulta las ventas del día en Isar DB, agrupa importes por método de pago y genera el balance final.
+
+---
+
+## 🛠️ 3. Resumen de Correcciones Aplicadas (Ayer y Hoy)
+
+1. Eliminación del Crash AssetManifest.json: Cambio de `PdfGoogleFonts` a fuentes Unicode nativas TrueType (`pw.Font.helvetica()`).
+2. Aseguramiento de los Bindings de Flutter: Inserción de `WidgetsFlutterBinding.ensureInitialized()` al inicio del flujo de impresión.
+3. Corrección de Renderizado en RawAutocomplete: Inclusión de un widget `Material` transparente para corregir el error de Ink Splash / ListTile.

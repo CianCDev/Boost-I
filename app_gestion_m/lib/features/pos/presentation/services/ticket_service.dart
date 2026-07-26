@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'dart:developer' as developer; // 1. Agrega esta importación arriba de tu archivo
 
 // Modelo simple para definir los artículos del ticket
 class TicketItem {
@@ -107,7 +108,7 @@ class TicketService {
                   children: [
                     pw.Text(
                       'Mi Negocio / Tienda',
-                      style: pw.TextStyle(
+                      style: const pw.TextStyle(
                           fontWeight: pw.FontWeight.bold, fontSize: 12),
                     ),
                     pw.Text('Comprobante de Pago',
@@ -140,14 +141,14 @@ class TicketService {
                   pw.Expanded(
                     flex: 3,
                     child: pw.Text('Cant x Producto',
-                        style: pw.TextStyle(
+                        style: const pw.TextStyle(
                             fontWeight: pw.FontWeight.bold, fontSize: 8)),
                   ),
                   pw.Expanded(
                     flex: 1,
                     child: pw.Text('Total',
                         textAlign: pw.TextAlign.right,
-                        style: pw.TextStyle(
+                        style: const pw.TextStyle(
                             fontWeight: pw.FontWeight.bold, fontSize: 8)),
                   ),
                 ],
@@ -201,9 +202,13 @@ class TicketService {
               // Mensaje final
               pw.SizedBox(height: 10),
               pw.Center(
-                child: pw.Text('¡Gracias por su compra!',
-                    style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                child: pw.Text(
+                  '¡Gracias por su compra!',
+                  style: const pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 9,
+                  ),
+                ),
               ),
             ],
           );
@@ -274,12 +279,16 @@ class TicketService {
         await folder.create(recursive: true);
       }
 
-      final fileName =
-          'Ticket_${DateTime.now().millisecondsSinceEpoch}.pdf';
+     final fileName = 'Ticket_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final file = File('$folderPath/$fileName');
       await file.writeAsBytes(bytes);
     } catch (e) {
-      print('Aviso: No se pudo respaldar el PDF en disco: $e');
+      // 2. Reemplaza print() con developer.log()
+      developer.log(
+        'Aviso: No se pudo respaldar el PDF en disco',
+        name: 'PDF_BACKUP', // Una etiqueta para filtrar en consola
+        error: e,           // Le pasas el error nativamente
+      );
     }
   }
 }
