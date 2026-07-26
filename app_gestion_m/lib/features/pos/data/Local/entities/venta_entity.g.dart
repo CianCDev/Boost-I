@@ -58,13 +58,23 @@ const VentaEntitySchema = CollectionSchema(
       name: r'subtotal',
       type: IsarType.double,
     ),
-    r'total': PropertySchema(
+    r'tasaBcv': PropertySchema(
       id: 8,
+      name: r'tasaBcv',
+      type: IsarType.double,
+    ),
+    r'total': PropertySchema(
+      id: 9,
       name: r'total',
       type: IsarType.double,
     ),
+    r'totalBolivares': PropertySchema(
+      id: 10,
+      name: r'totalBolivares',
+      type: IsarType.double,
+    ),
     r'ventaIdString': PropertySchema(
-      id: 9,
+      id: 11,
       name: r'ventaIdString',
       type: IsarType.string,
     )
@@ -74,21 +84,7 @@ const VentaEntitySchema = CollectionSchema(
   deserialize: _ventaEntityDeserialize,
   deserializeProp: _ventaEntityDeserializeProp,
   idName: r'id',
-  indexes: {
-    r'ventaIdString': IndexSchema(
-      id: -5029406511403117777,
-      name: r'ventaIdString',
-      unique: true,
-      replace: true,
-      properties: [
-        IndexPropertySchema(
-          name: r'ventaIdString',
-          type: IndexType.hash,
-          caseSensitive: true,
-        )
-      ],
-    )
-  },
+  indexes: {},
   links: {},
   embeddedSchemas: {r'VentaItemEntity': VentaItemEntitySchema},
   getId: _ventaEntityGetId,
@@ -138,8 +134,10 @@ void _ventaEntitySerialize(
   writer.writeString(offsets[5], object.metodoPago);
   writer.writeBool(offsets[6], object.sincronizado);
   writer.writeDouble(offsets[7], object.subtotal);
-  writer.writeDouble(offsets[8], object.total);
-  writer.writeString(offsets[9], object.ventaIdString);
+  writer.writeDouble(offsets[8], object.tasaBcv);
+  writer.writeDouble(offsets[9], object.total);
+  writer.writeDouble(offsets[10], object.totalBolivares);
+  writer.writeString(offsets[11], object.ventaIdString);
 }
 
 VentaEntity _ventaEntityDeserialize(
@@ -164,8 +162,10 @@ VentaEntity _ventaEntityDeserialize(
   object.metodoPago = reader.readString(offsets[5]);
   object.sincronizado = reader.readBool(offsets[6]);
   object.subtotal = reader.readDouble(offsets[7]);
-  object.total = reader.readDouble(offsets[8]);
-  object.ventaIdString = reader.readString(offsets[9]);
+  object.tasaBcv = reader.readDouble(offsets[8]);
+  object.total = reader.readDouble(offsets[9]);
+  object.totalBolivares = reader.readDouble(offsets[10]);
+  object.ventaIdString = reader.readString(offsets[11]);
   return object;
 }
 
@@ -201,6 +201,10 @@ P _ventaEntityDeserializeProp<P>(
     case 8:
       return (reader.readDouble(offset)) as P;
     case 9:
+      return (reader.readDouble(offset)) as P;
+    case 10:
+      return (reader.readDouble(offset)) as P;
+    case 11:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -218,63 +222,6 @@ List<IsarLinkBase<dynamic>> _ventaEntityGetLinks(VentaEntity object) {
 void _ventaEntityAttach(
     IsarCollection<dynamic> col, Id id, VentaEntity object) {
   object.id = id;
-}
-
-extension VentaEntityByIndex on IsarCollection<VentaEntity> {
-  Future<VentaEntity?> getByVentaIdString(String ventaIdString) {
-    return getByIndex(r'ventaIdString', [ventaIdString]);
-  }
-
-  VentaEntity? getByVentaIdStringSync(String ventaIdString) {
-    return getByIndexSync(r'ventaIdString', [ventaIdString]);
-  }
-
-  Future<bool> deleteByVentaIdString(String ventaIdString) {
-    return deleteByIndex(r'ventaIdString', [ventaIdString]);
-  }
-
-  bool deleteByVentaIdStringSync(String ventaIdString) {
-    return deleteByIndexSync(r'ventaIdString', [ventaIdString]);
-  }
-
-  Future<List<VentaEntity?>> getAllByVentaIdString(
-      List<String> ventaIdStringValues) {
-    final values = ventaIdStringValues.map((e) => [e]).toList();
-    return getAllByIndex(r'ventaIdString', values);
-  }
-
-  List<VentaEntity?> getAllByVentaIdStringSync(
-      List<String> ventaIdStringValues) {
-    final values = ventaIdStringValues.map((e) => [e]).toList();
-    return getAllByIndexSync(r'ventaIdString', values);
-  }
-
-  Future<int> deleteAllByVentaIdString(List<String> ventaIdStringValues) {
-    final values = ventaIdStringValues.map((e) => [e]).toList();
-    return deleteAllByIndex(r'ventaIdString', values);
-  }
-
-  int deleteAllByVentaIdStringSync(List<String> ventaIdStringValues) {
-    final values = ventaIdStringValues.map((e) => [e]).toList();
-    return deleteAllByIndexSync(r'ventaIdString', values);
-  }
-
-  Future<Id> putByVentaIdString(VentaEntity object) {
-    return putByIndex(r'ventaIdString', object);
-  }
-
-  Id putByVentaIdStringSync(VentaEntity object, {bool saveLinks = true}) {
-    return putByIndexSync(r'ventaIdString', object, saveLinks: saveLinks);
-  }
-
-  Future<List<Id>> putAllByVentaIdString(List<VentaEntity> objects) {
-    return putAllByIndex(r'ventaIdString', objects);
-  }
-
-  List<Id> putAllByVentaIdStringSync(List<VentaEntity> objects,
-      {bool saveLinks = true}) {
-    return putAllByIndexSync(r'ventaIdString', objects, saveLinks: saveLinks);
-  }
 }
 
 extension VentaEntityQueryWhereSort
@@ -351,51 +298,6 @@ extension VentaEntityQueryWhere
         upper: upperId,
         includeUpper: includeUpper,
       ));
-    });
-  }
-
-  QueryBuilder<VentaEntity, VentaEntity, QAfterWhereClause>
-      ventaIdStringEqualTo(String ventaIdString) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IndexWhereClause.equalTo(
-        indexName: r'ventaIdString',
-        value: [ventaIdString],
-      ));
-    });
-  }
-
-  QueryBuilder<VentaEntity, VentaEntity, QAfterWhereClause>
-      ventaIdStringNotEqualTo(String ventaIdString) {
-    return QueryBuilder.apply(this, (query) {
-      if (query.whereSort == Sort.asc) {
-        return query
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'ventaIdString',
-              lower: [],
-              upper: [ventaIdString],
-              includeUpper: false,
-            ))
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'ventaIdString',
-              lower: [ventaIdString],
-              includeLower: false,
-              upper: [],
-            ));
-      } else {
-        return query
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'ventaIdString',
-              lower: [ventaIdString],
-              includeLower: false,
-              upper: [],
-            ))
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'ventaIdString',
-              lower: [],
-              upper: [ventaIdString],
-              includeUpper: false,
-            ));
-      }
     });
   }
 }
@@ -1142,6 +1044,69 @@ extension VentaEntityQueryFilter
     });
   }
 
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition> tasaBcvEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tasaBcv',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      tasaBcvGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'tasaBcv',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition> tasaBcvLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'tasaBcv',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition> tasaBcvBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'tasaBcv',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition> totalEqualTo(
     double value, {
     double epsilon = Query.epsilon,
@@ -1196,6 +1161,72 @@ extension VentaEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
         property: r'total',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      totalBolivaresEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'totalBolivares',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      totalBolivaresGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'totalBolivares',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      totalBolivaresLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'totalBolivares',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      totalBolivaresBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'totalBolivares',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -1443,6 +1474,18 @@ extension VentaEntityQuerySortBy
     });
   }
 
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> sortByTasaBcv() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tasaBcv', Sort.asc);
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> sortByTasaBcvDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tasaBcv', Sort.desc);
+    });
+  }
+
   QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> sortByTotal() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'total', Sort.asc);
@@ -1452,6 +1495,19 @@ extension VentaEntityQuerySortBy
   QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> sortByTotalDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'total', Sort.desc);
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> sortByTotalBolivares() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'totalBolivares', Sort.asc);
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy>
+      sortByTotalBolivaresDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'totalBolivares', Sort.desc);
     });
   }
 
@@ -1569,6 +1625,18 @@ extension VentaEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> thenByTasaBcv() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tasaBcv', Sort.asc);
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> thenByTasaBcvDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tasaBcv', Sort.desc);
+    });
+  }
+
   QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> thenByTotal() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'total', Sort.asc);
@@ -1578,6 +1646,19 @@ extension VentaEntityQuerySortThenBy
   QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> thenByTotalDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'total', Sort.desc);
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> thenByTotalBolivares() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'totalBolivares', Sort.asc);
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy>
+      thenByTotalBolivaresDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'totalBolivares', Sort.desc);
     });
   }
 
@@ -1643,9 +1724,21 @@ extension VentaEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<VentaEntity, VentaEntity, QDistinct> distinctByTasaBcv() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'tasaBcv');
+    });
+  }
+
   QueryBuilder<VentaEntity, VentaEntity, QDistinct> distinctByTotal() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'total');
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QDistinct> distinctByTotalBolivares() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'totalBolivares');
     });
   }
 
@@ -1715,9 +1808,21 @@ extension VentaEntityQueryProperty
     });
   }
 
+  QueryBuilder<VentaEntity, double, QQueryOperations> tasaBcvProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'tasaBcv');
+    });
+  }
+
   QueryBuilder<VentaEntity, double, QQueryOperations> totalProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'total');
+    });
+  }
+
+  QueryBuilder<VentaEntity, double, QQueryOperations> totalBolivaresProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'totalBolivares');
     });
   }
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../data/Local/entities/isar_service.dart';
-import '../../data/Local/entities/venta_entity.dart';
+import '../../data/local/entities/isar_service.dart';
+import '../../data/local/entities/venta_entity.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
   const SalesHistoryScreen({super.key});
@@ -9,93 +9,354 @@ class SalesHistoryScreen extends StatefulWidget {
   State<SalesHistoryScreen> createState() => _SalesHistoryScreenState();
 }
 
-class _SalesHistoryScreenState extends State<SalesHistoryScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   final IsarService _isarService = IsarService();
+
+  List<VentaEntity> _todasLasVentas = [];
+  List<VentaEntity> _ventasFiltradas = [];
+  bool _isLoading = true;
+
+  String _searchQuery = '';
+  String _metodoSeleccionado = 'Todos';
+  String _periodoSeleccionado = 'dia'; // 'dia', 'semana', 'mes', 'todos'
+
+  // Acumuladores de totales
+  double _totalUSD = 0.0;
+  double _totalBs = 0.0;
+
+  final List<String> _metodos = ['Todos', 'Efectivo', 'Tarjeta', 'Pago Móvil', 'Divisas'];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _cargarVentas();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  Future<void> _cargarVentas() async {
+    setState(() => _isLoading = true);
+    try {
+      final ventas = await _isarService.obtenerVentas();
+      ventas.sort((a, b) => b.fecha.compareTo(a.fecha));
+
+      if (mounted) {
+        _todasLasVentas = ventas;
+        _isLoading = false;
+        _aplicarFiltros();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar las ventas: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
-  // Modal para ver los productos comprados de una venta de Isar
-  void _mostrarDetalleItems(BuildContext context, VentaEntity venta) {
+  bool _perteneceAlPeriodo(DateTime fecha, String periodo) {
+    final now = DateTime.now();
+    switch (periodo) {
+      case 'dia':
+        return fecha.year == now.year &&
+            fecha.month == now.month &&
+            fecha.day == now.day;
+      case 'semana':
+        final inicioSemana = DateTime(now.year, now.month, now.day)
+            .subtract(Duration(days: now.weekday - 1));
+        return fecha.isAfter(inicioSemana) ||
+            (fecha.year == inicioSemana.year &&
+                fecha.month == inicioSemana.month &&
+                fecha.day == inicioSemana.day);
+      case 'mes':
+        return fecha.year == now.year && fecha.month == now.month;
+      case 'todos':
+      default:
+        return true;
+    }
+  }
+
+  void _aplicarFiltros() {
+    final filtradas = _todasLasVentas.where((venta) {
+      // 1. Filtro por Período de Tiempo
+      final coincidePeriodo = _perteneceAlPeriodo(venta.fecha, _periodoSeleccionado);
+
+      // 2. Filtro por Búsqueda (ID, Empleado, Cédula Cliente)
+      final query = _searchQuery.toLowerCase().trim();
+      final coincideId = venta.ventaIdString.toLowerCase().contains(query);
+      final coincideEmpleado = venta.empleado.toLowerCase().contains(query);
+      final coincideCliente = venta.cedulaCliente.toLowerCase().contains(query);
+      final coincideBusqueda = query.isEmpty || coincideId || coincideEmpleado || coincideCliente;
+
+      // 3. Filtro por Método de Pago
+      final coincideMetodo = _metodoSeleccionado == 'Todos' ||
+          venta.metodoPago.toLowerCase() == _metodoSeleccionado.toLowerCase();
+
+      return coincidePeriodo && coincideBusqueda && coincideMetodo;
+    }).toList();
+
+    // Acumulado en USD (Protegido contra NaN)
+    final acumuladoUSD = filtradas.fold<double>(
+      0.0,
+      (sum, v) => sum + (v.total.isNaN ? 0.0 : v.total),
+    );
+
+    // Acumulado en Bolívares (Protegido contra NaN y calculado de forma segura si la tasa o totalBolivares es inválido)
+    final acumuladoBs = filtradas.fold<double>(
+      0.0,
+      (sum, v) {
+        final double tasaValida = (v.tasaBcv.isNaN || v.tasaBcv <= 0) ? 0.0 : v.tasaBcv;
+        final double totalBsVenta = (v.totalBolivares.isNaN || v.totalBolivares <= 0)
+            ? (v.total * tasaValida)
+            : v.totalBolivares;
+        return sum + (totalBsVenta.isNaN ? 0.0 : totalBsVenta);
+      },
+    );
+
+    setState(() {
+      _ventasFiltradas = filtradas;
+      _totalUSD = acumuladoUSD;
+      _totalBs = acumuladoBs;
+    });
+  }
+
+  void _mostrarModalDetalleVenta(BuildContext context, VentaEntity venta) {
+    final String dia = venta.fecha.day.toString().padLeft(2, '0');
+    final String mes = venta.fecha.month.toString().padLeft(2, '0');
+    final String anio = venta.fecha.year.toString();
+    final String hora = venta.fecha.hour.toString().padLeft(2, '0');
+    final String min = venta.fecha.minute.toString().padLeft(2, '0');
+    final String fechaFormatted = '$dia/$mes/$anio - $hora:$min';
+
+    // Tasas y montos seguros para el detalle
+    final double tasaVentaValida = (venta.tasaBcv.isNaN || venta.tasaBcv <= 0) ? 0.0 : venta.tasaBcv;
+    final double totalBsVentaValido = (venta.totalBolivares.isNaN || venta.totalBolivares <= 0)
+        ? (venta.total * tasaVentaValida)
+        : venta.totalBolivares;
+
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
+        return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              const Icon(Icons.receipt_long, color: Color(0xFF10B981)),
-              const SizedBox(width: 8),
-              Text('Detalle de Venta #${venta.ventaIdString}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
-          ),
-          content: SizedBox(
-            width: 450,
+          child: Container(
+            width: 580,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
+            ),
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Cliente: ${venta.cedulaCliente}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      Text('Cajero: ${venta.empleado}', style: const TextStyle(color: Color(0xFF64748B), fontSize: 13)),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text('Productos Comprados:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF475569))),
-                const SizedBox(height: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 250),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: venta.items.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final item = venta.items[index];
-                      return ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(item.nombreProducto, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                        subtitle: Text('${item.cantidad} x \$${item.precioUnidad.toStringAsFixed(2)}'),
-                        trailing: Text('\$${item.subtotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A))),
-                      );
-                    },
-                  ),
-                ),
-                const Divider(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('TOTAL:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    Text('\$${venta.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF059669))),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.receipt_long, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Venta #${venta.ventaIdString}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            Text(
+                              fechaFormatted,
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Color(0xFF64748B)),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
                   ],
-                )
+                ),
+                const Divider(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _columnaDetalle('Cliente / Cédula', venta.cedulaCliente.isEmpty ? 'N/A' : venta.cedulaCliente),
+                      _columnaDetalle('Atendido por', venta.empleado),
+                      _columnaDetalle('Método de Pago', venta.metodoPago),
+                      _columnaDetalle(
+                        'Sincronización',
+                        venta.sincronizado ? 'Sincronizado' : 'Pendiente',
+                        colorValor: venta.sincronizado ? const Color(0xFF059669) : const Color(0xFFD97706),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Detalle de Productos',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Table(
+                        columnWidths: const {
+                          0: FlexColumnWidth(3),
+                          1: FlexColumnWidth(1),
+                          2: FlexColumnWidth(1.5),
+                          3: FlexColumnWidth(1.5),
+                        },
+                        children: [
+                          TableRow(
+                            decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
+                            children: [
+                              _celdaHeader('Producto'),
+                              _celdaHeader('Cant.'),
+                              _celdaHeader('Precio (\$)'),
+                              _celdaHeader('Subtotal (\$)'),
+                            ],
+                          ),
+                          ...venta.items.map((item) {
+                            return TableRow(
+                              children: [
+                                _celdaBody(item.nombreProducto, alignLeft: true),
+                                _celdaBody(item.cantidad.toStringAsFixed(item.cantidad % 1 == 0 ? 0 : 3)),
+                                _celdaBody('\$${item.precioUnidad.toStringAsFixed(2)}'),
+                                _celdaBody('\$${item.subtotal.toStringAsFixed(2)}', esBold: true),
+                              ],
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Subtotal USD:', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+                          Text('\$${venta.subtotal.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Impuesto (IVA USD):', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+                          Text('\$${venta.impuesto.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Tasa BCV del Momento:', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.bold)),
+                          Text('Bs. ${tasaVentaValida.toStringAsFixed(2)} / \$', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const Divider(color: Color(0xFF334155), height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('TOTAL USD:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                          Text('\$${venta.total.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF34D399), fontWeight: FontWeight.bold, fontSize: 17)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('TOTAL BS:', style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.bold, fontSize: 12)),
+                          Text('Bs. ${totalBsVentaValido.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 15)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cerrar'),
-            ),
-          ],
         );
       },
+    );
+  }
+
+  Widget _columnaDetalle(String titulo, String valor, {Color? colorValor}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(titulo, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+        const SizedBox(height: 2),
+        Text(
+          valor,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: colorValor ?? const Color(0xFF0F172A),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _celdaHeader(String texto) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: Text(
+        texto,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+      ),
+    );
+  }
+
+  Widget _celdaBody(String texto, {bool alignLeft = false, bool esBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: Text(
+        texto,
+        textAlign: alignLeft ? TextAlign.left : TextAlign.center,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: esBold ? FontWeight.bold : FontWeight.normal,
+          color: const Color(0xFF0F172A),
+        ),
+      ),
     );
   }
 
@@ -104,115 +365,365 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> with SingleTick
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Registro y Auditoría de Ventas (Local)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18)),
+        title: const Text(
+          'Historial de Transacciones',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         backgroundColor: const Color(0xFF0F172A),
         foregroundColor: Colors.white,
         elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: const Color(0xFF10B981),
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: const Color(0xFF94A3B8),
-          tabs: const [
-            Tab(text: 'DÍA ACTUAL', icon: Icon(Icons.today, size: 18)),
-            Tab(text: 'ÚLTIMA SEMANA', icon: Icon(Icons.date_range, size: 18)),
-            Tab(text: 'ÚLTIMO MES', icon: Icon(Icons.calendar_month, size: 18)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Actualizar Historial',
+            onPressed: _cargarVentas,
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  // PESTAÑAS DE FILTRO POR PERÍODO
+                  Row(
+                    children: [
+                      _botonPeriodo('dia', 'Hoy', Icons.today),
+                      const SizedBox(width: 8),
+                      _botonPeriodo('semana', 'Esta Semana', Icons.date_range),
+                      const SizedBox(width: 8),
+                      _botonPeriodo('mes', 'Este Mes', Icons.calendar_month),
+                      const SizedBox(width: 8),
+                      _botonPeriodo('todos', 'Todas', Icons.all_inclusive),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // TARJETAS DE RESUMEN (Ventas totales, USD acumulados, Bs. acumulados)
+                  Row(
+                    children: [
+                      _tarjetaResumen('Ventas', '${_ventasFiltradas.length}', Icons.receipt_long, const Color(0xFF3B82F6)),
+                      const SizedBox(width: 10),
+                      _tarjetaResumen('Total USD', '\$${_totalUSD.toStringAsFixed(2)}', Icons.attach_money, const Color(0xFF10B981)),
+                      const SizedBox(width: 10),
+                      _tarjetaResumen('Total Bs.', 'Bs. ${_totalBs.toStringAsFixed(2)}', Icons.currency_exchange, const Color(0xFF0284C7)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // BARRA DE BÚSQUEDA Y SELECCIÓN DE MÉTODO DE PAGO
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 40,
+                            child: TextField(
+                              onChanged: (val) {
+                                _searchQuery = val;
+                                _aplicarFiltros();
+                              },
+                              decoration: InputDecoration(
+                                hintText: 'Buscar por ID, Cédula o Empleado...',
+                                hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                                prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                                filled: true,
+                                fillColor: const Color(0xFFF8FAFC),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Row(
+                          children: [
+                            const Text(
+                              'Método: ',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF475569)),
+                            ),
+                            const SizedBox(width: 4),
+                            ..._metodos.map((metodo) {
+                              final bool esSeleccionado = _metodoSeleccionado == metodo;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 6.0),
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _metodoSeleccionado = metodo;
+                                    });
+                                    _aplicarFiltros();
+                                  },
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: esSeleccionado ? const Color(0xFF0F172A) : Colors.white,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: esSeleccionado ? const Color(0xFF0F172A) : const Color(0xFFCBD5E1),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      metodo,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: esSeleccionado ? FontWeight.bold : FontWeight.normal,
+                                        color: esSeleccionado ? Colors.white : const Color(0xFF475569),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // LISTA DE REGISTROS DE VENTAS
+                  Expanded(
+                    child: _ventasFiltradas.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No hay ventas registradas en el periodo seleccionado.',
+                              style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: _ventasFiltradas.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final venta = _ventasFiltradas[index];
+
+                              final String dia = venta.fecha.day.toString().padLeft(2, '0');
+                              final String mes = venta.fecha.month.toString().padLeft(2, '0');
+                              final String anio = venta.fecha.year.toString();
+                              final String hora = venta.fecha.hour.toString().padLeft(2, '0');
+                              final String min = venta.fecha.minute.toString().padLeft(2, '0');
+                              final String fechaFormatted = '$dia/$mes/$anio - $hora:$min';
+
+                              // Tasas y montos seguros para la tarjeta individual
+                              final double tasaVentaValida = (venta.tasaBcv.isNaN || venta.tasaBcv <= 0) ? 0.0 : venta.tasaBcv;
+                              final double totalBsVentaValido = (venta.totalBolivares.isNaN || venta.totalBolivares <= 0)
+                                  ? (venta.total * tasaVentaValida)
+                                  : venta.totalBolivares;
+
+                              return InkWell(
+                                onTap: () => _mostrarModalDetalleVenta(context, venta),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(
+                                          Icons.article_outlined,
+                                          color: Color(0xFF334155),
+                                          size: 22,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  'Venta #${venta.ventaIdString}',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 14,
+                                                    color: Color(0xFF0F172A),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                // Muestra la tasa BCV registrada de forma segura
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFE0F2FE),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                    border: Border.all(color: const Color(0xFFBAE6FD)),
+                                                  ),
+                                                  child: Text(
+                                                    'Tasa BCV: Bs. ${tasaVentaValida.toStringAsFixed(2)}',
+                                                    style: const TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Color(0xFF0369A1),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '$fechaFormatted • Atendido por: ${venta.empleado}',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Color(0xFF64748B),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFECFDF5),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          venta.metodoPago.toLowerCase(),
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF059669),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            '\$${venta.total.toStringAsFixed(2)}',
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF059669),
+                                            ),
+                                          ),
+                                          Text(
+                                            'Bs. ${totalBsVentaValido.toStringAsFixed(2)}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF0284C7),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Icon(
+                                        Icons.chevron_right,
+                                        color: Color(0xFFCBD5E1),
+                                        size: 20,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _botonPeriodo(String clave, String titulo, IconData icono) {
+    final bool seleccionado = _periodoSeleccionado == clave;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _periodoSeleccionado = clave;
+        });
+        _aplicarFiltros();
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: seleccionado ? const Color(0xFF0F172A) : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: seleccionado ? const Color(0xFF0F172A) : const Color(0xFFCBD5E1),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icono, size: 15, color: seleccionado ? Colors.white : const Color(0xFF475569)),
+            const SizedBox(width: 6),
+            Text(
+              titulo,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: seleccionado ? FontWeight.bold : FontWeight.normal,
+                color: seleccionado ? Colors.white : const Color(0xFF475569),
+              ),
+            ),
           ],
         ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildPestanaVentas('dia'),
-          _buildPestanaVentas('semana'),
-          _buildPestanaVentas('mes'),
-        ],
       ),
     );
   }
 
-  Widget _buildPestanaVentas(String periodo) {
-    return FutureBuilder<List<VentaEntity>>(
-      future: _isarService.obtenerVentasPorPeriodo(periodo),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)));
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error al cargar registros: ${snapshot.error}'));
-        }
-
-        final ventas = snapshot.data ?? [];
-
-        if (ventas.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+  Widget _tarjetaResumen(String titulo, String valor, IconData icono, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icono, color: color, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.inbox_outlined, size: 48, color: Color(0xFFCBD5E1)),
-                SizedBox(height: 8),
-                Text('No hay registros de venta en este período.', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14)),
+                Text(titulo, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                Text(
+                  valor,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                ),
               ],
             ),
-          );
-        }
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
-                dataRowMaxHeight: 56,
-                columns: const [
-                  DataColumn(label: Text('ID Venta', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-                  DataColumn(label: Text('Fecha y Hora', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-                  DataColumn(label: Text('Cédula Cliente', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-                  DataColumn(label: Text('Cajero / Empleado', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-                  DataColumn(label: Text('Método', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-                  DataColumn(label: Text('Total', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-                  DataColumn(label: Text('Acción', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569)))),
-                ],
-                rows: ventas.map((venta) {
-                  final String horaFormatted = "${venta.fecha.hour.toString().padLeft(2, '0')}:${venta.fecha.minute.toString().padLeft(2, '0')}";
-                  final String fechaFormatted = "${venta.fecha.day}/${venta.fecha.month}/${venta.fecha.year}";
-
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(venta.ventaIdString, style: const TextStyle(fontWeight: FontWeight.bold))),
-                      DataCell(Text('$fechaFormatted - $horaFormatted')),
-                      DataCell(Text(venta.cedulaCliente)),
-                      DataCell(
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(6)),
-                          child: Text(venta.empleado, style: const TextStyle(fontSize: 12, color: Color(0xFF0369A1), fontWeight: FontWeight.w600)),
-                        )
-                      ),
-                      DataCell(Text(venta.metodoPago)),
-                      DataCell(Text('\$${venta.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF059669)))),
-                      DataCell(
-                        IconButton(
-                          icon: const Icon(Icons.visibility, color: Color(0xFF3B82F6), size: 20),
-                          tooltip: 'Ver productos comprados',
-                          onPressed: () => _mostrarDetalleItems(context, venta),
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }

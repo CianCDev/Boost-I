@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../data/local/entities/isar_service.dart';
 import '../../data/local/entities/producto_entity.dart';
 import '../../data/local/entities/venta_entity.dart';
@@ -57,11 +58,11 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
     } catch (e, stackTrace) {
       debugPrint('Error al cargar productos desde Isar: $e\n$stackTrace');
       if (mounted) {
-    setState(() => _isLoading = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Error al cargar inventario: $e'),
-        backgroundColor: Colors.red,
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar inventario: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       }
@@ -88,7 +89,10 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
   void _agregarAlCarrito(ProductoEntity producto, double cantidad) {
     if (producto.stock < cantidad && !producto.esPesado) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Stock insuficiente para agregar esta cantidad'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Stock insuficiente para agregar esta cantidad'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
       return;
     }
@@ -120,14 +124,19 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
   }
 
   void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
-    final TextEditingController cantidadController = TextEditingController(text: producto.esPesado ? '1.25' : '1');
+    final TextEditingController cantidadController = TextEditingController(
+      text: producto.esPesado ? '1.250' : '1',
+    );
 
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Cantidad para ${producto.nombre}'),
+          title: Text(
+            'Cantidad para ${producto.nombre}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,18 +144,35 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
               Text(
                 producto.esPesado 
                     ? 'Producto de Balanza (ingrese peso en kg):' 
-                    : 'Ingrese la cantidad deseada:',
+                    : 'Ingrese la cantidad deseada (unidades):',
                 style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               TextField(
                 controller: cantidadController,
                 autofocus: true,
                 keyboardType: TextInputType.numberWithOptions(decimal: producto.esPesado),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                    producto.esPesado
+                        ? RegExp(r'^\d*\.?\d{0,3}')
+                        : RegExp(r'^\d*'),
+                  ),
+                ],
+                onTap: () {
+                  cantidadController.selection = TextSelection(
+                    baseOffset: 0,
+                    extentOffset: cantidadController.text.length,
+                  );
+                },
                 decoration: InputDecoration(
                   labelText: 'Cantidad',
-                  suffixText: producto.esPesado ? 'Kg' : 'Unid',
-                  border: const OutlineInputBorder(),
+                  suffixText: producto.esPesado ? 'kg' : 'unid',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                  ),
                 ),
               ),
             ],
@@ -157,12 +183,13 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                 cantidadController.dispose();
                 Navigator.of(dialogContext).pop();
               },
-              child: const Text('Cancelar'),
+              child: const Text('Cancelar', style: TextStyle(color: Color(0xFF64748B))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF10B981),
                 foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () {
                 final double? cantidad = double.tryParse(cantidadController.text);
@@ -172,7 +199,7 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                 _agregarAlCarrito(producto, cantidad);
                 cantidadController.dispose();
               },
-              child: const Text('Agregar al Carrito'),
+              child: const Text('Agregar al Carrito', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -264,22 +291,45 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
         context: context,
         builder: (context) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 48),
+          title: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 54),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text('¡Venta Registrada Exitosamente!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              const SizedBox(height: 8),
-              Text('ID Venta: $ventaIdStr', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-              Text('Método: $metodoPago', style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
-              if (metodoPago == 'Efectivo')
-                Text('Cambio entregado: \$${cambio.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    Text('ID Venta: $ventaIdStr', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text('Método: $metodoPago', style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+                    if (metodoPago == 'Efectivo') ...[
+                      const SizedBox(height: 4),
+                      Text('Cambio entregado: \$${cambio.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, color: Color(0xFF059669), fontWeight: FontWeight.w600)),
+                    ],
+                  ],
+                ),
+              ),
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Aceptar'),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Aceptar y Continuar', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
             ),
           ],
         ),
@@ -311,6 +361,7 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
             tooltip: 'Actualizar Catálogo',
             onPressed: _cargarProductosDesdeIsar,
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: _isLoading
@@ -363,11 +414,11 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                                         fillColor: Colors.white,
                                         enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
+                                          borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1),
                                         ),
                                         focusedBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                                          borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
                                         ),
                                       ),
                                     );
@@ -673,43 +724,54 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                               : ListView.separated(
                                   padding: const EdgeInsets.all(12),
                                   itemCount: _carrito.length,
-                                  separatorBuilder: (_, __) => const Divider(height: 12),
+                                  separatorBuilder: (_, __) => const SizedBox(height: 8),
                                   itemBuilder: (context, index) {
                                     final item = _carrito[index];
                                     final bool esPesado = item['esPesado'] ?? false;
                                     final String unidad = esPesado ? 'kg' : 'unid';
+                                    final double cantidad = (item['cantidad'] as num).toDouble();
 
-                                    return Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                item['nombre'],
-                                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                '${item['cantidad']} $unidad x \$${(item['precio'] as double).toStringAsFixed(2)}',
-                                                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                                              ),
-                                            ],
+                                    return Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF8FAFC),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item['nombre'],
+                                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '${cantidad.toStringAsFixed(esPesado ? 3 : 0)} $unidad x \$${(item['precio'] as double).toStringAsFixed(2)}',
+                                                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                                ),
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                        Text(
-                                          '\$${(item['subtotal'] as double).toStringAsFixed(2)}',
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.close, size: 16, color: Color(0xFFEF4444)),
-                                          onPressed: () => _eliminarDelCarrito(index),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                        ),
-                                      ],
+                                          Text(
+                                            '\$${(item['subtotal'] as double).toStringAsFixed(2)}',
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF059669)),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            icon: const Icon(Icons.close, size: 18, color: Color(0xFFEF4444)),
+                                            onPressed: () => _eliminarDelCarrito(index),
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                            tooltip: 'Eliminar ítem',
+                                          ),
+                                        ],
+                                      ),
                                     );
                                   },
                                 ),
@@ -730,7 +792,7 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                                   const Text('TOTAL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF64748B))),
                                   Text(
                                     '\$${_totalCarrito.toStringAsFixed(2)}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Color(0xFF059669)),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Color(0xFF059669)),
                                   ),
                                 ],
                               ),
@@ -742,11 +804,14 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF10B981),
                                     foregroundColor: Colors.white,
+                                    disabledBackgroundColor: const Color(0xFFE2E8F0),
+                                    disabledForegroundColor: const Color(0xFF94A3B8),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    elevation: 0,
                                   ),
                                   onPressed: _carrito.isEmpty ? null : () => _mostrarModalCobro(context),
                                   icon: const Icon(Icons.point_of_sale, size: 20),
-                                  label: const Text('COBRAR ORDEN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                  label: const Text('COBRAR ORDEN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                                 ),
                               ),
                             ],

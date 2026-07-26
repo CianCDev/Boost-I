@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../domain/models/product_item.dart';
 import '../controllers/cart_controller.dart';
+import '../providers/bcv_provider.dart';
 import '../services/ticket_service.dart';
 import '../widgets/cart_table_widget.dart';
 import '../widgets/cobrar_dialog.dart';
 import '../widgets/pos_summary_panel.dart';
 import '../widgets/scale_visor_widget.dart';
-import 'inventory_catalog_screen.dart';
-import 'sales_history_screen.dart';
+import 'sales_history_screen.dart' as sales_history_screen;
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
+import 'inventory_catalog_screen.dart';
+import 'inventory_screen.dart'; // Asegúrate de tener este import o la ruta correcta de tu pantalla de inventario
 
 class PosDesktopScreen extends ConsumerStatefulWidget {
   const PosDesktopScreen({super.key});
@@ -25,17 +28,16 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  // Instancia de nuestro servicio local Isar
   final IsarService _isarService = IsarService();
 
-  // Usuario activo en el POS
+  // Datos del empleado y turno actual
   final String _cajeroActual = "Yan Camacaro";
+  final String _turnoActual = "Turno Mañana (08:00 AM - 04:00 PM)";
 
-  // Cache local de productos para el autocompletado rápido
   List<ProductoEntity> _productosLocales = [];
-
-  // Cantidad de ventas pendientes de sincronizar
   int _ventasPendientesSync = 0;
+  bool _sincronizando = false;
+  final double _pesoBalanzaActual = 0.000;
 
   @override
   void initState() {
@@ -43,6 +45,10 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
     _cargarProductosAutocompletado();
     _actualizarContadorSync();
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(bcvProvider).actualizarTasa();
+    });
   }
 
   Future<void> _cargarProductosAutocompletado() async {
@@ -54,7 +60,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
-  /// Verifica cuántas ventas locales no se han subido aún
   Future<void> _actualizarContadorSync() async {
     final pendientes = await _isarService.obtenerVentasPendientesSync();
     if (mounted) {
@@ -64,8 +69,250 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
-  /// Procesa la adición de un ProductoEntity al carrito usando el estado de Riverpod
-  void _agregarProductoEntityAlCarrito(ProductoEntity producto) {
+  Future<void> _sincronizarVentas() async {
+    if (_ventasPendientesSync == 0 || _sincronizando) return;
+
+    setState(() => _sincronizando = true);
+    try {
+      final sincronizadas = await _isarService.sincronizarVentasConServidor();
+      await _actualizarContadorSync();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('¡$sincronizadas ventas sincronizadas exitosamente! 🎉'),
+            backgroundColor: const Color(0xFF10B981),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al sincronizar con el servidor: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _sincronizando = false);
+      }
+    }
+  }
+
+  /// Diálogo interactivo que muestra los productos con stock bajo (envía al Inventario)
+  Future<void> _mostrarDialogoStockBajo() async {
+    final productosBajos = await _isarService.obtenerProductosStockBajo();
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 28),
+              const SizedBox(width: 8),
+              Text(
+                'Alertas de Stock Bajo (${productosBajos.length})',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 500,
+            height: 350,
+            child: productosBajos.isEmpty
+                .asConditional(
+                  const Center(child: Text('¡Excelente! No hay productos con stock crítico.')),
+                  ListView.separated(
+                    itemCount: productosBajos.length,
+                    separatorBuilder: (_, __) => const Divider(),
+                    itemBuilder: (context, index) {
+                      final p = productosBajos[index];
+                      return ListTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Color(0xFFFEE2E2),
+                          child: Icon(Icons.inventory_2, color: Colors.red, size: 20),
+                        ),
+                        title: Text(p.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        subtitle: Text('Código: ${p.codigoBarras} | Proveedor: ${p.proveedorNombre.isEmpty ? "No asignado" : p.proveedorNombre}', style: const TextStyle(fontSize: 11)),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Text(
+                            'Stock: ${p.stock}',
+                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const InventoryScreen()),
+                );
+              },
+              child: const Text('Ir al Inventario'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Diálogo para simular el módulo de Gestión de Personal y Administradores
+  void _mostrarModuloGestionPersonal() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.admin_panel_settings, color: Color(0xFF3B82F6)),
+              SizedBox(width: 8),
+              Text('Gestión de Personal y Roles', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const SizedBox(
+            width: 450,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Aquí podrás administrar accesos del sistema POS:', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+                SizedBox(height: 12),
+                ListTile(
+                  leading: Icon(Icons.person_add, color: Color(0xFF10B981)),
+                  title: Text('Registrar Nuevo Cajero / Empleado'),
+                  subtitle: Text('Asignar claves y permisos operativos de caja.'),
+                ),
+                ListTile(
+                  leading: Icon(Icons.security, color: Color(0xFF8B5CF6)),
+                  title: Text('Usuarios Importantes y Administradores'),
+                  subtitle: Text('Configurar llaves maestras y permisos de anulación.'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+              onPressed: () {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Módulo de personal guardado correctamente.'), backgroundColor: Color(0xFF10B981)),
+                );
+              },
+              child: const Text('Guardar Cambios'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<double?> _solicitarPesoDialog(ProductoEntity producto) async {
+    final controller = TextEditingController(text: '1.000');
+    return showDialog<double>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              const Icon(Icons.scale, color: Color(0xFF3B82F6)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Ingresar Peso: ${producto.nombre}',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Precio por kg: \$${producto.precioUnidad.toStringAsFixed(2)}',
+                style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Peso en Kilogramos (kg)',
+                  suffixText: 'kg',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onSubmitted: (val) {
+                  final peso = double.tryParse(val);
+                  Navigator.of(context).pop(peso);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                final peso = double.tryParse(controller.text);
+                Navigator.of(context).pop(peso);
+              },
+              child: const Text('Aceptar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _agregarProductoEntityAlCarrito(ProductoEntity producto) async {
+    double cantidad = 1.0;
+
+    if (producto.esPesado) {
+      if (_pesoBalanzaActual > 0) {
+        cantidad = _pesoBalanzaActual;
+      } else {
+        final pesoIngresado = await _solicitarPesoDialog(producto);
+        if (pesoIngresado == null || pesoIngresado <= 0) return;
+        cantidad = pesoIngresado;
+      }
+    }
+
     final productItem = ProductItem(
       id: producto.id.toString(),
       codigoBarras: producto.codigoBarras,
@@ -75,14 +322,16 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
       categoria: producto.categoria,
     );
 
-    final cantidad = productItem.esPesado ? 1.250 : 1.0;
-    ref.read(cartProvider.notifier).agregarProducto(productItem, cantidad: cantidad);
+    ref.read(cartProvider.notifier).agregarProducto(
+      productItem,
+      cantidad: cantidad,
+      stockMaximo: producto.stock,
+    );
 
     _searchController.clear();
     _enfocarBuscador();
   }
 
-  // Buscar producto en Isar por código de barras o coincidencia de nombre
   Future<void> _buscarYAgregarProducto(String query) async {
     if (query.trim().isEmpty) return;
 
@@ -99,7 +348,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
 
     if (productoEncontrado != null) {
-      _agregarProductoEntityAlCarrito(productoEncontrado);
+      await _agregarProductoEntityAlCarrito(productoEncontrado);
     } else {
       _searchController.clear();
       _enfocarBuscador();
@@ -144,8 +393,11 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
   Future<void> _abrirCobro() async {
     final cartState = ref.read(cartProvider);
     if (cartState.total <= 0) return;
+    double tasaActual = ref.read(bcvProvider).tasa;
+    if (tasaActual.isNaN || tasaActual <= 0) {
+      tasaActual = 0.0;
+    }
 
-    // 1. Abrimos CobrarDialog y esperamos el resultado
     final resultado = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
@@ -154,13 +406,12 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
       ),
     );
 
-    // 2. Procesar venta si fue confirmada
     if (resultado != null && resultado['procesado'] == true && mounted) {
       try {
         final String ventaIdStr = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
         final DateTime ahora = DateTime.now();
+        final double totalBsCalculado = cartState.total * tasaActual;
 
-        // Mapear los productos para Isar (VentaItemEntity)
         final itemsIsar = cartState.items.map((cartItem) {
           return VentaItemEntity()
             ..nombreProducto = cartItem.producto.nombre
@@ -169,26 +420,24 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             ..subtotal = cartItem.producto.precioUnidad * cartItem.cantidad.toDouble();
         }).toList();
 
-        // Crear la entidad de Isar
         final nuevaVentaEntity = VentaEntity()
           ..ventaIdString = ventaIdStr
           ..fecha = ahora
           ..total = cartState.total
           ..subtotal = cartState.subtotal
           ..impuesto = cartState.impuesto
+          ..tasaBcv = tasaActual
+          ..totalBolivares = totalBsCalculado
           ..metodoPago = resultado['metodoPago'] ?? 'Efectivo'
           ..cedulaCliente = resultado['cedulaCliente'] ?? 'V-00000000'
           ..empleado = _cajeroActual
           ..items = itemsIsar
           ..sincronizado = false;
 
-        // Guardar en Isar
         await _isarService.guardarVenta(nuevaVentaEntity);
-        
-        // Actualizar el contador de pendientes para la UI
         await _actualizarContadorSync();
+        await _cargarProductosAutocompletado();
 
-        // Adaptar items para el servicio de impresión de ticket PDF
         final ticketItems = cartState.items.map((cartItem) {
           return TicketItem(
             nombre: cartItem.producto.nombre,
@@ -198,7 +447,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           );
         }).toList();
 
-        // Emitir e imprimir PDF
         await TicketService.generarYProcesarPdf(
           items: ticketItems,
           subtotal: cartState.subtotal,
@@ -209,14 +457,13 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           vuelto: resultado['vuelto'],
         );
 
-        // Limpiar carrito
         ref.read(cartProvider.notifier).limpiarCarrito();
         _enfocarBuscador();
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('¡Venta realizada con éxito y guardada localmente! 🎉'),
+              content: Text('¡Venta registrada con éxito con tasa BCV e importe en Bs.! 🎉'),
               backgroundColor: Color(0xFF10B981),
             ),
           );
@@ -234,9 +481,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
-  // ===========================================================================
-  // MODAL DE CIERRE DE CAJA
-  // ===========================================================================
   void _mostrarDialogoCaja(BuildContext context) {
     showDialog(
       context: context,
@@ -348,7 +592,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                     Navigator.of(context).pop();
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) => const SalesHistoryScreen(),
+                        builder: (context) => const sales_history_screen.SalesHistoryScreen(),
                       ),
                     );
                   },
@@ -387,56 +631,140 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
   @override
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
+    final bcvController = ref.watch(bcvProvider);
+    final double tasaBcv = bcvController.tasa;
+    final bool cargandoBcv = bcvController.cargando;
+    final double totalBs = cartState.total * tasaBcv;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('app_gestion_m — POS Caja 01'),
         actions: [
-          // ☁️ Indicador visual de Sincronización
+          // 1. TASA BCV
           Tooltip(
-            message: _ventasPendientesSync == 0
-                ? 'Sincronizado con el servidor'
-                : '$_ventasPendientesSync ventas pendientes por sincronizar',
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: _ventasPendientesSync == 0
-                    ? const Color(0xFFECFDF5)
-                    : const Color(0xFFFFFBEB),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: _ventasPendientesSync == 0
-                      ? const Color(0xFFA7F3D0)
-                      : const Color(0xFFFDE68A),
+            message: 'Tasa oficial BCV (Haz clic para actualizar)',
+            child: InkWell(
+              onTap: () => ref.read(bcvProvider).actualizarTasa(),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFCBD5E1)),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _ventasPendientesSync == 0
-                        ? Icons.cloud_done_outlined
-                        : Icons.cloud_upload_outlined,
-                    size: 18,
-                    color: _ventasPendientesSync == 0
-                        ? const Color(0xFF059669)
-                        : const Color(0xFFD97706),
-                  ),
-                  if (_ventasPendientesSync > 0) ...[
+                child: Row(
+                  children: [
+                    const Icon(Icons.currency_exchange, size: 16, color: Color(0xFF0F172A)),
                     const SizedBox(width: 6),
-                    Text(
-                      '$_ventasPendientesSync',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        color: Color(0xFFD97706),
-                      ),
-                    ),
+                    cargandoBcv
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                          )
+                        : Text(
+                            'BCV: Bs. ${tasaBcv.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
                   ],
-                ],
+                ),
               ),
             ),
           ),
+
+          // 2. SINCRONIZACIÓN
+          Tooltip(
+            message: _ventasPendientesSync == 0
+                ? 'Todo sincronizado con el servidor'
+                : '$_ventasPendientesSync ventas pendientes (Haz clic para sincronizar)',
+            child: InkWell(
+              onTap: _sincronizarVentas,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: _ventasPendientesSync == 0 ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _ventasPendientesSync == 0 ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    _sincronizando
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD97706)),
+                          )
+                        : Icon(
+                            _ventasPendientesSync == 0 ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined,
+                            size: 18,
+                            color: _ventasPendientesSync == 0 ? const Color(0xFF059669) : const Color(0xFFD97706),
+                          ),
+                    if (_ventasPendientesSync > 0) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '$_ventasPendientesSync',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: Color(0xFFD97706),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // 3. BOTÓN DE STOCK BAJO CON CONTADOR DINÁMICO
+          FutureBuilder<List<ProductoEntity>>(
+            future: _isarService.obtenerProductosStockBajo(),
+            builder: (context, snapshot) {
+              final stockBajoCount = snapshot.data?.length ?? 0;
+              return Tooltip(
+                message: stockBajoCount == 0 ? 'Inventario en niveles óptimos' : '¡Atención! $stockBajoCount productos con stock bajo',
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.warning_amber_rounded),
+                      color: stockBajoCount > 0 ? Colors.amberAccent : Colors.white70,
+                      onPressed: _mostrarDialogoStockBajo,
+                    ),
+                    if (stockBajoCount > 0)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          child: Text(
+                            '$stockBajoCount',
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+
           IconButton(
             icon: const Icon(Icons.point_of_sale),
             tooltip: 'Ver Resumen de Caja',
@@ -445,12 +773,11 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           IconButton(
             icon: const Icon(Icons.inventory_2_outlined),
             tooltip: 'Ver Catálogo de Inventario',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const InventoryCatalogScreen(),
-                ),
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const InventoryCatalogScreen()),
               );
+              _cargarProductosAutocompletado();
             },
           ),
           IconButton(
@@ -460,6 +787,64 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               _enfocarBuscador();
             },
             tooltip: 'Reiniciar Venta (Esc)',
+          ),
+          
+          const VerticalDivider(color: Colors.white24, indent: 12, endIndent: 12, width: 20),
+
+          // 4. MENÚ DESPLEGABLE DE EMPLEADO, TURNO Y GESTIÓN DE USUARIOS / ADMINISTRADORES
+          PopupMenuButton<String>(
+            tooltip: 'Opciones de Cuenta y Turno',
+            icon: const CircleAvatar(
+              backgroundColor: Color(0xFF3B82F6),
+              foregroundColor: Colors.white,
+              radius: 14,
+              child: Icon(Icons.person, size: 18),
+            ),
+            offset: const Offset(0, 50),
+            onSelected: (value) {
+              if (value == 'gestion_personal') {
+                _mostrarModuloGestionPersonal();
+              } else if (value == 'cerrar_sesion') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Sesión cerrada correctamente.'), backgroundColor: Colors.blueGrey),
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_cajeroActual, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 14)),
+                    const SizedBox(height: 2),
+                    Text(_turnoActual, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'gestion_personal',
+                child: Row(
+                  children: [
+                    Icon(Icons.admin_panel_settings_outlined, size: 18, color: Color(0xFF3B82F6)),
+                    SizedBox(width: 8),
+                    Text('Gestión de Personal y Admins', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'cerrar_sesion',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, size: 18, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Cerrar Sesión', style: TextStyle(fontSize: 13, color: Colors.red, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 8),
         ],
@@ -473,7 +858,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               flex: 3,
               child: Column(
                 children: [
-                  // AUTOCOMPLETADO INTEGRADO EN LA PANTALLA POS DESKTOP
                   RawAutocomplete<ProductoEntity>(
                     textEditingController: _searchController,
                     focusNode: _searchFocusNode,
@@ -582,8 +966,8 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  const ScaleVisorWidget(
-                    pesoActual: 0.000,
+                  ScaleVisorWidget(
+                    pesoActual: _pesoBalanzaActual,
                     estaConectada: true,
                   ),
                   const SizedBox(height: 12),
@@ -604,15 +988,63 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             const SizedBox(width: 16),
             Expanded(
               flex: 1,
-              child: PosSummaryPanel(
-                subtotal: cartState.subtotal,
-                impuesto: cartState.impuesto,
-                total: cartState.total,
-                onPagarPressed: _abrirCobro,
-                onLimpiarPressed: () {
-                  ref.read(cartProvider.notifier).limpiarCarrito();
-                  _enfocarBuscador();
-                },
+              child: Column(
+                children: [
+                  Expanded(
+                    child: PosSummaryPanel(
+                      subtotal: cartState.subtotal,
+                      impuesto: cartState.impuesto,
+                      total: cartState.total,
+                      onPagarPressed: _abrirCobro,
+                      onLimpiarPressed: () {
+                        ref.read(cartProvider.notifier).limpiarCarrito();
+                        _enfocarBuscador();
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F172A),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'TOTAL EN BOLÍVARES',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                            Text(
+                              'Tasa BCV aplicable',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          'Bs. ${totalBs.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF34D399),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -620,4 +1052,8 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
       ),
     );
   }
+}
+
+extension BoolExtension on bool {
+  T asConditional<T>(T onTrue, T onFalse) => this ? onTrue : onFalse;
 }

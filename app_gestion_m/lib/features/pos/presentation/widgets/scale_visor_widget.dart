@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+
 class ScaleVisorWidget extends StatelessWidget {
   final double pesoActual;
   final bool estaConectada;

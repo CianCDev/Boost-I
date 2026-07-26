@@ -2,27 +2,29 @@ import 'package:isar/isar.dart';
 
 part 'venta_entity.g.dart';
 
-
-@collection
+@Collection()
 class VentaEntity {
-  Id id = Isar.autoIncrement; // ID autoincremental
+  Id id = Isar.autoIncrement;
 
-  @Index(unique: true, replace: true)
-  late String ventaIdString; // ID de la venta, único y reemplazable
-
+  late String ventaIdString;
   late DateTime fecha;
   late double total;
   late double subtotal;
   late double impuesto;
+
+  // ⚠️ Agrega estas dos líneas que le faltan a la clase:
+  late double tasaBcv;
+  late double totalBolivares;
+
   late String metodoPago;
   late String cedulaCliente;
   late String empleado;
-  
-  late List<VentaItemEntity> items;
   late bool sincronizado;
+
+  List<VentaItemEntity> items = [];
 }
 
-@embedded
+@Embedded()
 class VentaItemEntity {
   late String nombreProducto;
   late double precioUnidad;

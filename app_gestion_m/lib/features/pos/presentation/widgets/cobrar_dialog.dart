@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class CobrarDialog extends StatefulWidget {
   final double totalAPagar;
@@ -89,25 +90,25 @@ class _CobrarDialogState extends State<CobrarDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Título (CORREGIDO: const aplicado a nivel de la lista)
+              // Título
               const Row(
-          children: [
-            Icon(
-             Icons.point_of_sale,
-             size: 24,
-             color: Color(0xFF10B981),
-           ),
-           SizedBox(width: 8),
-           Text(
-             'Procesar Cobro',
-             style: TextStyle(
-               fontSize: 20,
-               fontWeight: FontWeight.bold,
-               color: Color(0xFF111827),
+                children: [
+                  Icon(
+                    Icons.point_of_sale,
+                    size: 24,
+                    color: Color(0xFF10B981),
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Procesar Cobro',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
               const SizedBox(height: 16),
 
               // Tarjeta superior oscura
@@ -176,6 +177,19 @@ class _CobrarDialogState extends State<CobrarDialog> {
                 TextField(
                   controller: _montoRecibidoController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  // 🔒 RESTRICCIÓN DE SEGURIDAD: Solo números y un único decimal
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                  ],
+                  // ⚡ ACCESIBILIDAD: Auto-seleccionar texto al hacer clic
+                  onTap: () {
+                    _montoRecibidoController.selection = TextSelection(
+                      baseOffset: 0,
+                      extentOffset: _montoRecibidoController.text.length,
+                    );
+                  },
+                  // ⌨️ ACCESIBILIDAD: Confirmar pago al presionar ENTER
+                  onSubmitted: (_) => _confirmarPago(),
                   decoration: InputDecoration(
                     labelText: 'Monto Recibido (\$)',
                     prefixText: '\$ ',

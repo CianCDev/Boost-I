@@ -18,4 +18,9 @@ class ProductoEntity {
   late bool esPesado;
 
   late String categoria;
+
+  // Nuevos campos para Proveedor y Control de Alertas
+  String proveedorNombre = '';
+  String proveedorTelefono = '';
+  double stockMinimo = 5.0; // Límite por defecto para activar alerta de stock bajo
 }

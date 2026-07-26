@@ -42,9 +42,24 @@ const ProductoEntitySchema = CollectionSchema(
       name: r'precioUnidad',
       type: IsarType.double,
     ),
-    r'stock': PropertySchema(
+    r'proveedorNombre': PropertySchema(
       id: 5,
+      name: r'proveedorNombre',
+      type: IsarType.string,
+    ),
+    r'proveedorTelefono': PropertySchema(
+      id: 6,
+      name: r'proveedorTelefono',
+      type: IsarType.string,
+    ),
+    r'stock': PropertySchema(
+      id: 7,
       name: r'stock',
+      type: IsarType.double,
+    ),
+    r'stockMinimo': PropertySchema(
+      id: 8,
+      name: r'stockMinimo',
       type: IsarType.double,
     )
   },
@@ -85,6 +100,8 @@ int _productoEntityEstimateSize(
   bytesCount += 3 + object.categoria.length * 3;
   bytesCount += 3 + object.codigoBarras.length * 3;
   bytesCount += 3 + object.nombre.length * 3;
+  bytesCount += 3 + object.proveedorNombre.length * 3;
+  bytesCount += 3 + object.proveedorTelefono.length * 3;
   return bytesCount;
 }
 
@@ -99,7 +116,10 @@ void _productoEntitySerialize(
   writer.writeBool(offsets[2], object.esPesado);
   writer.writeString(offsets[3], object.nombre);
   writer.writeDouble(offsets[4], object.precioUnidad);
-  writer.writeDouble(offsets[5], object.stock);
+  writer.writeString(offsets[5], object.proveedorNombre);
+  writer.writeString(offsets[6], object.proveedorTelefono);
+  writer.writeDouble(offsets[7], object.stock);
+  writer.writeDouble(offsets[8], object.stockMinimo);
 }
 
 ProductoEntity _productoEntityDeserialize(
@@ -115,7 +135,10 @@ ProductoEntity _productoEntityDeserialize(
   object.id = id;
   object.nombre = reader.readString(offsets[3]);
   object.precioUnidad = reader.readDouble(offsets[4]);
-  object.stock = reader.readDouble(offsets[5]);
+  object.proveedorNombre = reader.readString(offsets[5]);
+  object.proveedorTelefono = reader.readString(offsets[6]);
+  object.stock = reader.readDouble(offsets[7]);
+  object.stockMinimo = reader.readDouble(offsets[8]);
   return object;
 }
 
@@ -137,6 +160,12 @@ P _productoEntityDeserializeProp<P>(
     case 4:
       return (reader.readDouble(offset)) as P;
     case 5:
+      return (reader.readString(offset)) as P;
+    case 6:
+      return (reader.readString(offset)) as P;
+    case 7:
+      return (reader.readDouble(offset)) as P;
+    case 8:
       return (reader.readDouble(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -881,6 +910,278 @@ extension ProductoEntityQueryFilter
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorNombreEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorNombreGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorNombreLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorNombreBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'proveedorNombre',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorNombreStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorNombreEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorNombreContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorNombreMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'proveedorNombre',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorNombreIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'proveedorNombre',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorNombreIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'proveedorNombre',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorTelefonoEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'proveedorTelefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorTelefonoGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'proveedorTelefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorTelefonoLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'proveedorTelefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorTelefonoBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'proveedorTelefono',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorTelefonoStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'proveedorTelefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorTelefonoEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'proveedorTelefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorTelefonoContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'proveedorTelefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorTelefonoMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'proveedorTelefono',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorTelefonoIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'proveedorTelefono',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorTelefonoIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'proveedorTelefono',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
       stockEqualTo(
     double value, {
     double epsilon = Query.epsilon,
@@ -937,6 +1238,72 @@ extension ProductoEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
         property: r'stock',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      stockMinimoEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'stockMinimo',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      stockMinimoGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'stockMinimo',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      stockMinimoLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'stockMinimo',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      stockMinimoBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'stockMinimo',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -1022,6 +1389,34 @@ extension ProductoEntityQuerySortBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByProveedorNombre() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorNombre', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByProveedorNombreDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorNombre', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByProveedorTelefono() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorTelefono', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByProveedorTelefonoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorTelefono', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> sortByStock() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'stock', Sort.asc);
@@ -1031,6 +1426,20 @@ extension ProductoEntityQuerySortBy
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> sortByStockDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'stock', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByStockMinimo() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockMinimo', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByStockMinimoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockMinimo', Sort.desc);
     });
   }
 }
@@ -1116,6 +1525,34 @@ extension ProductoEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByProveedorNombre() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorNombre', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByProveedorNombreDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorNombre', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByProveedorTelefono() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorTelefono', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByProveedorTelefonoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorTelefono', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> thenByStock() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'stock', Sort.asc);
@@ -1125,6 +1562,20 @@ extension ProductoEntityQuerySortThenBy
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> thenByStockDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'stock', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByStockMinimo() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockMinimo', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByStockMinimoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockMinimo', Sort.desc);
     });
   }
 }
@@ -1165,9 +1616,32 @@ extension ProductoEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByProveedorNombre({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'proveedorNombre',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByProveedorTelefono({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'proveedorTelefono',
+          caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QDistinct> distinctByStock() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'stock');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByStockMinimo() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'stockMinimo');
     });
   }
 }
@@ -1212,9 +1686,29 @@ extension ProductoEntityQueryProperty
     });
   }
 
+  QueryBuilder<ProductoEntity, String, QQueryOperations>
+      proveedorNombreProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'proveedorNombre');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, String, QQueryOperations>
+      proveedorTelefonoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'proveedorTelefono');
+    });
+  }
+
   QueryBuilder<ProductoEntity, double, QQueryOperations> stockProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'stock');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, double, QQueryOperations> stockMinimoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'stockMinimo');
     });
   }
 }
