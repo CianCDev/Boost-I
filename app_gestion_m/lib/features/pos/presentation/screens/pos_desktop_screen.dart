@@ -423,7 +423,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
         final nuevaVentaEntity = VentaEntity()
           ..ventaIdString = ventaIdStr
-          ..fecha = ahora.toUtc() // Guardar explícitamente en UTC en Isar
+          ..fecha = DateTime.now().toUtc() // Guardar explícitamente en UTC en Isar
           ..total = cartState.total
           ..subtotal = cartState.subtotal
           ..impuesto = cartState.impuesto
