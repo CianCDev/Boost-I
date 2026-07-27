@@ -16,7 +16,7 @@ await isarService.inicializarUsuarioAdminPorDefecto();
     url: 'https://moeedweiombdnssjrgai.supabase.co/rest/v1/', // URL Supabase
     publishableKey: 'sb_publishable_3u_VXY6GnKj6i0z1eerteA_9dVsym2K', // Clave pública de Supabase
   );
-
+//
   runApp(
     const ProviderScope(
       child: AppGestionM(),
