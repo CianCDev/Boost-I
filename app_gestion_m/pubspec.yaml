@@ -30,7 +30,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-#  Isar base de datos local para Flutter
+
+# Conexión con Supabase
+  supabase_flutter: ^2.8.0
+  # Isar base de datos local para Flutter
   isar: ^3.1.0+1
   isar_flutter_libs: ^3.1.0+1
   # Gestión de estado y red

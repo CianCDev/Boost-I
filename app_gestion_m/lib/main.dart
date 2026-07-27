@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/pos/presentation/screens/login_screen.dart'; // Asegúrate de que la ruta sea correcta
 import 'features/pos/data/Local/entities/isar_service.dart'; // Asegúrate de que la ruta sea correcta
+import 'package:supabase_flutter/supabase_flutter.dart'; // Importa Supabase
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,6 +10,12 @@ void main() async {
   
 final isarService = IsarService();
 await isarService.inicializarUsuarioAdminPorDefecto();
+
+// Inicializar Supabase con las credenciales de tu proyecto
+  await Supabase.initialize(
+    url: 'https://moeedweiombdnssjrgai.supabase.co/rest/v1/', // URL Supabase
+    publishableKey: 'sb_publishable_3u_VXY6GnKj6i0z1eerteA_9dVsym2K', // Clave pública de Supabase
+  );
 
   runApp(
     const ProviderScope(
