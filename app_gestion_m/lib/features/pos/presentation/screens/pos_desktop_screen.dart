@@ -18,6 +18,7 @@ import '../../data/Local/entities/usuario_entity.dart';
 import 'inventory_screen.dart';
 import 'inventory_catalog_screen.dart';
 import 'login_screen.dart';
+import '../providers/lock_provider.dart';
 
 class PosDesktopScreen extends ConsumerStatefulWidget {
   final UsuarioEntity usuarioActual;
@@ -48,10 +49,16 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
     _cargarProductosAutocompletado();
     _actualizarContadorSync();
+    _registrarEstadoUsuario('activo');
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(bcvProvider).actualizarTasa();
     });
+  }
+
+  /// Actualiza el estado operativo del usuario en Isar DB y Supabase
+  Future<void> _registrarEstadoUsuario(String estado) async {
+    await _isarService.actualizarEstadoUsuario(widget.usuarioActual.id, estado);
   }
 
   Future<void> _cargarProductosAutocompletado() async {
@@ -72,6 +79,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
+  /// Ejecuta la sincronización offline-first de ventas con Supabase
   Future<void> _sincronizarVentas() async {
     if (_ventasPendientesSync == 0 || _sincronizando) return;
 
@@ -83,7 +91,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('¡$sincronizadas ventas sincronizadas exitosamente! 🎉'),
+            content: Text('¡$sincronizadas ventas sincronizadas con Supabase exitosamente! 🎉'),
             backgroundColor: const Color(0xFF10B981),
           ),
         );
@@ -92,7 +100,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al sincronizar con el servidor: $e'),
+            content: Text('Error al sincronizar con Supabase: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -197,7 +205,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Aquí podrás administrar accesos del sistema POS:', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+                Text('Administración de accesos del sistema POS:', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
                 SizedBox(height: 12),
                 ListTile(
                   leading: Icon(Icons.person_add, color: Color(0xFF10B981)),
@@ -223,6 +231,226 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               },
               child: const Text('Guardar Cambios'),
             ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Módulo para que el usuario activo cambie su propio PIN
+  void _mostrarDialogoCambiarClave() {
+    final TextEditingController claveController = TextEditingController();
+    bool obscureText = true;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.lock_reset, color: Color(0xFF3B82F6)),
+                  SizedBox(width: 8),
+                  Text('Cambiar mi Clave', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Ingresa tu nuevo PIN de seguridad:',
+                    style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: claveController,
+                    obscureText: obscureText,
+                    keyboardType: TextInputType.number,
+                    maxLength: 4,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: 'Nuevo PIN (4 dígitos)',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      suffixIcon: IconButton(
+                        icon: Icon(obscureText ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () {
+                          setStateDialog(() => obscureText = !obscureText);
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+                  onPressed: () async {
+                    final nuevaClave = claveController.text.trim();
+                    if (nuevaClave.length < 4) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('El PIN debe tener 4 dígitos.')),
+                      );
+                      return;
+                    }
+
+                    try {
+                      // Llamamos a IsarService para guardar la nueva clave
+                      final exito = await _isarService.cambiarClaveUsuario(widget.usuarioActual.id, nuevaClave);
+
+                      if (context.mounted) {
+                        if (exito) {
+                          widget.usuarioActual.pin = nuevaClave; // Actualizar localmente para la sesión
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Clave actualizada correctamente.'), backgroundColor: Color(0xFF10B981)),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Error: No se encontró el usuario.'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Asegúrate de agregar cambiarClaveUsuario() en IsarService.'), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Guardar Nueva Clave'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Monitor de Cajeros conectado dinámicamente a la Base de Datos Isar DB
+  void _mostrarEstadoCajeros(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.monitor_heart_outlined, color: Color(0xFF3B82F6), size: 28),
+              SizedBox(width: 10),
+              Text('Monitor de Cajeros', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: SizedBox(
+            width: 480,
+            height: 320,
+            child: FutureBuilder<List<UsuarioEntity>>(
+              future: _isarService.obtenerUsuarios(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Error al consultar usuarios locales: ${snapshot.error}',
+                      style: const TextStyle(color: Colors.red, fontSize: 13),
+                    ),
+                  );
+                }
+
+                final usuarios = snapshot.data ?? [];
+
+                if (usuarios.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No hay cajeros o usuarios registrados en la base de datos local.',
+                      style: TextStyle(color: Color(0xFF64748B)),
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  itemCount: usuarios.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final usuario = usuarios[index];
+                    
+                    Color colorEstado;
+                    IconData iconoEstado;
+                    String textoEstado;
+
+                    final estado = (usuario.estado ?? 'inactivo').toLowerCase();
+
+                    switch (estado) {
+                      case 'activo':
+                        colorEstado = const Color(0xFF10B981);
+                        iconoEstado = Icons.point_of_sale;
+                        textoEstado = 'Activo';
+                        break;
+                      case 'descanso':
+                      case 'manualrest':
+                        colorEstado = Colors.orange;
+                        iconoEstado = Icons.coffee;
+                        textoEstado = 'En Descanso';
+                        break;
+                      default:
+                        colorEstado = const Color(0xFF64748B);
+                        iconoEstado = Icons.power_off;
+                        textoEstado = 'Inactivo';
+                    }
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: colorEstado.withOpacity(0.15),
+                        child: Icon(iconoEstado, color: colorEstado, size: 20),
+                      ),
+                      title: Text(
+                        usuario.nombre,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        'Rol: ${usuario.rol.toUpperCase()} | Caja: ${usuario.cajaAsignada ?? "Caja Principal"}',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                      ),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: colorEstado.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: colorEstado.withOpacity(0.5)),
+                        ),
+                        child: Text(
+                          textoEstado,
+                          style: TextStyle(
+                            color: colorEstado,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Cerrar'),
@@ -408,8 +636,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     if (resultado != null && resultado['procesado'] == true && mounted) {
       try {
         final String ventaIdStr = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-        
-        // Obtenemos la hora actual del sistema
         final DateTime ahora = DateTime.now();
         final double totalBsCalculado = cartState.total * tasaActual;
 
@@ -423,6 +649,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
         final nuevaVentaEntity = VentaEntity()
           ..ventaIdString = ventaIdStr
+          ..fecha = ahora.toUtc()
           ..fecha = DateTime.now().toUtc() // Guardar explícitamente en UTC en Isar
           ..total = cartState.total
           ..subtotal = cartState.subtotal
@@ -456,7 +683,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           metodoPago: resultado['metodoPago'],
           montoRecibido: resultado['montoRecibido'],
           vuelto: resultado['vuelto'],
-          fechaVenta: ahora, // Enviamos la fecha exacta del momento
+          fechaVenta: ahora,
         );
 
         ref.read(cartProvider.notifier).limpiarCarrito();
@@ -684,6 +911,41 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               ),
             ),
           ),
+          if (widget.usuarioActual.rol == 'cajero')
+            IconButton(
+              icon: const Icon(Icons.coffee, color: Colors.orange),
+              tooltip: 'Tomar Descanso',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('¿Ir a descanso?'),
+                    content: const Text('La caja se bloqueará y requerirá un PIN para volver a ingresar.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancelar'),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          await _registrarEstadoUsuario('descanso');
+                          ref.read(lockProvider.notifier).manualRest();
+                        },
+                        child: const Text('Confirmar Descanso', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          if (widget.usuarioActual.rol == 'admin')
+            IconButton(
+              icon: const Icon(Icons.monitor_heart_outlined, color: Color(0xFF38BDF8)),
+              tooltip: 'Monitor de Cajeros',
+              onPressed: () => _mostrarEstadoCajeros(context),
+            ),
           Tooltip(
             message: _ventasPendientesSync == 0
                 ? 'Todo sincronizado con el servidor'
@@ -802,7 +1064,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               child: Icon(Icons.person, size: 18),
             ),
             offset: const Offset(0, 50),
-            onSelected: (value) {
+            onSelected: (value) async {
               if (value == 'gestion_personal') {
                 if (widget.usuarioActual.rol == 'admin') {
                   _mostrarModuloGestionPersonal();
@@ -811,11 +1073,16 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                     const SnackBar(content: Text('Acceso restringido solo a Administradores.'), backgroundColor: Colors.red),
                   );
                 }
+              } else if (value == 'cambiar_clave') {
+                _mostrarDialogoCambiarClave();
               } else if (value == 'cerrar_sesion') {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                  (route) => false,
-                );
+                await _registrarEstadoUsuario('inactivo');
+                if (mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    (route) => false,
+                  );
+                }
               }
             },
             itemBuilder: (context) => [
@@ -842,6 +1109,16 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                     ],
                   ),
                 ),
+              const PopupMenuItem(
+                value: 'cambiar_clave',
+                child: Row(
+                  children: [
+                    Icon(Icons.password, size: 18, color: Color(0xFF8B5CF6)),
+                    SizedBox(width: 8),
+                    Text('Cambiar mi Clave', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
               const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'cerrar_sesion',
