@@ -1,6 +1,6 @@
 import 'package:isar/isar.dart';
-import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/venta_entity.dart';
 
 class ResumenCorteCaja {
   final double totalVentas;

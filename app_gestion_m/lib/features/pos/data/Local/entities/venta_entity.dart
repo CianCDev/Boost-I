@@ -12,7 +12,6 @@ class VentaEntity {
   late double subtotal;
   late double impuesto;
 
-  // ⚠️ Agrega estas dos líneas que le faltan a la clase:
   late double tasaBcv;
   late double totalBolivares;
 
@@ -26,6 +25,9 @@ class VentaEntity {
 
 @Embedded()
 class VentaItemEntity {
+  // ⚠️ Este es el campo clave para evitar entidades fantasma y errores de stock
+  int? productoId;
+
   late String nombreProducto;
   late double precioUnidad;
   late double cantidad;

@@ -469,51 +469,17 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                               scrollDirection: Axis.horizontal,
                               child: Row(
                                 children: _categorias.map((cat) {
-                                  final bool esSeleccionada = _categoriaSeleccionada == cat;
-                                  final bool esStockBajo = cat == 'Stock Bajo';
                                   return Padding(
                                     padding: const EdgeInsets.only(right: 8.0),
-                                    child: InkWell(
+                                    child: _CategoryButton(
+                                      categoria: cat,
+                                      esSeleccionada: _categoriaSeleccionada == cat,
                                       onTap: () {
                                         setState(() {
                                           _categoriaSeleccionada = cat;
                                         });
                                         _filtrarProductos();
                                       },
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                        decoration: BoxDecoration(
-                                          color: esSeleccionada 
-                                              ? (esStockBajo ? Colors.red : const Color(0xFF10B981)) 
-                                              : Colors.white,
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(
-                                            color: esSeleccionada 
-                                                ? (esStockBajo ? Colors.red : const Color(0xFF10B981)) 
-                                                : const Color(0xFFCBD5E1),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            if (esStockBajo) ...[
-                                              const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.amberAccent),
-                                              const SizedBox(width: 4),
-                                            ] else if (esSeleccionada) ...[
-                                              const Icon(Icons.check, size: 14, color: Colors.white),
-                                              const SizedBox(width: 4),
-                                            ],
-                                            Text(
-                                              cat,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: esSeleccionada ? FontWeight.bold : FontWeight.normal,
-                                                color: esSeleccionada ? Colors.white : const Color(0xFF475569),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
                                     ),
                                   );
                                 }).toList(),
@@ -840,6 +806,86 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                 ),
               ],
             ),
+    );
+  }
+}
+
+/// Widget auxiliar para manejar el estado del Hover en los botones de categoría
+class _CategoryButton extends StatefulWidget {
+  final String categoria;
+  final bool esSeleccionada;
+  final VoidCallback onTap;
+
+  const _CategoryButton({
+    required this.categoria,
+    required this.esSeleccionada,
+    required this.onTap,
+  });
+
+  @override
+  State<_CategoryButton> createState() => _CategoryButtonState();
+}
+
+class _CategoryButtonState extends State<_CategoryButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool esStockBajo = widget.categoria == 'Stock Bajo';
+    
+    Color backgroundColor;
+    Color borderColor;
+    Color textColor;
+
+    if (widget.esSeleccionada) {
+      backgroundColor = esStockBajo ? Colors.red : const Color(0xFF10B981);
+      borderColor = backgroundColor;
+      textColor = Colors.white;
+    } else {
+      backgroundColor = _isHovered ? const Color(0xFFF1F5F9) : Colors.white;
+      borderColor = _isHovered ? const Color(0xFF94A3B8) : const Color(0xFFCBD5E1);
+      textColor = const Color(0xFF475569);
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (esStockBajo) ...[
+                Icon(
+                  Icons.warning_amber_rounded, 
+                  size: 14, 
+                  color: widget.esSeleccionada ? Colors.white : Colors.amberAccent,
+                ),
+                const SizedBox(width: 4),
+              ] else if (widget.esSeleccionada) ...[
+                const Icon(Icons.check, size: 14, color: Colors.white),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                widget.categoria,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: widget.esSeleccionada ? FontWeight.bold : FontWeight.normal,
+                  color: textColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

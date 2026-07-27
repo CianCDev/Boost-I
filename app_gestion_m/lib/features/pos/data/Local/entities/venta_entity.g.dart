@@ -1859,8 +1859,13 @@ const VentaItemEntitySchema = Schema(
       name: r'precioUnidad',
       type: IsarType.double,
     ),
-    r'subtotal': PropertySchema(
+    r'productoId': PropertySchema(
       id: 3,
+      name: r'productoId',
+      type: IsarType.long,
+    ),
+    r'subtotal': PropertySchema(
+      id: 4,
       name: r'subtotal',
       type: IsarType.double,
     )
@@ -1890,7 +1895,8 @@ void _ventaItemEntitySerialize(
   writer.writeDouble(offsets[0], object.cantidad);
   writer.writeString(offsets[1], object.nombreProducto);
   writer.writeDouble(offsets[2], object.precioUnidad);
-  writer.writeDouble(offsets[3], object.subtotal);
+  writer.writeLong(offsets[3], object.productoId);
+  writer.writeDouble(offsets[4], object.subtotal);
 }
 
 VentaItemEntity _ventaItemEntityDeserialize(
@@ -1903,7 +1909,8 @@ VentaItemEntity _ventaItemEntityDeserialize(
   object.cantidad = reader.readDouble(offsets[0]);
   object.nombreProducto = reader.readString(offsets[1]);
   object.precioUnidad = reader.readDouble(offsets[2]);
-  object.subtotal = reader.readDouble(offsets[3]);
+  object.productoId = reader.readLongOrNull(offsets[3]);
+  object.subtotal = reader.readDouble(offsets[4]);
   return object;
 }
 
@@ -1921,6 +1928,8 @@ P _ventaItemEntityDeserializeProp<P>(
     case 2:
       return (reader.readDouble(offset)) as P;
     case 3:
+      return (reader.readLongOrNull(offset)) as P;
+    case 4:
       return (reader.readDouble(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -2193,6 +2202,80 @@ extension VentaItemEntityQueryFilter
         upper: upper,
         includeUpper: includeUpper,
         epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaItemEntity, VentaItemEntity, QAfterFilterCondition>
+      productoIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'productoId',
+      ));
+    });
+  }
+
+  QueryBuilder<VentaItemEntity, VentaItemEntity, QAfterFilterCondition>
+      productoIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'productoId',
+      ));
+    });
+  }
+
+  QueryBuilder<VentaItemEntity, VentaItemEntity, QAfterFilterCondition>
+      productoIdEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'productoId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaItemEntity, VentaItemEntity, QAfterFilterCondition>
+      productoIdGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'productoId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaItemEntity, VentaItemEntity, QAfterFilterCondition>
+      productoIdLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'productoId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaItemEntity, VentaItemEntity, QAfterFilterCondition>
+      productoIdBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'productoId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
       ));
     });
   }

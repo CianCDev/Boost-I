@@ -18,7 +18,18 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
 
   String _searchQuery = '';
   String _metodoSeleccionado = 'Todos';
-  String _periodoSeleccionado = 'dia'; // 'dia', 'semana', 'mes', 'todos'
+  String _periodoSeleccionado = 'dia'; // 'dia', 'semana', 'mes', 'anio', 'todos'
+
+  // Variables para el filtro de Mes específico
+  String _mesSeleccionadoDropdown = 'Actual';
+  final List<String> _listaMesesDropdown = [
+    'Actual', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+
+  // Variables para el filtro de Año dinámico (desde el inicio del programa)
+  int _anioSeleccionadoDropdown = DateTime.now().year;
+  List<int> _listaAniosDisponibles = [];
 
   // Acumuladores de totales
   double _totalUSD = 0.0;
@@ -38,8 +49,25 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       final ventas = await _isarService.obtenerVentas();
       ventas.sort((a, b) => b.fecha.compareTo(a.fecha));
 
+      // Calcular dinámicamente los años disponibles desde la primera venta registrada
+      int anioMinimo = DateTime.now().year;
+      if (ventas.isNotEmpty) {
+        // Usamos toLocal() para asegurar que el año de la primera venta corresponda a nuestra zona horaria
+        anioMinimo = ventas.map((v) => v.fecha.toLocal().year).reduce((a, b) => a < b ? a : b);
+      }
+      final int anioActual = DateTime.now().year;
+      
+      List<int> anios = [];
+      for (int i = anioActual; i >= anioMinimo; i--) {
+        anios.add(i);
+      }
+
       if (mounted) {
         _todasLasVentas = ventas;
+        _listaAniosDisponibles = anios;
+        if (!_listaAniosDisponibles.contains(_anioSeleccionadoDropdown)) {
+          _anioSeleccionadoDropdown = anioActual;
+        }
         _isLoading = false;
         _aplicarFiltros();
       }
@@ -58,20 +86,38 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
 
   bool _perteneceAlPeriodo(DateTime fecha, String periodo) {
     final now = DateTime.now();
+    
+    // 1. Forzar siempre a hora local para evitar el salto de día del UTC
+    final fechaLocal = fecha.toLocal();
+
+    // 2. Normalizar fechas (eliminar horas, minutos y segundos) para comparaciones exactas
+    final fechaDia = DateTime(fechaLocal.year, fechaLocal.month, fechaLocal.day);
+    final hoy = DateTime(now.year, now.month, now.day);
+
     switch (periodo) {
       case 'dia':
-        return fecha.year == now.year &&
-            fecha.month == now.month &&
-            fecha.day == now.day;
+        // Compara días exactos (00:00:00)
+        return fechaDia.isAtSameMomentAs(hoy);
+        
       case 'semana':
-        final inicioSemana = DateTime(now.year, now.month, now.day)
-            .subtract(Duration(days: now.weekday - 1));
-        return fecha.isAfter(inicioSemana) ||
-            (fecha.year == inicioSemana.year &&
-                fecha.month == inicioSemana.month &&
-                fecha.day == inicioSemana.day);
+        // Cálculo seguro de la semana usando fechas base
+        final inicioSemana = DateTime(hoy.year, hoy.month, hoy.day - (now.weekday - 1));
+        final finSemana = DateTime(inicioSemana.year, inicioSemana.month, inicioSemana.day + 6);
+        
+        return (fechaDia.isAtSameMomentAs(inicioSemana) || fechaDia.isAfter(inicioSemana)) &&
+               (fechaDia.isAtSameMomentAs(finSemana) || fechaDia.isBefore(finSemana));
+               
       case 'mes':
-        return fecha.year == now.year && fecha.month == now.month;
+        if (_mesSeleccionadoDropdown == 'Actual') {
+          return fechaLocal.year == now.year && fechaLocal.month == now.month;
+        } else {
+          final int indexMes = _listaMesesDropdown.indexOf(_mesSeleccionadoDropdown);
+          return fechaLocal.year == _anioSeleccionadoDropdown && fechaLocal.month == indexMes;
+        }
+        
+      case 'anio':
+        return fechaLocal.year == _anioSeleccionadoDropdown;
+        
       case 'todos':
       default:
         return true;
@@ -80,30 +126,25 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
 
   void _aplicarFiltros() {
     final filtradas = _todasLasVentas.where((venta) {
-      // 1. Filtro por Período de Tiempo
       final coincidePeriodo = _perteneceAlPeriodo(venta.fecha, _periodoSeleccionado);
 
-      // 2. Filtro por Búsqueda (ID, Empleado, Cédula Cliente)
       final query = _searchQuery.toLowerCase().trim();
       final coincideId = venta.ventaIdString.toLowerCase().contains(query);
       final coincideEmpleado = venta.empleado.toLowerCase().contains(query);
       final coincideCliente = venta.cedulaCliente.toLowerCase().contains(query);
       final coincideBusqueda = query.isEmpty || coincideId || coincideEmpleado || coincideCliente;
 
-      // 3. Filtro por Método de Pago
       final coincideMetodo = _metodoSeleccionado == 'Todos' ||
           venta.metodoPago.toLowerCase() == _metodoSeleccionado.toLowerCase();
 
       return coincidePeriodo && coincideBusqueda && coincideMetodo;
     }).toList();
 
-    // Acumulado en USD (Protegido contra NaN)
     final acumuladoUSD = filtradas.fold<double>(
       0.0,
       (sum, v) => sum + (v.total.isNaN ? 0.0 : v.total),
     );
 
-    // Acumulado en Bolívares (Protegido contra NaN y calculado de forma segura si la tasa o totalBolivares es inválido)
     final acumuladoBs = filtradas.fold<double>(
       0.0,
       (sum, v) {
@@ -123,14 +164,15 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   void _mostrarModalDetalleVenta(BuildContext context, VentaEntity venta) {
-    final String dia = venta.fecha.day.toString().padLeft(2, '0');
-    final String mes = venta.fecha.month.toString().padLeft(2, '0');
-    final String anio = venta.fecha.year.toString();
-    final String hora = venta.fecha.hour.toString().padLeft(2, '0');
-    final String min = venta.fecha.minute.toString().padLeft(2, '0');
+    // Pasar a hora local para mostrar la hora correcta en la interfaz
+    final fechaLocal = venta.fecha.toLocal();
+    final String dia = fechaLocal.day.toString().padLeft(2, '0');
+    final String mes = fechaLocal.month.toString().padLeft(2, '0');
+    final String anio = fechaLocal.year.toString();
+    final String hora = fechaLocal.hour.toString().padLeft(2, '0');
+    final String min = fechaLocal.minute.toString().padLeft(2, '0');
     final String fechaFormatted = '$dia/$mes/$anio - $hora:$min';
 
-    // Tasas y montos seguros para el detalle
     final double tasaVentaValida = (venta.tasaBcv.isNaN || venta.tasaBcv <= 0) ? 0.0 : venta.tasaBcv;
     final double totalBsVentaValido = (venta.totalBolivares.isNaN || venta.totalBolivares <= 0)
         ? (venta.total * tasaVentaValida)
@@ -387,21 +429,95 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  // PESTAÑAS DE FILTRO POR PERÍODO
-                  Row(
+                  // PESTAÑAS DE FILTRO POR PERÍODO Y SELECTORES DINÁMICOS (MES / AÑO)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _botonPeriodo('dia', 'Hoy', Icons.today),
-                      const SizedBox(width: 8),
-                      _botonPeriodo('semana', 'Esta Semana', Icons.date_range),
-                      const SizedBox(width: 8),
-                      _botonPeriodo('mes', 'Este Mes', Icons.calendar_month),
-                      const SizedBox(width: 8),
-                      _botonPeriodo('todos', 'Todas', Icons.all_inclusive),
+                      Row(
+                        children: [
+                          Expanded(child: _botonPeriodo('dia', 'Hoy', Icons.today)),
+                          const SizedBox(width: 4),
+                          Expanded(child: _botonPeriodo('semana', 'Semana', Icons.date_range)),
+                          const SizedBox(width: 4),
+                          Expanded(child: _botonPeriodo('mes', 'Mes', Icons.calendar_month)),
+                          const SizedBox(width: 4),
+                          Expanded(child: _botonPeriodo('anio', 'Año', Icons.calendar_today)),
+                          const SizedBox(width: 4),
+                          Expanded(child: _botonPeriodo('todos', 'Todas', Icons.all_inclusive)),
+                        ],
+                      ),
+                      if (_periodoSeleccionado == 'mes') ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          height: 40,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF10B981), width: 1.5),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              isExpanded: true,
+                              value: _mesSeleccionadoDropdown,
+                              icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981)),
+                              style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                              items: _listaMesesDropdown.map((mes) {
+                                return DropdownMenuItem(
+                                  value: mes,
+                                  child: Text(mes == 'Actual' ? 'Mes Actual (En curso)' : mes),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _mesSeleccionadoDropdown = val;
+                                  });
+                                  _aplicarFiltros();
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ] else if (_periodoSeleccionado == 'anio') ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          height: 40,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF10B981), width: 1.5),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<int>(
+                              isExpanded: true,
+                              value: _anioSeleccionadoDropdown,
+                              icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981)),
+                              style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                              items: _listaAniosDisponibles.map((anio) {
+                                return DropdownMenuItem(
+                                  value: anio,
+                                  child: Text('Año $anio${anio == DateTime.now().year ? ' (Actual)' : ''}'),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _anioSeleccionadoDropdown = val;
+                                  });
+                                  _aplicarFiltros();
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 12),
 
-                  // TARJETAS DE RESUMEN (Ventas totales, USD acumulados, Bs. acumulados)
+                  // TARJETAS DE RESUMEN
                   Row(
                     children: [
                       _tarjetaResumen('Ventas', '${_ventasFiltradas.length}', Icons.receipt_long, const Color(0xFF3B82F6)),
@@ -513,14 +629,15 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                             itemBuilder: (context, index) {
                               final venta = _ventasFiltradas[index];
 
-                              final String dia = venta.fecha.day.toString().padLeft(2, '0');
-                              final String mes = venta.fecha.month.toString().padLeft(2, '0');
-                              final String anio = venta.fecha.year.toString();
-                              final String hora = venta.fecha.hour.toString().padLeft(2, '0');
-                              final String min = venta.fecha.minute.toString().padLeft(2, '0');
+                              // Pasar a hora local para la lista principal también
+                              final fechaLocal = venta.fecha.toLocal();
+                              final String dia = fechaLocal.day.toString().padLeft(2, '0');
+                              final String mes = fechaLocal.month.toString().padLeft(2, '0');
+                              final String anio = fechaLocal.year.toString();
+                              final String hora = fechaLocal.hour.toString().padLeft(2, '0');
+                              final String min = fechaLocal.minute.toString().padLeft(2, '0');
                               final String fechaFormatted = '$dia/$mes/$anio - $hora:$min';
 
-                              // Tasas y montos seguros para la tarjeta individual
                               final double tasaVentaValida = (venta.tasaBcv.isNaN || venta.tasaBcv <= 0) ? 0.0 : venta.tasaBcv;
                               final double totalBsVentaValido = (venta.totalBolivares.isNaN || venta.totalBolivares <= 0)
                                   ? (venta.total * tasaVentaValida)
@@ -567,7 +684,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
-                                                // Muestra la tasa BCV registrada de forma segura
                                                 Container(
                                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                   decoration: BoxDecoration(
@@ -664,7 +780,8 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       },
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: seleccionado ? const Color(0xFF0F172A) : Colors.white,
           borderRadius: BorderRadius.circular(8),
@@ -674,15 +791,19 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icono, size: 15, color: seleccionado ? Colors.white : const Color(0xFF475569)),
-            const SizedBox(width: 6),
-            Text(
-              titulo,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: seleccionado ? FontWeight.bold : FontWeight.normal,
-                color: seleccionado ? Colors.white : const Color(0xFF475569),
+            Icon(icono, size: 13, color: seleccionado ? Colors.white : const Color(0xFF475569)),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                titulo,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: seleccionado ? FontWeight.bold : FontWeight.normal,
+                  color: seleccionado ? Colors.white : const Color(0xFF475569),
+                ),
               ),
             ),
           ],

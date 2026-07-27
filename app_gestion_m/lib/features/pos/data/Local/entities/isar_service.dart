@@ -37,7 +37,7 @@ class IsarService {
       [
         VentaEntitySchema, 
         ProductoEntitySchema,
-        UsuarioEntitySchema, // <-- ¡Añadido correctamente aquí!
+        UsuarioEntitySchema, 
       ],
       directory: dir.path,
       inspector: true,
@@ -115,16 +115,24 @@ class IsarService {
 
   // ==================== GESTIÓN DE VENTAS ====================
   
-  /// Guarda la venta y descuenta automáticamente el stock de los productos
+  /// Guarda la venta y descuenta automáticamente el stock de los productos de forma segura
   Future<void> guardarVenta(VentaEntity venta) async {
     final isar = await db;
     await isar.writeTxn(() async {
       // 1. Guardar la venta
       await isar.ventaEntitys.put(venta);
 
-      // 2. Descontar el stock de los productos vendidos
+      // 2. Descontar el stock de los productos vendidos (Protegido contra entidades fantasma)
       for (var item in venta.items) {
-        final producto = await isar.productoEntitys
+        ProductoEntity? producto;
+
+        // Priorizar la búsqueda por ID único si está disponible en el item
+        if (item.productoId != null) {
+          producto = await isar.productoEntitys.get(item.productoId!);
+        }
+
+        // Respaldo de compatibilidad mediante nombre si el ID no está presente
+        producto ??= await isar.productoEntitys
             .filter()
             .nombreEqualTo(item.nombreProducto, caseSensitive: false)
             .findFirst();
@@ -160,9 +168,10 @@ class IsarService {
       return await isar.ventaEntitys.where().sortByFechaDesc().findAll();
     }
 
+    // Convertimos la fecha de inicio a UTC para realizar la consulta exacta en Isar
     return await isar.ventaEntitys
         .filter()
-        .fechaGreaterThan(fechaInicio, include: true)
+        .fechaGreaterThan(fechaInicio.toUtc(), include: true)
         .sortByFechaDesc()
         .findAll();
   }

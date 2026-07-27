@@ -408,6 +408,8 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     if (resultado != null && resultado['procesado'] == true && mounted) {
       try {
         final String ventaIdStr = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+        
+        // Obtenemos la hora actual del sistema
         final DateTime ahora = DateTime.now();
         final double totalBsCalculado = cartState.total * tasaActual;
 
@@ -421,7 +423,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
         final nuevaVentaEntity = VentaEntity()
           ..ventaIdString = ventaIdStr
-          ..fecha = ahora
+          ..fecha = ahora.toUtc() // Guardar explícitamente en UTC en Isar
           ..total = cartState.total
           ..subtotal = cartState.subtotal
           ..impuesto = cartState.impuesto
@@ -454,6 +456,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           metodoPago: resultado['metodoPago'],
           montoRecibido: resultado['montoRecibido'],
           vuelto: resultado['vuelto'],
+          fechaVenta: ahora, // Enviamos la fecha exacta del momento
         );
 
         ref.read(cartProvider.notifier).limpiarCarrito();
@@ -769,7 +772,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             tooltip: 'Ver Resumen de Caja y Turno',
             onPressed: () => _mostrarDialogoCaja(context),
           ),
-          // Botón para abrir el Catálogo Visual
           IconButton(
             icon: const Icon(Icons.inventory_2_outlined),
             tooltip: 'Abrir Catálogo Visual',
