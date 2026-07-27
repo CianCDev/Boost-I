@@ -1,35 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../data/local/entities/isar_service.dart';
-import '../../data/local/entities/producto_entity.dart';
-import '../../data/local/entities/venta_entity.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/producto_entity.dart';
+import '../../data/Local/entities/venta_entity.dart';
+import '../../data/Local/entities/usuario_entity.dart';
+import '../../domain/models/product_item.dart';
+import '../controllers/cart_controller.dart';
+import '../providers/bcv_provider.dart';
 import '../services/ticket_service.dart';
 import '../widgets/cobrar_dialog.dart';
 
-class InventoryCatalogScreen extends StatefulWidget {
-  const InventoryCatalogScreen({super.key});
+class InventoryCatalogScreen extends ConsumerStatefulWidget {
+  final UsuarioEntity? usuarioActual;
+  const InventoryCatalogScreen({super.key, this.usuarioActual});
 
   @override
-  State<InventoryCatalogScreen> createState() => _InventoryCatalogScreenState();
+  ConsumerState<InventoryCatalogScreen> createState() => _InventoryCatalogScreenState();
 }
 
-class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
+class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen> {
   final IsarService _isarService = IsarService();
 
   String _categoriaSeleccionada = 'Todas';
-  final List<String> _categorias = ['Todas', 'Frutas', 'Abarrotes', 'Lácteos', 'Bebidas'];
-  final List<Map<String, dynamic>> _carrito = [];
+  final List<String> _categorias = ['Todas', 'Frutas', 'Abarrotes', 'Lácteos', 'Bebidas', 'Stock Bajo'];
 
   List<ProductoEntity> _productosCatalog = [];
   List<ProductoEntity> _productosFiltrados = [];
   bool _isLoading = true;
 
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
     _inicializarPantalla();
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(bcvProvider).actualizarTasa();
+    });
   }
 
   Future<void> _inicializarPantalla() async {
@@ -38,8 +50,37 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_manejarTecladoFisico);
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  bool _manejarTecladoFisico(KeyEvent event) {
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.f2) {
+        _enfocarBuscador();
+        return true;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.f12) {
+        _mostrarModalCobro(context);
+        return true;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        ref.read(cartProvider.notifier).limpiarCarrito();
+        _enfocarBuscador();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _enfocarBuscador() {
+    _searchFocusNode.requestFocus();
+    _searchController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _searchController.text.length,
+    );
   }
 
   Future<void> _cargarProductosDesdeIsar() async {
@@ -69,17 +110,19 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
     }
   }
 
-  double get _totalCarrito {
-    return _carrito.fold(0.0, (suma, item) => suma + (item['subtotal'] as double));
-  }
-
   void _filtrarProductos() {
-    final query = _searchController.text.toLowerCase();
+    final query = _searchController.text.toLowerCase().trim();
     setState(() {
       _productosFiltrados = _productosCatalog.where((prod) {
         final coincideNombre = prod.nombre.toLowerCase().contains(query);
         final coincideCodigo = prod.codigoBarras.toLowerCase().contains(query);
-        final coincideCategoria = _categoriaSeleccionada == 'Todas' || prod.categoria == _categoriaSeleccionada;
+        
+        bool coincideCategoria = true;
+        if (_categoriaSeleccionada == 'Stock Bajo') {
+          coincideCategoria = prod.stock <= 10;
+        } else if (_categoriaSeleccionada != 'Todas') {
+          coincideCategoria = prod.categoria == _categoriaSeleccionada;
+        }
 
         return (coincideNombre || coincideCodigo) && coincideCategoria;
       }).toList();
@@ -97,35 +140,28 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
       return;
     }
 
-    setState(() {
-      final index = _carrito.indexWhere((item) => item['codigo'] == producto.codigoBarras);
+    final productItem = ProductItem(
+      id: producto.id.toString(),
+      codigoBarras: producto.codigoBarras,
+      nombre: producto.nombre,
+      precioUnidad: producto.precioUnidad,
+      esPesado: producto.esPesado,
+      categoria: producto.categoria,
+    );
 
-      if (index != -1) {
-        final nuevaCantidad = _carrito[index]['cantidad'] + cantidad;
-        _carrito[index]['cantidad'] = nuevaCantidad;
-        _carrito[index]['subtotal'] = nuevaCantidad * producto.precioUnidad;
-      } else {
-        _carrito.add({
-          'codigo': producto.codigoBarras,
-          'nombre': producto.nombre,
-          'precio': producto.precioUnidad,
-          'cantidad': cantidad,
-          'esPesado': producto.esPesado,
-          'subtotal': cantidad * producto.precioUnidad,
-        });
-      }
-    });
-  }
+    ref.read(cartProvider.notifier).agregarProducto(
+      productItem,
+      cantidad: cantidad,
+      stockMaximo: producto.stock,
+    );
 
-  void _eliminarDelCarrito(int index) {
-    setState(() {
-      _carrito.removeAt(index);
-    });
+    _searchController.clear();
+    _filtrarProductos();
   }
 
   void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
     final TextEditingController cantidadController = TextEditingController(
-      text: producto.esPesado ? '1.250' : '1',
+      text: producto.esPesado ? '1.000' : '1',
     );
 
     showDialog(
@@ -174,6 +210,13 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                     borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
                   ),
                 ),
+                onSubmitted: (val) {
+                  final double? cantidad = double.tryParse(val);
+                  if (cantidad != null && cantidad > 0) {
+                    Navigator.of(dialogContext).pop();
+                    _agregarAlCarrito(producto, cantidad);
+                  }
+                },
               ),
             ],
           ),
@@ -208,75 +251,77 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
   }
 
   Future<void> _mostrarModalCobro(BuildContext context) async {
-    if (_totalCarrito <= 0) return;
+    final cartState = ref.read(cartProvider);
+    if (cartState.total <= 0) return;
+
+    double tasaActual = ref.read(bcvProvider).tasa;
+    if (tasaActual.isNaN || tasaActual <= 0) tasaActual = 0.0;
 
     final resultado = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
       builder: (context) => CobrarDialog(
-        totalAPagar: _totalCarrito,
+        totalAPagar: cartState.total,
       ),
     );
 
     if (resultado != null && resultado['procesado'] == true && mounted) {
       final String metodoPago = resultado['metodoPago'] ?? 'Efectivo';
-      final double montoRecibido = resultado['montoRecibido'] ?? _totalCarrito;
+      final double montoRecibido = resultado['montoRecibido'] ?? cartState.total;
       final double cambio = resultado['vuelto'] ?? 0.0;
 
-      await _procesarYGuardarVentaIsar(metodoPago, cambio, montoRecibido);
+      await _procesarYGuardarVentaIsar(metodoPago, cambio, montoRecibido, tasaActual);
     }
   }
 
-  Future<void> _procesarYGuardarVentaIsar(String metodoPago, double cambio, double recibido) async {
+  Future<void> _procesarYGuardarVentaIsar(String metodoPago, double cambio, double recibido, double tasaActual) async {
     try {
+      final cartState = ref.read(cartProvider);
       final String ventaIdStr = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
       final DateTime ahora = DateTime.now();
-      final double subtotal = _totalCarrito / 1.16;
-      final double impuesto = _totalCarrito - subtotal;
+      final double totalBsCalculado = cartState.total * tasaActual;
 
-      final itemsIsar = _carrito.map((cartItem) {
+      final itemsIsar = cartState.items.map((cartItem) {
         return VentaItemEntity()
-          ..nombreProducto = cartItem['nombre']
-          ..precioUnidad = cartItem['precio']
-          ..cantidad = (cartItem['cantidad'] as num).toDouble()
-          ..subtotal = cartItem['subtotal'];
+          ..nombreProducto = cartItem.producto.nombre
+          ..precioUnidad = cartItem.producto.precioUnidad
+          ..cantidad = cartItem.cantidad.toDouble()
+          ..subtotal = cartItem.producto.precioUnidad * cartItem.cantidad.toDouble();
       }).toList();
 
       final nuevaVenta = VentaEntity()
         ..ventaIdString = ventaIdStr
         ..fecha = ahora
-        ..total = _totalCarrito
-        ..subtotal = subtotal
-        ..impuesto = impuesto
+        ..total = cartState.total
+        ..subtotal = cartState.subtotal
+        ..impuesto = cartState.impuesto
+        ..tasaBcv = tasaActual
+        ..totalBolivares = totalBsCalculado
         ..metodoPago = metodoPago
         ..cedulaCliente = 'V-00000000'
-        ..empleado = 'Administrador / Catálogo'
+        ..empleado = widget.usuarioActual?.nombre ?? 'Administrador / Catálogo'
         ..items = itemsIsar
         ..sincronizado = false;
 
       await _isarService.guardarVenta(nuevaVenta);
-
-      setState(() {
-        _carrito.clear();
-      });
-
+      ref.read(cartProvider.notifier).limpiarCarrito();
       await _cargarProductosDesdeIsar();
 
       try {
-        final ticketItems = itemsIsar.map((item) {
+        final ticketItems = cartState.items.map((item) {
           return TicketItem(
-            nombre: item.nombreProducto,
-            precio: item.precioUnidad,
-            cantidad: item.cantidad,
-            esPesado: false,
+            nombre: item.producto.nombre,
+            precio: item.producto.precioUnidad,
+            cantidad: item.cantidad.toDouble(),
+            esPesado: item.producto.esPesado,
           );
         }).toList();
 
         await TicketService.generarYProcesarPdf(
           items: ticketItems,
-          subtotal: subtotal,
-          impuesto: impuesto,
-          total: nuevaVenta.total,
+          subtotal: cartState.subtotal,
+          impuesto: cartState.impuesto,
+          total: cartState.total,
           metodoPago: metodoPago,
           montoRecibido: recibido,
           vuelto: cambio,
@@ -287,51 +332,10 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
 
       if (!mounted) return;
 
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 54),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('¡Venta Registrada Exitosamente!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Column(
-                  children: [
-                    Text('ID Venta: $ventaIdStr', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Text('Método: $metodoPago', style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
-                    if (metodoPago == 'Efectivo') ...[
-                      const SizedBox(height: 4),
-                      Text('Cambio entregado: \$${cambio.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, color: Color(0xFF059669), fontWeight: FontWeight.w600)),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Aceptar y Continuar', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('¡Venta registrada con éxito con tasa BCV e importe en Bs.! 🎉'),
+          backgroundColor: Color(0xFF10B981),
         ),
       );
     } catch (e) {
@@ -345,17 +349,60 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cartState = ref.watch(cartProvider);
+    final bcvController = ref.watch(bcvProvider);
+    final double tasaBcv = bcvController.tasa;
+    final bool cargandoBcv = bcvController.cargando;
+    final double totalBs = cartState.total * tasaBcv;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
-          'Catálogo de Inventario (Local Isar)',
+          'Catálogo de Inventario y POS (Isar)',
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         backgroundColor: const Color(0xFF0F172A),
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // Tasa BCV Widget
+          Tooltip(
+            message: 'Tasa oficial BCV (Haz clic para actualizar)',
+            child: InkWell(
+              onTap: () => ref.read(bcvProvider).actualizarTasa(),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFF334155)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.currency_exchange, size: 16, color: Color(0xFF38BDF8)),
+                    const SizedBox(width: 6),
+                    cargandoBcv
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                          )
+                        : Text(
+                            'BCV: Bs. ${tasaBcv.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Actualizar Catálogo',
@@ -375,145 +422,102 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       children: [
-                        // BARRA DE BÚSQUEDA CON AUTOCOMPLETADO
+                        // BARRA DE BÚSQUEDA Y CATEGORÍAS
                         Row(
                           children: [
                             Expanded(
                               child: SizedBox(
                                 height: 42,
-                                child: Autocomplete<ProductoEntity>(
-                                  displayStringForOption: (ProductoEntity option) => option.nombre,
-                                  optionsBuilder: (TextEditingValue textEditingValue) {
-                                    if (textEditingValue.text.isEmpty) {
-                                      return const Iterable<ProductoEntity>.empty();
-                                    }
-                                    final query = textEditingValue.text.toLowerCase();
-                                    return _productosCatalog.where((ProductoEntity option) {
-                                      final coincideNombre = option.nombre.toLowerCase().contains(query);
-                                      final coincideCodigo = option.codigoBarras.toLowerCase().contains(query);
-                                      return coincideNombre || coincideCodigo;
-                                    });
-                                  },
-                                  onSelected: (ProductoEntity selection) {
-                                    _mostrarModalCantidad(context, selection);
-                                  },
-                                  fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
-                                    return TextField(
-                                      controller: textEditingController,
-                                      focusNode: focusNode,
-                                      onChanged: (text) {
-                                        _searchController.text = text;
+                                child: TextField(
+                                  controller: _searchController,
+                                  focusNode: _searchFocusNode,
+                                  autofocus: true,
+                                  onChanged: (_) => _filtrarProductos(),
+                                  decoration: InputDecoration(
+                                    hintText: 'Buscar o escanear por nombre / código (F2)...',
+                                    hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                                    prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
+                                    suffixIcon: IconButton(
+                                      icon: const Icon(Icons.clear, size: 18),
+                                      onPressed: () {
+                                        _searchController.clear();
                                         _filtrarProductos();
                                       },
-                                      decoration: InputDecoration(
-                                        hintText: 'Buscar o escanear por nombre / código...',
-                                        hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-                                        prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
-                                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                                        filled: true,
-                                        fillColor: Colors.white,
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  optionsViewBuilder: (context, onSelected, options) {
-                                    return Align(
-                                      alignment: Alignment.topLeft,
-                                      child: Material(
-                                        elevation: 6,
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Container(
-                                          width: 380,
-                                          height: 250,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                                          ),
-                                          child: ListView.separated(
-                                            padding: const EdgeInsets.symmetric(vertical: 4),
-                                            shrinkWrap: true,
-                                            itemCount: options.length,
-                                            separatorBuilder: (_, __) => const Divider(height: 1),
-                                            itemBuilder: (BuildContext context, int index) {
-                                              final ProductoEntity option = options.elementAt(index);
-                                              return ListTile(
-                                                dense: true,
-                                                leading: const Icon(Icons.inventory_2_outlined, color: Color(0xFF3B82F6), size: 20),
-                                                title: Text(
-                                                  option.nombre,
-                                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                                ),
-                                                subtitle: Text(
-                                                  'Cód: ${option.codigoBarras} | Stock: ${option.stock}',
-                                                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                                                ),
-                                                trailing: Text(
-                                                  '\$${option.precioUnidad.toStringAsFixed(2)}',
-                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF059669)),
-                                                ),
-                                                onTap: () => onSelected(option),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                    );
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+                                    ),
+                                  ),
+                                  onSubmitted: (val) {
+                                    if (_productosFiltrados.length == 1) {
+                                      _mostrarModalCantidad(context, _productosFiltrados.first);
+                                    }
                                   },
                                 ),
                               ),
                             ),
                             const SizedBox(width: 12),
-                            Row(
-                              children: _categorias.map((cat) {
-                                final bool esSeleccionada = _categoriaSeleccionada == cat;
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8.0),
-                                  child: InkWell(
-                                    onTap: () {
-                                      setState(() {
-                                        _categoriaSeleccionada = cat;
-                                      });
-                                      _filtrarProductos();
-                                    },
-                                    borderRadius: BorderRadius.circular(8),
-                                    mouseCursor: SystemMouseCursors.click,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: esSeleccionada ? const Color(0xFF10B981) : Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: esSeleccionada ? const Color(0xFF10B981) : const Color(0xFFCBD5E1),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: _categorias.map((cat) {
+                                  final bool esSeleccionada = _categoriaSeleccionada == cat;
+                                  final bool esStockBajo = cat == 'Stock Bajo';
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 8.0),
+                                    child: InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          _categoriaSeleccionada = cat;
+                                        });
+                                        _filtrarProductos();
+                                      },
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: esSeleccionada 
+                                              ? (esStockBajo ? Colors.red : const Color(0xFF10B981)) 
+                                              : Colors.white,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: esSeleccionada 
+                                                ? (esStockBajo ? Colors.red : const Color(0xFF10B981)) 
+                                                : const Color(0xFFCBD5E1),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            if (esStockBajo) ...[
+                                              const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.amberAccent),
+                                              const SizedBox(width: 4),
+                                            ] else if (esSeleccionada) ...[
+                                              const Icon(Icons.check, size: 14, color: Colors.white),
+                                              const SizedBox(width: 4),
+                                            ],
+                                            Text(
+                                              cat,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: esSeleccionada ? FontWeight.bold : FontWeight.normal,
+                                                color: esSeleccionada ? Colors.white : const Color(0xFF475569),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      child: Row(
-                                        children: [
-                                          if (esSeleccionada) ...[
-                                            const Icon(Icons.check, size: 14, color: Colors.white),
-                                            const SizedBox(width: 4),
-                                          ],
-                                          Text(
-                                            cat,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: esSeleccionada ? FontWeight.bold : FontWeight.normal,
-                                              color: esSeleccionada ? Colors.white : const Color(0xFF475569),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
                                     ),
-                                  ),
-                                );
-                              }).toList(),
+                                  );
+                                }).toList(),
+                              ),
                             ),
                           ],
                         ),
@@ -543,7 +547,6 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                                     return InkWell(
                                       onTap: () => _mostrarModalCantidad(context, producto),
                                       borderRadius: BorderRadius.circular(12),
-                                      mouseCursor: SystemMouseCursors.click,
                                       child: Ink(
                                         decoration: BoxDecoration(
                                           color: Colors.white,
@@ -669,7 +672,7 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                   ),
                 ),
 
-                // SECCIÓN DERECHA: SIDEBAR DE ORDEN ACTIVA / CARRITO (30% Ancho)
+                // SECCIÓN DERECHA: SIDEBAR DE ORDEN ACTIVA / CARRITO GLOBAL (30% Ancho)
                 Expanded(
                   flex: 3,
                   child: Container(
@@ -697,7 +700,7 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
-                                  '${_carrito.length} ítems',
+                                  '${cartState.items.length} ítems',
                                   style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
                                 ),
                               ),
@@ -707,7 +710,7 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
 
                         // LISTA DE PRODUCTOS EN EL CARRITO
                         Expanded(
-                          child: _carrito.isEmpty
+                          child: cartState.items.isEmpty
                               ? const Center(
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
@@ -723,13 +726,14 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                                 )
                               : ListView.separated(
                                   padding: const EdgeInsets.all(12),
-                                  itemCount: _carrito.length,
+                                  itemCount: cartState.items.length,
                                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                                   itemBuilder: (context, index) {
-                                    final item = _carrito[index];
-                                    final bool esPesado = item['esPesado'] ?? false;
+                                    final cartItem = cartState.items[index];
+                                    final bool esPesado = cartItem.producto.esPesado;
                                     final String unidad = esPesado ? 'kg' : 'unid';
-                                    final double cantidad = (item['cantidad'] as num).toDouble();
+                                    final double cantidad = cartItem.cantidad.toDouble();
+                                    final double subtotalItem = cartItem.producto.precioUnidad * cantidad;
 
                                     return Container(
                                       padding: const EdgeInsets.all(10),
@@ -745,27 +749,29 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  item['nombre'],
+                                                  cartItem.producto.nombre,
                                                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0F172A)),
                                                   maxLines: 1,
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  '${cantidad.toStringAsFixed(esPesado ? 3 : 0)} $unidad x \$${(item['precio'] as double).toStringAsFixed(2)}',
+                                                  '${cantidad.toStringAsFixed(esPesado ? 3 : 0)} $unidad x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}',
                                                   style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                                                 ),
                                               ],
                                             ),
                                           ),
                                           Text(
-                                            '\$${(item['subtotal'] as double).toStringAsFixed(2)}',
+                                            '\$${subtotalItem.toStringAsFixed(2)}',
                                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF059669)),
                                           ),
                                           const SizedBox(width: 8),
                                           IconButton(
                                             icon: const Icon(Icons.close, size: 18, color: Color(0xFFEF4444)),
-                                            onPressed: () => _eliminarDelCarrito(index),
+                                            onPressed: () {
+                                              ref.read(cartProvider.notifier).eliminarItem(index);
+                                            },
                                             padding: EdgeInsets.zero,
                                             constraints: const BoxConstraints(),
                                             tooltip: 'Eliminar ítem',
@@ -777,7 +783,7 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                                 ),
                         ),
 
-                        // FOOTER DEL CARRITO
+                        // FOOTER DEL CARRITO CON TOTALES Y BOLÍVARES
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: const BoxDecoration(
@@ -789,10 +795,21 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('TOTAL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF64748B))),
+                                  const Text('TOTAL USD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF64748B))),
                                   Text(
-                                    '\$${_totalCarrito.toStringAsFixed(2)}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Color(0xFF059669)),
+                                    '\$${cartState.total.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Color(0xFF059669)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('TOTAL BOLÍVARES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF94A3B8))),
+                                  Text(
+                                    'Bs. ${totalBs.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF3B82F6)),
                                   ),
                                 ],
                               ),
@@ -809,9 +826,9 @@ class _InventoryCatalogScreenState extends State<InventoryCatalogScreen> {
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     elevation: 0,
                                   ),
-                                  onPressed: _carrito.isEmpty ? null : () => _mostrarModalCobro(context),
+                                  onPressed: cartState.items.isEmpty ? null : () => _mostrarModalCobro(context),
                                   icon: const Icon(Icons.point_of_sale, size: 20),
-                                  label: const Text('COBRAR ORDEN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                  label: const Text('COBRAR ORDEN (F12)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                                 ),
                               ),
                             ],

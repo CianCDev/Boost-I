@@ -14,11 +14,14 @@ import 'sales_history_screen.dart' as sales_history_screen;
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
+import '../../data/Local/entities/usuario_entity.dart';
+import 'inventory_screen.dart';
 import 'inventory_catalog_screen.dart';
-import 'inventory_screen.dart'; // Asegúrate de tener este import o la ruta correcta de tu pantalla de inventario
+import 'login_screen.dart';
 
 class PosDesktopScreen extends ConsumerStatefulWidget {
-  const PosDesktopScreen({super.key});
+  final UsuarioEntity usuarioActual;
+  const PosDesktopScreen({super.key, required this.usuarioActual});
 
   @override
   ConsumerState<PosDesktopScreen> createState() => _PosDesktopScreenState();
@@ -27,12 +30,10 @@ class PosDesktopScreen extends ConsumerStatefulWidget {
 class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-
   final IsarService _isarService = IsarService();
 
-  // Datos del empleado y turno actual
-  final String _cajeroActual = "Yan Camacaro";
-  final String _turnoActual = "Turno Mañana (08:00 AM - 04:00 PM)";
+  late final String _cajeroActual;
+  final String _turnoActual = "Turno Activo (Caja Principal)";
 
   List<ProductoEntity> _productosLocales = [];
   int _ventasPendientesSync = 0;
@@ -42,6 +43,8 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
   @override
   void initState() {
     super.initState();
+    _cajeroActual = widget.usuarioActual.nombre;
+
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
     _cargarProductosAutocompletado();
     _actualizarContadorSync();
@@ -101,7 +104,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
-  /// Diálogo interactivo que muestra los productos con stock bajo (envía al Inventario)
   Future<void> _mostrarDialogoStockBajo() async {
     final productosBajos = await _isarService.obtenerProductosStockBajo();
 
@@ -126,9 +128,8 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             width: 500,
             height: 350,
             child: productosBajos.isEmpty
-                .asConditional(
-                  const Center(child: Text('¡Excelente! No hay productos con stock crítico.')),
-                  ListView.separated(
+                ? const Center(child: Text('¡Excelente! No hay productos con stock crítico.'))
+                : ListView.separated(
                     itemCount: productosBajos.length,
                     separatorBuilder: (_, __) => const Divider(),
                     itemBuilder: (context, index) {
@@ -155,7 +156,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                       );
                     },
                   ),
-                ),
           ),
           actions: [
             ElevatedButton(
@@ -163,10 +163,10 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               onPressed: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const InventoryScreen()),
+                  MaterialPageRoute(builder: (context) => InventoryScreen(usuarioActual: widget.usuarioActual)),
                 );
               },
-              child: const Text('Ir al Inventario'),
+              child: const Text('Ver Inventario General'),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -178,7 +178,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
-  /// Diálogo para simular el módulo de Gestión de Personal y Administradores
   void _mostrarModuloGestionPersonal() {
     showDialog(
       context: context,
@@ -580,23 +579,24 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                       ),
               ),
               actions: [
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                if (widget.usuarioActual.rol == 'admin')
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    icon: const Icon(Icons.analytics_outlined, size: 18),
+                    label: const Text('Ver Registro y Auditoría', style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const sales_history_screen.SalesHistoryScreen(),
+                        ),
+                      );
+                    },
                   ),
-                  icon: const Icon(Icons.analytics_outlined, size: 18),
-                  label: const Text('Ver Registro y Auditoría', style: TextStyle(fontWeight: FontWeight.bold)),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const sales_history_screen.SalesHistoryScreen(),
-                      ),
-                    );
-                  },
-                ),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text('Cerrar'),
@@ -638,9 +638,13 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('app_gestion_m — POS Caja 01'),
+        backgroundColor: const Color(0xFF0F172A),
+        foregroundColor: Colors.white,
+        title: const Text(
+          'app_gestion_m — POS Caja 01',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         actions: [
-          // 1. TASA BCV
           Tooltip(
             message: 'Tasa oficial BCV (Haz clic para actualizar)',
             child: InkWell(
@@ -650,13 +654,13 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 margin: const EdgeInsets.only(right: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: const Color(0xFF1E293B),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                  border: Border.all(color: const Color(0xFF334155)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.currency_exchange, size: 16, color: Color(0xFF0F172A)),
+                    const Icon(Icons.currency_exchange, size: 16, color: Color(0xFF38BDF8)),
                     const SizedBox(width: 6),
                     cargandoBcv
                         ? const SizedBox(
@@ -669,7 +673,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
-                              color: Color(0xFF0F172A),
+                              color: Colors.white,
                             ),
                           ),
                   ],
@@ -677,8 +681,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               ),
             ),
           ),
-
-          // 2. SINCRONIZACIÓN
           Tooltip(
             message: _ventasPendientesSync == 0
                 ? 'Todo sincronizado con el servidor'
@@ -690,10 +692,10 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 margin: const EdgeInsets.only(right: 8),
                 decoration: BoxDecoration(
-                  color: _ventasPendientesSync == 0 ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                  color: _ventasPendientesSync == 0 ? const Color(0xFF064E3B) : const Color(0xFF78350F),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: _ventasPendientesSync == 0 ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A),
+                    color: _ventasPendientesSync == 0 ? const Color(0xFF059669) : const Color(0xFFD97706),
                   ),
                 ),
                 child: Row(
@@ -702,12 +704,12 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                         ? const SizedBox(
                             width: 14,
                             height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFD97706)),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber),
                           )
                         : Icon(
                             _ventasPendientesSync == 0 ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined,
                             size: 18,
-                            color: _ventasPendientesSync == 0 ? const Color(0xFF059669) : const Color(0xFFD97706),
+                            color: _ventasPendientesSync == 0 ? const Color(0xFF34D399) : Colors.amber,
                           ),
                     if (_ventasPendientesSync > 0) ...[
                       const SizedBox(width: 6),
@@ -716,7 +718,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
-                          color: Color(0xFFD97706),
+                          color: Colors.amber,
                         ),
                       ),
                     ],
@@ -725,8 +727,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               ),
             ),
           ),
-
-          // 3. BOTÓN DE STOCK BAJO CON CONTADOR DINÁMICO
           FutureBuilder<List<ProductoEntity>>(
             future: _isarService.obtenerProductosStockBajo(),
             builder: (context, snapshot) {
@@ -764,18 +764,20 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               );
             },
           ),
-
           IconButton(
             icon: const Icon(Icons.point_of_sale),
-            tooltip: 'Ver Resumen de Caja',
+            tooltip: 'Ver Resumen de Caja y Turno',
             onPressed: () => _mostrarDialogoCaja(context),
           ),
+          // Botón para abrir el Catálogo Visual
           IconButton(
             icon: const Icon(Icons.inventory_2_outlined),
-            tooltip: 'Ver Catálogo de Inventario',
+            tooltip: 'Abrir Catálogo Visual',
             onPressed: () async {
               await Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const InventoryCatalogScreen()),
+                MaterialPageRoute(
+                  builder: (context) => InventoryCatalogScreen(usuarioActual: widget.usuarioActual),
+                ),
               );
               _cargarProductosAutocompletado();
             },
@@ -788,10 +790,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             },
             tooltip: 'Reiniciar Venta (Esc)',
           ),
-          
           const VerticalDivider(color: Colors.white24, indent: 12, endIndent: 12, width: 20),
-
-          // 4. MENÚ DESPLEGABLE DE EMPLEADO, TURNO Y GESTIÓN DE USUARIOS / ADMINISTRADORES
           PopupMenuButton<String>(
             tooltip: 'Opciones de Cuenta y Turno',
             icon: const CircleAvatar(
@@ -803,10 +802,17 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             offset: const Offset(0, 50),
             onSelected: (value) {
               if (value == 'gestion_personal') {
-                _mostrarModuloGestionPersonal();
+                if (widget.usuarioActual.rol == 'admin') {
+                  _mostrarModuloGestionPersonal();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Acceso restringido solo a Administradores.'), backgroundColor: Colors.red),
+                  );
+                }
               } else if (value == 'cerrar_sesion') {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Sesión cerrada correctamente.'), backgroundColor: Colors.blueGrey),
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  (route) => false,
                 );
               }
             },
@@ -818,21 +824,22 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                   children: [
                     Text(_cajeroActual, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 14)),
                     const SizedBox(height: 2),
-                    Text(_turnoActual, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                    Text('Rol: ${widget.usuarioActual.rol.toUpperCase()} | $_turnoActual', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                   ],
                 ),
               ),
               const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'gestion_personal',
-                child: Row(
-                  children: [
-                    Icon(Icons.admin_panel_settings_outlined, size: 18, color: Color(0xFF3B82F6)),
-                    SizedBox(width: 8),
-                    Text('Gestión de Personal y Admins', style: TextStyle(fontSize: 13)),
-                  ],
+              if (widget.usuarioActual.rol == 'admin')
+                const PopupMenuItem(
+                  value: 'gestion_personal',
+                  child: Row(
+                    children: [
+                      Icon(Icons.admin_panel_settings_outlined, size: 18, color: Color(0xFF3B82F6)),
+                      SizedBox(width: 8),
+                      Text('Gestión de Personal y Admins', style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
                 ),
-              ),
               const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'cerrar_sesion',
@@ -1052,8 +1059,4 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
       ),
     );
   }
-}
-
-extension BoolExtension on bool {
-  T asConditional<T>(T onTrue, T onFalse) => this ? onTrue : onFalse;
 }

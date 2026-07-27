@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../data/local/entities/isar_service.dart';
-import '../../data/local/entities/producto_entity.dart';
+import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/producto_entity.dart';
+import '../../data/Local/entities/usuario_entity.dart'; //
 
 class InventoryScreen extends StatefulWidget {
-  const InventoryScreen({super.key});
+  final UsuarioEntity usuarioActual;
+  const InventoryScreen({super.key, required this.usuarioActual});
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
@@ -15,6 +17,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
   bool _isLoading = true;
   String _filtroBusqueda = '';
   bool _soloStockBajo = false;
+
+  bool get _esAdmin => widget.usuarioActual.rol == 'admin';
 
   @override
   void initState() {
@@ -34,6 +38,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   void _mostrarFormularioProducto({ProductoEntity? productoAEditar}) {
+    if (!_esAdmin) return;
+
     final isEditing = productoAEditar != null;
 
     final codigoController = TextEditingController(text: productoAEditar?.codigoBarras ?? '');
@@ -196,18 +202,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
-        onPressed: () => _mostrarFormularioProducto(),
-        label: const Text('Nuevo Producto'),
-        icon: const Icon(Icons.add),
-      ),
+      floatingActionButton: _esAdmin
+          ? FloatingActionButton.extended(
+              backgroundColor: Colors.teal,
+              foregroundColor: Colors.white,
+              onPressed: () => _mostrarFormularioProducto(),
+              label: const Text('Nuevo Producto'),
+              icon: const Icon(Icons.add),
+            )
+          : null,
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // FILTROS DE BÚSQUEDA Y ALERTA
             Row(
               children: [
                 Expanded(
@@ -235,8 +242,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // LISTA DE PRODUCTOS
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: Colors.teal))
@@ -322,10 +327,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                       ),
                                   ],
                                 ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.blueGrey, size: 20),
-                                  onPressed: () => _mostrarFormularioProducto(productoAEditar: p),
-                                ),
+                                trailing: _esAdmin
+                                    ? IconButton(
+                                        icon: const Icon(Icons.edit, color: Colors.blueGrey, size: 20),
+                                        onPressed: () => _mostrarFormularioProducto(productoAEditar: p),
+                                      )
+                                    : null,
                               ),
                             );
                           },

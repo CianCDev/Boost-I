@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../data/local/entities/isar_service.dart';
-import '../../data/local/entities/venta_entity.dart';
+import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/venta_entity.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
   const SalesHistoryScreen({super.key});
