@@ -99,18 +99,94 @@ class IsarService {
         ..nombre = 'Administrador'
         ..pin = '1234'
         ..rol = 'admin'
-        ..activo = true;
+        ..activo = true
+        ..estado = 'activo'
+        ..cajaAsignada = 'Caja Principal';
 
       final cajeroDefault = UsuarioEntity()
         ..nombre = 'Cajero 01'
         ..pin = '0000'
         ..rol = 'cajero'
-        ..activo = true;
+        ..activo = true
+        ..estado = 'activo'
+        ..cajaAsignada = 'Caja 01';
 
       await isar.writeTxn(() async {
         await isar.usuarioEntitys.putAll([adminDefault, cajeroDefault]);
       });
     }
+  }
+
+  // ==================== GESTIÓN DE USUARIOS ====================
+
+  /// Obtiene todos los usuarios registrados en la DB local
+  Future<List<UsuarioEntity>> obtenerUsuarios() async {
+    final isar = await db;
+    return await isar.usuarioEntitys.where().findAll();
+  }
+
+  /// Actualiza el estado actual del usuario (ej. 'activo', 'inactivo', 'descanso')
+  Future<void> actualizarEstadoUsuario(int usuarioId, String nuevoEstado) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final usuario = await isar.usuarioEntitys.get(usuarioId);
+      if (usuario != null) {
+        usuario.estado = nuevoEstado;
+        await isar.usuarioEntitys.put(usuario);
+      }
+    });
+  }
+
+  /// Cambia el PIN / clave de un usuario por su ID
+  Future<bool> cambiarClaveUsuario(int usuarioId, String nuevaClave) async {
+    final isar = await db;
+    return await isar.writeTxn(() async {
+      final usuario = await isar.usuarioEntitys.get(usuarioId);
+      if (usuario != null) {
+        usuario.pin = nuevaClave;
+        await isar.usuarioEntitys.put(usuario);
+        return true;
+      }
+      return false;
+    });
+  }
+
+  /// Filtra solo los usuarios con rol 'cajero'
+  Future<List<UsuarioEntity>> obtenerEstadoCajeros() async {
+    final isar = await db;
+    return await isar.usuarioEntitys
+        .filter()
+        .rolEqualTo('cajero')
+        .findAll();
+  }
+
+  /// Inicializa un administrador por defecto si la tabla de usuarios está vacía
+  Future<void> inicializarUsuarioAdminPorDefecto() async {
+    final isar = await db;
+    await _inicializarUsuariosDemo(isar);
+  }
+
+  /// Valida si el PIN y el nombre corresponden a un usuario válido
+  Future<UsuarioEntity?> validarLogin(String nombre, String pin) async {
+    final isar = await db;
+    try {
+      final usuario = await isar.usuarioEntitys
+          .filter()
+          .nombreEqualTo(nombre, caseSensitive: false)
+          .pinEqualTo(pin)
+          .and()
+          .activoEqualTo(true)
+          .findFirst();
+      return usuario;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Obtiene la lista de todos los usuarios activos para mostrarlos en el login
+  Future<List<UsuarioEntity>> obtenerUsuariosActivos() async {
+    final isar = await db;
+    return await isar.usuarioEntitys.filter().activoEqualTo(true).findAll();
   }
 
   // ==================== GESTIÓN DE VENTAS ====================
@@ -122,16 +198,14 @@ class IsarService {
       // 1. Guardar la venta
       await isar.ventaEntitys.put(venta);
 
-      // 2. Descontar el stock de los productos vendidos (Protegido contra entidades fantasma)
+      // 2. Descontar el stock de los productos vendidos
       for (var item in venta.items) {
         ProductoEntity? producto;
 
-        // Priorizar la búsqueda por ID único si está disponible en el item
         if (item.productoId != null) {
           producto = await isar.productoEntitys.get(item.productoId!);
         }
 
-        // Respaldo de compatibilidad mediante nombre si el ID no está presente
         producto ??= await isar.productoEntitys
             .filter()
             .nombreEqualTo(item.nombreProducto, caseSensitive: false)
@@ -168,7 +242,6 @@ class IsarService {
       return await isar.ventaEntitys.where().sortByFechaDesc().findAll();
     }
 
-    // Convertimos la fecha de inicio a UTC para realizar la consulta exacta en Isar
     return await isar.ventaEntitys
         .filter()
         .fechaGreaterThan(fechaInicio.toUtc(), include: true)
@@ -259,37 +332,6 @@ class IsarService {
     await isar.writeTxn(() async {
       await isar.productoEntitys.delete(id);
     });
-  }
-
-  // ==================== USUARIOS Y AUTENTICACIÓN ====================
-
-  /// Inicializa un administrador por defecto si la tabla de usuarios está vacía
-  Future<void> inicializarUsuarioAdminPorDefecto() async {
-    final isar = await db;
-    await _inicializarUsuariosDemo(isar);
-  }
-
-  /// Valida si el PIN y el nombre corresponden a un usuario válido
-  Future<UsuarioEntity?> validarLogin(String nombre, String pin) async {
-    final isar = await db;
-    try {
-      final usuario = await isar.usuarioEntitys
-          .filter()
-          .nombreEqualTo(nombre, caseSensitive: false)
-          .pinEqualTo(pin)
-          .and()
-          .activoEqualTo(true)
-          .findFirst();
-      return usuario;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// Obtiene la lista de todos los usuarios activos para mostrarlos en el login
-  Future<List<UsuarioEntity>> obtenerUsuariosActivos() async {
-    final isar = await db;
-    return await isar.usuarioEntitys.filter().activoEqualTo(true).findAll();
   }
 
   /// Obtiene únicamente los productos cuyo stock sea menor o igual al límite mínimo configurado
