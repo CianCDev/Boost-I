@@ -1,6 +1,5 @@
 import 'package:isar/isar.dart';
 
-
 part 'usuario_entity.g.dart';
 
 @Collection()
@@ -15,8 +14,4 @@ class UsuarioEntity {
   late String rol; // 'admin' o 'cajero'
 
   bool activo = true;
-
-  // Campos para el control de cajeros y turnos
-  String? estado; // ej. 'activo', 'inactivo', 'descanso'
-  String? cajaAsignada; // ej. 'Caja Principal', 'Caja 01'
 }

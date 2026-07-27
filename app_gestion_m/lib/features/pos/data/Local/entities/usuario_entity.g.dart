@@ -22,28 +22,18 @@ const UsuarioEntitySchema = CollectionSchema(
       name: r'activo',
       type: IsarType.bool,
     ),
-    r'cajaAsignada': PropertySchema(
-      id: 1,
-      name: r'cajaAsignada',
-      type: IsarType.string,
-    ),
-    r'estado': PropertySchema(
-      id: 2,
-      name: r'estado',
-      type: IsarType.string,
-    ),
     r'nombre': PropertySchema(
-      id: 3,
+      id: 1,
       name: r'nombre',
       type: IsarType.string,
     ),
     r'pin': PropertySchema(
-      id: 4,
+      id: 2,
       name: r'pin',
       type: IsarType.string,
     ),
     r'rol': PropertySchema(
-      id: 5,
+      id: 3,
       name: r'rol',
       type: IsarType.string,
     )
@@ -82,18 +72,6 @@ int _usuarioEntityEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
-  {
-    final value = object.cajaAsignada;
-    if (value != null) {
-      bytesCount += 3 + value.length * 3;
-    }
-  }
-  {
-    final value = object.estado;
-    if (value != null) {
-      bytesCount += 3 + value.length * 3;
-    }
-  }
   bytesCount += 3 + object.nombre.length * 3;
   bytesCount += 3 + object.pin.length * 3;
   bytesCount += 3 + object.rol.length * 3;
@@ -107,11 +85,9 @@ void _usuarioEntitySerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeBool(offsets[0], object.activo);
-  writer.writeString(offsets[1], object.cajaAsignada);
-  writer.writeString(offsets[2], object.estado);
-  writer.writeString(offsets[3], object.nombre);
-  writer.writeString(offsets[4], object.pin);
-  writer.writeString(offsets[5], object.rol);
+  writer.writeString(offsets[1], object.nombre);
+  writer.writeString(offsets[2], object.pin);
+  writer.writeString(offsets[3], object.rol);
 }
 
 UsuarioEntity _usuarioEntityDeserialize(
@@ -122,12 +98,10 @@ UsuarioEntity _usuarioEntityDeserialize(
 ) {
   final object = UsuarioEntity();
   object.activo = reader.readBool(offsets[0]);
-  object.cajaAsignada = reader.readStringOrNull(offsets[1]);
-  object.estado = reader.readStringOrNull(offsets[2]);
   object.id = id;
-  object.nombre = reader.readString(offsets[3]);
-  object.pin = reader.readString(offsets[4]);
-  object.rol = reader.readString(offsets[5]);
+  object.nombre = reader.readString(offsets[1]);
+  object.pin = reader.readString(offsets[2]);
+  object.rol = reader.readString(offsets[3]);
   return object;
 }
 
@@ -141,14 +115,10 @@ P _usuarioEntityDeserializeProp<P>(
     case 0:
       return (reader.readBool(offset)) as P;
     case 1:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 2:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 3:
-      return (reader.readString(offset)) as P;
-    case 4:
-      return (reader.readString(offset)) as P;
-    case 5:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -357,314 +327,6 @@ extension UsuarioEntityQueryFilter
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'activo',
         value: value,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaIsNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNull(
-        property: r'cajaAsignada',
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaIsNotNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNotNull(
-        property: r'cajaAsignada',
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaEqualTo(
-    String? value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'cajaAsignada',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaGreaterThan(
-    String? value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        include: include,
-        property: r'cajaAsignada',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaLessThan(
-    String? value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.lessThan(
-        include: include,
-        property: r'cajaAsignada',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaBetween(
-    String? lower,
-    String? upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.between(
-        property: r'cajaAsignada',
-        lower: lower,
-        includeLower: includeLower,
-        upper: upper,
-        includeUpper: includeUpper,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'cajaAsignada',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'cajaAsignada',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaContains(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.contains(
-        property: r'cajaAsignada',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaMatches(String pattern, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.matches(
-        property: r'cajaAsignada',
-        wildcard: pattern,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaIsEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'cajaAsignada',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaIsNotEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'cajaAsignada',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoIsNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNull(
-        property: r'estado',
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoIsNotNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNotNull(
-        property: r'estado',
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoEqualTo(
-    String? value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'estado',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoGreaterThan(
-    String? value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        include: include,
-        property: r'estado',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoLessThan(
-    String? value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.lessThan(
-        include: include,
-        property: r'estado',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoBetween(
-    String? lower,
-    String? upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.between(
-        property: r'estado',
-        lower: lower,
-        includeLower: includeLower,
-        upper: upper,
-        includeUpper: includeUpper,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'estado',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'estado',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoContains(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.contains(
-        property: r'estado',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoMatches(String pattern, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.matches(
-        property: r'estado',
-        wildcard: pattern,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoIsEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'estado',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoIsNotEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'estado',
-        value: '',
       ));
     });
   }
@@ -1148,32 +810,6 @@ extension UsuarioEntityQuerySortBy
     });
   }
 
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
-      sortByCajaAsignada() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'cajaAsignada', Sort.asc);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
-      sortByCajaAsignadaDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'cajaAsignada', Sort.desc);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByEstado() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'estado', Sort.asc);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByEstadoDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'estado', Sort.desc);
-    });
-  }
-
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByNombre() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombre', Sort.asc);
@@ -1222,32 +858,6 @@ extension UsuarioEntityQuerySortThenBy
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByActivoDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'activo', Sort.desc);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
-      thenByCajaAsignada() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'cajaAsignada', Sort.asc);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
-      thenByCajaAsignadaDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'cajaAsignada', Sort.desc);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByEstado() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'estado', Sort.asc);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByEstadoDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'estado', Sort.desc);
     });
   }
 
@@ -1308,20 +918,6 @@ extension UsuarioEntityQueryWhereDistinct
     });
   }
 
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByCajaAsignada(
-      {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'cajaAsignada', caseSensitive: caseSensitive);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByEstado(
-      {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'estado', caseSensitive: caseSensitive);
-    });
-  }
-
   QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByNombre(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1355,19 +951,6 @@ extension UsuarioEntityQueryProperty
   QueryBuilder<UsuarioEntity, bool, QQueryOperations> activoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'activo');
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, String?, QQueryOperations>
-      cajaAsignadaProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'cajaAsignada');
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, String?, QQueryOperations> estadoProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'estado');
     });
   }
 
