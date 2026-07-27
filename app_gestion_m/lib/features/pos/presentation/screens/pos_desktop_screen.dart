@@ -417,7 +417,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: colorEstado.withOpacity(0.15),
+                        backgroundColor: colorEstado.withValues(alpha: 0.15),
                         child: Icon(iconoEstado, color: colorEstado, size: 20),
                       ),
                       title: Text(
@@ -431,9 +431,9 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: colorEstado.withOpacity(0.1),
+                          color: colorEstado.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: colorEstado.withOpacity(0.5)),
+                          border: Border.all(color: colorEstado.withValues(alpha: 0.5)),
                         ),
                         child: Text(
                           textoEstado,
@@ -649,7 +649,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
         final nuevaVentaEntity = VentaEntity()
           ..ventaIdString = ventaIdStr
-          ..fecha = ahora.toUtc()
+          ..fecha = DateTime.now().toUtc() // Guardar explícitamente en UTC en Isar
           ..total = cartState.total
           ..subtotal = cartState.subtotal
           ..impuesto = cartState.impuesto
@@ -1077,6 +1077,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               } else if (value == 'cerrar_sesion') {
                 await _registrarEstadoUsuario('inactivo');
                 if (mounted) {
+                  if (!context.mounted) return;
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (context) => const LoginScreen()),
                     (route) => false,
