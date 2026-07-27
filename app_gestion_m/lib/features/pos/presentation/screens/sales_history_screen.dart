@@ -101,8 +101,8 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
         
       case 'semana':
         // Cálculo seguro de la semana usando fechas base
-        final inicioSemana = DateTime(hoy.year, hoy.month, hoy.day - (now.weekday - 1));
-        final finSemana = DateTime(inicioSemana.year, inicioSemana.month, inicioSemana.day + 6);
+        final inicioSemana = hoy.subtract(Duration(days: now.weekday - 1));
+        final finSemana = inicioSemana.add(const Duration(days: 6));
         
         return (fechaDia.isAtSameMomentAs(inicioSemana) || fechaDia.isAfter(inicioSemana)) &&
                (fechaDia.isAtSameMomentAs(finSemana) || fechaDia.isBefore(finSemana));

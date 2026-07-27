@@ -228,6 +228,7 @@ class IsarService {
 
   /// Obtiene ventas filtradas por período ('dia', 'semana', 'mes', 'todos')
   Future<List<VentaEntity>> obtenerVentasPorPeriodo(String periodo) async {
+ feature/Diegodevelop
     final isar = await db;
     final now = DateTime.now();
     
@@ -247,8 +248,43 @@ class IsarService {
         .fechaGreaterThan(fechaInicio.toUtc(), include: true)
         .sortByFechaDesc()
         .findAll();
+
+  final isar = await db;
+  final now = DateTime.now();
+  
+  // Calculamos el inicio y fin exactos en hora local
+  late DateTime inicioLocal;
+  late DateTime finLocal;
+
+  if (periodo == 'dia') {
+    inicioLocal = DateTime(now.year, now.month, now.day, 0, 0, 0);
+    finLocal = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+  } else if (periodo == 'semana') {
+    // Obtenemos el lunes de la semana actual
+    inicioLocal = DateTime(now.year, now.month, now.day - (now.weekday - 1), 0, 0, 0);
+    // Obtenemos el domingo al final del día
+    finLocal = inicioLocal.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59, milliseconds: 999));
+  } else if (periodo == 'mes') {
+    inicioLocal = DateTime(now.year, now.month, 1, 0, 0, 0);
+    finLocal = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
+  } else {
+    // Si no hay filtro o es 'todos'
+    return await isar.ventaEntitys.where().sortByFechaDesc().findAll();
+ main
   }
 
+  // Usamos fechaBetween convirtiendo los rangos locales a UTC
+  return await isar.ventaEntitys
+      .filter()
+      .fechaBetween(
+        inicioLocal.toUtc(), 
+        finLocal.toUtc(), 
+        includeLower: true, 
+        includeUpper: true,
+      )
+      .sortByFechaDesc()
+      .findAll();
+}
   // ==================== SINCRONIZACIÓN OFFLINE/ONLINE ====================
   
   Future<List<VentaEntity>> obtenerVentasPendientesSync() async {
