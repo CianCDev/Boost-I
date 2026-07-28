@@ -16,10 +16,9 @@ void main() async {
 
   // Inicializar Supabase con las credenciales de tu proyecto
   await Supabase.initialize(
-    url: 'https://moeedweiombdnssjrgai.supabase.co/rest/v1/', // URL Supabase
-    publishableKey:
-        'sb_publishable_3u_VXY6GnKj6i0z1eerteA_9dVsym2K', // Clave pública de Supabase
-  );
+  url: 'https://moeedweiombdnssjrgai.supabase.co', 
+  publishableKey: 'sb_publishable_3u_VXY6GnKj6i0z1eerteA_9dVsym2K', 
+);
   //
   runApp(const ProviderScope(child: AppGestionM()));
 }
@@ -32,7 +31,7 @@ class AppGestionM extends ConsumerWidget {
     final isLocked = ref.watch(lockProvider);
 
     return MaterialApp(
-      title: 'app Desktop — POS Caja 00',
+      title: 'SmartMarket - JAH Lab',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF10B981)),

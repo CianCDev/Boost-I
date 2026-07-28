@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // 👈 1. Importamos Riverpod
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
+import '../../presentation/providers/usuario_provider.dart'; // 👈 Ajusta esta ruta a tu provider
 import 'pos_desktop_screen.dart';
 
-class LoginScreen extends StatefulWidget {
+// 👈 2. Cambiamos a ConsumerStatefulWidget
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+// 👈 3. Cambiamos a ConsumerState<LoginScreen>
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final IsarService _isarService = IsarService();
   final TextEditingController _pinController = TextEditingController();
   
@@ -53,7 +57,10 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     if (usuarioValido != null && mounted) {
-      // Navegar al POS enviando el usuario autenticado (para controlar roles)
+      // ✅ AHORA SÍ: Guardamos el usuario en Riverpod antes de pasar a la pantalla POS
+      ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
+
+      // Navegar al POS enviando el usuario autenticado
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => PosDesktopScreen(usuarioActual: usuarioValido),

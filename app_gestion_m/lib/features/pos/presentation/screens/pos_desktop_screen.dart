@@ -3,7 +3,6 @@ import 'package:app_gestion_m/features/pos/presentation/widgets/printer_selectio
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
@@ -21,9 +20,15 @@ import 'inventory_catalog_screen.dart';
 import 'inventory_screen.dart';
 import 'login_screen.dart';
 import 'sales_history_screen.dart' as sales_history_screen;
+import '../../presentation/providers/usuario_provider.dart';
 
+/// Vista Principal del Punto de Venta (POS) para Escritorio.
+/// Permite gestionar ventas rápidas, lectura de códigos de barras,
+/// pesaje en balanza, cálculo multimoneda (BCV) e integración offline con Isar DB y Supabase.
 class PosDesktopScreen extends ConsumerStatefulWidget {
+  /// Entidad del usuario que mantiene la sesión activa en el POS.
   final UsuarioEntity usuarioActual;
+
   const PosDesktopScreen({super.key, required this.usuarioActual});
 
   @override
@@ -31,39 +36,85 @@ class PosDesktopScreen extends ConsumerStatefulWidget {
 }
 
 class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
+  // ===========================================================================
+  // VARIABLES DE ESTADO Y CONTROLADORES
+  // ===========================================================================
+
+  /// Controla el texto del buscador de productos y escáner de códigos de barras.
   final TextEditingController _searchController = TextEditingController();
+
+  /// Administra el foco del teclado para mantener activo el escáner de códigos.
   final FocusNode _searchFocusNode = FocusNode();
+
+  /// Instancia del servicio de base de datos local Isar DB (Offline-First).
   final IsarService _isarService = IsarService();
 
+  /// Nombre del cajero activo procesando las ventas.
   late final String _cajeroActual;
+
+  /// Etiqueta informativa de la caja y turno de trabajo actual.
   final String _turnoActual = "Turno Activo (Caja Principal)";
 
+  /// Lista local de productos cargados en memoria para el autocompletado rápido.
   List<ProductoEntity> _productosLocales = [];
+
+  /// Cantidad de ventas registradas localmente pendientes de subirse a Supabase.
   int _ventasPendientesSync = 0;
+
+  /// Indica si el proceso de sincronización con Supabase se encuentra activo.
   bool _sincronizando = false;
-  bool _aplicaIva = true; // Control local del cálculo de IVA
+
+  /// Determina si la venta actual aplica el cálculo del 16% del impuesto IVA.
+  bool _aplicaIva = true;
+
+  /// Almacena el peso actual enviado desde la balanza o báscula conectada.
   final double _pesoBalanzaActual = 0.000;
+
+  // ===========================================================================
+  // CICLO DE VIDA DEL WIDGET
+  // ===========================================================================
 
   @override
   void initState() {
     super.initState();
     _cajeroActual = widget.usuarioActual.nombre;
 
+    // Escuchar eventos globales del teclado físico para atajos (F1, F2, F12, ESC)
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
+
+    // Cargar datos locales iniciales
     _cargarProductosAutocompletado();
     _actualizarContadorSync();
     _registrarEstadoUsuario('activo');
 
+    // Inicializaciones de Riverpod diferidas para evitar errores de modificación durante la construcción
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(bcvProvider).actualizarTasa();
+      if (mounted) {
+        ref.read(usuarioActualProvider.notifier).setUsuario(widget.usuarioActual);
+        ref.read(bcvProvider).actualizarTasa();
+      }
     });
   }
 
-  /// Actualiza el estado operativo del usuario en Isar DB y Supabase
+  @override
+  void dispose() {
+    // Liberación de recursos del sistema
+    HardwareKeyboard.instance.removeHandler(_manejarTecladoFisico);
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  // ===========================================================================
+  // MÉTODOS Y FUNCIONES OPERATIVAS
+  // ===========================================================================
+
+  /// Registra el estado operativo del cajero ('activo', 'descanso', 'inactivo') en Isar DB.
   Future<void> _registrarEstadoUsuario(String estado) async {
     await _isarService.actualizarEstadoUsuario(widget.usuarioActual.id, estado);
   }
 
+  /// Recupera el catálogo completo de productos desde Isar DB para autocompletado.
   Future<void> _cargarProductosAutocompletado() async {
     final prods = await _isarService.obtenerProductos();
     if (mounted) {
@@ -73,6 +124,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
+  /// Consulta cuántas ventas están guardadas offline y requieren sincronización a Supabase.
   Future<void> _actualizarContadorSync() async {
     final pendientes = await _isarService.obtenerVentasPendientesSync();
     if (mounted) {
@@ -82,7 +134,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
-  /// Ejecuta la sincronización offline-first de ventas con Supabase
+  /// Ejecuta la sincronización masiva de ventas offline hacia la nube (Supabase).
   Future<void> _sincronizarVentas() async {
     if (_ventasPendientesSync == 0 || _sincronizando) return;
 
@@ -115,6 +167,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
+  /// Muestra el modal de selección de impresora térmica POS (ESC/POS).
   void _mostrarDialogoImpresora() {
     showDialog(
       context: context,
@@ -122,6 +175,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  /// Muestra el modal con los productos cuya cantidad está por debajo del límite de alerta.
   Future<void> _mostrarDialogoStockBajo() async {
     final productosBajos = await _isarService.obtenerProductosStockBajo();
 
@@ -199,6 +253,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  /// Muestra el modal de administración de usuarios y permisos (Exclusivo Administrador).
   void _mostrarModuloGestionPersonal() {
     showDialog(
       context: context,
@@ -254,6 +309,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  /// Permite al cajero actual cambiar su clave PIN de 4 dígitos.
   void _mostrarDialogoCambiarClave() {
     final TextEditingController claveController = TextEditingController();
     bool obscureText = true;
@@ -350,6 +406,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  /// Muestra el diálogo con el estado operativo de todos los cajeros del sistema.
   void _mostrarEstadoCajeros(BuildContext context) {
     showDialog(
       context: context,
@@ -471,6 +528,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  /// Solicita el peso manualmente al cajero cuando un producto es pesado y no hay balanza conectada.
   Future<double?> _solicitarPesoDialog(ProductoEntity producto) async {
     final controller = TextEditingController(text: '1.000');
     return showDialog<double>(
@@ -537,6 +595,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  /// Agrega un producto al carrito notificando a Riverpod y gestionando productos pesados.
   Future<void> _agregarProductoEntityAlCarrito(ProductoEntity producto) async {
     double cantidad = 1.0;
 
@@ -569,6 +628,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     _enfocarBuscador();
   }
 
+  /// Busca un producto por código de barras exacto o coincidencia de nombre y lo agrega.
   Future<void> _buscarYAgregarProducto(String query) async {
     if (query.trim().isEmpty) return;
 
@@ -592,14 +652,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    HardwareKeyboard.instance.removeHandler(_manejarTecladoFisico);
-    _searchController.dispose();
-    _searchFocusNode.dispose();
-    super.dispose();
-  }
-
+  /// Intercepta las pulsaciones de teclas del teclado físico para activar atajos rápidos del POS.
   bool _manejarTecladoFisico(KeyEvent event) {
     if (event is KeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.f1) {
@@ -622,6 +675,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     return false;
   }
 
+  /// Muestra el modal explicativo de atajos de teclado disponibles.
   void _mostrarAyudaAtajos() {
     showDialog(
       context: context,
@@ -658,6 +712,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  /// Componente visual reutilizable para listar filas en el modal de atajos de teclado.
   Widget _itemAtajo(String tecla, String descripcion) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
@@ -686,6 +741,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  /// Devuelve el foco de escritura al campo de búsqueda/escáner de código de barras.
   void _enfocarBuscador() {
     _searchFocusNode.requestFocus();
     _searchController.selection = TextSelection(
@@ -694,6 +750,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  /// Vacía el carrito de compras actual y restablece las opciones predeterminadas.
   void _reiniciarCarrito() {
     ref.read(cartProvider.notifier).limpiarCarrito();
     setState(() {
@@ -703,6 +760,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     _enfocarBuscador();
   }
 
+  /// Abre la pasarela de cobro, procesa la transacción, la guarda en Isar DB e imprime el ticket.
   Future<void> _abrirCobro() async {
     final cartState = ref.read(cartProvider);
     if (cartState.total <= 0) return;
@@ -778,8 +836,8 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           impuesto: cartState.impuesto,
           total: cartState.total,
           metodoPago: resultado['metodoPago'],
-          montoRecibido: resultado['montoRecibido'],
-          vuelto: resultado['vuelto'],
+          montoRecibido: (resultado['montoRecibido'] as num?)?.toDouble() ?? 0.0,
+          vuelto: (resultado['vuelto'] as num?)?.toDouble() ?? 0.0,
           fechaVenta: ahora,
           impresoraSeleccionada: selectedPrinter,
         );
@@ -807,6 +865,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
+  /// Muestra el modal del resumen de caja diario discriminando métodos de pago.
   void _mostrarDialogoCaja(BuildContext context) {
     showDialog(
       context: context,
@@ -955,6 +1014,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  /// Confirma y ejecuta el arqueo y cierre final del turno de caja del cajero.
   void _ejecutarCierreDeCaja(double totalUsd, double totalBs, int cantidadVentas) {
     showDialog(
       context: context,
@@ -1000,6 +1060,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  /// Componente UI auxiliar para construir las filas del resumen de caja.
   Widget _filaDetalleCaja(String titulo, double monto, IconData icono, Color color) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1019,6 +1080,10 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  // ===========================================================================
+  // CONSTRUCCIÓN DE LA INTERFAZ GRÁFICA (UI)
+  // ===========================================================================
+
   @override
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
@@ -1026,14 +1091,15 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     final double tasaBcv = bcvController.tasa;
     final bool cargandoBcv = bcvController.cargando;
     final double totalBs = cartState.total * tasaBcv;
+    final usuarioActivo = ref.watch(usuarioActualProvider);
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF0F172A),
         foregroundColor: Colors.white,
-        title: const Text(
-          'app_gestion_m — POS Caja 01',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Text(
+          'Panel de: ${usuarioActivo?.nombre ?? 'Sistema POS'}',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
           // 1. TASA BCV
@@ -1116,7 +1182,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             ),
           ),
 
-          // 3. MONITOR CAJEROS (Solo Admin)
+          // 3. MONITOR CAJEROS (Solo Administrador)
           if (widget.usuarioActual.rol == 'admin')
             IconButton(
               icon: const Icon(Icons.monitor_heart_outlined, color: Color(0xFF38BDF8)),
@@ -1229,7 +1295,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             onPressed: _mostrarDialogoImpresora,
           ),
 
-          // 10. MENÚ DE PERFIL
+          // 10. MENÚ DE PERFIL DE USUARIO
           const VerticalDivider(color: Colors.white24, indent: 12, endIndent: 12, width: 20),
           PopupMenuButton<String>(
             tooltip: 'Opciones de Cuenta y Turno',
@@ -1253,6 +1319,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                 _mostrarDialogoCambiarClave();
               } else if (value == 'cerrar_sesion') {
                 await _registrarEstadoUsuario('inactivo');
+                ref.read(usuarioActualProvider.notifier).cerrarSesion();
                 if (mounted) {
                   // ignore: use_build_context_synchronously
                   Navigator.of(context).pushAndRemoveUntil(
@@ -1317,6 +1384,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ÁREA IZQUIERDA: BUSCADOR, BALANZA Y TABLA DE PRODUCTOS
             Expanded(
               flex: 3,
               child: Column(
@@ -1449,6 +1517,8 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               ),
             ),
             const SizedBox(width: 16),
+
+            // ÁREA DERECHA: CONFIGURACIÓN DE IVA, TOTALES Y BOTÓN DE COBRO
             Expanded(
               flex: 1,
               child: Column(
