@@ -15,9 +15,9 @@ void main() async {
   await isarService.inicializarUsuarioAdminPorDefecto();
 
   // Inicializar Supabase con las credenciales de tu proyecto
-  await Supabase.initialize(
-  url: 'https://moeedweiombdnssjrgai.supabase.co', 
-  publishableKey: 'sb_publishable_3u_VXY6GnKj6i0z1eerteA_9dVsym2K', 
+   await Supabase.initialize(
+    url: 'https://moeedweiombdnssjrgai.supabase.co',
+    publishableKey: 'sb_publishable_3u_VXY6GnKj6i0z1eerteA_9dVsym2K',
 );
   //
   runApp(const ProviderScope(child: AppGestionM()));
