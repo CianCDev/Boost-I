@@ -104,7 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Icon(Icons.point_of_sale, size: 36, color: Color(0xFF3B82F6)),
                         SizedBox(width: 12),
                         Text(
-                          'app_gestion_m',
+                          'SmartPOS',
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -156,7 +156,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       keyboardType: TextInputType.number,
                       maxLength: 4,
                       decoration: InputDecoration(
-                        hintText: '••••',
+                        hintStyle: const TextStyle(color: Color.fromARGB(255, 145, 145, 145)),
+                        hintText: 'Ingresa tu PIN',
                         counterText: '',
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         prefixIcon: const Icon(Icons.lock_outline),

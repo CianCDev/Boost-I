@@ -73,6 +73,13 @@ class CartState {
 class CartNotifier extends StateNotifier<CartState> {
   CartNotifier() : super(const CartState());
 
+  /// Cambia dinámicamente si aplica IVA (16%) o exento (0%)
+  void setAplicaIva(bool aplica) {
+    state = state.copyWith(
+      porcentajeImpuesto: aplica ? 0.16 : 0.0,
+    );
+  }
+
   /// Agrega un producto al carrito respetando stock y el tipo de medida (unidades o peso)
   void agregarProducto(
     ProductItem producto, {
@@ -150,9 +157,12 @@ class CartNotifier extends StateNotifier<CartState> {
     state = state.copyWith(items: itemsActualizados);
   }
 
-  /// Limpia todos los productos del carrito (al finalizar venta o cancelar)
+  /// Limpia todos los productos del carrito y reinicia el IVA por defecto
   void limpiarCarrito() {
-    state = state.copyWith(items: []);
+    state = state.copyWith(
+      items: [],
+      porcentajeImpuesto: 0.16,
+    );
   }
 
   /// Auxiliar para redondear cantidades (3 decimales si es de balanza, de lo contrario normal)

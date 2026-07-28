@@ -10,6 +10,8 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
+  errors:
+    file_names: ignore
   exclude:
     - "**/*.g.dart"
     - "**/*.freezed.dart" # (Opcional, pero muy útil si alguna vez usas Freezed)

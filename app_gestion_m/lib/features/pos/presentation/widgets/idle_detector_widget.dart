@@ -5,7 +5,7 @@ import '../providers/lock_provider.dart';
 class IdleDetector extends ConsumerWidget {
   final Widget child;
 
-  const IdleDetector({Key? key, required this.child}) : super(key: key);
+  const IdleDetector({super.key, required this.child});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -24,7 +24,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   final IsarService _isarService = IsarService();
 
   String _categoriaSeleccionada = 'Todas';
-  final List<String> _categorias = ['Todas', 'Frutas', 'Abarrotes', 'Lácteos', 'Bebidas', 'Stock Bajo'];
+  List<String> _categorias = ['Todas', 'Stock Bajo'];
 
   List<ProductoEntity> _productosCatalog = [];
   List<ProductoEntity> _productosFiltrados = [];
@@ -89,9 +89,22 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
 
       final productos = await _isarService.obtenerProductos();
 
+      final setCategorias = productos
+          .map((p) => p.categoria.trim())
+          .where((c) => c.isNotEmpty)
+          .toSet();
+
+      final listaCategoriasOrdenadas = setCategorias.toList()..sort();
+
       if (mounted) {
         setState(() {
           _productosCatalog = productos;
+          _categorias = ['Todas', ...listaCategoriasOrdenadas, 'Stock Bajo'];
+          
+          if (!_categorias.contains(_categoriaSeleccionada)) {
+            _categoriaSeleccionada = 'Todas';
+          }
+          
           _isLoading = false;
         });
         _filtrarProductos();
@@ -119,9 +132,10 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         
         bool coincideCategoria = true;
         if (_categoriaSeleccionada == 'Stock Bajo') {
-          coincideCategoria = prod.stock <= 10;
+          coincideCategoria = prod.stock <= prod.stockMinimo;
         } else if (_categoriaSeleccionada != 'Todas') {
-          coincideCategoria = prod.categoria == _categoriaSeleccionada;
+          // Normalizado a minúsculas para asegurar coincidencia con "Bebidas" / "bebidas"[cite: 11]
+          coincideCategoria = prod.categoria.trim().toLowerCase() == _categoriaSeleccionada.toLowerCase();
         }
 
         return (coincideNombre || coincideCodigo) && coincideCategoria;
@@ -261,7 +275,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
       context: context,
       barrierDismissible: false,
       builder: (context) => CobrarDialog(
-        totalAPagar: cartState.total,
+        totalAPagar: cartState.total, productos: const [],
       ),
     );
 
@@ -366,7 +380,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          // Tasa BCV Widget
           Tooltip(
             message: 'Tasa oficial BCV (Haz clic para actualizar)',
             child: InkWell(
@@ -415,81 +428,72 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
           : Row(
               children: [
-                // SECCIÓN IZQUIERDA: CATÁLOGO DE PRODUCTOS (70% Ancho)
                 Expanded(
                   flex: 7,
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       children: [
-                        // BARRA DE BÚSQUEDA Y CATEGORÍAS
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SizedBox(
-                                height: 42,
-                                child: TextField(
-                                  controller: _searchController,
-                                  focusNode: _searchFocusNode,
-                                  autofocus: true,
-                                  onChanged: (_) => _filtrarProductos(),
-                                  decoration: InputDecoration(
-                                    hintText: 'Buscar o escanear por nombre / código (F2)...',
-                                    hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-                                    prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
-                                    suffixIcon: IconButton(
-                                      icon: const Icon(Icons.clear, size: 18),
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        _filtrarProductos();
-                                      },
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
-                                    ),
-                                  ),
-                                  onSubmitted: (val) {
-                                    if (_productosFiltrados.length == 1) {
-                                      _mostrarModalCantidad(context, _productosFiltrados.first);
-                                    }
-                                  },
-                                ),
+                        SizedBox(
+                          height: 42,
+                          child: TextField(
+                            controller: _searchController,
+                            focusNode: _searchFocusNode,
+                            autofocus: true,
+                            onChanged: (_) => _filtrarProductos(),
+                            decoration: InputDecoration(
+                              hintText: 'Buscar o escanear por nombre / código (F2)...',
+                              hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                              prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _filtrarProductos();
+                                },
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                              filled: true,
+                              fillColor: Colors.white,
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: _categorias.map((cat) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 8.0),
-                                    child: _CategoryButton(
-                                      categoria: cat,
-                                      esSeleccionada: _categoriaSeleccionada == cat,
-                                      onTap: () {
-                                        setState(() {
-                                          _categoriaSeleccionada = cat;
-                                        });
-                                        _filtrarProductos();
-                                      },
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                          ],
+                            onSubmitted: (val) {
+                              if (_productosFiltrados.length == 1) {
+                                _mostrarModalCantidad(context, _productosFiltrados.first);
+                              }
+                            },
+                          ),
                         ),
-                        const SizedBox(height: 20),
-
-                        // Grid de Productos
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 38,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _categorias.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 8),
+                            itemBuilder: (context, index) {
+                              final cat = _categorias[index];
+                              return _CategoryButton(
+                                categoria: cat,
+                                esSeleccionada: _categoriaSeleccionada == cat,
+                                onTap: () {
+                                  setState(() {
+                                    _categoriaSeleccionada = cat;
+                                  });
+                                  _filtrarProductos();
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         Expanded(
                           child: _productosFiltrados.isEmpty
                               ? const Center(
@@ -508,7 +512,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                                   itemCount: _productosFiltrados.length,
                                   itemBuilder: (context, index) {
                                     final producto = _productosFiltrados[index];
-                                    final bool stockBajo = producto.stock <= 10;
+                                    final bool stockBajo = producto.stock <= producto.stockMinimo;
 
                                     return InkWell(
                                       onTap: () => _mostrarModalCantidad(context, producto),
@@ -637,8 +641,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                     ),
                   ),
                 ),
-
-                // SECCIÓN DERECHA: SIDEBAR DE ORDEN ACTIVA / CARRITO GLOBAL (30% Ancho)
                 Expanded(
                   flex: 3,
                   child: Container(
@@ -673,8 +675,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                             ],
                           ),
                         ),
-
-                        // LISTA DE PRODUCTOS EN EL CARRITO
                         Expanded(
                           child: cartState.items.isEmpty
                               ? const Center(
@@ -748,8 +748,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                                   },
                                 ),
                         ),
-
-                        // FOOTER DEL CARRITO CON TOTALES Y BOLÍVARES
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: const BoxDecoration(
@@ -810,7 +808,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   }
 }
 
-/// Widget auxiliar para manejar el estado del Hover en los botones de categoría
 class _CategoryButton extends StatefulWidget {
   final String categoria;
   final bool esSeleccionada;

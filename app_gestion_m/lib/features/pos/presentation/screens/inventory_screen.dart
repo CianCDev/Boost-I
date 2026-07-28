@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
-import '../../data/Local/entities/usuario_entity.dart'; //
+import '../../data/Local/entities/usuario_entity.dart';
 
 class InventoryScreen extends StatefulWidget {
   final UsuarioEntity usuarioActual;
@@ -37,6 +37,47 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
+  /// Diálogo para agregar una nueva categoría en caliente
+  Future<String?> _mostrarDialogoNuevaCategoria(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Nueva Categoría'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Nombre de la categoría',
+              hintText: 'Ej: Bebidas, Limpieza, Víveres...',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.isNotEmpty) {
+                  Navigator.pop(dialogContext, text);
+                }
+              },
+              child: const Text('Agregar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _mostrarFormularioProducto({ProductoEntity? productoAEditar}) {
     if (!_esAdmin) return;
 
@@ -47,11 +88,29 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final precioController = TextEditingController(text: productoAEditar?.precioUnidad.toString() ?? '');
     final stockController = TextEditingController(text: productoAEditar?.stock.toString() ?? '');
     final stockMinController = TextEditingController(text: productoAEditar?.stockMinimo.toString() ?? '5.0');
-    final categoriaController = TextEditingController(text: productoAEditar?.categoria ?? 'General');
     final proveedorNombreController = TextEditingController(text: productoAEditar?.proveedorNombre ?? '');
     final proveedorTelController = TextEditingController(text: productoAEditar?.proveedorTelefono ?? '');
     
     bool esPesado = productoAEditar?.esPesado ?? false;
+
+    // 1. Extraer categorías únicas existentes en la DB + por defecto
+    final setCategorias = _productos
+        .map((p) => p.categoria.trim())
+        .where((c) => c.isNotEmpty)
+        .toSet();
+    
+    setCategorias.addAll(['General', 'Frutas', 'Abarrotes', 'Lácteos']);
+
+    if (productoAEditar != null && productoAEditar.categoria.isNotEmpty) {
+      setCategorias.add(productoAEditar.categoria.trim());
+    }
+
+    final List<String> listaCategorias = setCategorias.toList()..sort();
+    String categoriaSeleccionada = productoAEditar?.categoria ?? 'General';
+
+    if (!listaCategorias.contains(categoriaSeleccionada)) {
+      listaCategorias.add(categoriaSeleccionada);
+    }
 
     showDialog(
       context: context,
@@ -98,6 +157,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       ),
                       const SizedBox(height: 8),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: TextField(
@@ -107,10 +167,49 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
+                          
+                          // Selector de Categoría con botón para añadir nuevas
                           Expanded(
-                            child: TextField(
-                              controller: categoriaController,
-                              decoration: const InputDecoration(labelText: 'Categoría'),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue: categoriaSeleccionada,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Categoría',
+                                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    ),
+                                    isExpanded: true,
+                                    items: listaCategorias.map((cat) {
+                                      return DropdownMenuItem<String>(
+                                        value: cat,
+                                        child: Text(cat, overflow: TextOverflow.ellipsis),
+                                      );
+                                    }).toList(),
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        setStateModal(() => categoriaSeleccionada = val);
+                                      }
+                                    },
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.add_circle, color: Colors.teal),
+                                  tooltip: 'Crear nueva categoría',
+                                  onPressed: () async {
+                                    final nuevaCat = await _mostrarDialogoNuevaCategoria(context);
+                                    if (nuevaCat != null && nuevaCat.isNotEmpty) {
+                                      setStateModal(() {
+                                        if (!listaCategorias.contains(nuevaCat)) {
+                                          listaCategorias.add(nuevaCat);
+                                          listaCategorias.sort();
+                                        }
+                                        categoriaSeleccionada = nuevaCat;
+                                      });
+                                    }
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -156,7 +255,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     producto.precioUnidad = double.tryParse(precioController.text) ?? 0.0;
                     producto.stock = double.tryParse(stockController.text) ?? 0.0;
                     producto.stockMinimo = double.tryParse(stockMinController.text) ?? 5.0;
-                    producto.categoria = categoriaController.text.trim();
+                    
+                    // Asignamos la categoría seleccionada desde el selector
+                    producto.categoria = categoriaSeleccionada;
+                    
                     producto.esPesado = esPesado;
                     producto.proveedorNombre = proveedorNombreController.text.trim();
                     producto.proveedorTelefono = proveedorTelController.text.trim();

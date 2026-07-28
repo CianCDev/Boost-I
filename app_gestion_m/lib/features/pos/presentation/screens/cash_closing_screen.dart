@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/cash_register_service.dart';
+import '../services/ticket_service.dart';
+
 
 class CashClosingScreen extends StatefulWidget {
   const CashClosingScreen({super.key});
@@ -36,6 +38,46 @@ class _CashClosingScreenState extends State<CashClosingScreen> {
           SnackBar(content: Text('Error al calcular el corte: $e'), backgroundColor: Colors.redAccent),
         );
       }
+    }
+  }
+
+  Future<void> _ejecutarCierreYGuardarPdf() async {
+    if (_resumen == null) return;
+    
+    try {
+      // 1. Crear el ítem resumen usando exclusivamente los parámetros válidos de TicketItem
+      final List<TicketItem> itemsArqueo = [
+        TicketItem(
+          nombre: 'Cierre de Caja / Arqueo Diario',
+          precio: _resumen!.totalVentas,
+          cantidad: 1.0,
+          esPesado: false,
+        ),
+      ];
+
+      // 2. Generar y almacenar el comprobante en la carpeta local /Tickets_POS
+      await TicketService.generarYProcesarPdf(
+        items: itemsArqueo,
+        subtotal: _resumen!.totalVentas,
+        impuesto: 0.0,
+        total: _resumen!.totalVentas,
+        metodoPago: 'ARQUEO DE CAJA',
+        montoRecibido: _resumen!.totalVentas,
+        vuelto: 0.0,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('¡Cierre de caja procesado y PDF guardado con éxito! 📄'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al generar el PDF del arqueo: $e'), backgroundColor: Colors.redAccent),
+      );
     }
   }
 
@@ -157,6 +199,24 @@ class _CashClosingScreenState extends State<CashClosingScreen> {
                               ),
                             );
                           },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Botón para realizar el cierre e imprimir/guardar el PDF
+                      SizedBox(
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: _ejecutarCierreYGuardarPdf,
+                          icon: const Icon(Icons.print, size: 20),
+                          label: const Text(
+                            'Realizar Cierre y Guardar PDF',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
                         ),
                       ),
                     ],

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/material.dart';
 
 class LockStateNotifier extends StateNotifier<bool> {
   Timer? _idleTimer;
@@ -43,7 +44,7 @@ class LockStateNotifier extends StateNotifier<bool> {
       }
     } catch (e) {
       // Manejo silencioso si estás offline con Isar o sin internet
-      print('No se pudo registrar el descanso en Supabase: $e');
+      debugPrint('No se pudo registrar el descanso en Supabase: $e');
     }
   }
 
@@ -67,7 +68,7 @@ class LockStateNotifier extends StateNotifier<bool> {
           });
         }
       } catch (e) {
-        print('Error al registrar el fin de descanso: $e');
+        debugPrint('Error al registrar el fin de descanso: $e');
       }
 
       state = false;

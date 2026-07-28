@@ -1,24 +1,26 @@
+import 'package:app_gestion_m/features/pos/presentation/providers/esc_pos_printer_provider.dart';
+import 'package:app_gestion_m/features/pos/presentation/widgets/printer_selection_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/producto_entity.dart';
+import '../../data/Local/entities/usuario_entity.dart';
+import '../../data/Local/entities/venta_entity.dart';
 import '../../domain/models/product_item.dart';
 import '../controllers/cart_controller.dart';
 import '../providers/bcv_provider.dart';
+import '../providers/lock_provider.dart';
 import '../services/ticket_service.dart';
 import '../widgets/cart_table_widget.dart';
 import '../widgets/cobrar_dialog.dart';
 import '../widgets/pos_summary_panel.dart';
 import '../widgets/scale_visor_widget.dart';
-import 'sales_history_screen.dart' as sales_history_screen;
-import '../../data/Local/entities/isar_service.dart';
-import '../../data/Local/entities/venta_entity.dart';
-import '../../data/Local/entities/producto_entity.dart';
-import '../../data/Local/entities/usuario_entity.dart';
-import 'inventory_screen.dart';
 import 'inventory_catalog_screen.dart';
+import 'inventory_screen.dart';
 import 'login_screen.dart';
-import '../providers/lock_provider.dart';
+import 'sales_history_screen.dart' as sales_history_screen;
 
 class PosDesktopScreen extends ConsumerStatefulWidget {
   final UsuarioEntity usuarioActual;
@@ -39,6 +41,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
   List<ProductoEntity> _productosLocales = [];
   int _ventasPendientesSync = 0;
   bool _sincronizando = false;
+  bool _aplicaIva = true; // Control local del cálculo de IVA
   final double _pesoBalanzaActual = 0.000;
 
   @override
@@ -50,7 +53,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     _cargarProductosAutocompletado();
     _actualizarContadorSync();
     _registrarEstadoUsuario('activo');
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(bcvProvider).actualizarTasa();
     });
@@ -112,6 +115,13 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     }
   }
 
+  void _mostrarDialogoImpresora() {
+    showDialog(
+      context: context,
+      builder: (context) => const PrinterSelectionDialog(),
+    );
+  }
+
   Future<void> _mostrarDialogoStockBajo() async {
     final productosBajos = await _isarService.obtenerProductosStockBajo();
 
@@ -148,7 +158,10 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                           child: Icon(Icons.inventory_2, color: Colors.red, size: 20),
                         ),
                         title: Text(p.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        subtitle: Text('Código: ${p.codigoBarras} | Proveedor: ${p.proveedorNombre.isEmpty ? "No asignado" : p.proveedorNombre}', style: const TextStyle(fontSize: 11)),
+                        subtitle: Text(
+                          'Código: ${p.codigoBarras} | Proveedor: ${p.proveedorNombre.isEmpty ? "No asignado" : p.proveedorNombre}',
+                          style: const TextStyle(fontSize: 11),
+                        ),
                         trailing: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
@@ -241,7 +254,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
-  /// Módulo para que el usuario activo cambie su propio PIN
   void _mostrarDialogoCambiarClave() {
     final TextEditingController claveController = TextEditingController();
     bool obscureText = true;
@@ -305,12 +317,11 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                     }
 
                     try {
-                      // Llamamos a IsarService para guardar la nueva clave
                       final exito = await _isarService.cambiarClaveUsuario(widget.usuarioActual.id, nuevaClave);
 
                       if (context.mounted) {
                         if (exito) {
-                          widget.usuarioActual.pin = nuevaClave; // Actualizar localmente para la sesión
+                          widget.usuarioActual.pin = nuevaClave;
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Clave actualizada correctamente.'), backgroundColor: Color(0xFF10B981)),
@@ -339,7 +350,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
-  /// Monitor de Cajeros conectado dinámicamente a la Base de Datos Isar DB
   void _mostrarEstadoCajeros(BuildContext context) {
     showDialog(
       context: context,
@@ -390,7 +400,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final usuario = usuarios[index];
-                    
+
                     Color colorEstado;
                     IconData iconoEstado;
                     String textoEstado;
@@ -417,7 +427,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: colorEstado.withOpacity(0.15),
+                        backgroundColor: colorEstado.withValues(alpha: 0.15),
                         child: Icon(iconoEstado, color: colorEstado, size: 20),
                       ),
                       title: Text(
@@ -431,9 +441,9 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: colorEstado.withOpacity(0.1),
+                          color: colorEstado.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: colorEstado.withOpacity(0.5)),
+                          border: Border.all(color: colorEstado.withValues(alpha: 0.5)),
                         ),
                         child: Text(
                           textoEstado,
@@ -592,6 +602,10 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
   bool _manejarTecladoFisico(KeyEvent event) {
     if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.f1) {
+        _mostrarAyudaAtajos();
+        return true;
+      }
       if (event.logicalKey == LogicalKeyboardKey.f2) {
         _enfocarBuscador();
         return true;
@@ -601,12 +615,75 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
         return true;
       }
       if (event.logicalKey == LogicalKeyboardKey.escape) {
-        ref.read(cartProvider.notifier).limpiarCarrito();
-        _enfocarBuscador();
+        _reiniciarCarrito();
         return true;
       }
     }
     return false;
+  }
+
+  void _mostrarAyudaAtajos() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.keyboard, color: Color(0xFF3B82F6)),
+            SizedBox(width: 10),
+            Text('Atajos de Teclado Rápido', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _itemAtajo('F1', 'Abrir esta guía de ayuda'),
+              _itemAtajo('F2', 'Enfocar buscador de productos / balanza'),
+              _itemAtajo('F12', 'Abrir pantalla de cobro inmediatamente'),
+              _itemAtajo('ESC', 'Limpiar/Reiniciar carrito de compra actual'),
+              _itemAtajo('Enter', 'Agregar producto seleccionado / Confirmar cobro'),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _itemAtajo(String tecla, String descripcion) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              tecla,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              descripcion,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF334155)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _enfocarBuscador() {
@@ -617,6 +694,15 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
+  void _reiniciarCarrito() {
+    ref.read(cartProvider.notifier).limpiarCarrito();
+    setState(() {
+      _aplicaIva = true;
+    });
+    ref.read(cartProvider.notifier).setAplicaIva(true);
+    _enfocarBuscador();
+  }
+
   Future<void> _abrirCobro() async {
     final cartState = ref.read(cartProvider);
     if (cartState.total <= 0) return;
@@ -625,11 +711,21 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
       tasaActual = 0.0;
     }
 
+    final productosParaDialogo = cartState.items.map((item) {
+      return {
+        'nombre': item.producto.nombre,
+        'cantidad': item.cantidad.toDouble(),
+        'precio': item.producto.precioUnidad,
+        'esPesado': item.producto.esPesado,
+      };
+    }).toList();
+
     final resultado = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
       builder: (context) => CobrarDialog(
         totalAPagar: cartState.total,
+        productos: productosParaDialogo,
       ),
     );
 
@@ -650,7 +746,6 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
         final nuevaVentaEntity = VentaEntity()
           ..ventaIdString = ventaIdStr
           ..fecha = ahora.toUtc()
-          ..fecha = DateTime.now().toUtc() // Guardar explícitamente en UTC en Isar
           ..total = cartState.total
           ..subtotal = cartState.subtotal
           ..impuesto = cartState.impuesto
@@ -674,6 +769,8 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             esPesado: cartItem.producto.esPesado,
           );
         }).toList();
+        
+        final selectedPrinter = ref.read(printerProvider);
 
         await TicketService.generarYProcesarPdf(
           items: ticketItems,
@@ -684,15 +781,15 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           montoRecibido: resultado['montoRecibido'],
           vuelto: resultado['vuelto'],
           fechaVenta: ahora,
+          impresoraSeleccionada: selectedPrinter,
         );
 
-        ref.read(cartProvider.notifier).limpiarCarrito();
-        _enfocarBuscador();
+        _reiniciarCarrito();
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('¡Venta registrada con éxito con tasa BCV e importe en Bs.! 🎉'),
+              content: Text('¡Venta registrada con éxito! 🎉'),
               backgroundColor: Color(0xFF10B981),
             ),
           );
@@ -723,30 +820,32 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                 .where((v) => v.metodoPago.toLowerCase() == 'efectivo')
                 .fold(0.0, (sum, v) => sum + v.total);
 
-            final double totalTarjeta = ventasDelDia
-                .where((v) => v.metodoPago.toLowerCase() == 'tarjeta')
+            final double totalPagoMovil = ventasDelDia
+                .where((v) => v.metodoPago.toLowerCase() == 'pago móvil')
                 .fold(0.0, (sum, v) => sum + v.total);
 
-            final double totalOtros = ventasDelDia
-                .where((v) =>
-                    v.metodoPago.toLowerCase() != 'efectivo' &&
-                    v.metodoPago.toLowerCase() != 'tarjeta')
+            final double totalPunto = ventasDelDia
+                .where((v) => v.metodoPago.toLowerCase() == 'punto de venta')
                 .fold(0.0, (sum, v) => sum + v.total);
 
-            final double granTotal =
-                ventasDelDia.fold(0.0, (sum, v) => sum + v.total);
+            final double totalMixto = ventasDelDia
+                .where((v) => v.metodoPago.toLowerCase() == 'pago mixto')
+                .fold(0.0, (sum, v) => sum + v.total);
+
+            final double granTotal = ventasDelDia.fold(0.0, (sum, v) => sum + v.total);
+            final double granTotalBs = ventasDelDia.fold(0.0, (sum, v) => sum + v.totalBolivares);
 
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
               title: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.point_of_sale, color: Color(0xFF0F172A)),
-                      SizedBox(width: 8),
+                      Icon(Icons.point_of_sale, color: Color(0xFF0F172A), size: 26),
+                      SizedBox(width: 10),
                       Text(
-                        'Caja del Día',
+                        'Resumen de Caja del Día',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                       ),
                     ],
@@ -766,41 +865,45 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                 ],
               ),
               content: SizedBox(
-                width: 400,
+                width: 440,
                 child: snapshot.connectionState == ConnectionState.waiting
                     ? const SizedBox(
-                        height: 120,
+                        height: 140,
                         child: Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),
                       )
                     : Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _filaDetalleCaja('Efectivo', totalEfectivo, Icons.payments_outlined, const Color(0xFF10B981)),
-                          const SizedBox(height: 10),
-                          _filaDetalleCaja('Tarjeta', totalTarjeta, Icons.credit_card, const Color(0xFF3B82F6)),
-                          const SizedBox(height: 10),
-                          _filaDetalleCaja('Otros / Transf.', totalOtros, Icons.qr_code, const Color(0xFF8B5CF6)),
-                          const Divider(height: 24),
+                          _filaDetalleCaja('Efectivo USD / Bs', totalEfectivo, Icons.payments_outlined, const Color(0xFF10B981)),
+                          const SizedBox(height: 8),
+                          _filaDetalleCaja('Pago Móvil', totalPagoMovil, Icons.phone_iphone_rounded, const Color(0xFF0284C7)),
+                          const SizedBox(height: 8),
+                          _filaDetalleCaja('Punto de Venta', totalPunto, Icons.credit_card_outlined, const Color(0xFF8B5CF6)),
+                          const SizedBox(height: 8),
+                          _filaDetalleCaja('Pago Mixto', totalMixto, Icons.swap_horiz_rounded, const Color(0xFFD97706)),
+                          const Divider(height: 20),
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: const Color(0xFF0F172A),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            child: Column(
                               children: [
-                                const Text(
-                                  'TOTAL EN CAJA',
-                                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('TOTAL INGRESADO (\$)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
+                                    Text('\$${granTotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF34D399))),
+                                  ],
                                 ),
-                                Text(
-                                  '\$${granTotal.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                    color: Color(0xFF34D399),
-                                  ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('EQUIVALENTE EN BS', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontWeight: FontWeight.w600)),
+                                    Text('Bs. ${granTotalBs.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 13, fontWeight: FontWeight.bold)),
+                                  ],
                                 ),
                               ],
                             ),
@@ -809,6 +912,19 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                       ),
               ),
               actions: [
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: const Icon(Icons.lock_clock, size: 18),
+                  label: const Text('Cierre de Caja (Arqueo)', style: TextStyle(fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _ejecutarCierreDeCaja(granTotal, granTotalBs, ventasDelDia.length);
+                  },
+                ),
                 if (widget.usuarioActual.rol == 'admin')
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
@@ -817,7 +933,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                     icon: const Icon(Icons.analytics_outlined, size: 18),
-                    label: const Text('Ver Registro y Auditoría', style: TextStyle(fontWeight: FontWeight.bold)),
+                    label: const Text('Auditoría', style: TextStyle(fontWeight: FontWeight.bold)),
                     onPressed: () {
                       Navigator.of(context).pop();
                       Navigator.of(context).push(
@@ -836,6 +952,51 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           },
         );
       },
+    );
+  }
+
+  void _ejecutarCierreDeCaja(double totalUsd, double totalBs, int cantidadVentas) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.assignment_turned_in_rounded, color: Color(0xFFEF4444)),
+            SizedBox(width: 10),
+            Text('Confirmar Cierre de Turno'),
+          ],
+        ),
+        content: Text(
+          '¿Deseas procesar el arqueo final de la caja actual?\n\n'
+          '• Total Ventas: $cantidadVentas\n'
+          '• Monto Recaudado: \$$totalUsd / Bs. ${totalBs.toStringAsFixed(2)}\n\n'
+          'Se generará un comprobante de cierre de caja para el cajero $_cajeroActual.',
+          style: const TextStyle(fontSize: 13, color: Color(0xFF334155)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('¡Cierre de caja completado para $_cajeroActual!'),
+                  backgroundColor: const Color(0xFF10B981),
+                ),
+              );
+            },
+            child: const Text('Realizar Cierre'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -875,6 +1036,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
+          // 1. TASA BCV
           Tooltip(
             message: 'Tasa oficial BCV (Haz clic para actualizar)',
             child: InkWell(
@@ -911,6 +1073,58 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               ),
             ),
           ),
+
+          // 2. SINCRONIZACIÓN SUPABASE
+          Tooltip(
+            message: _sincronizando
+                ? 'Sincronizando ventas...'
+                : (_ventasPendientesSync == 0
+                    ? 'Todo sincronizado con Supabase'
+                    : 'Presiona para sincronizar $_ventasPendientesSync ventas pendientes'),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              child: ElevatedButton.icon(
+                onPressed: (_sincronizando || _ventasPendientesSync == 0) ? null : _sincronizarVentas,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _ventasPendientesSync > 0 ? const Color(0xFFD97706) : const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: _sincronizando ? const Color(0xFF2563EB) : const Color(0xFF1E293B),
+                  disabledForegroundColor: Colors.white70,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  elevation: _ventasPendientesSync > 0 ? 2 : 0,
+                ),
+                icon: _sincronizando
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Icon(
+                        _ventasPendientesSync == 0 ? Icons.cloud_done_rounded : Icons.sync_rounded,
+                        size: 16,
+                      ),
+                label: Text(
+                  _sincronizando
+                      ? 'Sincronizando...'
+                      : (_ventasPendientesSync == 0 ? 'Al Día' : 'Sincronizar ($_ventasPendientesSync)'),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ),
+            ),
+          ),
+
+          // 3. MONITOR CAJEROS (Solo Admin)
+          if (widget.usuarioActual.rol == 'admin')
+            IconButton(
+              icon: const Icon(Icons.monitor_heart_outlined, color: Color(0xFF38BDF8)),
+              tooltip: 'Monitor de Cajeros',
+              onPressed: () => _mostrarEstadoCajeros(context),
+            ),
+
+          // 4. BOTÓN DE DESCANSO (Solo Cajeros)
           if (widget.usuarioActual.rol == 'cajero')
             IconButton(
               icon: const Icon(Icons.coffee, color: Colors.orange),
@@ -940,58 +1154,8 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                 );
               },
             ),
-          if (widget.usuarioActual.rol == 'admin')
-            IconButton(
-              icon: const Icon(Icons.monitor_heart_outlined, color: Color(0xFF38BDF8)),
-              tooltip: 'Monitor de Cajeros',
-              onPressed: () => _mostrarEstadoCajeros(context),
-            ),
-          Tooltip(
-            message: _ventasPendientesSync == 0
-                ? 'Todo sincronizado con el servidor'
-                : '$_ventasPendientesSync ventas pendientes (Haz clic para sincronizar)',
-            child: InkWell(
-              onTap: _sincronizarVentas,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(
-                  color: _ventasPendientesSync == 0 ? const Color(0xFF064E3B) : const Color(0xFF78350F),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: _ventasPendientesSync == 0 ? const Color(0xFF059669) : const Color(0xFFD97706),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    _sincronizando
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber),
-                          )
-                        : Icon(
-                            _ventasPendientesSync == 0 ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined,
-                            size: 18,
-                            color: _ventasPendientesSync == 0 ? const Color(0xFF34D399) : Colors.amber,
-                          ),
-                    if (_ventasPendientesSync > 0) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        '$_ventasPendientesSync',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: Colors.amber,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
+
+          // 5. ALERTAS STOCK BAJO
           FutureBuilder<List<ProductoEntity>>(
             future: _isarService.obtenerProductosStockBajo(),
             builder: (context, snapshot) {
@@ -1029,11 +1193,15 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               );
             },
           ),
+
+          // 6. RESUMEN DE CAJA Y TURNO
           IconButton(
             icon: const Icon(Icons.point_of_sale),
             tooltip: 'Ver Resumen de Caja y Turno',
             onPressed: () => _mostrarDialogoCaja(context),
           ),
+
+          // 7. CATÁLOGO VISUAL
           IconButton(
             icon: const Icon(Icons.inventory_2_outlined),
             tooltip: 'Abrir Catálogo Visual',
@@ -1046,14 +1214,22 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               _cargarProductosAutocompletado();
             },
           ),
+
+          // 8. REINICIAR VENTA
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.read(cartProvider.notifier).limpiarCarrito();
-              _enfocarBuscador();
-            },
+            onPressed: _reiniciarCarrito,
             tooltip: 'Reiniciar Venta (Esc)',
           ),
+
+          // 9. IMPRESORA POS
+          IconButton(
+            icon: const Icon(Icons.print, color: Color(0xFF38BDF8)),
+            tooltip: 'Configurar Impresora POS',
+            onPressed: _mostrarDialogoImpresora,
+          ),
+
+          // 10. MENÚ DE PERFIL
           const VerticalDivider(color: Colors.white24, indent: 12, endIndent: 12, width: 20),
           PopupMenuButton<String>(
             tooltip: 'Opciones de Cuenta y Turno',
@@ -1078,6 +1254,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               } else if (value == 'cerrar_sesion') {
                 await _registrarEstadoUsuario('inactivo');
                 if (mounted) {
+                  // ignore: use_build_context_synchronously
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (context) => const LoginScreen()),
                     (route) => false,
@@ -1276,16 +1453,94 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               flex: 1,
               child: Column(
                 children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: _aplicaIva ? const Color(0xFFF8FAFC) : const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _aplicaIva ? const Color(0xFFE2E8F0) : const Color(0xFFF59E0B),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              _aplicaIva ? Icons.receipt_long_outlined : Icons.money_off_csred_rounded,
+                              size: 20,
+                              color: _aplicaIva ? const Color(0xFF3B82F6) : const Color(0xFFD97706),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _aplicaIva ? 'IVA Aplicado (16%)' : 'Factura Exenta de IVA',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: _aplicaIva ? const Color(0xFF0F172A) : const Color(0xFFB45309),
+                                  ),
+                                ),
+                                Text(
+                                  _aplicaIva ? 'Calculando 16% sobre subtotal' : 'Venta marcada sin impuesto',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: _aplicaIva ? const Color(0xFF64748B) : const Color(0xFFD97706),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: _aplicaIva ? const Color(0xFF0F172A) : const Color(0xFFD97706),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _aplicaIva = !_aplicaIva;
+                                });
+                                ref.read(cartProvider.notifier).setAplicaIva(_aplicaIva);
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              hoverColor: Colors.white.withValues(alpha: 0.1),
+                              splashColor: Colors.white.withValues(alpha: 0.2),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                child: Text(
+                                  _aplicaIva ? 'SIN IVA' : 'CON IVA',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   Expanded(
                     child: PosSummaryPanel(
                       subtotal: cartState.subtotal,
                       impuesto: cartState.impuesto,
                       total: cartState.total,
                       onPagarPressed: _abrirCobro,
-                      onLimpiarPressed: () {
-                        ref.read(cartProvider.notifier).limpiarCarrito();
-                        _enfocarBuscador();
-                      },
+                      onLimpiarPressed: _reiniciarCarrito,
                     ),
                   ),
                   const SizedBox(height: 10),
