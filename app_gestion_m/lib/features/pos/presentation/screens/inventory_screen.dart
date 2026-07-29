@@ -1,19 +1,25 @@
 import 'package:flutter/material.dart';
-import '../../data/Local/entities/isar_service.dart';
-import '../../data/Local/entities/producto_entity.dart';
-import '../../data/Local/entities/usuario_entity.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class InventoryScreen extends StatefulWidget {
+import '../../data/Local/entities/producto_entity.dart';
+import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/movimiento_inventario_entity.dart';
+import '../services/sync_service.dart';
+import '../providers/usuario_provider.dart'; // Tu provider actual
+
+class InventoryScreen extends ConsumerStatefulWidget {
   final UsuarioEntity usuarioLogueado;
   const InventoryScreen({super.key, required this.usuarioLogueado});
 
   @override
-  State<InventoryScreen> createState() => _InventoryScreenState();
+  ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends State<InventoryScreen> {
+class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final IsarService _isarService = IsarService();
-  List<ProductoEntity> _productos = [];
+  final SyncService _syncService = SyncService();
+  
+  List<ProductoEntity> _productos = []; 
   bool _isLoading = true;
   String _filtroBusqueda = '';
   bool _soloStockBajo = false;
