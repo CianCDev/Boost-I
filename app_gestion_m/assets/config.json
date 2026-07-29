@@ -1,0 +1,6 @@
+{
+  "syncServerUrl": "https://your-sync-server.example",
+  "syncApiKey": "REPLACE_WITH_SYNC_API_KEY",
+  "supabaseUrl": "https://moeedweiombdnssjrgai.supabase.co",
+  "supabaseAnonKey": "sb_publishable_3u_VXY6GnKj6i0z1eerteA_9dVsym2K"
+}

@@ -100,6 +100,59 @@ app.post('/api/productos/sync', async (req, res) => {
   }
 });
 
+
+// Endpoint: crear/actualizar usuario y opcionalmente crear cuenta en Supabase Auth
+app.post('/api/usuarios', async (req, res) => {
+  try {
+    if (!verifyApiKey(req)) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { nombre, rol, email, password, activo } = req.body || {};
+
+    if (!nombre) return res.status(400).json({ error: 'nombre es requerido' });
+
+    let supabaseUser = null;
+    if (email && password) {
+      // crear usuario en Supabase Auth mediante la key de administrador
+      try {
+        const { data: created, error: createErr } = await supabase.auth.admin.createUser({
+          email: email,
+          password: password,
+          email_confirm: true,
+          user_metadata: { nombre, rol }
+        });
+        if (createErr) {
+          console.error('Error creando usuario auth:', createErr);
+          return res.status(500).json({ error: createErr.message });
+        }
+        supabaseUser = created;
+      } catch (e) {
+        console.error('Error admin.createUser:', e);
+        return res.status(500).json({ error: 'error_crear_usuario_auth' });
+      }
+    }
+
+    const row = {
+      nombre: nombre || '',
+      rol: rol || 'cajero',
+      email: email || null,
+      activo: activo === undefined ? true : !!activo,
+      supabase_uid: supabaseUser?.id ?? null
+    };
+
+    const { data, error } = await supabase.from('usuarios').upsert([row], { onConflict: ['email'] });
+
+    if (error) {
+      console.error('Error upsert usuarios:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    return res.status(201).json({ ok: true, user: data, supabaseUser });
+  } catch (e) {
+    console.error('Server error /api/usuarios', e);
+    return res.status(500).json({ error: 'server_error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Sync server listening on :${PORT}`);
 });

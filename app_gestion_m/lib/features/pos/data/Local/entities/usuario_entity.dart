@@ -19,4 +19,8 @@ class UsuarioEntity {
   // Campos para el control de cajeros y turnos
   String? estado; // ej. 'activo', 'inactivo', 'descanso'
   String? cajaAsignada; // ej. 'Caja Principal', 'Caja 01'
+
+  // Email opcional y supabase UID si la cuenta existe en la nube
+  String? email;
+  String? supabaseUid;
 }

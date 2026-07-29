@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/movimiento_inventario_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
+import '../../data/Local/entities/usuario_entity.dart';
 
 class SyncService {
   final IsarService _isarService = IsarService();
@@ -15,12 +17,75 @@ class SyncService {
   // Endpoint original de ventas (si lo usas)
   final String _apiUrl = 'https://tu-api.com/api/ventas/sync';
 
-  // Sync server (microservice) URL y API key (reemplaza con tus valores de despliegue)
-  final String _syncServerUrl = 'https://your-sync-server.example';
-  final String _syncApiKey = '<REPLACE_WITH_SYNC_API_KEY>';
+  // Valores por defecto, serán sobrescritos si existe assets/config.json
+  String _syncServerUrl = 'https://your-sync-server.example';
+  String _syncApiKey = '<REPLACE_WITH_SYNC_API_KEY>';
+
+  // Opcional: si quieres exponer Supabase desde el config
+  String? _supabaseUrl;
+  String? _supabaseAnonKey;
+
+  bool _configLoaded = false;
 
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isSyncing = false;
+
+  /// Cabeceras de autorización usadas por las llamadas al microservicio
+  Map<String, String> _authHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $_syncApiKey',
+    };
+  }
+
+  /// Crea o actualiza un usuario en el backend seguro (microservicio)
+  /// Recibe el usuario local y, opcionalmente, email/password (si se desea crear cuenta en Supabase Auth)
+  Future<Map<String, dynamic>?> crearUsuarioEnServidor(UsuarioEntity usuario, {String? email, String? password}) async {
+    await _loadConfig();
+    try {
+      final payload = jsonEncode({
+        'nombre': usuario.nombre,
+        'rol': usuario.rol,
+        'activo': usuario.activo,
+        'email': email,
+        'password': password,
+      });
+
+      final response = await http.post(
+        Uri.parse('$_syncServerUrl/api/usuarios'),
+        headers: _authHeaders(),
+        body: payload,
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+
+      debugPrint('⚠️ crearUsuarioEnServidor: ${response.statusCode} ${response.body}');
+      return null;
+    } catch (e) {
+      debugPrint('🚫 Error en crearUsuarioEnServidor: $e');
+      return null;
+    }
+  }
+
+  Future<void> _loadConfig() async {
+    if (_configLoaded) return;
+    try {
+      final raw = await rootBundle.loadString('assets/config.json');
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      _syncServerUrl = map['syncServerUrl'] ?? _syncServerUrl;
+      _syncApiKey = map['syncApiKey'] ?? _syncApiKey;
+      _supabaseUrl = map['supabaseUrl'] ?? _supabaseUrl;
+      _supabaseAnonKey = map['supabaseAnonKey'] ?? _supabaseAnonKey;
+      _configLoaded = true;
+      debugPrint('🔧 SyncService: config cargada desde assets/config.json');
+    } catch (e) {
+      // Si no existe el archivo o hay error, seguir con valores por defecto
+      debugPrint('⚠️ SyncService: no se pudo cargar config (usando valores por defecto): $e');
+      _configLoaded = true;
+    }
+  }
 
   /// Inicia la escucha activa de la conexión a internet
   void iniciarMonitoreo() {
@@ -123,6 +188,7 @@ class SyncService {
 
   /// Envía el catálogo de productos al backend. Actualmente envía todos los productos.
   Future<void> sincronizarProductosASupabase() async {
+    await _loadConfig();
     try {
       final productos = await _isarService.obtenerProductos();
       if (productos.isEmpty) return;
@@ -146,7 +212,7 @@ class SyncService {
 
       // Endpoint hipotético para productos
       final response = await http.post(
-        Uri.parse('\${_syncServerUrl}/api/productos/sync'),
+        Uri.parse('$_syncServerUrl/api/productos/sync'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer \\${_syncApiKey}',
@@ -187,6 +253,7 @@ class SyncService {
   }
 
   Future<bool> _enviarMovimientoAlServidor(MovimientoInventarioEntity mov) async {
+    await _loadConfig();
     try {
       final payload = jsonEncode({
         'productoId': mov.productoId,
@@ -199,7 +266,7 @@ class SyncService {
       });
 
       final response = await http.post(
-        Uri.parse('\${_syncServerUrl}/api/inventario/movimientos'),
+        Uri.parse('$_syncServerUrl/api/inventario/movimientos'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer \\${_syncApiKey}',

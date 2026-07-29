@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // 👈 1. Importamos Riverpod
 import '../../data/Local/entities/isar_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../presentation/providers/usuario_provider.dart'; // 👈 Ajusta esta ruta a tu provider
 import 'pos_desktop_screen.dart';
@@ -51,6 +52,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
+    // Si el usuario local tiene email, intentar autenticar en Supabase primero
+    if ((_usuarioSeleccionado!.email ?? '').isNotEmpty) {
+      try {
+        final email = _usuarioSeleccionado!.email!;
+        final res = await Supabase.instance.client.auth.signInWithPassword(
+          email: email,
+          password: pinIngresado,
+        );
+
+        // Si Supabase devolvió sesión/usuario consideramos login OK
+        if ((res != null && (res.session != null || res.user != null))) {
+          final usuarioValido = await _isarService.validarLogin(_usuarioSeleccionado!.nombre, pinIngresado);
+          if (usuarioValido != null && mounted) {
+            ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => PosDesktopScreen(usuarioLogueado: usuarioValido)),
+            );
+            return;
+          }
+        }
+      } catch (e) {
+        debugPrint('Supabase login failed, fallback local: $e');
+        // continue to local validation
+      }
+    }
+
+    // Fallback: validación local por PIN
     final usuarioValido = await _isarService.validarLogin(
       _usuarioSeleccionado!.nombre,
       pinIngresado,

@@ -293,11 +293,10 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
               onPressed: () {
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Módulo de personal guardado correctamente.'), backgroundColor: Color(0xFF10B981)),
-                );
+                // Abrir el modal para crear/editar usuarios inmediatamente
+                _mostrarDialogCrearEditarUsuario();
               },
-              child: const Text('Guardar Cambios'),
+              child: const Text('Crear/Editar Usuario'),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -305,6 +304,107 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             ),
           ],
         );
+      },
+    );
+  }
+
+  /// Muestra un formulario para crear o editar un usuario local y opcionalmente crear su cuenta en Supabase.
+  void _mostrarDialogCrearEditarUsuario({UsuarioEntity? usuarioExistente}) {
+    final bool esNuevo = usuarioExistente == null;
+    final nombreCtrl = TextEditingController(text: usuarioExistente?.nombre ?? '');
+    final pinCtrl = TextEditingController(text: usuarioExistente?.pin ?? '');
+    final emailCtrl = TextEditingController(text: usuarioExistente?.email ?? '');
+    String rol = usuarioExistente?.rol ?? 'cajero';
+    bool crearEnSupabase = false;
+    final passwordCtrl = TextEditingController(text: '');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(builder: (context, setStateDialog) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            title: Text(esNuevo ? 'Nuevo Usuario' : 'Editar Usuario'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: nombreCtrl, decoration: const InputDecoration(labelText: 'Nombre')),
+                  const SizedBox(height: 8),
+                  TextField(controller: pinCtrl, decoration: const InputDecoration(labelText: 'PIN (4 dígitos)'), keyboardType: TextInputType.number, maxLength: 4),
+                  const SizedBox(height: 8),
+                  TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email (opcional para Supabase)')),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Text('Rol: '),
+                      const SizedBox(width: 8),
+                      DropdownButton<String>(
+                        value: rol,
+                        items: const [
+                          DropdownMenuItem(value: 'cajero', child: Text('Cajero')),
+                          DropdownMenuItem(value: 'admin', child: Text('Administrador')),
+                        ],
+                        onChanged: (v) => setStateDialog(() => rol = v ?? 'cajero'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: crearEnSupabase,
+                    onChanged: (v) => setStateDialog(() => crearEnSupabase = v ?? false),
+                    title: const Text('Crear usuario en Supabase (auth)'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  if (crearEnSupabase) ...[
+                    TextField(controller: passwordCtrl, decoration: const InputDecoration(labelText: 'Password para Supabase (mínimo 6 caracteres)'), obscureText: true),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+              ElevatedButton(
+                onPressed: () async {
+                  final nombre = nombreCtrl.text.trim();
+                  final pin = pinCtrl.text.trim();
+                  final email = emailCtrl.text.trim();
+                  final password = passwordCtrl.text;
+
+                  if (nombre.isEmpty || pin.length < 4) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nombre y PIN (4 dígitos) son requeridos')));
+                    return;
+                  }
+
+                  final usuario = usuarioExistente ?? UsuarioEntity();
+                  usuario.nombre = nombre;
+                  usuario.pin = pin;
+                  usuario.email = email.isEmpty ? null : email;
+                  usuario.rol = rol;
+                  usuario.activo = true;
+
+                  // Guardar localmente
+                  await _isarService.guardarUsuario(usuario);
+
+                  // Intentar crear también en la nube (opcional)
+                  if (crearEnSupabase && email.isNotEmpty && password.length >= 6) {
+                    final syncSvc = SyncService();
+                    final res = await syncSvc.crearUsuarioEnServidor(usuario, email: email, password: password);
+                    if (res != null && res['supabaseUser']) {
+                      usuario.supabaseUid = res['supabaseUser']?['id']?.toString();
+                      await _isarService.guardarUsuario(usuario);
+                    }
+                  }
+
+                  if (!mounted) return;
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Usuario guardado'), backgroundColor: Colors.green));
+                },
+                child: const Text('Guardar'),
+              ),
+            ],
+          );
+        });
       },
     );
   }

@@ -153,6 +153,15 @@ class IsarService {
     });
   }
 
+  /// Guarda o actualiza un usuario local (Isar)
+  Future<UsuarioEntity> guardarUsuario(UsuarioEntity usuario) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.usuarioEntitys.put(usuario);
+    });
+    return usuario;
+  }
+
   /// Filtra solo los usuarios con rol 'cajero'
   Future<List<UsuarioEntity>> obtenerEstadoCajeros() async {
     final isar = await db;
