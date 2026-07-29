@@ -13,8 +13,8 @@ import '../services/ticket_service.dart';
 import '../widgets/cobrar_dialog.dart';
 
 class InventoryCatalogScreen extends ConsumerStatefulWidget {
-  final UsuarioEntity? usuarioActual;
-  const InventoryCatalogScreen({super.key, this.usuarioActual});
+  final UsuarioEntity? usuarioLogueado;
+  const InventoryCatalogScreen({super.key, this.usuarioLogueado});
 
   @override
   ConsumerState<InventoryCatalogScreen> createState() => _InventoryCatalogScreenState();
@@ -313,7 +313,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         ..totalBolivares = totalBsCalculado
         ..metodoPago = metodoPago
         ..cedulaCliente = 'V-00000000'
-        ..empleado = widget.usuarioActual?.nombre ?? 'Administrador / Catálogo'
+        ..empleado = widget.usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
         ..items = itemsIsar
         ..sincronizado = false;
 

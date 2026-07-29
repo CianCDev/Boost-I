@@ -4,8 +4,8 @@ import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 
 class InventoryScreen extends StatefulWidget {
-  final UsuarioEntity usuarioActual;
-  const InventoryScreen({super.key, required this.usuarioActual});
+  final UsuarioEntity usuarioLogueado;
+  const InventoryScreen({super.key, required this.usuarioLogueado});
 
   @override
   State<InventoryScreen> createState() => _InventoryScreenState();
@@ -18,7 +18,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   String _filtroBusqueda = '';
   bool _soloStockBajo = false;
 
-  bool get _esAdmin => widget.usuarioActual.rol == 'admin';
+  bool get _esAdmin => widget.usuarioLogueado.rol == 'admin';
 
   @override
   void initState() {

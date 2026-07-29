@@ -63,7 +63,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Navegar al POS enviando el usuario autenticado
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (context) => PosDesktopScreen(usuarioActual: usuarioValido),
+          builder: (context) => PosDesktopScreen(usuarioLogueado: usuarioValido),
         ),
       );
     } else {

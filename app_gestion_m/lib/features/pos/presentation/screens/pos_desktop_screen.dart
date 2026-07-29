@@ -27,9 +27,9 @@ import '../../presentation/providers/usuario_provider.dart';
 /// pesaje en balanza, cálculo multimoneda (BCV) e integración offline con Isar DB y Supabase.
 class PosDesktopScreen extends ConsumerStatefulWidget {
   /// Entidad del usuario que mantiene la sesión activa en el POS.
-  final UsuarioEntity usuarioActual;
+  final UsuarioEntity usuarioLogueado;
 
-  const PosDesktopScreen({super.key, required this.usuarioActual});
+  const PosDesktopScreen({super.key, required this.usuarioLogueado});
 
   @override
   ConsumerState<PosDesktopScreen> createState() => _PosDesktopScreenState();
@@ -77,7 +77,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
   @override
   void initState() {
     super.initState();
-    _cajeroActual = widget.usuarioActual.nombre;
+    _cajeroActual = widget.usuarioLogueado.nombre;
 
     // Escuchar eventos globales del teclado físico para atajos (F1, F2, F12, ESC)
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
@@ -90,7 +90,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     // Inicializaciones de Riverpod diferidas para evitar errores de modificación durante la construcción
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ref.read(usuarioActualProvider.notifier).setUsuario(widget.usuarioActual);
+        ref.read(usuarioActualProvider.notifier).setUsuario(widget.usuarioLogueado);
         ref.read(bcvProvider).actualizarTasa();
       }
     });
@@ -111,7 +111,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
   /// Registra el estado operativo del cajero ('activo', 'descanso', 'inactivo') en Isar DB.
   Future<void> _registrarEstadoUsuario(String estado) async {
-    await _isarService.actualizarEstadoUsuario(widget.usuarioActual.id, estado);
+    await _isarService.actualizarEstadoUsuario(widget.usuarioLogueado.id, estado);
   }
 
   /// Recupera el catálogo completo de productos desde Isar DB para autocompletado.
@@ -238,7 +238,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               onPressed: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => InventoryScreen(usuarioActual: widget.usuarioActual)),
+                  MaterialPageRoute(builder: (context) => InventoryScreen(usuarioLogueado: widget.usuarioLogueado)),
                 );
               },
               child: const Text('Ver Inventario General'),
@@ -373,11 +373,11 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                     }
 
                     try {
-                      final exito = await _isarService.cambiarClaveUsuario(widget.usuarioActual.id, nuevaClave);
+                      final exito = await _isarService.cambiarClaveUsuario(widget.usuarioLogueado.id, nuevaClave);
 
                       if (context.mounted) {
                         if (exito) {
-                          widget.usuarioActual.pin = nuevaClave;
+                          widget.usuarioLogueado.pin = nuevaClave;
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Clave actualizada correctamente.'), backgroundColor: Color(0xFF10B981)),
@@ -984,7 +984,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                     _ejecutarCierreDeCaja(granTotal, granTotalBs, ventasDelDia.length);
                   },
                 ),
-                if (widget.usuarioActual.rol == 'admin')
+                if (widget.usuarioLogueado.rol == 'admin')
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF10B981),
@@ -1183,7 +1183,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           ),
 
           // 3. MONITOR CAJEROS (Solo Administrador)
-          if (widget.usuarioActual.rol == 'admin')
+          if (widget.usuarioLogueado.rol == 'admin')
             IconButton(
               icon: const Icon(Icons.monitor_heart_outlined, color: Color(0xFF38BDF8)),
               tooltip: 'Monitor de Cajeros',
@@ -1191,7 +1191,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             ),
 
           // 4. BOTÓN DE DESCANSO (Solo Cajeros)
-          if (widget.usuarioActual.rol == 'cajero')
+          if (widget.usuarioLogueado.rol == 'cajero')
             IconButton(
               icon: const Icon(Icons.coffee, color: Colors.orange),
               tooltip: 'Tomar Descanso',
@@ -1274,7 +1274,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             onPressed: () async {
               await Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => InventoryCatalogScreen(usuarioActual: widget.usuarioActual),
+                  builder: (context) => InventoryCatalogScreen(usuarioLogueado: widget.usuarioLogueado),
                 ),
               );
               _cargarProductosAutocompletado();
@@ -1308,7 +1308,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             offset: const Offset(0, 50),
             onSelected: (value) async {
               if (value == 'gestion_personal') {
-                if (widget.usuarioActual.rol == 'admin') {
+                if (widget.usuarioLogueado.rol == 'admin') {
                   _mostrarModuloGestionPersonal();
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1337,12 +1337,12 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                   children: [
                     Text(_cajeroActual, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 14)),
                     const SizedBox(height: 2),
-                    Text('Rol: ${widget.usuarioActual.rol.toUpperCase()} | $_turnoActual', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                    Text('Rol: ${widget.usuarioLogueado.rol.toUpperCase()} | $_turnoActual', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                   ],
                 ),
               ),
               const PopupMenuDivider(),
-              if (widget.usuarioActual.rol == 'admin')
+              if (widget.usuarioLogueado.rol == 'admin')
                 const PopupMenuItem(
                   value: 'gestion_personal',
                   child: Row(
