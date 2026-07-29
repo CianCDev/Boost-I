@@ -1,6 +1,6 @@
 {
-  "syncServerUrl": "https://your-sync-server.example",
-  "syncApiKey": "REPLACE_WITH_SYNC_API_KEY",
+  "syncServerUrl": "http://127.0.0.1:3000",
+  "syncApiKey": "un-secret-largo-y-dificil-de-adivinar",
   "supabaseUrl": "https://moeedweiombdnssjrgai.supabase.co",
-  "supabaseAnonKey": "sb_publishable_3u_VXY6GnKj6i0z1eerteA_9dVsym2K"
+  "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vZWVkd2Vpb21iZG5zc2pyZ2FpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ5MjYxMjEsImV4cCI6MjEwMDUwMjEyMX0.J8lav_RVybD_viS_fDNJ6UxFvqUtSo2N6E_OGmmT11g"
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:app_gestion_m/features/pos/data/Local/entities/usuario_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/movimiento_inventario_entity.dart';

@@ -3,6 +3,7 @@ import 'package:app_gestion_m/features/pos/presentation/widgets/printer_selectio
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:app_gestion_m/features/pos/presentation/services/sync_service.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
@@ -308,7 +309,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     );
   }
 
-  /// Muestra un formulario para crear o editar un usuario local y opcionalmente crear su cuenta en Supabase.
+  /// Muestra un formulario para crear o editar un usuario local y opcionalmente crear su cuenta en Supabase con contraseña de 8 dígitos.
   void _mostrarDialogCrearEditarUsuario({UsuarioEntity? usuarioExistente}) {
     final bool esNuevo = usuarioExistente == null;
     final nombreCtrl = TextEditingController(text: usuarioExistente?.nombre ?? '');
@@ -357,7 +358,13 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                     controlAffinity: ListTileControlAffinity.leading,
                   ),
                   if (crearEnSupabase) ...[
-                    TextField(controller: passwordCtrl, decoration: const InputDecoration(labelText: 'Password para Supabase (mínimo 6 caracteres)'), obscureText: true),
+                    TextField(
+                      controller: passwordCtrl,
+                      decoration: const InputDecoration(labelText: 'Password para Supabase (Exactamente 8 dígitos)'),
+                      obscureText: true,
+                      keyboardType: TextInputType.number,
+                      maxLength: 8,
+                    ),
                   ],
                 ],
               ),
@@ -376,6 +383,17 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                     return;
                   }
 
+                  if (crearEnSupabase) {
+                    if (email.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El email es requerido para crear usuario en Supabase')));
+                      return;
+                    }
+                    if (password.length != 8) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El password para Supabase debe tener exactamente 8 dígitos')));
+                      return;
+                    }
+                  }
+
                   final usuario = usuarioExistente ?? UsuarioEntity();
                   usuario.nombre = nombre;
                   usuario.pin = pin;
@@ -387,7 +405,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                   await _isarService.guardarUsuario(usuario);
 
                   // Intentar crear también en la nube (opcional)
-                  if (crearEnSupabase && email.isNotEmpty && password.length >= 6) {
+                  if (crearEnSupabase && email.isNotEmpty && password.length == 8) {
                     final syncSvc = SyncService();
                     final res = await syncSvc.crearUsuarioEnServidor(usuario, email: email, password: password);
                     if (res != null && res['supabaseUser']) {
@@ -398,7 +416,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
                   if (!mounted) return;
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Usuario guardado'), backgroundColor: Colors.green));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Usuario guardado exitosamente'), backgroundColor: Colors.green));
                 },
                 child: const Text('Guardar'),
               ),

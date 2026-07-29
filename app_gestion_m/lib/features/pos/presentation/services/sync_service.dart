@@ -14,7 +14,7 @@ class SyncService {
   final IsarService _isarService = IsarService();
   final Connectivity _connectivity = Connectivity();
   
-  // Endpoint original de ventas (si lo usas)
+  // Endpoint original de ventas (si lo usas, puedes apuntarlo al nuevo microservicio)
   final String _apiUrl = 'https://tu-api.com/api/ventas/sync';
 
   // Valores por defecto, serán sobrescritos si existe assets/config.json
@@ -30,7 +30,7 @@ class SyncService {
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isSyncing = false;
 
-  /// Cabeceras de autorización usadas por las llamadas al microservicio
+  /// Cabeceras de autorización centralizadas usadas por las llamadas al microservicio
   Map<String, String> _authHeaders() {
     return {
       'Content-Type': 'application/json',
@@ -38,8 +38,25 @@ class SyncService {
     };
   }
 
+  /// Carga la configuración desde assets/config.json solo una vez
+  Future<void> _loadConfig() async {
+    if (_configLoaded) return;
+    try {
+      final raw = await rootBundle.loadString('assets/config.json');
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      _syncServerUrl = map['syncServerUrl'] ?? _syncServerUrl;
+      _syncApiKey = map['syncApiKey'] ?? _syncApiKey;
+      _supabaseUrl = map['supabaseUrl'] ?? _supabaseUrl;
+      _supabaseAnonKey = map['supabaseAnonKey'] ?? _supabaseAnonKey;
+      _configLoaded = true;
+      debugPrint('🔧 SyncService: config cargada desde assets/config.json');
+    } catch (e) {
+      debugPrint('⚠️ SyncService: no se pudo cargar config (usando valores por defecto): $e');
+      _configLoaded = true;
+    }
+  }
+
   /// Crea o actualiza un usuario en el backend seguro (microservicio)
-  /// Recibe el usuario local y, opcionalmente, email/password (si se desea crear cuenta en Supabase Auth)
   Future<Map<String, dynamic>?> crearUsuarioEnServidor(UsuarioEntity usuario, {String? email, String? password}) async {
     await _loadConfig();
     try {
@@ -69,30 +86,11 @@ class SyncService {
     }
   }
 
-  Future<void> _loadConfig() async {
-    if (_configLoaded) return;
-    try {
-      final raw = await rootBundle.loadString('assets/config.json');
-      final map = jsonDecode(raw) as Map<String, dynamic>;
-      _syncServerUrl = map['syncServerUrl'] ?? _syncServerUrl;
-      _syncApiKey = map['syncApiKey'] ?? _syncApiKey;
-      _supabaseUrl = map['supabaseUrl'] ?? _supabaseUrl;
-      _supabaseAnonKey = map['supabaseAnonKey'] ?? _supabaseAnonKey;
-      _configLoaded = true;
-      debugPrint('🔧 SyncService: config cargada desde assets/config.json');
-    } catch (e) {
-      // Si no existe el archivo o hay error, seguir con valores por defecto
-      debugPrint('⚠️ SyncService: no se pudo cargar config (usando valores por defecto): $e');
-      _configLoaded = true;
-    }
-  }
-
   /// Inicia la escucha activa de la conexión a internet
   void iniciarMonitoreo() {
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen((results) {
       final tieneConexion = results.any((result) => result != ConnectivityResult.none);
       if (tieneConexion) {
-        // Disparar múltiples sincronizaciones en paralelo (ventas, movimientos, productos)
         sincronizarVentasPendientes();
         sincronizarMovimientosInventario();
         sincronizarProductosASupabase();
@@ -109,13 +107,10 @@ class SyncService {
   Future<int> sincronizarVentasPendientes() async {
     if (_isSyncing) return 0;
     _isSyncing = true;
-
     int ventasSincronizadas = 0;
 
     try {
-      // 1. Obtener ventas no sincronizadas de Isar
       final pendientes = await _isarService.obtenerVentasPendientesSync();
-
       if (pendientes.isEmpty) {
         _isSyncing = false;
         return 0;
@@ -125,15 +120,12 @@ class SyncService {
 
       for (var venta in pendientes) {
         final exito = await _enviarVentaAlServidor(venta);
-
         if (exito) {
-          // 2. Marcar como sincronizada en la base de datos local
           venta.sincronizado = true;
           await _isarService.guardarVenta(venta);
           ventasSincronizadas++;
         } else {
-          // Si una falla, pausamos para reintentar en el siguiente ciclo
-          break;
+          break; // Pausar para reintentar después
         }
       }
     } catch (e) {
@@ -147,6 +139,7 @@ class SyncService {
 
   /// Convierte la entidad de Isar a JSON y la envía al backend
   Future<bool> _enviarVentaAlServidor(VentaEntity venta) async {
+    await _loadConfig();
     try {
       final payload = jsonEncode({
         'venta_id_string': venta.ventaIdString,
@@ -166,8 +159,8 @@ class SyncService {
       });
 
       final response = await http.post(
-        Uri.parse(_apiUrl),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse(_apiUrl), // Si deseas usar el microservicio, cambia _apiUrl por '$_syncServerUrl/api/ventas/sync'
+        headers: _authHeaders(),
         body: payload,
       ).timeout(const Duration(seconds: 10));
 
@@ -186,7 +179,7 @@ class SyncService {
 
   // ==================== SINCRONIZACIÓN DE PRODUCTOS ====================
 
-  /// Envía el catálogo de productos al backend. Actualmente envía todos los productos.
+  /// Envía el catálogo de productos al backend.
   Future<void> sincronizarProductosASupabase() async {
     await _loadConfig();
     try {
@@ -195,7 +188,6 @@ class SyncService {
 
       debugPrint('🔄 Enviando ${productos.length} productos al backend...');
 
-      // Por simplicidad enviamos todos los productos en un solo payload
       final payload = jsonEncode({
         'productos': productos.map((p) => {
           'codigo_barras': p.codigoBarras,
@@ -210,13 +202,9 @@ class SyncService {
         }).toList(),
       });
 
-      // Endpoint hipotético para productos
       final response = await http.post(
         Uri.parse('$_syncServerUrl/api/productos/sync'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer \\${_syncApiKey}',
-        },
+        headers: _authHeaders(),
         body: payload,
       ).timeout(const Duration(seconds: 10));
 
@@ -267,10 +255,7 @@ class SyncService {
 
       final response = await http.post(
         Uri.parse('$_syncServerUrl/api/inventario/movimientos'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer \\${_syncApiKey}',
-        },
+        headers: _authHeaders(),
         body: payload,
       ).timeout(const Duration(seconds: 10));
 

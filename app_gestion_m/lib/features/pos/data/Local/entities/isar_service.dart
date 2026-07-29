@@ -1,6 +1,6 @@
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
-
+import 'package:app_gestion_m/features/pos/data/Local/entities/movimiento_inventario_entity.dart';
 // Entidades
 import '../entities/venta_entity.dart';
 import '../entities/producto_entity.dart';
