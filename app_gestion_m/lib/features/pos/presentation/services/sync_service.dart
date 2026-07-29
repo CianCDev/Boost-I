@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/venta_entity.dart';
+import '../../data/Local/entities/movimiento_inventario_entity.dart';
+import '../../data/Local/entities/producto_entity.dart';
 
 class SyncService {
   final IsarService _isarService = IsarService();
@@ -21,7 +23,10 @@ class SyncService {
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen((results) {
       final tieneConexion = results.any((result) => result != ConnectivityResult.none);
       if (tieneConexion) {
+        // Disparar múltiples sincronizaciones en paralelo (ventas, movimientos, productos)
         sincronizarVentasPendientes();
+        sincronizarMovimientosInventario();
+        sincronizarProductosASupabase();
       }
     });
   }
@@ -31,7 +36,7 @@ class SyncService {
     _connectivitySubscription?.cancel();
   }
 
-  /// Método principal de sincronización
+  /// Método principal de sincronización de ventas
   Future<int> sincronizarVentasPendientes() async {
     if (_isSyncing) return 0;
     _isSyncing = true;
@@ -106,6 +111,101 @@ class SyncService {
       }
     } catch (e) {
       debugPrint('🚫 Error de red al enviar venta ${venta.ventaIdString}: $e');
+      return false;
+    }
+  }
+
+  // ==================== SINCRONIZACIÓN DE PRODUCTOS ====================
+
+  /// Envía el catálogo de productos al backend. Actualmente envía todos los productos.
+  Future<void> sincronizarProductosASupabase() async {
+    try {
+      final productos = await _isarService.obtenerProductos();
+      if (productos.isEmpty) return;
+
+      debugPrint('🔄 Enviando ${productos.length} productos al backend...');
+
+      // Por simplicidad enviamos todos los productos en un solo payload
+      final payload = jsonEncode({
+        'productos': productos.map((p) => {
+          'codigo_barras': p.codigoBarras,
+          'nombre': p.nombre,
+          'precio_unidad': p.precioUnidad,
+          'stock': p.stock,
+          'es_pesado': p.esPesado,
+          'categoria': p.categoria,
+          'proveedor_nombre': p.proveedorNombre,
+          'proveedor_telefono': p.proveedorTelefono,
+          'stock_minimo': p.stockMinimo,
+        }).toList(),
+      });
+
+      // Endpoint hipotético para productos
+      final response = await http.post(
+        Uri.parse('https://tu-api.com/api/productos/sync'),
+        headers: {'Content-Type': 'application/json'},
+        body: payload,
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        debugPrint('✅ Productos sincronizados con éxito');
+      } else {
+        debugPrint('⚠️ Error backend productos (${response.statusCode}): ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('🚫 Error enviando productos: $e');
+    }
+  }
+
+  // ==================== SINCRONIZACIÓN DE MOVIMIENTOS DE INVENTARIO ====================
+
+  Future<int> sincronizarMovimientosInventario() async {
+    final pendientes = await _isarService.obtenerMovimientosPendientesSync();
+    if (pendientes.isEmpty) return 0;
+
+    int sincronizados = 0;
+
+    for (var mov in pendientes) {
+      final exito = await _enviarMovimientoAlServidor(mov);
+      if (exito) {
+        mov.sincronizado = true;
+        await _isarService.guardarMovimientoInventario(mov);
+        sincronizados++;
+      } else {
+        break;
+      }
+    }
+
+    return sincronizados;
+  }
+
+  Future<bool> _enviarMovimientoAlServidor(MovimientoInventarioEntity mov) async {
+    try {
+      final payload = jsonEncode({
+        'producto_id': mov.productoId,
+        'nombre_producto': mov.nombreProducto,
+        'tipo_movimiento': mov.tipoMovimiento,
+        'cantidad': mov.cantidad,
+        'stock_resultante': mov.stockResultante,
+        'fecha': mov.fecha.toIso8601String(),
+        'usuario_id': mov.usuarioId,
+      });
+
+      final response = await http.post(
+        Uri.parse('https://tu-api.com/api/inventario/movimientos'),
+        headers: {'Content-Type': 'application/json'},
+        body: payload,
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        debugPrint('✅ Movimiento ${mov.id} sincronizado');
+        return true;
+      } else {
+        debugPrint('⚠️ Error backend movimiento (${response.statusCode}): ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('🚫 Error enviando movimiento ${mov.id}: $e');
       return false;
     }
   }
