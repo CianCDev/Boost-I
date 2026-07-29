@@ -269,7 +269,35 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     producto.proveedorNombre = proveedorNombreController.text.trim();
                     producto.proveedorTelefono = proveedorTelController.text.trim();
 
+                    // Guardar producto en la BD local
                     await _isarService.guardarProducto(producto);
+
+                    // Registrar movimiento de inventario asociado
+                    final double stockAnterior = productoAEditar?.stock ?? 0.0;
+                    final double diferencia = producto.stock - stockAnterior;
+
+                    final usuarioActual = ref.read(usuarioActualProvider);
+                    final String usuarioIdStr = usuarioActual != null ? usuarioActual.id.toString() : 'SISTEMA';
+
+                    final movimiento = MovimientoInventarioEntity()
+                      ..productoId = producto.codigoBarras
+                      ..nombreProducto = producto.nombre
+                      ..tipoMovimiento = isEditing ? 'AJUSTE_MANUAL' : 'ENTRADA_INICIAL'
+                      ..cantidad = diferencia
+                      ..stockResultante = producto.stock
+                      ..fecha = DateTime.now()
+                      ..usuarioId = usuarioIdStr
+                      ..sincronizado = false;
+
+                    await _isarService.guardarMovimientoInventario(movimiento);
+
+                    // Intentar sincronizar catálogo y movimientos en background
+                    _syncService.sincronizarProductosASupabase().then((_) {
+                      _syncService.sincronizarMovimientosInventario();
+                    }).catchError((e) {
+                      // Ignorar errores aquí; se reintentará con el monitor de conectividad
+                    });
+
                     if (context.mounted) {
                       Navigator.pop(context);
                       _cargarInventario();
