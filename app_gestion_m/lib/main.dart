@@ -11,14 +11,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Inicializaciones de Isar si las tienes aquí...
 
-  final isarService = IsarService();
-  await isarService.inicializarUsuarioAdminPorDefecto();
-
-  // Inicializar Supabase con las credenciales de tu proyecto
+// Inicializar Supabase con las credenciales de tu proyecto
    await Supabase.initialize(
     url: 'https://moeedweiombdnssjrgai.supabase.co',
     publishableKey: 'sb_publishable_3u_VXY6GnKj6i0z1eerteA_9dVsym2K',
 );
+
+  final isarService = IsarService();
+  await isarService.inicializarUsuarioAdminPorDefecto();
+
+  
   //
   runApp(const ProviderScope(child: AppGestionM()));
 }

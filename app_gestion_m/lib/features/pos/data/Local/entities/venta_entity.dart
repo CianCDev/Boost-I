@@ -16,7 +16,7 @@ class VentaEntity {
   late double totalBolivares;
 
   late String metodoPago;
-  late String cedulaCliente;
+  late String documento;
   late String empleado;
   late bool sincronizado;
 

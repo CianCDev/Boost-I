@@ -131,7 +131,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       final query = _searchQuery.toLowerCase().trim();
       final coincideId = venta.ventaIdString.toLowerCase().contains(query);
       final coincideEmpleado = venta.empleado.toLowerCase().contains(query);
-      final coincideCliente = venta.cedulaCliente.toLowerCase().contains(query);
+      final coincideCliente = venta.documento.toLowerCase().contains(query);
       final coincideBusqueda = query.isEmpty || coincideId || coincideEmpleado || coincideCliente;
 
       final coincideMetodo = _metodoSeleccionado == 'Todos' ||
@@ -243,7 +243,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _columnaDetalle('Cliente / Cédula', venta.cedulaCliente.isEmpty ? 'N/A' : venta.cedulaCliente),
+                      _columnaDetalle('Cliente / Cédula', venta.documento.isEmpty ? 'N/A' : venta.documento),
                       _columnaDetalle('Atendido por', venta.empleado),
                       _columnaDetalle('Método de Pago', venta.metodoPago),
                       _columnaDetalle(

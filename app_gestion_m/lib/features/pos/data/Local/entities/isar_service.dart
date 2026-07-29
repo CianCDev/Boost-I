@@ -5,6 +5,8 @@ import 'package:path_provider/path_provider.dart';
 import '../entities/venta_entity.dart';
 import '../entities/producto_entity.dart';
 import '../entities/usuario_entity.dart';
+import '../entities/movimiento_inventario_entity.dart';
+  
 
 class IsarService {
   // Patrón Singleton para evitar abrir la DB múltiples veces
@@ -22,6 +24,23 @@ class IsarService {
 
     _isarInstance = await _initIsar();
     return _isarInstance!;
+  }
+
+  /// Guarda un movimiento de inventario en la base de datos local
+  Future<void> guardarMovimientoInventario(MovimientoInventarioEntity movimiento) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.movimientoInventarioEntitys.put(movimiento);
+    });
+  }
+
+  /// Obtiene los movimientos que aún NO se han subido a Supabase
+  Future<List<MovimientoInventarioEntity>> obtenerMovimientosPendientesSync() async {
+    final isar = await db;
+    return await isar.movimientoInventarioEntitys
+        .filter()
+        .sincronizadoEqualTo(false)
+        .findAll();
   }
 
   // Inicializa la base de datos local de Isar incluyendo todas las entidades (Venta, Producto, Usuario)
@@ -286,7 +305,7 @@ class IsarService {
   }
 
   /// Procesa la sincronización remota de las ventas pendientes
-  Future<int> sincronizarVentasConServidor() async {
+ /* Future<int> sincronizarVentasConServidor() async {
     final pendientes = await obtenerVentasPendientesSync();
     if (pendientes.isEmpty) return 0;
 
@@ -302,7 +321,7 @@ class IsarService {
 
     return pendientes.length;
   }
-
+*/
   /// Marca manualmente una lista de IDs de ventas como sincronizadas
   Future<void> marcarVentasComoSincronizadas(List<int> ids) async {
     final isar = await db;

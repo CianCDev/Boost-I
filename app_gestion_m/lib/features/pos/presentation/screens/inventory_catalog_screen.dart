@@ -312,7 +312,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         ..tasaBcv = tasaActual
         ..totalBolivares = totalBsCalculado
         ..metodoPago = metodoPago
-        ..cedulaCliente = 'V-00000000'
+     //TO-DO  ..documento = 'V-00000000'
         ..empleado = widget.usuarioActual?.nombre ?? 'Administrador / Catálogo'
         ..items = itemsIsar
         ..sincronizado = false;

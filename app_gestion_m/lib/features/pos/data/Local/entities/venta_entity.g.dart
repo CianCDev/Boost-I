@@ -17,9 +17,9 @@ const VentaEntitySchema = CollectionSchema(
   name: r'VentaEntity',
   id: 4471830502707141155,
   properties: {
-    r'cedulaCliente': PropertySchema(
+    r'documento': PropertySchema(
       id: 0,
-      name: r'cedulaCliente',
+      name: r'documento',
       type: IsarType.string,
     ),
     r'empleado': PropertySchema(
@@ -99,7 +99,7 @@ int _ventaEntityEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
-  bytesCount += 3 + object.cedulaCliente.length * 3;
+  bytesCount += 3 + object.documento.length * 3;
   bytesCount += 3 + object.empleado.length * 3;
   bytesCount += 3 + object.items.length * 3;
   {
@@ -121,7 +121,7 @@ void _ventaEntitySerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeString(offsets[0], object.cedulaCliente);
+  writer.writeString(offsets[0], object.documento);
   writer.writeString(offsets[1], object.empleado);
   writer.writeDateTime(offsets[2], object.fecha);
   writer.writeDouble(offsets[3], object.impuesto);
@@ -147,7 +147,7 @@ VentaEntity _ventaEntityDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = VentaEntity();
-  object.cedulaCliente = reader.readString(offsets[0]);
+  object.documento = reader.readString(offsets[0]);
   object.empleado = reader.readString(offsets[1]);
   object.fecha = reader.readDateTime(offsets[2]);
   object.id = id;
@@ -305,13 +305,13 @@ extension VentaEntityQueryWhere
 extension VentaEntityQueryFilter
     on QueryBuilder<VentaEntity, VentaEntity, QFilterCondition> {
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
-      cedulaClienteEqualTo(
+      documentoEqualTo(
     String value, {
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'cedulaCliente',
+        property: r'documento',
         value: value,
         caseSensitive: caseSensitive,
       ));
@@ -319,7 +319,7 @@ extension VentaEntityQueryFilter
   }
 
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
-      cedulaClienteGreaterThan(
+      documentoGreaterThan(
     String value, {
     bool include = false,
     bool caseSensitive = true,
@@ -327,7 +327,7 @@ extension VentaEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         include: include,
-        property: r'cedulaCliente',
+        property: r'documento',
         value: value,
         caseSensitive: caseSensitive,
       ));
@@ -335,7 +335,7 @@ extension VentaEntityQueryFilter
   }
 
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
-      cedulaClienteLessThan(
+      documentoLessThan(
     String value, {
     bool include = false,
     bool caseSensitive = true,
@@ -343,7 +343,7 @@ extension VentaEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.lessThan(
         include: include,
-        property: r'cedulaCliente',
+        property: r'documento',
         value: value,
         caseSensitive: caseSensitive,
       ));
@@ -351,7 +351,7 @@ extension VentaEntityQueryFilter
   }
 
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
-      cedulaClienteBetween(
+      documentoBetween(
     String lower,
     String upper, {
     bool includeLower = true,
@@ -360,7 +360,7 @@ extension VentaEntityQueryFilter
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
-        property: r'cedulaCliente',
+        property: r'documento',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -371,13 +371,13 @@ extension VentaEntityQueryFilter
   }
 
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
-      cedulaClienteStartsWith(
+      documentoStartsWith(
     String value, {
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'cedulaCliente',
+        property: r'documento',
         value: value,
         caseSensitive: caseSensitive,
       ));
@@ -385,13 +385,13 @@ extension VentaEntityQueryFilter
   }
 
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
-      cedulaClienteEndsWith(
+      documentoEndsWith(
     String value, {
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'cedulaCliente',
+        property: r'documento',
         value: value,
         caseSensitive: caseSensitive,
       ));
@@ -399,10 +399,10 @@ extension VentaEntityQueryFilter
   }
 
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
-      cedulaClienteContains(String value, {bool caseSensitive = true}) {
+      documentoContains(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.contains(
-        property: r'cedulaCliente',
+        property: r'documento',
         value: value,
         caseSensitive: caseSensitive,
       ));
@@ -410,10 +410,10 @@ extension VentaEntityQueryFilter
   }
 
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
-      cedulaClienteMatches(String pattern, {bool caseSensitive = true}) {
+      documentoMatches(String pattern, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.matches(
-        property: r'cedulaCliente',
+        property: r'documento',
         wildcard: pattern,
         caseSensitive: caseSensitive,
       ));
@@ -421,20 +421,20 @@ extension VentaEntityQueryFilter
   }
 
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
-      cedulaClienteIsEmpty() {
+      documentoIsEmpty() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'cedulaCliente',
+        property: r'documento',
         value: '',
       ));
     });
   }
 
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
-      cedulaClienteIsNotEmpty() {
+      documentoIsNotEmpty() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'cedulaCliente',
+        property: r'documento',
         value: '',
       ));
     });
@@ -1388,16 +1388,15 @@ extension VentaEntityQueryLinks
 
 extension VentaEntityQuerySortBy
     on QueryBuilder<VentaEntity, VentaEntity, QSortBy> {
-  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> sortByCedulaCliente() {
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> sortByDocumento() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'cedulaCliente', Sort.asc);
+      return query.addSortBy(r'documento', Sort.asc);
     });
   }
 
-  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy>
-      sortByCedulaClienteDesc() {
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> sortByDocumentoDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'cedulaCliente', Sort.desc);
+      return query.addSortBy(r'documento', Sort.desc);
     });
   }
 
@@ -1527,16 +1526,15 @@ extension VentaEntityQuerySortBy
 
 extension VentaEntityQuerySortThenBy
     on QueryBuilder<VentaEntity, VentaEntity, QSortThenBy> {
-  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> thenByCedulaCliente() {
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> thenByDocumento() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'cedulaCliente', Sort.asc);
+      return query.addSortBy(r'documento', Sort.asc);
     });
   }
 
-  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy>
-      thenByCedulaClienteDesc() {
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> thenByDocumentoDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'cedulaCliente', Sort.desc);
+      return query.addSortBy(r'documento', Sort.desc);
     });
   }
 
@@ -1678,11 +1676,10 @@ extension VentaEntityQuerySortThenBy
 
 extension VentaEntityQueryWhereDistinct
     on QueryBuilder<VentaEntity, VentaEntity, QDistinct> {
-  QueryBuilder<VentaEntity, VentaEntity, QDistinct> distinctByCedulaCliente(
+  QueryBuilder<VentaEntity, VentaEntity, QDistinct> distinctByDocumento(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'cedulaCliente',
-          caseSensitive: caseSensitive);
+      return query.addDistinctBy(r'documento', caseSensitive: caseSensitive);
     });
   }
 
@@ -1759,9 +1756,9 @@ extension VentaEntityQueryProperty
     });
   }
 
-  QueryBuilder<VentaEntity, String, QQueryOperations> cedulaClienteProperty() {
+  QueryBuilder<VentaEntity, String, QQueryOperations> documentoProperty() {
     return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'cedulaCliente');
+      return query.addPropertyName(r'documento');
     });
   }
 

@@ -1,3 +1,4 @@
+import 'package:app_gestion_m/features/pos/presentation/services/sync_service.dart';
 import 'package:flutter/material.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
@@ -247,15 +248,24 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   child: const Text('Cancelar'),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal, 
+                    foregroundColor: Colors.white,
+                  ),
                   onPressed: () async {
                     final producto = productoAEditar ?? ProductoEntity();
                     producto.codigoBarras = codigoController.text.trim();
                     producto.nombre = nombreController.text.trim();
-                    producto.precioUnidad = double.tryParse(precioController.text) ?? 0.0;
-                    producto.stock = double.tryParse(stockController.text) ?? 0.0;
-                    producto.stockMinimo = double.tryParse(stockMinController.text) ?? 5.0;
-                    
+
+                    // Parseo seguro previniendo comas decimales e invalidez NaN / Infinity
+                    final pPrecio = double.tryParse(precioController.text.trim().replaceAll(',', '.')) ?? 0.0;
+                    final pStock = double.tryParse(stockController.text.trim().replaceAll(',', '.')) ?? 0.0;
+                    final pStockMin = double.tryParse(stockMinController.text.trim().replaceAll(',', '.')) ?? 5.0;
+
+                    producto.precioUnidad = (pPrecio.isNaN || pPrecio.isInfinite) ? 0.0 : pPrecio;
+                    producto.stock = (pStock.isNaN || pStock.isInfinite) ? 0.0 : pStock;
+                    producto.stockMinimo = (pStockMin.isNaN || pStockMin.isInfinite) ? 5.0 : pStockMin;
+
                     // Asignamos la categoría seleccionada desde el selector
                     producto.categoria = categoriaSeleccionada;
                     
@@ -263,12 +273,22 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     producto.proveedorNombre = proveedorNombreController.text.trim();
                     producto.proveedorTelefono = proveedorTelController.text.trim();
 
+                    // 1. Guardar en la base de datos local (Isar)
                     await _isarService.guardarProducto(producto);
+
+                    // 🔄 2. Sincronizar inmediatamente hacia Supabase
+                    await SyncService().sincronizarCategoriasASupabase();
+                    await SyncService().sincronizarProductosASupabase();
+                    
+
                     if (context.mounted) {
                       Navigator.pop(context);
                       _cargarInventario();
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Producto guardado exitosamente'), backgroundColor: Colors.green),
+                        const SnackBar(
+                          content: Text('Producto guardado y sincronizado exitosamente'), 
+                          backgroundColor: Colors.green,
+                        ),
                       );
                     }
                   },

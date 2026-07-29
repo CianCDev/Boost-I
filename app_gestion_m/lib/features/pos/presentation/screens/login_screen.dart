@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // 👈 1. Importamos Riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // 👈 1. Importamos Supabase
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
-import '../../presentation/providers/usuario_provider.dart'; // 👈 Ajusta esta ruta a tu provider
+import '../../presentation/providers/usuario_provider.dart';
 import 'pos_desktop_screen.dart';
 
-// 👈 2. Cambiamos a ConsumerStatefulWidget
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -13,7 +13,6 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-// 👈 3. Cambiamos a ConsumerState<LoginScreen>
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final IsarService _isarService = IsarService();
   final TextEditingController _pinController = TextEditingController();
@@ -42,6 +41,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
+  // 👈 NUEVO: Sincroniza la sesión de Supabase Auth en segundo plano
+  Future<void> _autenticarEnSupabase(UsuarioEntity usuario) async {
+    try {
+      final supabase = Supabase.instance.client;
+      
+      // Si ya hay una sesión activa, no hacemos nada
+      if (supabase.auth.currentSession != null) return;
+
+      // Si entra como ADMIN, autenticamos con la cuenta administrativa en Supabase
+      if (usuario.rol.toLowerCase() == 'admin') {
+        await supabase.auth.signInWithPassword(
+          email: 'admin@tuapp.com',       // 👈 El correo que creaste en el SQL
+          password: 'Admin123456!',       // 👈 La contraseña que definimos
+        );
+        debugPrint('✅ Sesión de Supabase iniciada correctamente como ADMIN');
+      }
+    } catch (e) {
+      // No bloqueamos el POS si está sin internet, solo registramos el aviso
+      debugPrint('⚠️ No se pudo iniciar sesión en Supabase (modo offline): $e');
+    }
+  }
+
   Future<void> _intentarLogin() async {
     if (_usuarioSeleccionado == null) return;
 
@@ -57,15 +78,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
 
     if (usuarioValido != null && mounted) {
-      // ✅ AHORA SÍ: Guardamos el usuario en Riverpod antes de pasar a la pantalla POS
+      // ✅ 1. Guardamos el usuario en Riverpod
       ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
 
-      // Navegar al POS enviando el usuario autenticado
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => PosDesktopScreen(usuarioActual: usuarioValido),
-        ),
-      );
+      // ✅ 2. ABRIMOS SESIÓN EN SUPABASE EN SEGUNDO PLANO PARA PERMITIR RLS
+      await _autenticarEnSupabase(usuarioValido);
+
+      // ✅ 3. Navegamos al POS
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => PosDesktopScreen(usuarioActual: usuarioValido),
+          ),
+        );
+      }
     } else {
       setState(() {
         _errorMessage = 'PIN incorrecto. Inténtalo de nuevo.';
@@ -129,7 +155,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 24),
                     
-                    // Selector de Empleado
                     const Text('Seleccionar Usuario', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<UsuarioEntity>(
@@ -153,7 +178,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Campo de PIN
                     const Text('PIN de Acceso', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
                     const SizedBox(height: 6),
                     TextField(
@@ -183,7 +207,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Botón de Ingreso
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF10B981),

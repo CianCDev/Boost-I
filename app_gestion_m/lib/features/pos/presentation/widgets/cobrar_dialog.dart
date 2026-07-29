@@ -25,11 +25,22 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   final TextEditingController _cedulaController = TextEditingController(text: 'V-00000000');
 
   final FocusNode _efectivoUsdFocus = FocusNode();
+  final FocusNode _cedulaFocus = FocusNode(); // FocusNode para seleccionar texto rápido de la cédula
 
   @override
   void initState() {
     super.initState();
     _efectivoUsdController.text = widget.totalAPagar.toStringAsFixed(2);
+
+    // Seleccionar texto completo al recibir foco en la cédula para reescribir fácil
+    _cedulaFocus.addListener(() {
+      if (_cedulaFocus.hasFocus && _cedulaController.text == 'V-00000000') {
+        _cedulaController.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _cedulaController.text.length,
+        );
+      }
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _efectivoUsdFocus.requestFocus();
@@ -48,6 +59,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     _puntoBsController.dispose();
     _cedulaController.dispose();
     _efectivoUsdFocus.dispose();
+    _cedulaFocus.dispose();
     super.dispose();
   }
 
@@ -108,10 +120,15 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
       metodoPrincipal = 'Pago Mixto';
     }
 
+    final String docTexto = _cedulaController.text.trim();
+    final String documentoFinal = docTexto.isEmpty ? 'V-00000000' : docTexto;
+
+    // Retornamos un Map completo con los nombres requeridos tanto por Isar como por Supabase
     Navigator.of(context).pop({
       'procesado': true,
       'metodoPago': metodoPrincipal,
-      'cedulaCliente': _cedulaController.text.trim().isEmpty ? 'V-00000000' : _cedulaController.text.trim(),
+      'documento': documentoFinal,        // Columna exacta en Supabase DB
+      'cedulaCliente': documentoFinal,    // Nombre compatible con la entidad Isar local
       'montoRecibido': totalRecibidoUsd,
       'vuelto': vueltoUsd,
     });
@@ -235,7 +252,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                   ),
                   const SizedBox(height: 18),
 
-                  // 3. ATAJOS RÁPIDOS (ÍCONOS LIMPIOS)
+                  // 3. ATAJOS RÁPIDOS
                   const Text('Atajos de Pago Rápido:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
                   const SizedBox(height: 8),
                   Wrap(
@@ -333,12 +350,13 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                   ),
                   const SizedBox(height: 14),
 
-                  // 5. CÉDULA DEL CLIENTE
+                  // 5. CÉDULA / DOCUMENTO DEL CLIENTE
                   TextField(
                     controller: _cedulaController,
+                    focusNode: _cedulaFocus,
                     style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14, color: Color(0xFF0F172A)),
                     decoration: InputDecoration(
-                      labelText: 'Cédula / RIF del Cliente (Opcional)',
+                      labelText: 'Cédula / RIF del Cliente',
                       labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
                       prefixIcon: const Icon(Icons.badge_outlined, size: 20, color: Color(0xFF64748B)),
                       isDense: true,

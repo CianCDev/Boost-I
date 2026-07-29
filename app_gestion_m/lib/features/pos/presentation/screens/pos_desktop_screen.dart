@@ -21,6 +21,7 @@ import 'inventory_screen.dart';
 import 'login_screen.dart';
 import 'sales_history_screen.dart' as sales_history_screen;
 import '../../presentation/providers/usuario_provider.dart';
+import '../services/sync_service.dart';
 
 /// Vista Principal del Punto de Venta (POS) para Escritorio.
 /// Permite gestionar ventas rápidas, lectura de códigos de barras,
@@ -39,6 +40,9 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
   // ===========================================================================
   // VARIABLES DE ESTADO Y CONTROLADORES
   // ===========================================================================
+
+  /// Instancia del servicio de sincronización real a Supabase.
+  final SyncService _syncService = SyncService();
 
   /// Controla el texto del buscador de productos y escáner de códigos de barras.
   final TextEditingController _searchController = TextEditingController();
@@ -138,28 +142,38 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
   Future<void> _sincronizarVentas() async {
     if (_ventasPendientesSync == 0 || _sincronizando) return;
 
+    final messenger = ScaffoldMessenger.of(context);
+
     setState(() => _sincronizando = true);
     try {
-      final sincronizadas = await _isarService.sincronizarVentasConServidor();
+      final sincronizadas = await _syncService.sincronizarVentasPendientes();
       await _actualizarContadorSync();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+
+      if (sincronizadas > 0) {
+        messenger.showSnackBar(
           SnackBar(
             content: Text('¡$sincronizadas ventas sincronizadas con Supabase exitosamente! 🎉'),
             backgroundColor: const Color(0xFF10B981),
           ),
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al sincronizar con Supabase: $e'),
-            backgroundColor: Colors.red,
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo subir la venta. Revisa la conexión o los campos.'),
+            backgroundColor: Colors.orange,
           ),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Error al sincronizar con Supabase: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _sincronizando = false);
@@ -792,6 +806,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
         final String ventaIdStr = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
         final DateTime ahora = DateTime.now();
         final double totalBsCalculado = cartState.total * tasaActual;
+        final String docIngresado = resultado['documento'] ?? resultado['cedulaCliente'] ?? 'V-00000000';
 
         final itemsIsar = cartState.items.map((cartItem) {
           return VentaItemEntity()
@@ -810,7 +825,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           ..tasaBcv = tasaActual
           ..totalBolivares = totalBsCalculado
           ..metodoPago = resultado['metodoPago'] ?? 'Efectivo'
-          ..cedulaCliente = resultado['cedulaCliente'] ?? 'V-00000000'
+          ..documento = docIngresado
           ..empleado = _cajeroActual
           ..items = itemsIsar
           ..sincronizado = false;
@@ -827,7 +842,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             esPesado: cartItem.producto.esPesado,
           );
         }).toList();
-        
+
         final selectedPrinter = ref.read(printerProvider);
 
         await TicketService.generarYProcesarPdf(
@@ -846,9 +861,9 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('¡Venta registrada con éxito! 🎉'),
-              backgroundColor: Color(0xFF10B981),
+            SnackBar(
+              content: Text('¡Venta $ventaIdStr registrada con éxito! 🎉'),
+              backgroundColor: const Color(0xFF10B981),
             ),
           );
         }
