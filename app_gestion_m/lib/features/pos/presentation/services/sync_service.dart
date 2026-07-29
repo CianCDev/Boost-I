@@ -12,8 +12,12 @@ class SyncService {
   final IsarService _isarService = IsarService();
   final Connectivity _connectivity = Connectivity();
   
-  // Endpoint de tu API Backend
+  // Endpoint original de ventas (si lo usas)
   final String _apiUrl = 'https://tu-api.com/api/ventas/sync';
+
+  // Sync server (microservice) URL y API key (reemplaza con tus valores de despliegue)
+  final String _syncServerUrl = 'https://your-sync-server.example';
+  final String _syncApiKey = '<REPLACE_WITH_SYNC_API_KEY>';
 
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isSyncing = false;
@@ -142,8 +146,11 @@ class SyncService {
 
       // Endpoint hipotético para productos
       final response = await http.post(
-        Uri.parse('https://tu-api.com/api/productos/sync'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('\${_syncServerUrl}/api/productos/sync'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer \\${_syncApiKey}',
+        },
         body: payload,
       ).timeout(const Duration(seconds: 10));
 
@@ -182,18 +189,21 @@ class SyncService {
   Future<bool> _enviarMovimientoAlServidor(MovimientoInventarioEntity mov) async {
     try {
       final payload = jsonEncode({
-        'producto_id': mov.productoId,
-        'nombre_producto': mov.nombreProducto,
-        'tipo_movimiento': mov.tipoMovimiento,
+        'productoId': mov.productoId,
+        'nombreProducto': mov.nombreProducto,
+        'tipoMovimiento': mov.tipoMovimiento,
         'cantidad': mov.cantidad,
-        'stock_resultante': mov.stockResultante,
+        'stockResultante': mov.stockResultante,
         'fecha': mov.fecha.toIso8601String(),
-        'usuario_id': mov.usuarioId,
+        'usuarioId': mov.usuarioId,
       });
 
       final response = await http.post(
-        Uri.parse('https://tu-api.com/api/inventario/movimientos'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('\${_syncServerUrl}/api/inventario/movimientos'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer \\${_syncApiKey}',
+        },
         body: payload,
       ).timeout(const Duration(seconds: 10));
 
