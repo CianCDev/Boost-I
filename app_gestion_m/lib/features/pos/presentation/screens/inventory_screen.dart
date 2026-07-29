@@ -277,19 +277,41 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     final double diferencia = producto.stock - stockAnterior;
 
                     final usuarioActual = ref.read(usuarioActualProvider);
-                    final String usuarioIdStr = usuarioActual != null ? usuarioActual.id.toString() : 'SISTEMA';
+                    // Guardar el nombre del usuario para mayor legibilidad en la tabla remota
+                    final String usuarioIdStr = usuarioActual != null ? usuarioActual.nombre : 'SISTEMA';
+
+                    // Determinar tipo de movimiento y cantidad absoluta
+                    final String tipoMovimiento;
+                    if (!isEditing) {
+                      tipoMovimiento = 'ENTRADA_INICIAL';
+                    } else {
+                      if (diferencia > 0) {
+                        tipoMovimiento = 'AJUSTE_MANUAL';
+                      } else if (diferencia < 0) {
+                        tipoMovimiento = 'SALIDA';
+                      } else {
+                        tipoMovimiento = 'AJUSTE_MANUAL';
+                      }
+                    }
 
                     final movimiento = MovimientoInventarioEntity()
                       ..productoId = producto.codigoBarras
                       ..nombreProducto = producto.nombre
-                      ..tipoMovimiento = isEditing ? 'AJUSTE_MANUAL' : 'ENTRADA_INICIAL'
-                      ..cantidad = diferencia
+                      ..tipoMovimiento = tipoMovimiento
+                      ..cantidad = diferencia.abs()
                       ..stockResultante = producto.stock
                       ..fecha = DateTime.now()
                       ..usuarioId = usuarioIdStr
                       ..sincronizado = false;
 
                     await _isarService.guardarMovimientoInventario(movimiento);
+
+                    // Mostrar notificación breve si hubo cambio de stock
+                    if (diferencia != 0 && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Movimiento registrado: $tipoMovimiento (${movimiento.cantidad})'), backgroundColor: Colors.orange, duration: const Duration(seconds: 2)),
+                      );
+                    }
 
                     // Intentar sincronizar catálogo y movimientos en background
                     _syncService.sincronizarProductosASupabase().then((_) {
