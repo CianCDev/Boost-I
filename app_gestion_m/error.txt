@@ -1,0 +1,1061 @@
+[  +40 ms] Artifact Instance of 'MaterialFonts' is not required, skipping update.
+[        ] Artifact Instance of 'GradleWrapper' is not required, skipping update.
+[        ] Artifact Instance of 'AndroidGenSnapshotArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'AndroidInternalBuildArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterWebSdk' is not required, skipping update.
+[   +1 ms] Artifact Instance of 'LegacyCanvasKitRemover' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterSdk' is not required, skipping update.
+[        ] Artifact Instance of 'WindowsEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'MacOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'MacOSFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerDebugSymbols' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FontSubsetArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'PubDependencies' is not required, skipping update.
+[        ] executing: [C:\Users\Yan\dev\flutter/] git -c log.showSignature=false log HEAD -n 1 --pretty=format:%ad --date=iso
+[  +68 ms] Exit code 0 from: git -c log.showSignature=false log HEAD -n 1 --pretty=format:%ad --date=iso
+[        ] 2026-07-23 10:56:21 -0700
+[  +32 ms] Artifact Instance of 'AndroidGenSnapshotArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'AndroidInternalBuildArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterWebSdk' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterEngineStamp' is not required, skipping update.
+[        ] Artifact Instance of 'LegacyCanvasKitRemover' is not required, skipping update.
+[   +2 ms] Artifact Instance of 'WindowsEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'MacOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'MacOSFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerDebugSymbols' is not required, skipping update.
+[  +54 ms] Artifact Instance of 'AndroidGenSnapshotArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'AndroidInternalBuildArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'IOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterWebSdk' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterEngineStamp' is not required, skipping update.
+[        ] Artifact Instance of 'LegacyCanvasKitRemover' is not required, skipping update.
+[   +2 ms] Artifact Instance of 'MacOSEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxEngineArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'LinuxFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'MacOSFuchsiaSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerSDKArtifacts' is not required, skipping update.
+[        ] Artifact Instance of 'FlutterRunnerDebugSymbols' is not required, skipping update.
+[  +47 ms] executing: [C:\Users\Yan\app_gestion_m\app_gestion_m/] C:\Users\Yan\dev\flutter\bin\cache\dart-sdk\bin\dart pub --suppress-analytics --directory . get --example
+Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 61.0.0 (105.0.0 available)
+  analyzer 5.13.0 (14.1.0 available)
+  archive 3.6.1 (4.0.9 available)
+  build 2.4.1 (4.0.9 available)
+  build_config 1.1.2 (1.3.2 available)
+  build_resolvers 2.4.2 (3.0.4 available)
+  build_runner 2.4.13 (2.15.3 available)
+  build_runner_core 7.3.2 (9.3.2 available)
+  dart_style 2.3.2 (3.1.12 available)
+  flutter_pos_printer_platform_image_3 1.2.3 (1.2.4 available)
+  flutter_riverpod 2.6.1 (3.4.2 available)
+  hooks 2.0.2 (2.1.0 available)
+  image 4.3.0 (4.9.1 available)
+  intl 0.20.2 (0.20.3 available)
+  js 0.6.7 (0.7.2 available)
+  matcher 0.12.19 (0.12.20 available)
+  meta 1.18.0 (1.19.0 available)
+  network_info_plus 4.1.0+1 (8.2.1 available)
+  network_info_plus_platform_interface 1.1.3 (3.1.0 available)
+  package_config 2.2.0 (3.0.0 available)
+  pdf 3.12.0 (3.13.0 available)
+  printing 5.14.3 (5.15.0 available)
+  qr 3.0.2 (4.0.0 available)
+  record_use 0.6.0 (1.0.0 available)
+  riverpod 2.6.1 (3.4.2 available)
+  shelf_web_socket 2.0.1 (3.0.0 available)
+  source_gen 1.5.0 (4.2.4 available)
+  test_api 0.7.11 (0.7.13 available)
+  vector_math 2.2.0 (2.4.2 available)
+  win32 5.15.0 (6.3.0 available)
+  xml 6.6.1 (7.0.1 available)
+Got dependencies!
+31 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+[ +902 ms] Found plugin url_launcher at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher-6.3.2\
+[   +6 ms] Found plugin url_launcher_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_windows-3.1.5\
+[   +5 ms] Found plugin url_launcher_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_web-2.4.3\
+[   +4 ms] Found plugin url_launcher_macos at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_macos-3.2.5\
+[   +2 ms] Found plugin url_launcher_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_linux-3.2.2\
+[   +1 ms] Found plugin url_launcher_ios at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_ios-6.4.1\
+[   +2 ms] Found plugin url_launcher_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_android-6.3.32\
+[  +12 ms] Found plugin shared_preferences at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences-2.5.5\
+[   +1 ms] Found plugin shared_preferences_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_windows-2.4.1\
+[   +2 ms] Found plugin path_provider_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_windows-2.3.0\
+[   +2 ms] Found plugin shared_preferences_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_web-2.4.3\
+[   +1 ms] Found plugin shared_preferences_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_linux-2.4.1\
+[   +1 ms] Found plugin path_provider_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_linux-2.2.2\
+[   +2 ms] Found plugin shared_preferences_foundation at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_foundation-2.5.6\
+[   +1 ms] Found plugin shared_preferences_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_android-2.4.27\
+[   +3 ms] Found plugin app_links at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links-7.2.1\
+[   +1 ms] Found plugin app_links_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links_web-1.0.4\
+[   +1 ms] Found plugin app_links_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links_linux-1.0.3\
+[   +1 ms] Found plugin gtk at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\gtk-2.2.0\
+[   +1 ms] Found plugin printing at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\printing-5.14.3\
+[   +8 ms] Found plugin path_provider at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider-2.1.6\
+[   +1 ms] Found plugin path_provider_foundation at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_foundation-2.6.0\
+[   +4 ms] Found plugin path_provider_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_android-2.3.1\
+[   +1 ms] Found plugin jni_flutter at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\jni_flutter-1.0.2\
+[   +1 ms] Found plugin jni at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\jni-1.0.3\
+[   +2 ms] Found plugin isar_flutter_libs at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\isar_flutter_libs-3.1.0+1\
+[   +4 ms] Found plugin flutter_pos_printer_platform_image_3 at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_pos_printer_platform_image_3-1.2.3\
+[   +2 ms] Found plugin network_info_plus at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\network_info_plus-4.1.0+1\
+[  +23 ms] Found plugin connectivity_plus at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\connectivity_plus-7.3.1\
+[ +147 ms] Found plugin url_launcher at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher-6.3.2\
+[        ] Found plugin url_launcher_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_windows-3.1.5\
+[   +2 ms] Found plugin url_launcher_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_web-2.4.3\
+[   +1 ms] Found plugin url_launcher_macos at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_macos-3.2.5\
+[        ] Found plugin url_launcher_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_linux-3.2.2\
+[        ] Found plugin url_launcher_ios at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_ios-6.4.1\
+[        ] Found plugin url_launcher_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_android-6.3.32\
+[  +10 ms] Found plugin shared_preferences at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences-2.5.5\
+[   +1 ms] Found plugin shared_preferences_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_windows-2.4.1\
+[   +2 ms] Found plugin path_provider_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_windows-2.3.0\
+[   +2 ms] Found plugin shared_preferences_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_web-2.4.3\
+[        ] Found plugin shared_preferences_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_linux-2.4.1\
+[        ] Found plugin path_provider_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_linux-2.2.2\
+[   +1 ms] Found plugin shared_preferences_foundation at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_foundation-2.5.6\
+[        ] Found plugin shared_preferences_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_android-2.4.27\
+[   +1 ms] Found plugin app_links at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links-7.2.1\
+[   +1 ms] Found plugin app_links_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links_web-1.0.4\
+[   +1 ms] Found plugin app_links_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links_linux-1.0.3\
+[        ] Found plugin gtk at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\gtk-2.2.0\
+[        ] Found plugin printing at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\printing-5.14.3\
+[   +6 ms] Found plugin path_provider at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider-2.1.6\
+[        ] Found plugin path_provider_foundation at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_foundation-2.6.0\
+[   +3 ms] Found plugin path_provider_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_android-2.3.1\
+[        ] Found plugin jni_flutter at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\jni_flutter-1.0.2\
+[        ] Found plugin jni at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\jni-1.0.3\
+[   +1 ms] Found plugin isar_flutter_libs at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\isar_flutter_libs-3.1.0+1\
+[   +3 ms] Found plugin flutter_pos_printer_platform_image_3 at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_pos_printer_platform_image_3-1.2.3\
+[   +1 ms] Found plugin network_info_plus at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\network_info_plus-4.1.0+1\
+[  +10 ms] Found plugin connectivity_plus at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\connectivity_plus-7.3.1\
+[  +59 ms] Found plugin url_launcher at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher-6.3.2\
+[        ] Found plugin url_launcher_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_windows-3.1.5\
+[   +2 ms] Found plugin url_launcher_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_web-2.4.3\
+[   +1 ms] Found plugin url_launcher_macos at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_macos-3.2.5\
+[        ] Found plugin url_launcher_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_linux-3.2.2\
+[        ] Found plugin url_launcher_ios at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_ios-6.4.1\
+[        ] Found plugin url_launcher_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_android-6.3.32\
+[   +9 ms] Found plugin shared_preferences at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences-2.5.5\
+[   +1 ms] Found plugin shared_preferences_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_windows-2.4.1\
+[   +3 ms] Found plugin path_provider_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_windows-2.3.0\
+[   +2 ms] Found plugin shared_preferences_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_web-2.4.3\
+[        ] Found plugin shared_preferences_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_linux-2.4.1\
+[        ] Found plugin path_provider_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_linux-2.2.2\
+[   +1 ms] Found plugin shared_preferences_foundation at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_foundation-2.5.6\
+[        ] Found plugin shared_preferences_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_android-2.4.27\
+[   +1 ms] Found plugin app_links at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links-7.2.1\
+[        ] Found plugin app_links_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links_web-1.0.4\
+[   +1 ms] Found plugin app_links_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links_linux-1.0.3\
+[        ] Found plugin gtk at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\gtk-2.2.0\
+[   +1 ms] Found plugin printing at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\printing-5.14.3\
+[   +6 ms] Found plugin path_provider at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider-2.1.6\
+[        ] Found plugin path_provider_foundation at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_foundation-2.6.0\
+[   +3 ms] Found plugin path_provider_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_android-2.3.1\
+[        ] Found plugin jni_flutter at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\jni_flutter-1.0.2\
+[        ] Found plugin jni at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\jni-1.0.3\
+[   +1 ms] Found plugin isar_flutter_libs at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\isar_flutter_libs-3.1.0+1\
+[   +3 ms] Found plugin flutter_pos_printer_platform_image_3 at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_pos_printer_platform_image_3-1.2.3\
+[   +1 ms] Found plugin network_info_plus at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\network_info_plus-4.1.0+1\
+[  +10 ms] Found plugin connectivity_plus at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\connectivity_plus-7.3.1\
+[   +6 ms] Generating C:\Users\Yan\app_gestion_m\app_gestion_m\android\app\src\main\java\io\flutter\plugins\GeneratedPluginRegistrant.java
+[   +1 ms] Skipping generating GeneratedPluginRegistrant.java because it is up-to-date.
+[   +3 ms] Skipping generating generated_plugin_registrant.h because it is up-to-date.
+[   +1 ms] Skipping generating generated_plugin_registrant.cc because it is up-to-date.
+[   +1 ms] Skipping generating generated_plugins.cmake because it is up-to-date.
+[   +1 ms] Skipping generating generated_plugin_registrant.h because it is up-to-date.
+[        ] Skipping generating generated_plugin_registrant.cc because it is up-to-date.
+[        ] Skipping generating generated_plugins.cmake because it is up-to-date.
+[   +2 ms] Skipping generating GeneratedPluginRegistrant.h because it is up-to-date.
+[   +1 ms] Skipping generating GeneratedPluginRegistrant.m because it is up-to-date.
+[   +1 ms] Skipping generating GeneratedPluginRegistrant.swift because it is up-to-date.
+[ +190 ms] Initializing file store
+[  +12 ms] Skipping target: gen_localizations
+[   +4 ms] gen_dart_plugin_registrant: Starting due to {InvalidatedReasonKind.inputChanged: The following inputs have updated contents: C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\package_config.json}
+[ +121 ms] Found plugin url_launcher at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher-6.3.2\
+[   +1 ms] Found plugin url_launcher_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_windows-3.1.5\
+[   +2 ms] Found plugin url_launcher_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_web-2.4.3\
+[   +1 ms] Found plugin url_launcher_macos at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_macos-3.2.5\
+[        ] Found plugin url_launcher_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_linux-3.2.2\
+[        ] Found plugin url_launcher_ios at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_ios-6.4.1\
+[        ] Found plugin url_launcher_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_android-6.3.32\
+[   +8 ms] Found plugin shared_preferences at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences-2.5.5\
+[        ] Found plugin shared_preferences_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_windows-2.4.1\
+[   +1 ms] Found plugin path_provider_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_windows-2.3.0\
+[   +1 ms] Found plugin shared_preferences_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_web-2.4.3\
+[   +1 ms] Found plugin shared_preferences_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_linux-2.4.1\
+[   +1 ms] Found plugin path_provider_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_linux-2.2.2\
+[   +1 ms] Found plugin shared_preferences_foundation at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_foundation-2.5.6\
+[   +1 ms] Found plugin shared_preferences_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_android-2.4.27\
+[   +1 ms] Found plugin app_links at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links-7.2.1\
+[        ] Found plugin app_links_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links_web-1.0.4\
+[   +1 ms] Found plugin app_links_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links_linux-1.0.3\
+[        ] Found plugin gtk at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\gtk-2.2.0\
+[        ] Found plugin printing at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\printing-5.14.3\
+[   +6 ms] Found plugin path_provider at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider-2.1.6\
+[        ] Found plugin path_provider_foundation at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_foundation-2.6.0\
+[   +3 ms] Found plugin path_provider_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_android-2.3.1\
+[   +2 ms] Found plugin jni_flutter at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\jni_flutter-1.0.2\
+[  +11 ms] Found plugin jni at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\jni-1.0.3\
+[   +2 ms] Found plugin isar_flutter_libs at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\isar_flutter_libs-3.1.0+1\
+[   +4 ms] Found plugin flutter_pos_printer_platform_image_3 at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_pos_printer_platform_image_3-1.2.3\
+[   +1 ms] Found plugin network_info_plus at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\network_info_plus-4.1.0+1\
+[  +12 ms] Found plugin connectivity_plus at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\connectivity_plus-7.3.1\
+[   +6 ms] gen_dart_plugin_registrant: Complete
+[  +13 ms] _composite: Starting due to {}
+[        ] _composite: Complete
+[   +2 ms] complete
+[   +4 ms] Launching lib\main.dart on Windows in debug mode...
+[   +3 ms] C:\Users\Yan\dev\flutter\bin\cache\dart-sdk\bin\dartaotruntime.exe C:\Users\Yan\dev\flutter\bin\cache\dart-sdk\bin\snapshots\frontend_server_aot.dart.snapshot --sdk-root C:\Users\Yan\dev\flutter\bin\cache\artifacts\engine\common\flutter_patched_sdk/ --incremental --target=flutter --experimental-emit-debug-metadata -DFLUTTER_VERSION=3.44.8 -DFLUTTER_CHANNEL=stable -DFLUTTER_GIT_URL=https://github.com/flutter/flutter.git -DFLUTTER_FRAMEWORK_REVISION=058e0af2c2 -DFLUTTER_ENGINE_REVISION=0cd610717b -DFLUTTER_DART_VERSION=3.12.2 --output-dill C:\Users\Yan\AppData\Local\Temp\flutter_tools.ac79b414\flutter_tool.25bbacc4\app.dill --packages C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\package_config.json -Ddart.vm.profile=false -Ddart.vm.product=false --enable-asserts --track-widget-creation --filesystem-scheme org-dartlang-root --initialize-from-dill build\e09161ed6a8240f7110db5db6f6e90b3.cache.dill.track.dill --source file:///C:/Users/Yan/app_gestion_m/app_gestion_m/.dart_tool/flutter_build/dart_plugin_registrant.dart --source package:flutter/src/dart_plugin_registrant.dart -Dflutter.dart_plugin_registrant=file:///C:/Users/Yan/app_gestion_m/app_gestion_m/.dart_tool/flutter_build/dart_plugin_registrant.dart --verbosity=error --enable-experiment=alternative-invalidation-strategy
+[  +22 ms] executing: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -requires Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[  +51 ms] Exit code 0 from: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -requires Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[        ] []
+[        ] executing: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -requires Microsoft.VisualStudio.Workload.VCTools Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[  +46 ms] Exit code 0 from: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -requires Microsoft.VisualStudio.Workload.VCTools Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[        ] []
+[        ] executing: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -prerelease -requires Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[  +49 ms] Exit code 0 from: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -prerelease -requires Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[        ] [
+             {
+               "instanceId": "29faedcc",
+               "installDate": "2026-06-23T15:19:52Z",
+               "installationName": "VisualStudioPreview/18.8.0-insiders+11912.234",
+               "installationPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Insiders",
+               "installationVersion": "18.8.11912.234",
+               "productId": "Microsoft.VisualStudio.Product.Community",
+               "productPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Insiders\\Common7\\IDE\\devenv.exe",
+               "state": 4294967295,
+               "isComplete": true,
+               "isLaunchable": true,
+               "isPrerelease": true,
+               "isRebootRequired": false,
+               "displayName": "Visual Studio Community 2026",
+               "description": "Everything you need to build modern apps ÔÇô free for you, built for impact.",
+               "channelId": "VisualStudio.18.Preview",
+               "channelUri": "https://aka.ms/vs/18/insiders/channel",
+               "enginePath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\resources\\app\\ServiceHub\\Services\\Microsoft.VisualStudio.Setup.Service",
+               "expirationDate": "2026-09-10T17:00:00+00:00",
+               "installedChannelId": "VisualStudio.18.Preview",
+               "installedChannelUri": "https://aka.ms/vs/18/insiders/channel",
+               "releaseNotes": "https://go.microsoft.com/fwlink/?LinkId=661465#18.8.0-ins",
+               "resolvedInstallationPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Insiders",
+               "retirementDate": "2026-12-09T17:00:00+00:00",
+               "thirdPartyNotices": "https://go.microsoft.com/fwlink/?LinkId=661480",
+               "updateDate": "2026-06-23T15:19:52.1207174Z",
+               "catalog": {
+                 "buildBranch": "insiders",
+                 "buildVersion": "18.8.11912.234",
+                 "expirationDate": "09/10/2026 17:00:00 +00:00",
+                 "id": "VisualStudioPreview/18.8.0-insiders+11912.234",
+                 "includeBuildVersionInDisplayVersion": "True",
+                 "localBuild": "build-lab",
+                 "manifestName": "VisualStudioPreview",
+                 "manifestType": "installer",
+                 "productDisplayVersion": "Insiders [11912.234]",
+                 "productLine": "Dev18",
+                 "productLineVersion": "18",
+                 "productMilestone": "Insiders",
+                 "productMilestoneIsPreRelease": "True",
+                 "productName": "Visual Studio",
+                 "productPatchVersion": "0",
+                 "productRelease": "RTW",
+                 "productSemanticVersion": "18.8.0-insiders+11912.234",
+                 "requiredEngineVersion": "4.8.60.55523",
+                 "retirementDate": "12/09/2026 17:00:00 +00:00"
+               },
+               "properties": {
+                 "campaignId": "2600:f553046e48e242ac84a66ceda02b0f01",
+                 "channelManifestId": "VisualStudio.18.Preview/18.8.0-insiders+11912.234",
+                 "includeRecommended": "1",
+                 "nickname": "",
+                 "setupEngineFilePath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\setup.exe"
+               }
+             }
+           ]
+[   +3 ms] Building Windows application...
+[   +8 ms] <- compile package:app_gestion_m/main.dart
+[  +10 ms] executing: C:\Program Files\Microsoft Visual Studio\18\Insiders\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe -S C:\Users\Yan\app_gestion_m\app_gestion_m\windows -B C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64 -G Visual Studio 18 2026 -A x64 -DFLUTTER_TARGET_PLATFORM=windows-x64
+[  +64 ms] -- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.19045.
+[+2036 ms] -- The CXX compiler identification is MSVC 19.51.36248.0
+[ +240 ms] -- Detecting CXX compiler ABI info
+[+1032 ms] -- Detecting CXX compiler ABI info - done
+[  +46 ms] -- Check for working CXX compiler: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe - skipped
+[  +11 ms] -- Detecting CXX compile features
+[  +15 ms] -- Detecting CXX compile features - done
+[  +59 ms] -- Downloading/updating pdfium
+[  +44 ms] -- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.19045.
+[ +490 ms] -- Configuring done (0.5s)
+[  +61 ms] -- Generating done (0.1s)
+[   +3 ms] -- Build files have been written to: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/pdfium-download
+[ +145 ms] VersiÔö£Ôöén de MSBuild 18.8.2+ce25c0108 para .NET Framework
+[ +439 ms]   1>Checking Build System
+[ +251 ms]   Creating directories for 'pdfium-download'
+[  +59 ms]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/pdfium-download/CMakeLists.txt
+[  +34 ms]   Performing download step (download, verify and extract) for 'pdfium-download'
+[  +27 ms]   -- Downloading...
+[        ]      dst='C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/pdfium-download/pdfium-download-prefix/src/pdfium-win-x64.tgz'
+[        ]      timeout='none'
+[        ]      inactivity timeout='none'
+[        ]   -- Using src='https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/5200/pdfium-win-x64.tgz'
+[ +630 ms]   -- [download 0% complete]
+[  +15 ms]   -- [download 1% complete]
+[  +22 ms]   -- [download 2% complete]
+[  +19 ms]   -- [download 3% complete]
+[   +3 ms]   -- [download 4% complete]
+[  +24 ms]   -- [download 5% complete]
+[   +5 ms]   -- [download 6% complete]
+[   +1 ms]   -- [download 7% complete]
+[   +4 ms]   -- [download 8% complete]
+[   +2 ms]   -- [download 9% complete]
+[   +2 ms]   -- [download 10% complete]
+[   +6 ms]   -- [download 11% complete]
+[  +12 ms]   -- [download 12% complete]
+[   +3 ms]   -- [download 13% complete]
+[   +1 ms]   -- [download 14% complete]
+[   +2 ms]   -- [download 15% complete]
+[   +2 ms]   -- [download 16% complete]
+[   +1 ms]   -- [download 17% complete]
+[   +1 ms]   -- [download 18% complete]
+[   +2 ms]   -- [download 19% complete]
+[   +1 ms]   -- [download 20% complete]
+[  +18 ms]   -- [download 21% complete]
+[        ]   -- [download 22% complete]
+[   +3 ms]   -- [download 23% complete]
+[   +3 ms]   -- [download 24% complete]
+[        ]   -- [download 25% complete]
+[        ]   -- [download 26% complete]
+[   +2 ms]   -- [download 27% complete]
+[   +3 ms]   -- [download 28% complete]
+[        ]   -- [download 29% complete]
+[   +3 ms]   -- [download 30% complete]
+[  +16 ms]   -- [download 31% complete]
+[   +3 ms]   -- [download 32% complete]
+[        ]   -- [download 33% complete]
+[   +3 ms]   -- [download 34% complete]
+[   +3 ms]   -- [download 35% complete]
+[        ]   -- [download 36% complete]
+[        ]   -- [download 37% complete]
+[   +1 ms]   -- [download 38% complete]
+[        ]   -- [download 39% complete]
+[        ]   -- [download 40% complete]
+[   +1 ms]   -- [download 41% complete]
+[        ]   -- [download 42% complete]
+[        ]   -- [download 43% complete]
+[   +1 ms]   -- [download 44% complete]
+[        ]   -- [download 45% complete]
+[   +5 ms]   -- [download 46% complete]
+[        ]   -- [download 47% complete]
+[        ]   -- [download 48% complete]
+[        ]   -- [download 49% complete]
+[  +20 ms]   -- [download 50% complete]
+[        ]   -- [download 51% complete]
+[        ]   -- [download 52% complete]
+[        ]   -- [download 53% complete]
+[        ]   -- [download 54% complete]
+[        ]   -- [download 55% complete]
+[        ]   -- [download 56% complete]
+[        ]   -- [download 57% complete]
+[        ]   -- [download 58% complete]
+[        ]   -- [download 59% complete]
+[        ]   -- [download 60% complete]
+[        ]   -- [download 61% complete]
+[        ]   -- [download 62% complete]
+[        ]   -- [download 63% complete]
+[        ]   -- [download 64% complete]
+[        ]   -- [download 65% complete]
+[        ]   -- [download 66% complete]
+[        ]   -- [download 67% complete]
+[        ]   -- [download 68% complete]
+[        ]   -- [download 69% complete]
+[        ]   -- [download 70% complete]
+[   +7 ms]   -- [download 71% complete]
+[        ]   -- [download 72% complete]
+[        ]   -- [download 73% complete]
+[        ]   -- [download 74% complete]
+[        ]   -- [download 75% complete]
+[        ]   -- [download 76% complete]
+[        ]   -- [download 77% complete]
+[        ]   -- [download 78% complete]
+[        ]   -- [download 79% complete]
+[        ]   -- [download 80% complete]
+[        ]   -- [download 81% complete]
+[        ]   -- [download 82% complete]
+[        ]   -- [download 83% complete]
+[        ]   -- [download 84% complete]
+[        ]   -- [download 85% complete]
+[        ]   -- [download 86% complete]
+[        ]   -- [download 87% complete]
+[        ]   -- [download 88% complete]
+[        ]   -- [download 89% complete]
+[        ]   -- [download 90% complete]
+[        ]   -- [download 91% complete]
+[  +17 ms]   -- [download 92% complete]
+[   +2 ms]   -- [download 93% complete]
+[        ]   -- [download 94% complete]
+[        ]   -- [download 95% complete]
+[        ]   -- [download 96% complete]
+[        ]   -- [download 97% complete]
+[        ]   -- [download 98% complete]
+[        ]   -- [download 99% complete]
+[        ]   -- [download 100% complete]
+[   +2 ms]   -- Downloading... done
+[  +55 ms]   -- extracting...
+[        ]        src='C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/pdfium-download/pdfium-download-prefix/src/pdfium-win-x64.tgz'
+[        ]        dst='C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/pdfium-src'
+[        ]   -- extracting... [tar xf]
+[ +177 ms]   -- extracting... [analysis]
+[        ]   -- extracting... [rename]
+[   +2 ms]   -- extracting... [clean up]
+[        ]   -- extracting... done
+[  +34 ms]   No update step for 'pdfium-download'
+[  +55 ms]   No patch step for 'pdfium-download'
+[  +52 ms]   No configure step for 'pdfium-download'
+[  +54 ms]   No build step for 'pdfium-download'
+[  +57 ms]   No install step for 'pdfium-download'
+[  +53 ms]   No test step for 'pdfium-download'
+[  +53 ms]   Completed 'pdfium-download'
+[ +189 ms]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/pdfium-download/CMakeLists.txt
+[ +100 ms] -- Found PDFium: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/pdfium-src/bin/pdfium.dll (found version "106.0.5200.0")
+[+1006 ms] -- The C compiler identification is MSVC 19.51.36248.0
+[  +72 ms] -- Detecting C compiler ABI info
+[ +861 ms] -- Detecting C compiler ABI info - done
+[  +44 ms] -- Check for working C compiler: C:/Program Files/Microsoft Visual Studio/18/Insiders/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe - skipped
+[        ] -- Detecting C compile features
+[   +1 ms] -- Detecting C compile features - done
+[ +951 ms] -- Found JNI: C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/.plugin_symlinks/jni/src/../third_party  found components: JVM
+[  +43 ms] -- Configuring done (9.8s)
+[ +420 ms] -- Generating done (0.4s)
+[  +28 ms] -- Build files have been written to: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64
+[  +39 ms] executing: C:\Program Files\Microsoft Visual Studio\18\Insiders\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe --build C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64 --config Debug --target INSTALL --verbose
+[ +121 ms] Change Dir: 'C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64'
+[   +1 ms] Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Insiders/MSBuild/Current/Bin/amd64/MSBuild.exe" INSTALL.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+[  +74 ms] Versi├│n de MSBuild 18.8.2+ce25c0108 para .NET Framework
+[  +42 ms] Compilaci├│n iniciada a las 30/07/2026 04:25:29 p. m..
+[ +176 ms] Proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\INSTALL.vcxproj" en nodo 1 (destinos predeterminados).
+[        ] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\INSTALL.vcxproj" (1) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\ZERO_CHECK.vcxproj" (2) en el nodo 1 (destinos predeterminados).
+[        ] PrepareForBuild:
+[        ]   Creando directorio "x64\Debug\ZERO_CHECK\".
+[   +8 ms]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "x64\Debug\ZERO_CHECK\ZERO_CHECK.tlog\".
+[   +4 ms] InitializeBuildStatus:
+[        ]   Se crear├í "x64\Debug\ZERO_CHECK\ZERO_CHECK.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "x64\Debug\ZERO_CHECK\ZERO_CHECK.tlog\unsuccessfulbuild".
+[  +91 ms] CustomBuild:
+[        ]   1>Checking Build System
+[ +102 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "x64\Debug\ZERO_CHECK\ZERO_CHECK.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "x64\Debug\ZERO_CHECK\ZERO_CHECK.tlog\ZERO_CHECK.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\ZERO_CHECK.vcxproj" (destinos predeterminados).
+[ +123 ms] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\INSTALL.vcxproj" (1) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\ALL_BUILD.vcxproj" (3) en el nodo 1 (destinos predeterminados).
+[        ] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\ALL_BUILD.vcxproj" (3) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\app_gestion_m.vcxproj" (4) en el nodo 1 (destinos predeterminados).
+[        ] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\app_gestion_m.vcxproj" (4) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\flutter_assemble.vcxproj" (5) en el nodo 1 (destinos predeterminados).
+[        ] PrepareForBuild:
+[        ]   Creando directorio "x64\Debug\flutter_assemble\".
+[   +3 ms]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "x64\Debug\flutter_assemble\flutter_assemble.tlog\".
+[   +2 ms] InitializeBuildStatus:
+[        ]   Se crear├í "x64\Debug\flutter_assemble\flutter_assemble.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "x64\Debug\flutter_assemble\flutter_assemble.tlog\unsuccessfulbuild".
+[        ] ComputeCustomBuildOutput:
+[        ]   Creando directorio "C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\".
+[   +3 ms] CustomBuild:
+[        ]   'La compilaci├│n de "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\CMakeFiles\4982d6f6f7ebcefb1dc312327a7ad256\flutter_assemble.rule" depende de "C:\USERS\YAN\APP_GESTION_M\APP_GESTION_M\WINDOWS\FLUTTER\EPHEMERAL\FLUTTER_WINDOWS.DLL", que se genera por la compilaci├│n de "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\CMakeFiles\6299874ad34e50acfa7b0517590f4839\flutter_windows.dll.rule". Los elementos no se pueden compilar en paralelo.'
+[  +75 ms]   Generating C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/flutter_windows.dll, C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/flutter_export.h, C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/flutter_windows.h, C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/flutter_messenger.h, C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/flutter_plugin_registrar.h, C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/flutter_texture_registrar.h, C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/cpp_client_wrapper/core_implementations.cc, C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/cpp_client_wrapper/standard_codec.cc, C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/cpp_client_wrapper/plugin_registrar.cc, C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/cpp_client_wrapper/flutter_engine.cc, C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/cpp_client_wrapper/flutter_view_controller.cc, _phony_
+[+3257 ms]   [  +42 ms] Artifact Instance of 'MaterialFonts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'GradleWrapper' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'AndroidGenSnapshotArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'AndroidInternalBuildArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IOSEngineArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterWebSdk' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'LegacyCanvasKitRemover' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterSdk' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'WindowsEngineArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'MacOSEngineArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'LinuxEngineArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'LinuxFuchsiaSDKArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'MacOSFuchsiaSDKArtifacts' is not required, skipping update.
+[        ]   [   +1 ms] Artifact Instance of 'FlutterRunnerSDKArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterRunnerDebugSymbols' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FontSubsetArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'PubDependencies' is not required, skipping update.
+[   +2 ms]   [  +11 ms] Artifact Instance of 'AndroidGenSnapshotArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'AndroidInternalBuildArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IOSEngineArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterWebSdk' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterEngineStamp' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'LegacyCanvasKitRemover' is not required, skipping update.
+[   +2 ms]   [   +2 ms] Artifact Instance of 'WindowsEngineArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'MacOSEngineArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'LinuxEngineArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'LinuxFuchsiaSDKArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'MacOSFuchsiaSDKArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterRunnerSDKArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterRunnerDebugSymbols' is not required, skipping update.
+[  +62 ms]   [  +62 ms] Artifact Instance of 'MaterialFonts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'GradleWrapper' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'AndroidGenSnapshotArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'AndroidInternalBuildArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IOSEngineArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterWebSdk' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterEngineStamp' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'LegacyCanvasKitRemover' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterSdk' is not required, skipping update.
+[   +2 ms]   [   +2 ms] Artifact Instance of 'MacOSEngineArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'LinuxEngineArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'LinuxFuchsiaSDKArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'MacOSFuchsiaSDKArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterRunnerSDKArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FlutterRunnerDebugSymbols' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'IosUsbArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'FontSubsetArtifacts' is not required, skipping update.
+[        ]   [        ] Artifact Instance of 'PubDependencies' is not required, skipping update.
+[  +62 ms]   [  +62 ms] Initializing file store
+[  +28 ms]   [  +28 ms] dart_build: Starting due to {}
+[   +3 ms]   [   +3 ms] Skipping target: gen_localizations
+[   +3 ms]   [   +3 ms] gen_dart_plugin_registrant: Starting due to {InvalidatedReasonKind.outputSetAddition: The following outputs were added to the output set: C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\flutter_build\dart_plugin_registrant.dart, InvalidatedReasonKind.inputChanged: The following inputs have updated contents: C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\package_config.json}
+[   +5 ms]   [   +5 ms] unpack_windows: Starting due to {}
+[ +261 ms]   [ +260 ms] unpack_windows: Complete
+[+5089 ms]   [+5089 ms] executing: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -requires Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[  +44 ms]   [  +44 ms] Exit code 0 from: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -requires Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[        ]   [        ] []
+[        ]   [        ] executing: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -requires Microsoft.VisualStudio.Workload.VCTools Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[  +43 ms]   [  +43 ms] Exit code 0 from: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -requires Microsoft.VisualStudio.Workload.VCTools Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[        ]   [        ] []
+[        ]   [        ] executing: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -prerelease -requires Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[  +50 ms]   [  +50 ms] Exit code 0 from: C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe -format json -products * -utf8 -latest -version 16 -prerelease -requires Microsoft.VisualStudio.Workload.NativeDesktop Microsoft.VisualStudio.Component.VC.Tools.x86.x64 Microsoft.VisualStudio.Component.VC.CMake.Project
+[   +2 ms]   [        ] [
+[        ]                {
+[        ]                  "instanceId": "29faedcc",
+[        ]                  "installDate": "2026-06-23T15:19:52Z",
+[        ]                  "installationName": "VisualStudioPreview/18.8.0-insiders+11912.234",
+[        ]                  "installationPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Insiders",
+[        ]                  "installationVersion": "18.8.11912.234",
+[        ]                  "productId": "Microsoft.VisualStudio.Product.Community",
+[        ]                  "productPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Insiders\\Common7\\IDE\\devenv.exe",
+[        ]                  "state": 4294967295,
+[        ]                  "isComplete": true,
+[        ]                  "isLaunchable": true,
+[        ]                  "isPrerelease": true,
+[        ]                  "isRebootRequired": false,
+[        ]                  "displayName": "Visual Studio Community 2026",
+[        ]                  "description": "Everything you need to build modern apps ├ö├ç├┤ free for you, built for impact.",
+[        ]                  "channelId": "VisualStudio.18.Preview",
+[        ]                  "channelUri": "https://aka.ms/vs/18/insiders/channel",
+[        ]                  "enginePath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\resources\\app\\ServiceHub\\Services\\Microsoft.VisualStudio.Setup.Service",
+[        ]                  "expirationDate": "2026-09-10T17:00:00+00:00",
+[        ]                  "installedChannelId": "VisualStudio.18.Preview",
+[        ]                  "installedChannelUri": "https://aka.ms/vs/18/insiders/channel",
+[        ]                  "releaseNotes": "https://go.microsoft.com/fwlink/?LinkId=661465#18.8.0-ins",
+[        ]                  "resolvedInstallationPath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Insiders",
+[        ]                  "retirementDate": "2026-12-09T17:00:00+00:00",
+[        ]                  "thirdPartyNotices": "https://go.microsoft.com/fwlink/?LinkId=661480",
+[        ]                  "updateDate": "2026-06-23T15:19:52.1207174Z",
+[        ]                  "catalog": {
+[        ]                    "buildBranch": "insiders",
+[        ]                    "buildVersion": "18.8.11912.234",
+[        ]                    "expirationDate": "09/10/2026 17:00:00 +00:00",
+[        ]                    "id": "VisualStudioPreview/18.8.0-insiders+11912.234",
+[        ]                    "includeBuildVersionInDisplayVersion": "True",
+[        ]                    "localBuild": "build-lab",
+[        ]                    "manifestName": "VisualStudioPreview",
+[        ]                    "manifestType": "installer",
+[        ]                    "productDisplayVersion": "Insiders [11912.234]",
+[        ]                    "productLine": "Dev18",
+[        ]                    "productLineVersion": "18",
+[        ]                    "productMilestone": "Insiders",
+[        ]                    "productMilestoneIsPreRelease": "True",
+[        ]                    "productName": "Visual Studio",
+[        ]                    "productPatchVersion": "0",
+[        ]                    "productRelease": "RTW",
+[        ]                    "productSemanticVersion": "18.8.0-insiders+11912.234",
+[        ]                    "requiredEngineVersion": "4.8.60.55523",
+[        ]                    "retirementDate": "12/09/2026 17:00:00 +00:00"
+[        ]                  },
+[        ]                  "properties": {
+[        ]                    "campaignId": "2600:f553046e48e242ac84a66ceda02b0f01",
+[        ]                    "channelManifestId": "VisualStudio.18.Preview/18.8.0-insiders+11912.234",
+[        ]                    "includeRecommended": "1",
+[        ]                    "nickname": "",
+[        ]                    "setupEngineFilePath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\setup.exe"
+[        ]                  }
+[        ]                }
+[        ]              ]
+[        ]   [   +7 ms] Building native assets for windows_x64.
+[  +79 ms]   [  +79 ms] Running `C:\Users\Yan\dev\flutter\bin\cache\dart-sdk\bin\dart compile kernel --packages=C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\package_config.json --output=C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\hooks_runner\objective_c\cbfd79f975\hook.dill --depfile=C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\hooks_runner\objective_c\cbfd79f975\hook.dill.d C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\objective_c-9.5.0\hook\build.dart`.
+[  +50 ms]   [  +50 ms] Found plugin url_launcher at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher-6.3.2\
+[   +5 ms]   [   +5 ms] Found plugin url_launcher_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_windows-3.1.5\
+[   +6 ms]   [   +6 ms] Found plugin url_launcher_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_web-2.4.3\
+[   +3 ms]   [   +3 ms] Found plugin url_launcher_macos at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_macos-3.2.5\
+[   +2 ms]   [   +2 ms] Found plugin url_launcher_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_linux-3.2.2\
+[   +2 ms]   [   +2 ms] Found plugin url_launcher_ios at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_ios-6.4.1\
+[   +2 ms]   [   +2 ms] Found plugin url_launcher_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\url_launcher_android-6.3.32\
+[  +15 ms]   [  +15 ms] Found plugin shared_preferences at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences-2.5.5\
+[   +1 ms]   [   +1 ms] Found plugin shared_preferences_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_windows-2.4.1\
+[   +2 ms]   [   +2 ms] Found plugin path_provider_windows at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_windows-2.3.0\
+[   +4 ms]   [   +4 ms] Found plugin shared_preferences_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_web-2.4.3\
+[   +2 ms]   [   +2 ms] Found plugin shared_preferences_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_linux-2.4.1\
+[   +2 ms]   [   +2 ms] Found plugin path_provider_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_linux-2.2.2\
+[   +2 ms]   [   +2 ms] Found plugin shared_preferences_foundation at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_foundation-2.5.6\
+[   +1 ms]   [   +1 ms] Found plugin shared_preferences_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\shared_preferences_android-2.4.27\
+[   +2 ms]   [   +2 ms] Found plugin app_links at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links-7.2.1\
+[   +1 ms]   [   +1 ms] Found plugin app_links_web at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links_web-1.0.4\
+[   +2 ms]   [   +2 ms] Found plugin app_links_linux at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\app_links_linux-1.0.3\
+[   +1 ms]   [   +1 ms] Found plugin gtk at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\gtk-2.2.0\
+[   +1 ms]   [   +1 ms] Found plugin printing at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\printing-5.14.3\
+[   +9 ms]   [   +9 ms] Found plugin path_provider at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider-2.1.6\
+[   +1 ms]   [   +1 ms] Found plugin path_provider_foundation at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_foundation-2.6.0\
+[   +6 ms]   [   +6 ms] Found plugin path_provider_android at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\path_provider_android-2.3.1\
+[   +1 ms]   [   +1 ms] Found plugin jni_flutter at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\jni_flutter-1.0.2\
+[   +1 ms]   [   +1 ms] Found plugin jni at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\jni-1.0.3\
+[   +1 ms]   [   +1 ms] Found plugin isar_flutter_libs at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\isar_flutter_libs-3.1.0+1\
+[   +4 ms]   [   +4 ms] Found plugin flutter_pos_printer_platform_image_3 at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\flutter_pos_printer_platform_image_3-1.2.3\
+[   +2 ms]   [   +2 ms] Found plugin network_info_plus at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\network_info_plus-4.1.0+1\
+[  +18 ms]   [  +18 ms] Found plugin connectivity_plus at C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\connectivity_plus-7.3.1\
+[  +18 ms]   [  +18 ms] Skipping generating dart_plugin_registrant.dart because it is up-to-date.
+[        ]   [        ] gen_dart_plugin_registrant: Complete
+[   +3 ms]   [   +3 ms] kernel_snapshot_program: Starting due to {}
+[  +37 ms]   [  +37 ms] C:\Users\Yan\dev\flutter\bin\cache\dart-sdk\bin\dartaotruntime.exe C:\Users\Yan\dev\flutter\bin\cache\dart-sdk\bin\snapshots\frontend_server_aot.dart.snapshot --sdk-root C:\Users\Yan\dev\flutter\bin\cache\artifacts\engine\common\flutter_patched_sdk/ --target=flutter --no-print-incremental-dependencies -DFLUTTER_VERSION=3.44.8 -DFLUTTER_CHANNEL=stable -DFLUTTER_GIT_URL=https://github.com/flutter/flutter.git -DFLUTTER_FRAMEWORK_REVISION=058e0af2c2 -DFLUTTER_ENGINE_REVISION=0cd610717b -DFLUTTER_DART_VERSION=3.12.2 -Ddart.vm.profile=false -Ddart.vm.product=false --enable-asserts --track-widget-creation --packages C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\package_config.json --output-dill C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\flutter_build\a9a8fcce69b0b655cf385399bf91b746\app.dill --depfile C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\flutter_build\a9a8fcce69b0b655cf385399bf91b746\kernel_snapshot_program.d --incremental --initialize-from-dill C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\flutter_build\a9a8fcce69b0b655cf385399bf91b746\app.dill --source file:///C:/Users/Yan/app_gestion_m/app_gestion_m/.dart_tool/flutter_build/dart_plugin_registrant.dart --source package:flutter/src/dart_plugin_registrant.dart -Dflutter.dart_plugin_registrant=file:///C:/Users/Yan/app_gestion_m/app_gestion_m/.dart_tool/flutter_build/dart_plugin_registrant.dart --verbosity=error package:app_gestion_m/main.dart
+[+1449 ms]   [+1449 ms] input.json contents:
+[        ]              {
+[        ]                "assets": {},
+[        ]                "config": {
+[        ]                  "build_asset_types": [
+[        ]                    "code_assets/code"
+[        ]                  ],
+[        ]                  "extensions": {
+[        ]                    "code_assets": {
+[        ]                      "c_compiler": {
+[        ]                        "ar": "C:\\Program Files\\Microsoft Visual Studio\\18\\Insiders\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\lib.exe",
+[        ]                        "cc": "C:\\Program Files\\Microsoft Visual Studio\\18\\Insiders\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\cl.exe",
+[        ]                        "ld": "C:\\Program Files\\Microsoft Visual Studio\\18\\Insiders\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\link.exe",
+[        ]                        "windows": {
+[        ]                          "developer_command_prompt": {
+[        ]                            "arguments": [],
+[        ]                            "script": "C:\\Program Files\\Microsoft Visual Studio\\18\\Insiders\\VC\\Auxiliary\\Build\\vcvars64.bat"
+[        ]                          }
+[        ]                        }
+[        ]                      },
+[        ]                      "link_mode_preference": "dynamic",
+[        ]                      "target_architecture": "x64",
+[        ]                      "target_os": "windows"
+[        ]                    }
+[        ]                  },
+[        ]                  "linking_enabled": false
+[        ]                },
+[        ]                "out_dir_shared": "C:\\Users\\Yan\\app_gestion_m\\app_gestion_m\\.dart_tool\\hooks_runner\\shared\\objective_c\\build\\",
+[        ]                "out_file": "C:\\Users\\Yan\\app_gestion_m\\app_gestion_m\\.dart_tool\\hooks_runner\\objective_c\\cbfd79f975\\output.json",
+[        ]                "package_name": "objective_c",
+[        ]                "package_root": "C:\\Users\\Yan\\AppData\\Local\\Pub\\Cache\\hosted\\pub.dev\\objective_c-9.5.0\\",
+[        ]                "user_defines": {}
+[        ]              }
+[  +37 ms]   [  +40 ms] Running `(cd C:\Users\Yan\AppData\Local\Pub\Cache\hosted\pub.dev\objective_c-9.5.0\; PATH=C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64;C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64;;C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x86;;C:\Program Files\Microsoft Visual Studio\18\Insiders\Common7\tools;C:\Program Files\Microsoft Visual Studio\18\Insiders\Common7\ide;C:\Program Files (x86)\HTML Help Workshop;;C:\Program Files\Microsoft Visual Studio\18\Insiders\MSBuild\Current\Bin\amd64;C:\Windows\Microsoft.NET\Framework64\v4.0.30319\;C:\Windows\Microsoft.NET\Framework\v4.0.30319\;C:\Program Files\Microsoft Visual Studio\18\Insiders\MSBuild\Current\Bin;C:\Windows\Microsoft.NET\Framework\v4.0.30319\;;C:\Program Files\WindowsApps\Microsoft.PowerShell_7.6.4.0_x64__8wekyb3d8bbwe;C:\Program Files\Common Files\Oracle\Java\javapath;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\xampp\php;C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64\compiler;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;C:\Program Files (x86)\dotnet\;C:\xampp\php;C:\ProgramData\ComposerSetup\bin;C:\php\php.exe;C:\ProgramData\chocolatey\bin;C:\Program Files\Git\cmd;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Users\Yan\AppData\Local\nvm;C:\nvm4w\nodejs;C:\Program Files\nodejs\;C:\Program Files\gs\gs10.07.0\bin;C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\;C:\Users\Yan\AppData\Local\Programs\Python\Launcher\;C:\Users\Yan\AppData\Local\Microsoft\WindowsApps;C:\Users\Yan\AppData\Local\spicetify;C:\Users\Yan\AppData\Local\GitHubDesktop\bin;C:\Users\Yan\Desktop\Godot;C:\Users\Yan\.dotnet\tools;C:\xampp\php;C:\Users\Yan\AppData\Roaming\Composer\vendor\bin;C:\php\php.exe;C:\Users\Yan\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\Yan\AppData\Local\Microsoft\WinGet\Packages\PHP.PHP.8.3_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\Yan\AppData\Local\nvm;C:\nvm4w\nodejs;C:\Program Files\MongoDB\Server\8.2\bin;C:\Program Files\MongoDB\mongosh-2.6.0-win32-x64\bin;C:\Users\Yan\AppData\Roaming\npm;C:\Users\Yan\AppData\Local\Programs\Antigravity\bin;C:\dev\flutter\bin;C:\Users\Yan\dev\flutter\bin;C:\Users\Yan\AppData\Local\Microsoft\WinGet\Packages\Spicetify.Spicetify_Microsoft.Winget.Source_8wekyb3d8bbwe;C:\Users\Yan\AppData\Local\Kingsoft\WPS Office\12.1.0.27458\clitool; PROGRAMDATA=C:\ProgramData SYSTEMDRIVE=C: SYSTEMROOT=C:\Windows TEMP=C:\Users\Yan\AppData\Local\Temp TMP=C:\Users\Yan\AppData\Local\Temp USERPROFILE=C:\Users\Yan WINDIR=C:\Windows C:\Users\Yan\dev\flutter\bin\cache\dart-sdk\bin\dart --packages=C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\package_config.json C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\hooks_runner\objective_c\cbfd79f975\hook.dill --config=C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\hooks_runner\objective_c\cbfd79f975\input.json )`.
+[ +262 ms]   [ +263 ms] output.json contents:
+[        ]              {
+[        ]                "assets_for_linking": {},
+[        ]                "status": "success",
+[        ]                "timestamp": "2026-07-30 16:25:40.000"
+[        ]              }
+[  +48 ms]   [  +49 ms] Building native assets for windows_x64 done.
+[   +4 ms]   [   +4 ms] dart_build: Complete
+[  +18 ms]   [  +18 ms] install_code_assets: Starting due to {}
+[  +14 ms]   [  +15 ms] Writing native assets json to file:///C:/Users/Yan/app_gestion_m/app_gestion_m/.dart_tool/flutter_build/a9a8fcce69b0b655cf385399bf91b746/native_assets.json.
+[   +1 ms]   [   +1 ms] Writing C:\Users\Yan\app_gestion_m\app_gestion_m\.dart_tool\flutter_build\a9a8fcce69b0b655cf385399bf91b746\native_assets.json done.
+[        ]   [   +1 ms] install_code_assets: Complete
+[+16775 ms]   [+16775 ms] kernel_snapshot_program: Complete
+[+2028 ms]   [+2028 ms] debug_bundle_windows-x64_assets: Starting due to {}
+[ +225 ms]   [ +225 ms] impellerc command: [C:\Users\Yan\dev\flutter\bin\cache\artifacts\engine\windows-x64\impellerc.exe, --sksl, --runtime-stage-gles, --runtime-stage-gles3, --runtime-stage-vulkan, --iplr, --sl=C:\Users\Yan\app_gestion_m\app_gestion_m\build\flutter_assets\shaders/ink_sparkle.frag, --spirv=C:\Users\Yan\app_gestion_m\app_gestion_m\build\flutter_assets\shaders/ink_sparkle.frag.spirv, --input=C:\Users\Yan\dev\flutter\packages\flutter\lib\src\material\shaders\ink_sparkle.frag, --input-type=frag, --include=C:\Users\Yan\dev\flutter\packages\flutter\lib\src\material\shaders, --include=C:\Users\Yan\dev\flutter\bin\cache\artifacts\engine\windows-x64\shader_lib]
+[   +1 ms]   [   +2 ms] impellerc command: [C:\Users\Yan\dev\flutter\bin\cache\artifacts\engine\windows-x64\impellerc.exe, --sksl, --runtime-stage-gles, --runtime-stage-gles3, --runtime-stage-vulkan, --iplr, --sl=C:\Users\Yan\app_gestion_m\app_gestion_m\build\flutter_assets\shaders/stretch_effect.frag, --spirv=C:\Users\Yan\app_gestion_m\app_gestion_m\build\flutter_assets\shaders/stretch_effect.frag.spirv, --input=C:\Users\Yan\dev\flutter\packages\flutter\lib\src\material\shaders\stretch_effect.frag, --input-type=frag, --include=C:\Users\Yan\dev\flutter\packages\flutter\lib\src\material\shaders, --include=C:\Users\Yan\dev\flutter\bin\cache\artifacts\engine\windows-x64\shader_lib]
+[+1104 ms]   [+1105 ms] debug_bundle_windows-x64_assets: Complete
+[+1292 ms]   [+1292 ms] Persisting file store
+[  +24 ms]   [  +24 ms] Done persisting file store
+[  +37 ms]   [  +37 ms] build succeeded.
+[        ]   [        ] "flutter assemble" took 29,319ms.
+[ +108 ms]   [ +107 ms] Running 1 shutdown hook
+[        ]   [        ] Shutdown hooks complete
+[ +171 ms]   [ +171 ms] exiting with code 0
+[  +90 ms]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/CMakeLists.txt
+[  +49 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "x64\Debug\flutter_assemble\flutter_assemble.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "x64\Debug\flutter_assemble\flutter_assemble.tlog\flutter_assemble.lastbuildstate".
+[        ] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\flutter_assemble.vcxproj" (destinos predeterminados).
+[  +54 ms] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\app_gestion_m.vcxproj" (4) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\app_links\app_links_plugin.vcxproj" (6) en el nodo 1 (destinos predeterminados).
+[        ] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\app_links\app_links_plugin.vcxproj" (6) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\flutter_wrapper_plugin.vcxproj" (7) en el nodo 1 (destinos predeterminados).
+[        ] PrepareForBuild:
+[        ]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\Debug\".
+[        ]   Creando directorio "flutter_wrapper_plugin.dir\Debug\flutter_.7E7C15E2.tlog\".
+[   +2 ms] InitializeBuildStatus:
+[        ]   Se crear├í "flutter_wrapper_plugin.dir\Debug\flutter_.7E7C15E2.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "flutter_wrapper_plugin.dir\Debug\flutter_.7E7C15E2.tlog\unsuccessfulbuild".
+[  +43 ms] CustomBuild:
+[        ]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/CMakeLists.txt
+[  +96 ms] ClCompile:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\CL.exe /c /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral /Zi /nologo /W4 /WX /diagnostics:column /Od /Ob0 /D _UNICODE /D UNICODE /D WIN32 /D _WINDOWS /D _HAS_EXCEPTIONS=0 /D _DEBUG /D UNICODE /D _UNICODE /D "CMAKE_INTDIR=\"Debug\"" /EHsc /RTC1 /MDd /GR /std:c++17 /Fo"flutter_wrapper_plugin.dir\Debug\\" /Fd"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\Debug\flutter_wrapper_plugin.pdb" /external:W4 /TP /wd4100 /errorReport:queue C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\core_implementations.cc C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\standard_codec.cc C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\plugin_registrar.cc
+[  +59 ms]   core_implementations.cc
+[+1219 ms]   standard_codec.cc
+[+1422 ms]   plugin_registrar.cc
+[ +798 ms]   Generando c├│digo...
+[ +369 ms] Lib:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\Lib.exe /OUT:"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\Debug\flutter_wrapper_plugin.lib" /NOLOGO /MACHINE:X64  /machine:x64 flutter_wrapper_plugin.dir\Debug\core_implementations.obj
+[        ]   flutter_wrapper_plugin.dir\Debug\standard_codec.obj
+[        ]   flutter_wrapper_plugin.dir\Debug\plugin_registrar.obj
+[ +158 ms]   flutter_wrapper_plugin.vcxproj -> C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\Debug\flutter_wrapper_plugin.lib
+[  +21 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "flutter_wrapper_plugin.dir\Debug\flutter_.7E7C15E2.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "flutter_wrapper_plugin.dir\Debug\flutter_.7E7C15E2.tlog\flutter_wrapper_plugin.lastbuildstate".
+[        ] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\flutter_wrapper_plugin.vcxproj" (destinos predeterminados).
+[   +7 ms] PrepareForBuild:
+[        ]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\app_links\Debug\".
+[        ]   Creando directorio "app_links_plugin.dir\Debug\app_links_plugin.tlog\".
+[   +3 ms] InitializeBuildStatus:
+[        ]   Se crear├í "app_links_plugin.dir\Debug\app_links_plugin.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "app_links_plugin.dir\Debug\app_links_plugin.tlog\unsuccessfulbuild".
+[  +55 ms] CustomBuild:
+[        ]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/.plugin_symlinks/app_links/windows/CMakeLists.txt
+[  +47 ms] ClCompile:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\CL.exe /c /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\include /Zi /nologo /W4 /WX /diagnostics:column /Od /Ob0 /D _WINDLL /D _UNICODE /D UNICODE /D WIN32 /D _WINDOWS /D _HAS_EXCEPTIONS=0 /D _DEBUG /D FLUTTER_PLUGIN_IMPL /D UNICODE /D _UNICODE /D "CMAKE_INTDIR=\"Debug\"" /D app_links_plugin_EXPORTS /EHsc /RTC1 /MDd /GR /std:c++17 /Fo"app_links_plugin.dir\Debug\\" /Fd"app_links_plugin.dir\Debug\vc145.pdb" /external:W4 /TP /wd4100 /errorReport:queue C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\app_links\windows\app_links_plugin_c_api.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\app_links\windows\app_links_plugin.cpp
+[  +49 ms]   app_links_plugin_c_api.cpp
+[+1544 ms]   app_links_plugin.cpp
+[+1943 ms]   Generando c├│digo...
+[ +279 ms] Link:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\link.exe /OUT:"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\app_links\Debug\app_links_plugin.dll" /INCREMENTAL /ILK:"app_links_plugin.dir\Debug\app_links_plugin.ilk" /NOLOGO ..\..\flutter\Debug\flutter_wrapper_plugin.lib C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\flutter_windows.dll.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/app_links/Debug/app_links_plugin.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/app_links/Debug/app_links_plugin.lib" /MACHINE:X64  /machine:x64 /DLL app_links_plugin.dir\Debug\app_links_plugin_c_api.obj
+[        ]   app_links_plugin.dir\Debug\app_links_plugin.obj
+[ +124 ms]      Creando biblioteca C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/app_links/Debug/app_links_plugin.lib y objeto C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/app_links/Debug/app_links_plugin.exp
+[ +156 ms]   app_links_plugin.vcxproj -> C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\app_links\Debug\app_links_plugin.dll
+[   +8 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "app_links_plugin.dir\Debug\app_links_plugin.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "app_links_plugin.dir\Debug\app_links_plugin.tlog\app_links_plugin.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\app_links\app_links_plugin.vcxproj" (destinos predeterminados).
+[  +34 ms] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\app_gestion_m.vcxproj" (4) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\connectivity_plus\connectivity_plus_plugin.vcxproj" (8) en el nodo 1 (destinos predeterminados).
+[        ] PrepareForBuild:
+[        ]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\connectivity_plus\Debug\".
+[        ]   Creando directorio "connectivity_plus_plugin.dir\Debug\connecti.C547834E.tlog\".
+[  +10 ms] InitializeBuildStatus:
+[        ]   Se crear├í "connectivity_plus_plugin.dir\Debug\connecti.C547834E.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "connectivity_plus_plugin.dir\Debug\connecti.C547834E.tlog\unsuccessfulbuild".
+[  +51 ms] CustomBuild:
+[        ]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/.plugin_symlinks/connectivity_plus/windows/CMakeLists.txt
+[  +40 ms] ClCompile:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\CL.exe /c /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\include /Zi /nologo /W4 /WX /diagnostics:column /Od /Ob0 /D _WINDLL /D _UNICODE /D UNICODE /D WIN32 /D _WINDOWS /D _HAS_EXCEPTIONS=0 /D _DEBUG /D FLUTTER_PLUGIN_IMPL /D UNICODE /D _UNICODE /D "CMAKE_INTDIR=\"Debug\"" /D connectivity_plus_plugin_EXPORTS /EHsc /RTC1 /MDd /GR /std:c++17 /Fo"connectivity_plus_plugin.dir\Debug\\" /Fd"connectivity_plus_plugin.dir\Debug\vc145.pdb" /external:W4 /TP /wd4100 /errorReport:queue C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\connectivity_plus\windows\connectivity_plus_plugin.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\connectivity_plus\windows\network_manager.cpp
+[  +49 ms]   connectivity_plus_plugin.cpp
+[+2123 ms]   network_manager.cpp
+[+1059 ms]   Generando c├│digo...
+[ +256 ms] Link:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\link.exe /OUT:"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\connectivity_plus\Debug\connectivity_plus_plugin.dll" /INCREMENTAL /ILK:"connectivity_plus_plugin.dir\Debug\connectivity_plus_plugin.ilk" /NOLOGO ..\..\flutter\Debug\flutter_wrapper_plugin.lib iphlpapi.lib C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\flutter_windows.dll.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/connectivity_plus/Debug/connectivity_plus_plugin.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/connectivity_plus/Debug/connectivity_plus_plugin.lib" /MACHINE:X64  /machine:x64 /DLL connectivity_plus_plugin.dir\Debug\connectivity_plus_plugin.obj
+[        ]   connectivity_plus_plugin.dir\Debug\network_manager.obj
+[  +93 ms]      Creando biblioteca C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/connectivity_plus/Debug/connectivity_plus_plugin.lib y objeto C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/connectivity_plus/Debug/connectivity_plus_plugin.exp
+[ +194 ms]   connectivity_plus_plugin.vcxproj -> C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\connectivity_plus\Debug\connectivity_plus_plugin.dll
+[   +8 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "connectivity_plus_plugin.dir\Debug\connecti.C547834E.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "connectivity_plus_plugin.dir\Debug\connecti.C547834E.tlog\connectivity_plus_plugin.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\connectivity_plus\connectivity_plus_plugin.vcxproj" (destinos predeterminados).
+[  +29 ms] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\app_gestion_m.vcxproj" (4) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\flutter_pos_printer_platform_image_3\flutter_pos_printer_platform_image_3_plugin.vcxproj" (9) en el nodo 1 (destinos predeterminados).
+[        ] PrepareForBuild:
+[        ]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\flutter_pos_printer_platform_image_3\Debug\".
+[        ]   Creando directorio "flutter_pos_printer_platform_image_3_plugin.dir\Debug\flutter_.7F38D8E9.tlog\".
+[   +2 ms] InitializeBuildStatus:
+[        ]   Se crear├í "flutter_pos_printer_platform_image_3_plugin.dir\Debug\flutter_.7F38D8E9.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "flutter_pos_printer_platform_image_3_plugin.dir\Debug\flutter_.7F38D8E9.tlog\unsuccessfulbuild".
+[  +51 ms] CustomBuild:
+[        ]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/.plugin_symlinks/flutter_pos_printer_platform_image_3/windows/CMakeLists.txt
+[  +45 ms] ClCompile:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\CL.exe /c /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\include /Zi /nologo /W4 /WX /diagnostics:column /Od /Ob0 /D _WINDLL /D _UNICODE /D UNICODE /D WIN32 /D _WINDOWS /D _HAS_EXCEPTIONS=0 /D _DEBUG /D FLUTTER_PLUGIN_IMPL /D UNICODE /D _UNICODE /D _CRT_SECURE_NO_WARNINGS /D "CMAKE_INTDIR=\"Debug\"" /D flutter_pos_printer_platform_image_3_plugin_EXPORTS /EHsc /RTC1 /MDd /GR /std:c++17 /Fo"flutter_pos_printer_platform_image_3_plugin.dir\Debug\\" /Fd"flutter_pos_printer_platform_image_3_plugin.dir\Debug\vc145.pdb" /external:W4 /TP /wd4100 /errorReport:queue C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\flutter_pos_printer_platform_image_3\windows\flutter_pos_printer_platform_plugin.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\flutter_pos_printer_platform_image_3\windows\include\printer.cpp
+[  +51 ms]   flutter_pos_printer_platform_plugin.cpp
+[+2043 ms]   printer.cpp
+[+1436 ms]   Generando c├│digo...
+[ +282 ms] Link:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\link.exe /OUT:"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\flutter_pos_printer_platform_image_3\Debug\flutter_pos_printer_platform_image_3_plugin.dll" /INCREMENTAL /ILK:"flutter_pos_printer_platform_image_3_plugin.dir\Debug\flutter_pos_printer_platform_image_3_plugin.ilk" /NOLOGO ..\..\flutter\Debug\flutter_wrapper_plugin.lib C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\flutter_windows.dll.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/flutter_pos_printer_platform_image_3/Debug/flutter_pos_printer_platform_image_3_plugin.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/flutter_pos_printer_platform_image_3/Debug/flutter_pos_printer_platform_image_3_plugin.lib" /MACHINE:X64  /machine:x64 /DLL flutter_pos_printer_platform_image_3_plugin.dir\Debug\flutter_pos_printer_platform_plugin.obj
+[        ]   flutter_pos_printer_platform_image_3_plugin.dir\Debug\printer.obj
+[ +115 ms]      Creando biblioteca C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/flutter_pos_printer_platform_image_3/Debug/flutter_pos_printer_platform_image_3_plugin.lib y objeto C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/flutter_pos_printer_platform_image_3/Debug/flutter_pos_printer_platform_image_3_plugin.exp
+[+3962 ms]   flutter_pos_printer_platform_image_3_plugin.vcxproj -> C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\flutter_pos_printer_platform_image_3\Debug\flutter_pos_printer_platform_image_3_plugin.dll
+[ +149 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "flutter_pos_printer_platform_image_3_plugin.dir\Debug\flutter_.7F38D8E9.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "flutter_pos_printer_platform_image_3_plugin.dir\Debug\flutter_.7F38D8E9.tlog\flutter_pos_printer_platform_image_3_plugin.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\flutter_pos_printer_platform_image_3\flutter_pos_printer_platform_image_3_plugin.vcxproj" (destinos predeterminados).
+[  +31 ms] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\app_gestion_m.vcxproj" (4) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\flutter_wrapper_app.vcxproj" (10) en el nodo 1 (destinos predeterminados).
+[        ] PrepareForBuild:
+[        ]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "flutter_wrapper_app.dir\Debug\flutter_.263B5401.tlog\".
+[   +3 ms] InitializeBuildStatus:
+[        ]   Se crear├í "flutter_wrapper_app.dir\Debug\flutter_.263B5401.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "flutter_wrapper_app.dir\Debug\flutter_.263B5401.tlog\unsuccessfulbuild".
+[  +48 ms] CustomBuild:
+[        ]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/CMakeLists.txt
+[  +47 ms] ClCompile:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\CL.exe /c /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral /Zi /nologo /W4 /WX /diagnostics:column /Od /Ob0 /D _UNICODE /D UNICODE /D WIN32 /D _WINDOWS /D _HAS_EXCEPTIONS=0 /D _DEBUG /D UNICODE /D _UNICODE /D "CMAKE_INTDIR=\"Debug\"" /EHsc /RTC1 /MDd /GR /std:c++17 /Fo"flutter_wrapper_app.dir\Debug\\" /Fd"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\Debug\flutter_wrapper_app.pdb" /external:W4 /TP /wd4100 /errorReport:queue C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\core_implementations.cc C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\standard_codec.cc C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\flutter_engine.cc C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\flutter_view_controller.cc
+[  +53 ms]   core_implementations.cc
+[+1386 ms]   standard_codec.cc
+[+2078 ms]   flutter_engine.cc
+[+2852 ms]   flutter_view_controller.cc
+[+2305 ms]   Generando c├│digo...
+[ +612 ms] Lib:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\Lib.exe /OUT:"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\Debug\flutter_wrapper_app.lib" /NOLOGO /MACHINE:X64  /machine:x64 flutter_wrapper_app.dir\Debug\core_implementations.obj
+[        ]   flutter_wrapper_app.dir\Debug\standard_codec.obj
+[        ]   flutter_wrapper_app.dir\Debug\flutter_engine.obj
+[        ]   flutter_wrapper_app.dir\Debug\flutter_view_controller.obj
+[ +187 ms]   flutter_wrapper_app.vcxproj -> C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\Debug\flutter_wrapper_app.lib
+[  +11 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "flutter_wrapper_app.dir\Debug\flutter_.263B5401.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "flutter_wrapper_app.dir\Debug\flutter_.263B5401.tlog\flutter_wrapper_app.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\flutter\flutter_wrapper_app.vcxproj" (destinos predeterminados).
+[  +43 ms] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\app_gestion_m.vcxproj" (4) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\isar_flutter_libs\isar_flutter_libs_plugin.vcxproj" (11) en el nodo 1 (destinos predeterminados).
+[        ] PrepareForBuild:
+[        ]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\isar_flutter_libs\Debug\".
+[        ]   Creando directorio "isar_flutter_libs_plugin.dir\Debug\isar_flu.82518FDC.tlog\".
+[   +3 ms] InitializeBuildStatus:
+[        ]   Se crear├í "isar_flutter_libs_plugin.dir\Debug\isar_flu.82518FDC.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "isar_flutter_libs_plugin.dir\Debug\isar_flu.82518FDC.tlog\unsuccessfulbuild".
+[  +64 ms] CustomBuild:
+[        ]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/.plugin_symlinks/isar_flutter_libs/windows/CMakeLists.txt
+[  +56 ms] ClCompile:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\CL.exe /c /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\include /Zi /nologo /W4 /WX /diagnostics:column /Od /Ob0 /D _WINDLL /D _UNICODE /D UNICODE /D WIN32 /D _WINDOWS /D _HAS_EXCEPTIONS=0 /D _DEBUG /D FLUTTER_PLUGIN_IMPL /D UNICODE /D _UNICODE /D "CMAKE_INTDIR=\"Debug\"" /D isar_flutter_libs_plugin_EXPORTS /EHsc /RTC1 /MDd /GR /std:c++17 /Fo"isar_flutter_libs_plugin.dir\Debug\\" /Fd"isar_flutter_libs_plugin.dir\Debug\vc145.pdb" /external:W4 /TP /wd4100 /errorReport:queue C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\isar_flutter_libs\windows\isar_flutter_libs_plugin.cpp
+[  +70 ms]   isar_flutter_libs_plugin.cpp
+[+3685 ms] Link:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\link.exe /OUT:"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\isar_flutter_libs\Debug\isar_flutter_libs_plugin.dll" /INCREMENTAL /ILK:"isar_flutter_libs_plugin.dir\Debug\isar_flutter_libs_plugin.ilk" /NOLOGO ..\..\flutter\Debug\flutter_wrapper_plugin.lib C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\flutter_windows.dll.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/isar_flutter_libs/Debug/isar_flutter_libs_plugin.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/isar_flutter_libs/Debug/isar_flutter_libs_plugin.lib" /MACHINE:X64  /machine:x64 /DLL isar_flutter_libs_plugin.dir\Debug\isar_flutter_libs_plugin.obj
+[ +274 ms]      Creando biblioteca C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/isar_flutter_libs/Debug/isar_flutter_libs_plugin.lib y objeto C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/isar_flutter_libs/Debug/isar_flutter_libs_plugin.exp
+[ +314 ms]   isar_flutter_libs_plugin.vcxproj -> C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\isar_flutter_libs\Debug\isar_flutter_libs_plugin.dll
+[  +15 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "isar_flutter_libs_plugin.dir\Debug\isar_flu.82518FDC.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "isar_flutter_libs_plugin.dir\Debug\isar_flu.82518FDC.tlog\isar_flutter_libs_plugin.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\isar_flutter_libs\isar_flutter_libs_plugin.vcxproj" (destinos predeterminados).
+[  +83 ms] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\app_gestion_m.vcxproj" (4) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\printing\printing_plugin.vcxproj" (12) en el nodo 1 (destinos predeterminados).
+[        ] PrepareForBuild:
+[        ]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\printing\Debug\".
+[        ]   Creando directorio "printing_plugin.dir\Debug\printing_plugin.tlog\".
+[   +4 ms] InitializeBuildStatus:
+[        ]   Se crear├í "printing_plugin.dir\Debug\printing_plugin.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "printing_plugin.dir\Debug\printing_plugin.tlog\unsuccessfulbuild".
+[ +153 ms] CustomBuild:
+[        ]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/.plugin_symlinks/printing/windows/CMakeLists.txt
+[ +264 ms] ClCompile:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\CL.exe /c /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\include /Zi /nologo /W4 /WX /diagnostics:column /Od /Ob0 /D _WINDLL /D _UNICODE /D UNICODE /D WIN32 /D _WINDOWS /D _HAS_EXCEPTIONS=0 /D _DEBUG /D FLUTTER_PLUGIN_IMPL /D UNICODE /D _UNICODE /D "CMAKE_INTDIR=\"Debug\"" /D printing_plugin_EXPORTS /EHsc /RTC1 /MDd /GR /std:c++17 /Fo"printing_plugin.dir\Debug\\" /Fd"printing_plugin.dir\Debug\vc145.pdb" /external:W0 /TP /wd4100 /errorReport:queue  /external:I "C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/pdfium-src/include" /external:I "C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/pdfium-src/include/cpp" C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\printing\windows\printing.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\printing\windows\printing_plugin.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\printing\windows\print_job.cpp
+[ +240 ms]   printing.cpp
+[+4480 ms]   printing_plugin.cpp
+[+3954 ms]   print_job.cpp
+[+2361 ms]   Generando c├│digo...
+[ +533 ms] Link:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\link.exe /OUT:"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\printing\Debug\printing_plugin.dll" /INCREMENTAL /ILK:"printing_plugin.dir\Debug\printing_plugin.ilk" /NOLOGO "..\..\pdfium-src\lib\pdfium.dll.lib" ..\..\flutter\Debug\flutter_wrapper_plugin.lib C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\flutter_windows.dll.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/printing/Debug/printing_plugin.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/printing/Debug/printing_plugin.lib" /MACHINE:X64  /machine:x64 /DLL printing_plugin.dir\Debug\printing.obj
+[        ]   printing_plugin.dir\Debug\printing_plugin.obj
+[        ]   printing_plugin.dir\Debug\print_job.obj
+[ +127 ms]      Creando biblioteca C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/printing/Debug/printing_plugin.lib y objeto C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/printing/Debug/printing_plugin.exp
+[ +198 ms]   printing_plugin.vcxproj -> C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\printing\Debug\printing_plugin.dll
+[  +15 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "printing_plugin.dir\Debug\printing_plugin.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "printing_plugin.dir\Debug\printing_plugin.tlog\printing_plugin.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\printing\printing_plugin.vcxproj" (destinos predeterminados).
+[  +35 ms] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\app_gestion_m.vcxproj" (4) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\url_launcher_windows\url_launcher_windows_plugin.vcxproj" (13) en el nodo 1 (destinos predeterminados).
+[        ] PrepareForBuild:
+[        ]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\url_launcher_windows\Debug\".
+[        ]   Creando directorio "url_launcher_windows_plugin.dir\Debug\url_laun.14F2FF26.tlog\".
+[   +3 ms] InitializeBuildStatus:
+[        ]   Se crear├í "url_launcher_windows_plugin.dir\Debug\url_laun.14F2FF26.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "url_launcher_windows_plugin.dir\Debug\url_laun.14F2FF26.tlog\unsuccessfulbuild".
+[  +48 ms] CustomBuild:
+[        ]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/.plugin_symlinks/url_launcher_windows/windows/CMakeLists.txt
+[  +46 ms] ClCompile:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\CL.exe /c /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\include /Zi /nologo /W4 /WX /diagnostics:column /Od /Ob0 /D _WINDLL /D _UNICODE /D UNICODE /D WIN32 /D _WINDOWS /D _HAS_EXCEPTIONS=0 /D _DEBUG /D FLUTTER_PLUGIN_IMPL /D UNICODE /D _UNICODE /D "CMAKE_INTDIR=\"Debug\"" /D url_launcher_windows_plugin_EXPORTS /EHsc /RTC1 /MDd /GR /std:c++17 /Fo"url_launcher_windows_plugin.dir\Debug\\" /Fd"url_launcher_windows_plugin.dir\Debug\vc145.pdb" /external:W4 /TP /wd4100 /errorReport:queue C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\url_launcher_windows\windows\url_launcher_windows.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\url_launcher_windows\windows\messages.g.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\url_launcher_windows\windows\system_apis.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\url_launcher_windows\windows\url_launcher_plugin.cpp
+[  +56 ms]   url_launcher_windows.cpp
+[+2109 ms]   messages.g.cpp
+[+1461 ms]   system_apis.cpp
+[ +497 ms]   url_launcher_plugin.cpp
+[+1958 ms]   Generando c├│digo...
+[ +472 ms] Link:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\link.exe /OUT:"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\url_launcher_windows\Debug\url_launcher_windows_plugin.dll" /INCREMENTAL /ILK:"url_launcher_windows_plugin.dir\Debug\url_launcher_windows_plugin.ilk" /NOLOGO ..\..\flutter\Debug\flutter_wrapper_plugin.lib shlwapi.lib C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\flutter_windows.dll.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/url_launcher_windows/Debug/url_launcher_windows_plugin.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/url_launcher_windows/Debug/url_launcher_windows_plugin.lib" /MACHINE:X64  /machine:x64 /DLL url_launcher_windows_plugin.dir\Debug\url_launcher_windows.obj
+[        ]   url_launcher_windows_plugin.dir\Debug\messages.g.obj
+[        ]   url_launcher_windows_plugin.dir\Debug\system_apis.obj
+[        ]   url_launcher_windows_plugin.dir\Debug\url_launcher_plugin.obj
+[ +118 ms]      Creando biblioteca C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/url_launcher_windows/Debug/url_launcher_windows_plugin.lib y objeto C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/url_launcher_windows/Debug/url_launcher_windows_plugin.exp
+[ +411 ms]   url_launcher_windows_plugin.vcxproj -> C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\url_launcher_windows\Debug\url_launcher_windows_plugin.dll
+[  +11 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "url_launcher_windows_plugin.dir\Debug\url_laun.14F2FF26.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "url_launcher_windows_plugin.dir\Debug\url_laun.14F2FF26.tlog\url_launcher_windows_plugin.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\url_launcher_windows\url_launcher_windows_plugin.vcxproj" (destinos predeterminados).
+[  +15 ms] PrepareForBuild:
+[        ]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\Debug\".
+[        ]   Creando directorio "app_gestion_m.dir\Debug\app_gestion_m.tlog\".
+[   +5 ms] InitializeBuildStatus:
+[        ]   Se crear├í "app_gestion_m.dir\Debug\app_gestion_m.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "app_gestion_m.dir\Debug\app_gestion_m.tlog\unsuccessfulbuild".
+[  +90 ms] CustomBuild:
+[        ]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/runner/CMakeLists.txt
+[ +130 ms] ClCompile:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\CL.exe /c /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\app_links\windows\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\connectivity_plus\windows\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\flutter_pos_printer_platform_image_3\windows\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\isar_flutter_libs\windows\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\printing\windows\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\url_launcher_windows\windows\include /Zi /nologo /W4 /WX /diagnostics:column /Od /Ob0 /D _UNICODE /D UNICODE /D WIN32 /D _WINDOWS /D _HAS_EXCEPTIONS=0 /D _DEBUG /D "FLUTTER_VERSION=\"1.0.0+1\"" /D FLUTTER_VERSION_MAJOR=1 /D FLUTTER_VERSION_MINOR=0 /D FLUTTER_VERSION_PATCH=0 /D FLUTTER_VERSION_BUILD=1 /D NOMINMAX /D UNICODE /D _UNICODE /D "CMAKE_INTDIR=\"Debug\"" /EHsc /RTC1 /MDd /GR /std:c++17 /Fo"app_gestion_m.dir\Debug\\" /Fd"app_gestion_m.dir\Debug\vc145.pdb" /external:W4 /TP /wd4100 /errorReport:queue C:\Users\Yan\app_gestion_m\app_gestion_m\windows\runner\flutter_window.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\runner\main.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\runner\utils.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\runner\win32_window.cpp C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\generated_plugin_registrant.cc
+[ +321 ms]   flutter_window.cpp
+[+4091 ms]   main.cpp
+[+5279 ms]   utils.cpp
+[+2813 ms]   win32_window.cpp
+[+2217 ms]   generated_plugin_registrant.cc
+[+1761 ms]   Generando c├│digo...
+[ +427 ms] ResourceCompile:
+[        ]   C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\rc.exe /D _UNICODE /D UNICODE /D WIN32 /D _DEBUG /D _WINDOWS /D _HAS_EXCEPTIONS=0 /D "FLUTTER_VERSION=\\\"1.0.0+1\\\"" /D FLUTTER_VERSION_MAJOR=1 /D FLUTTER_VERSION_MINOR=0 /D FLUTTER_VERSION_PATCH=0 /D FLUTTER_VERSION_BUILD=1 /D NOMINMAX /D UNICODE /D _UNICODE /D "CMAKE_INTDIR=\\\"Debug\\\"" /l"0x0409" /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\cpp_client_wrapper\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\app_links\windows\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\connectivity_plus\windows\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\flutter_pos_printer_platform_image_3\windows\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\isar_flutter_libs\windows\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\printing\windows\include /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\url_launcher_windows\windows\include /nologo /fo"app_gestion_m.dir\Debug\Runner.res" C:\Users\Yan\app_gestion_m\app_gestion_m\windows\runner\Runner.rc 
+[ +601 ms] Link:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\link.exe /OUT:"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\Debug\app_gestion_m.exe" /INCREMENTAL /ILK:"app_gestion_m.dir\Debug\app_gestion_m.ilk" /NOLOGO ..\flutter\Debug\flutter_wrapper_app.lib dwmapi.lib ..\plugins\app_links\Debug\app_links_plugin.lib ..\plugins\connectivity_plus\Debug\connectivity_plus_plugin.lib ..\plugins\flutter_pos_printer_platform_image_3\Debug\flutter_pos_printer_platform_image_3_plugin.lib ..\plugins\isar_flutter_libs\Debug\isar_flutter_libs_plugin.lib ..\plugins\printing\Debug\printing_plugin.lib ..\plugins\url_launcher_windows\Debug\url_launcher_windows_plugin.lib C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\flutter_windows.dll.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /manifestinput:C:\Users\Yan\app_gestion_m\app_gestion_m\windows\runner\runner.exe.manifest /DEBUG /PDB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/app_gestion_m.pdb" /SUBSYSTEM:WINDOWS /TLBID:1 /IMPLIB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/app_gestion_m.lib" /MACHINE:X64  /machine:x64 app_gestion_m.dir\Debug\Runner.res
+[        ]   app_gestion_m.dir\Debug\flutter_window.obj
+[        ]   app_gestion_m.dir\Debug\main.obj
+[        ]   app_gestion_m.dir\Debug\utils.obj
+[        ]   app_gestion_m.dir\Debug\win32_window.obj
+[        ]   app_gestion_m.dir\Debug\generated_plugin_registrant.obj
+[ +817 ms]   app_gestion_m.vcxproj -> C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\Debug\app_gestion_m.exe
+[  +22 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "app_gestion_m.dir\Debug\app_gestion_m.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "app_gestion_m.dir\Debug\app_gestion_m.tlog\app_gestion_m.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\runner\app_gestion_m.vcxproj" (destinos predeterminados).
+[  +52 ms] El proyecto "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\ALL_BUILD.vcxproj" (3) est├í compilando "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\jni\shared\jni.vcxproj" (14) en el nodo 1 (destinos predeterminados).
+[        ] PrepareForBuild:
+[        ]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\jni\shared\Debug\".
+[        ]   Creando directorio "jni.dir\Debug\jni.tlog\".
+[   +5 ms] InitializeBuildStatus:
+[        ]   Se crear├í "jni.dir\Debug\jni.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[   +5 ms]   Aplicando tarea Touch a "jni.dir\Debug\jni.tlog\unsuccessfulbuild".
+[  +76 ms] CustomBuild:
+[        ]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/flutter/ephemeral/.plugin_symlinks/jni/src/CMakeLists.txt
+[  +86 ms] ClCompile:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\CL.exe /c /IC:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\jni\src\..\third_party /Zi /nologo /W3 /WX- /diagnostics:column /Od /Ob0 /D _WINDLL /D _UNICODE /D UNICODE /D WIN32 /D _WINDOWS /D DART_SHARED_LIB /D UNICODE /D _UNICODE /D "CMAKE_INTDIR=\"Debug\"" /D jni_EXPORTS /RTC1 /MDd /Fo"jni.dir\Debug\\" /Fd"jni.dir\Debug\vc145.pdb" /external:W3 /TC /errorReport:queue C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\jni\src\dartjni.c C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\jni\src\third_party\global_jni_env.c C:\Users\Yan\app_gestion_m\app_gestion_m\windows\flutter\ephemeral\.plugin_symlinks\jni\src\include\dart_api_dl.c
+[ +100 ms]   dartjni.c
+[ +828 ms]   global_jni_env.c
+[ +653 ms]   dart_api_dl.c
+[  +72 ms]   Generando c├│digo...
+[ +164 ms] Link:
+[        ]   C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.51.36231\bin\HostX64\x64\link.exe /OUT:"C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\jni\shared\Debug\dartjni.dll" /INCREMENTAL /ILK:"jni.dir\Debug\dartjni.ilk" /NOLOGO "C:\Program Files\Java\jdk-21\lib\jvm.lib" kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/jni/shared/Debug/dartjni.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/jni/shared/Debug/dartjni.lib" /MACHINE:X64  /machine:x64 /DLL jni.dir\Debug\dartjni.obj
+[        ]   jni.dir\Debug\global_jni_env.obj
+[        ]   jni.dir\Debug\dart_api_dl.obj
+[  +86 ms]      Creando biblioteca C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/jni/shared/Debug/dartjni.lib y objeto C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/plugins/jni/shared/Debug/dartjni.exp
+[ +120 ms]   jni.vcxproj -> C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\jni\shared\Debug\dartjni.dll
+[   +8 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "jni.dir\Debug\jni.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "jni.dir\Debug\jni.tlog\jni.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\plugins\jni\shared\jni.vcxproj" (destinos predeterminados).
+[   +6 ms] PrepareForBuild:
+[        ]   Creando directorio "x64\Debug\ALL_BUILD\".
+[   +3 ms]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "x64\Debug\ALL_BUILD\ALL_BUILD.tlog\".
+[   +4 ms] InitializeBuildStatus:
+[        ]   Se crear├í "x64\Debug\ALL_BUILD\ALL_BUILD.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "x64\Debug\ALL_BUILD\ALL_BUILD.tlog\unsuccessfulbuild".
+[  +56 ms] CustomBuild:
+[        ]   Building Custom Rule C:/Users/Yan/app_gestion_m/app_gestion_m/windows/CMakeLists.txt
+[  +68 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "x64\Debug\ALL_BUILD\ALL_BUILD.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "x64\Debug\ALL_BUILD\ALL_BUILD.tlog\ALL_BUILD.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\ALL_BUILD.vcxproj" (destinos predeterminados).
+[   +5 ms] PrepareForBuild:
+[        ]   Creando directorio "x64\Debug\INSTALL\".
+[   +4 ms]   La salida estructurada est├í habilitada. El formato del diagn├│stico del compilador reflejar├í la jerarqu├¡a de errores. Consulte https://aka.ms/cpp/structured-output para obtener m├ís detalles.
+[        ]   Creando directorio "x64\Debug\INSTALL\INSTALL.tlog\".
+[   +4 ms] InitializeBuildStatus:
+[        ]   Se crear├í "x64\Debug\INSTALL\INSTALL.tlog\unsuccessfulbuild" porque se especific├│ "AlwaysCreate".
+[        ]   Aplicando tarea Touch a "x64\Debug\INSTALL\INSTALL.tlog\unsuccessfulbuild".
+[  +59 ms] CustomBuild:
+[        ]   1>
+[  +15 ms] PostBuildEvent:
+[        ]   setlocal
+[        ]   "C:\Program Files\Microsoft Visual Studio\18\Insiders\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -DBUILD_TYPE=Debug -P cmake_install.cmake
+[        ]   if %errorlevel% neq 0 goto :cmEnd
+[        ]   :cmEnd
+[        ]   endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+[        ]   :cmErrorLevel
+[        ]   exit /b %1
+[        ]   :cmDone
+[        ]   if %errorlevel% neq 0 goto :VCEnd
+[        ]   :VCEnd
+[  +76 ms]   -- Install configuration: "Debug"
+[  +36 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/icudtl.dat
+[   +6 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/flutter_windows.dll
+[ +188 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/app_links_plugin.dll
+[   +8 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/connectivity_plus_plugin.dll
+[   +9 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/flutter_pos_printer_platform_image_3_plugin.dll
+[   +9 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/isar_flutter_libs_plugin.dll
+[ +156 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/isar.dll
+[   +8 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/printing_plugin.dll
+[  +77 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/pdfium.dll
+[  +17 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/url_launcher_windows_plugin.dll
+[  +42 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/dartjni.dll
+[   +4 ms]   -- Up-to-date: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug
+[        ]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets
+[   +1 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/AssetManifest.bin
+[   +2 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/assets
+[   +2 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/assets/config.json
+[   +2 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/FontManifest.json
+[   +2 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/fonts
+[   +2 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/fonts/MaterialIcons-Regular.otf
+[  +11 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/kernel_blob.bin
+[ +424 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/NativeAssetsManifest.json
+[   +2 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/NOTICES.Z
+[   +4 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/packages
+[   +3 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/packages/cupertino_icons
+[   +2 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/packages/cupertino_icons/assets
+[   +2 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf
+[   +4 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/packages/esc_pos_utils_plus
+[   +1 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/packages/esc_pos_utils_plus/resources
+[   +2 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/packages/esc_pos_utils_plus/resources/capabilities.json
+[   +3 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/shaders
+[   +2 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/shaders/ink_sparkle.frag
+[   +2 ms]   -- Installing: C:/Users/Yan/app_gestion_m/app_gestion_m/build/windows/x64/runner/Debug/data/flutter_assets/shaders/stretch_effect.frag
+[  +18 ms] FinalizeBuildStatus:
+[        ]   Se eliminar├í el archivo "x64\Debug\INSTALL\INSTALL.tlog\unsuccessfulbuild".
+[        ]   Aplicando tarea Touch a "x64\Debug\INSTALL\INSTALL.tlog\INSTALL.lastbuildstate".
+[   +1 ms] Compilaci├│n del proyecto terminada "C:\Users\Yan\app_gestion_m\app_gestion_m\build\windows\x64\INSTALL.vcxproj" (destinos predeterminados).
+[  +14 ms] Compilaci├│n correcta.
+[        ]     0 Advertencia(s)
+[        ]     0 Errores
+[        ] Tiempo transcurrido 00:01:50.25
+[  +46 ms] Building Windows application... (completed in 120.9s)
+[   +2 ms] Ô£ô Built build\windows\x64\runner\Debug\app_gestion_m.exe
+[+1013 ms] VM Service URL on device: http://127.0.0.1:59232/jbJFBHngg-I=/
+[   +3 ms] Caching compiled dill
+[  +57 ms] Connecting to service protocol: http://127.0.0.1:59232/jbJFBHngg-I=/
+[ +153 ms] Error detected in pubspec.yaml:
+[  +17 ms] Error on line 70, column 1: Expected ':'.
+              ÔòÀ
+           70 Ôöé flutter:
+              Ôöé ^
+              ÔòÁ
+[   +6 ms] Please correct the pubspec.yaml file at C:\Users\Yan\app_gestion_m\app_gestion_m\pubspec.yaml
+[        ] 
+           #0      throwToolExit (package:flutter_tools/src/base/common.dart:34:3)
+           #1      FlutterProject._readManifest (package:flutter_tools/src/project.dart:331:7)
+           #2      FlutterProjectFactory.fromDirectory.<anonymous closure> (package:flutter_tools/src/project.dart:63:55)
+           #3      _LinkedHashMapMixin.putIfAbsent (dart:_compact_hash:682:23)
+           #4      FlutterProjectFactory.fromDirectory (package:flutter_tools/src/project.dart:62:21)
+           #5      FlutterProject.current (package:flutter_tools/src/project.dart:99:30)
+           #6      FlutterDevice.connect.<anonymous closure> (package:flutter_tools/src/resident_runner.dart:210:48)
+           <asynchronous suspension>
+
+
+[        ] Running 3 shutdown hooks
+[   +6 ms] Shutdown hooks complete
+[   +3 ms] exiting with code 1

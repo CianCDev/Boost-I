@@ -312,13 +312,8 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         ..tasaBcv = tasaActual
         ..totalBolivares = totalBsCalculado
         ..metodoPago = metodoPago
-<<<<<<< HEAD
      //TO-DO  ..documento = 'V-00000000'
-        ..empleado = widget.usuarioActual?.nombre ?? 'Administrador / Catálogo'
-=======
-        ..cedulaCliente = 'V-00000000'
         ..empleado = widget.usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
->>>>>>> origin/feature/Diegodevelop
         ..items = itemsIsar
         ..sincronizado = false;
 
@@ -482,7 +477,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
                             itemCount: _categorias.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: 8),
+                            separatorBuilder: (_, _) => const SizedBox(width: 8),
                             itemBuilder: (context, index) {
                               final cat = _categorias[index];
                               return _CategoryButton(
@@ -698,7 +693,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                               : ListView.separated(
                                   padding: const EdgeInsets.all(12),
                                   itemCount: cartState.items.length,
-                                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                                  separatorBuilder: (_, _) => const SizedBox(height: 8),
                                   itemBuilder: (context, index) {
                                     final cartItem = cartState.items[index];
                                     final bool esPesado = cartItem.producto.esPesado;

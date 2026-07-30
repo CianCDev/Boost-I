@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_gestion_m/features/pos/data/Local/entities/usuario_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
-import '../../data/Local/entities/movimiento_inventario_entity.dart';
-import '../services/sync_service.dart';
-import '../providers/usuario_provider.dart'; // Tu provider actual
+// Tu provider actual
 
 class InventoryScreen extends ConsumerStatefulWidget {
   final UsuarioEntity usuarioLogueado;
@@ -18,7 +16,6 @@ class InventoryScreen extends ConsumerStatefulWidget {
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final IsarService _isarService = IsarService();
-  final SyncService _syncService = SyncService();
   
   List<ProductoEntity> _productos = []; 
   bool _isLoading = true;
@@ -279,7 +276,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     producto.proveedorNombre = proveedorNombreController.text.trim();
                     producto.proveedorTelefono = proveedorTelController.text.trim();
 
-<<<<<<< HEAD
                     // 1. Guardar en la base de datos local (Isar)
                     await _isarService.guardarProducto(producto);
 
@@ -287,58 +283,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     await SyncService().sincronizarCategoriasASupabase();
                     await SyncService().sincronizarProductosASupabase();
                     
-=======
-                    // Guardar producto en la BD local
-                    await _isarService.guardarProducto(producto);
-
-                    // Registrar movimiento de inventario asociado
-                    final double stockAnterior = productoAEditar?.stock ?? 0.0;
-                    final double diferencia = producto.stock - stockAnterior;
-
-                    final usuarioActual = ref.read(usuarioActualProvider);
-                    // Guardar el nombre del usuario para mayor legibilidad en la tabla remota
-                    final String usuarioIdStr = usuarioActual != null ? usuarioActual.nombre : 'SISTEMA';
-
-                    // Determinar tipo de movimiento y cantidad absoluta
-                    final String tipoMovimiento;
-                    if (!isEditing) {
-                      tipoMovimiento = 'ENTRADA_INICIAL';
-                    } else {
-                      if (diferencia > 0) {
-                        tipoMovimiento = 'AJUSTE_MANUAL';
-                      } else if (diferencia < 0) {
-                        tipoMovimiento = 'SALIDA';
-                      } else {
-                        tipoMovimiento = 'AJUSTE_MANUAL';
-                      }
-                    }
-
-                    final movimiento = MovimientoInventarioEntity()
-                      ..productoId = producto.codigoBarras
-                      ..nombreProducto = producto.nombre
-                      ..tipoMovimiento = tipoMovimiento
-                      ..cantidad = diferencia.abs()
-                      ..stockResultante = producto.stock
-                      ..fecha = DateTime.now()
-                      ..usuarioId = usuarioIdStr
-                      ..sincronizado = false;
-
-                    await _isarService.guardarMovimientoInventario(movimiento);
-
-                    // Mostrar notificación breve si hubo cambio de stock
-                    if (diferencia != 0 && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Movimiento registrado: $tipoMovimiento (${movimiento.cantidad})'), backgroundColor: Colors.orange, duration: const Duration(seconds: 2)),
-                      );
-                    }
-
-                    // Intentar sincronizar catálogo y movimientos en background
-                    _syncService.sincronizarProductosASupabase().then((_) {
-                      _syncService.sincronizarMovimientosInventario();
-                    }).catchError((e) {
-                      // Ignorar errores aquí; se reintentará con el monitor de conectividad
-                    });
->>>>>>> origin/feature/Diegodevelop
 
                     if (context.mounted) {
                       Navigator.pop(context);
@@ -435,7 +379,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         )
                       : ListView.separated(
                           itemCount: productosFiltrados.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             final p = productosFiltrados[index];
                             final esStockBajo = p.stock <= p.stockMinimo;

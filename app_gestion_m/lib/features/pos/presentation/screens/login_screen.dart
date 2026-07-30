@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-<<<<<<< HEAD
-import 'package:supabase_flutter/supabase_flutter.dart'; // 👈 1. Importamos Supabase
-=======
->>>>>>> origin/feature/Diegodevelop
-import '../../data/Local/entities/isar_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../presentation/providers/usuario_provider.dart';
 import 'pos_desktop_screen.dart';
@@ -52,8 +48,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
-<<<<<<< HEAD
-  // 👈 NUEVO: Sincroniza la sesión de Supabase Auth en segundo plano
+  // Sincroniza la sesión de Supabase Auth en segundo plano
   Future<void> _autenticarEnSupabase(UsuarioEntity usuario) async {
     try {
       final supabase = Supabase.instance.client;
@@ -64,8 +59,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Si entra como ADMIN, autenticamos con la cuenta administrativa en Supabase
       if (usuario.rol.toLowerCase() == 'admin') {
         await supabase.auth.signInWithPassword(
-          email: 'admin@tuapp.com',       // 👈 El correo que creaste en el SQL
-          password: 'Admin123456!',       // 👈 La contraseña que definimos
+          email: 'admin@tuapp.com',
+          password: 'Admin123456!',
         );
         debugPrint('✅ Sesión de Supabase iniciada correctamente como ADMIN');
       }
@@ -75,11 +70,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _intentarLogin() async {
-=======
   // Opción 1: Validar por Usuario y PIN (Local + Supabase opcional)
   Future<void> _intentarLoginPin() async {
->>>>>>> origin/feature/Diegodevelop
     if (_usuarioSeleccionado == null) return;
 
     final pinIngresado = _pinController.text.trim();
@@ -107,7 +99,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           if (usuarioValido != null && mounted) {
             ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
             Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => PosDesktopScreen(usuarioLogueado: usuarioValido)),
+              MaterialPageRoute(builder: (context) => PosDesktopScreen(usuarioActual: usuarioValido)),
             );
             return;
           }
@@ -124,14 +116,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
 
     if (usuarioValido != null && mounted) {
-<<<<<<< HEAD
-      // ✅ 1. Guardamos el usuario en Riverpod
+      // Guardamos el usuario en Riverpod
       ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
 
-      // ✅ 2. ABRIMOS SESIÓN EN SUPABASE EN SEGUNDO PLANO PARA PERMITIR RLS
+      // ABRIMOS SESIÓN EN SUPABASE EN SEGUNDO PLANO PARA PERMITIR RLS
       await _autenticarEnSupabase(usuarioValido);
 
-      // ✅ 3. Navegamos al POS
+      // Navegamos al POS
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -139,14 +130,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         );
       }
-=======
-      ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => PosDesktopScreen(usuarioLogueado: usuarioValido),
-        ),
-      );
->>>>>>> origin/feature/Diegodevelop
     } else {
       setState(() {
         _errorMessage = 'PIN incorrecto. Inténtalo de nuevo.';
@@ -207,7 +190,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => PosDesktopScreen(usuarioLogueado: usuarioValido),
+            builder: (context) => PosDesktopScreen(usuarioActual: usuarioValido),
           ),
         );
       }
@@ -275,49 +258,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
                       ),
                     ),
-<<<<<<< HEAD
-                    const SizedBox(height: 24),
-                    
-                    const Text('Seleccionar Usuario', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<UsuarioEntity>(
-                      initialValue: _usuarioSeleccionado,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                      items: _usuarios.map((u) {
-                        return DropdownMenuItem(
-                          value: u,
-                          child: Text('${u.nombre} (${u.rol.toUpperCase()})'),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        setState(() {
-                          _usuarioSeleccionado = val;
-                          _errorMessage = '';
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    const Text('PIN de Acceso', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _pinController,
-                      obscureText: true,
-                      autofocus: true,
-                      keyboardType: TextInputType.number,
-                      maxLength: 4,
-                      decoration: InputDecoration(
-                        hintStyle: const TextStyle(color: Color.fromARGB(255, 145, 145, 145)),
-                        hintText: 'Ingresa tu PIN',
-                        counterText: '',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        prefixIcon: const Icon(Icons.lock_outline),
-                      ),
-                      onSubmitted: (_) => _intentarLogin(),
-=======
                     const SizedBox(height: 16),
 
                     // Selector de Modo de Acceso
@@ -345,7 +285,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                         ),
                       ],
->>>>>>> origin/feature/Diegodevelop
                     ),
                     const SizedBox(height: 20),
 
@@ -355,7 +294,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const Text('Seleccionar Usuario', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
                       const SizedBox(height: 6),
                       DropdownButtonFormField<UsuarioEntity>(
-                        value: _usuarioSeleccionado,
+                        initialValue: _usuarioSeleccionado,
                         decoration: InputDecoration(
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),

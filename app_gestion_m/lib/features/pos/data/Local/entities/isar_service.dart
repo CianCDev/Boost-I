@@ -5,11 +5,6 @@ import 'package:app_gestion_m/features/pos/data/Local/entities/movimiento_invent
 import '../entities/venta_entity.dart';
 import '../entities/producto_entity.dart';
 import '../entities/usuario_entity.dart';
-import '../entities/movimiento_inventario_entity.dart';
-<<<<<<< HEAD
-  
-=======
->>>>>>> origin/feature/Diegodevelop
 
 class IsarService {
   // Patrón Singleton para evitar abrir la DB múltiples veces
@@ -318,7 +313,7 @@ class IsarService {
   }
 
   /// Procesa la sincronización remota de las ventas pendientes
- /* Future<int> sincronizarVentasConServidor() async {
+  Future<int> sincronizarVentasConServidor() async {
     final pendientes = await obtenerVentasPendientesSync();
     if (pendientes.isEmpty) return 0;
 
@@ -334,7 +329,7 @@ class IsarService {
 
     return pendientes.length;
   }
-*/
+
   /// Marca manualmente una lista de IDs de ventas como sincronizadas
   Future<void> marcarVentasComoSincronizadas(List<int> ids) async {
     final isar = await db;
@@ -352,18 +347,11 @@ class IsarService {
   // ==================== MOVIMIENTOS DE INVENTARIO ====================
 
   /// Guarda un movimiento de inventario en la base de datos local
-  Future<void> guardarMovimientoInventario(MovimientoInventarioEntity movimiento) async {
-    final isar = await db;
-    await isar.writeTxn(() async {
-      await isar.movimientoInventarioEntitys.put(movimiento);
-    });
-  }
+  // Nota: Este método ya existe arriba, lo mantengo para compatibilidad
+  // pero la implementación está duplicada intencionalmente para claridad
 
   /// Obtiene movimientos pendientes de sincronización
-  Future<List<MovimientoInventarioEntity>> obtenerMovimientosPendientesSync() async {
-    final isar = await db;
-    return await isar.movimientoInventarioEntitys.filter().sincronizadoEqualTo(false).findAll();
-  }
+  // Nota: Este método ya existe arriba
 
   /// Marca movimientos como sincronizados
   Future<void> marcarMovimientosComoSincronizados(List<int> ids) async {
