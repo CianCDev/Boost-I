@@ -64,6 +64,7 @@ const MovimientoInventarioEntitySchema = CollectionSchema(
   deserialize: _movimientoInventarioEntityDeserialize,
   deserializeProp: _movimientoInventarioEntityDeserializeProp,
   idName: r'id',
+<<<<<<< HEAD
   indexes: {
     r'sincronizado': IndexSchema(
       id: -5635005241243394166,
@@ -79,6 +80,9 @@ const MovimientoInventarioEntitySchema = CollectionSchema(
       ],
     )
   },
+=======
+  indexes: {},
+>>>>>>> origin/feature/Diegodevelop
   links: {},
   embeddedSchemas: {},
   getId: _movimientoInventarioEntityGetId,
@@ -93,6 +97,7 @@ int _movimientoInventarioEntityEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+<<<<<<< HEAD
   {
     final value = object.nombreProducto;
     if (value != null) {
@@ -117,6 +122,12 @@ int _movimientoInventarioEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+=======
+  bytesCount += 3 + object.nombreProducto.length * 3;
+  bytesCount += 3 + object.productoId.length * 3;
+  bytesCount += 3 + object.tipoMovimiento.length * 3;
+  bytesCount += 3 + object.usuarioId.length * 3;
+>>>>>>> origin/feature/Diegodevelop
   return bytesCount;
 }
 
@@ -146,12 +157,21 @@ MovimientoInventarioEntity _movimientoInventarioEntityDeserialize(
   object.cantidad = reader.readDouble(offsets[0]);
   object.fecha = reader.readDateTime(offsets[1]);
   object.id = id;
+<<<<<<< HEAD
   object.nombreProducto = reader.readStringOrNull(offsets[2]);
   object.productoId = reader.readStringOrNull(offsets[3]);
   object.sincronizado = reader.readBool(offsets[4]);
   object.stockResultante = reader.readDouble(offsets[5]);
   object.tipoMovimiento = reader.readStringOrNull(offsets[6]);
   object.usuarioId = reader.readStringOrNull(offsets[7]);
+=======
+  object.nombreProducto = reader.readString(offsets[2]);
+  object.productoId = reader.readString(offsets[3]);
+  object.sincronizado = reader.readBool(offsets[4]);
+  object.stockResultante = reader.readDouble(offsets[5]);
+  object.tipoMovimiento = reader.readString(offsets[6]);
+  object.usuarioId = reader.readString(offsets[7]);
+>>>>>>> origin/feature/Diegodevelop
   return object;
 }
 
@@ -167,17 +187,29 @@ P _movimientoInventarioEntityDeserializeProp<P>(
     case 1:
       return (reader.readDateTime(offset)) as P;
     case 2:
+<<<<<<< HEAD
       return (reader.readStringOrNull(offset)) as P;
     case 3:
       return (reader.readStringOrNull(offset)) as P;
+=======
+      return (reader.readString(offset)) as P;
+    case 3:
+      return (reader.readString(offset)) as P;
+>>>>>>> origin/feature/Diegodevelop
     case 4:
       return (reader.readBool(offset)) as P;
     case 5:
       return (reader.readDouble(offset)) as P;
     case 6:
+<<<<<<< HEAD
       return (reader.readStringOrNull(offset)) as P;
     case 7:
       return (reader.readStringOrNull(offset)) as P;
+=======
+      return (reader.readString(offset)) as P;
+    case 7:
+      return (reader.readString(offset)) as P;
+>>>>>>> origin/feature/Diegodevelop
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -205,6 +237,7 @@ extension MovimientoInventarioEntityQueryWhereSort on QueryBuilder<
       return query.addWhereClause(const IdWhereClause.any());
     });
   }
+<<<<<<< HEAD
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterWhere> anySincronizado() {
@@ -214,6 +247,8 @@ extension MovimientoInventarioEntityQueryWhereSort on QueryBuilder<
       );
     });
   }
+=======
+>>>>>>> origin/feature/Diegodevelop
 }
 
 extension MovimientoInventarioEntityQueryWhere on QueryBuilder<
@@ -285,6 +320,7 @@ extension MovimientoInventarioEntityQueryWhere on QueryBuilder<
       ));
     });
   }
+<<<<<<< HEAD
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterWhereClause> sincronizadoEqualTo(bool sincronizado) {
@@ -330,6 +366,8 @@ extension MovimientoInventarioEntityQueryWhere on QueryBuilder<
       }
     });
   }
+=======
+>>>>>>> origin/feature/Diegodevelop
 }
 
 extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
@@ -513,6 +551,7 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+<<<<<<< HEAD
       QAfterFilterCondition> nombreProductoIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -533,6 +572,10 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> nombreProductoEqualTo(
     String? value, {
+=======
+      QAfterFilterCondition> nombreProductoEqualTo(
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -546,7 +589,11 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> nombreProductoGreaterThan(
+<<<<<<< HEAD
     String? value, {
+=======
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -562,7 +609,11 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> nombreProductoLessThan(
+<<<<<<< HEAD
     String? value, {
+=======
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -578,8 +629,13 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> nombreProductoBetween(
+<<<<<<< HEAD
     String? lower,
     String? upper, {
+=======
+    String lower,
+    String upper, {
+>>>>>>> origin/feature/Diegodevelop
     bool includeLower = true,
     bool includeUpper = true,
     bool caseSensitive = true,
@@ -669,6 +725,7 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+<<<<<<< HEAD
       QAfterFilterCondition> productoIdIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -689,6 +746,10 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> productoIdEqualTo(
     String? value, {
+=======
+      QAfterFilterCondition> productoIdEqualTo(
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -702,7 +763,11 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> productoIdGreaterThan(
+<<<<<<< HEAD
     String? value, {
+=======
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -718,7 +783,11 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> productoIdLessThan(
+<<<<<<< HEAD
     String? value, {
+=======
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -734,8 +803,13 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> productoIdBetween(
+<<<<<<< HEAD
     String? lower,
     String? upper, {
+=======
+    String lower,
+    String upper, {
+>>>>>>> origin/feature/Diegodevelop
     bool includeLower = true,
     bool includeUpper = true,
     bool caseSensitive = true,
@@ -901,6 +975,7 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+<<<<<<< HEAD
       QAfterFilterCondition> tipoMovimientoIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -921,6 +996,10 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> tipoMovimientoEqualTo(
     String? value, {
+=======
+      QAfterFilterCondition> tipoMovimientoEqualTo(
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -934,7 +1013,11 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> tipoMovimientoGreaterThan(
+<<<<<<< HEAD
     String? value, {
+=======
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -950,7 +1033,11 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> tipoMovimientoLessThan(
+<<<<<<< HEAD
     String? value, {
+=======
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -966,8 +1053,13 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> tipoMovimientoBetween(
+<<<<<<< HEAD
     String? lower,
     String? upper, {
+=======
+    String lower,
+    String upper, {
+>>>>>>> origin/feature/Diegodevelop
     bool includeLower = true,
     bool includeUpper = true,
     bool caseSensitive = true,
@@ -1057,6 +1149,7 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+<<<<<<< HEAD
       QAfterFilterCondition> usuarioIdIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -1077,6 +1170,10 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> usuarioIdEqualTo(
     String? value, {
+=======
+      QAfterFilterCondition> usuarioIdEqualTo(
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -1090,7 +1187,11 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> usuarioIdGreaterThan(
+<<<<<<< HEAD
     String? value, {
+=======
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -1106,7 +1207,11 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> usuarioIdLessThan(
+<<<<<<< HEAD
     String? value, {
+=======
+    String value, {
+>>>>>>> origin/feature/Diegodevelop
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -1122,8 +1227,13 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> usuarioIdBetween(
+<<<<<<< HEAD
     String? lower,
     String? upper, {
+=======
+    String lower,
+    String upper, {
+>>>>>>> origin/feature/Diegodevelop
     bool includeLower = true,
     bool includeUpper = true,
     bool caseSensitive = true,
@@ -1546,14 +1656,22 @@ extension MovimientoInventarioEntityQueryProperty on QueryBuilder<
     });
   }
 
+<<<<<<< HEAD
   QueryBuilder<MovimientoInventarioEntity, String?, QQueryOperations>
+=======
+  QueryBuilder<MovimientoInventarioEntity, String, QQueryOperations>
+>>>>>>> origin/feature/Diegodevelop
       nombreProductoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'nombreProducto');
     });
   }
 
+<<<<<<< HEAD
   QueryBuilder<MovimientoInventarioEntity, String?, QQueryOperations>
+=======
+  QueryBuilder<MovimientoInventarioEntity, String, QQueryOperations>
+>>>>>>> origin/feature/Diegodevelop
       productoIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'productoId');
@@ -1574,14 +1692,22 @@ extension MovimientoInventarioEntityQueryProperty on QueryBuilder<
     });
   }
 
+<<<<<<< HEAD
   QueryBuilder<MovimientoInventarioEntity, String?, QQueryOperations>
+=======
+  QueryBuilder<MovimientoInventarioEntity, String, QQueryOperations>
+>>>>>>> origin/feature/Diegodevelop
       tipoMovimientoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'tipoMovimiento');
     });
   }
 
+<<<<<<< HEAD
   QueryBuilder<MovimientoInventarioEntity, String?, QQueryOperations>
+=======
+  QueryBuilder<MovimientoInventarioEntity, String, QQueryOperations>
+>>>>>>> origin/feature/Diegodevelop
       usuarioIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'usuarioId');

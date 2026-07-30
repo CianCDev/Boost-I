@@ -1,12 +1,15 @@
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
-
+import 'package:app_gestion_m/features/pos/data/Local/entities/movimiento_inventario_entity.dart';
 // Entidades
 import '../entities/venta_entity.dart';
 import '../entities/producto_entity.dart';
 import '../entities/usuario_entity.dart';
 import '../entities/movimiento_inventario_entity.dart';
+<<<<<<< HEAD
   
+=======
+>>>>>>> origin/feature/Diegodevelop
 
 class IsarService {
   // Patrón Singleton para evitar abrir la DB múltiples veces
@@ -57,6 +60,7 @@ class IsarService {
         VentaEntitySchema, 
         ProductoEntitySchema,
         UsuarioEntitySchema, 
+        MovimientoInventarioEntitySchema,
       ],
       directory: dir.path,
       inspector: true,
@@ -168,6 +172,15 @@ class IsarService {
       }
       return false;
     });
+  }
+
+  /// Guarda o actualiza un usuario local (Isar)
+  Future<UsuarioEntity> guardarUsuario(UsuarioEntity usuario) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.usuarioEntitys.put(usuario);
+    });
+    return usuario;
   }
 
   /// Filtra solo los usuarios con rol 'cajero'
@@ -331,6 +344,36 @@ class IsarService {
         if (venta != null) {
           venta.sincronizado = true;
           await isar.ventaEntitys.put(venta);
+        }
+      }
+    });
+  }
+
+  // ==================== MOVIMIENTOS DE INVENTARIO ====================
+
+  /// Guarda un movimiento de inventario en la base de datos local
+  Future<void> guardarMovimientoInventario(MovimientoInventarioEntity movimiento) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.movimientoInventarioEntitys.put(movimiento);
+    });
+  }
+
+  /// Obtiene movimientos pendientes de sincronización
+  Future<List<MovimientoInventarioEntity>> obtenerMovimientosPendientesSync() async {
+    final isar = await db;
+    return await isar.movimientoInventarioEntitys.filter().sincronizadoEqualTo(false).findAll();
+  }
+
+  /// Marca movimientos como sincronizados
+  Future<void> marcarMovimientosComoSincronizados(List<int> ids) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      for (var id in ids) {
+        final mov = await isar.movimientoInventarioEntitys.get(id);
+        if (mov != null) {
+          mov.sincronizado = true;
+          await isar.movimientoInventarioEntitys.put(mov);
         }
       }
     });

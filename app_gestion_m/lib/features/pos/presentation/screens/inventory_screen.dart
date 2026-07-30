@@ -1,25 +1,31 @@
 import 'package:app_gestion_m/features/pos/presentation/services/sync_service.dart';
 import 'package:flutter/material.dart';
-import '../../data/Local/entities/isar_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:app_gestion_m/features/pos/data/Local/entities/usuario_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
-import '../../data/Local/entities/usuario_entity.dart';
+import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/movimiento_inventario_entity.dart';
+import '../services/sync_service.dart';
+import '../providers/usuario_provider.dart'; // Tu provider actual
 
-class InventoryScreen extends StatefulWidget {
-  final UsuarioEntity usuarioActual;
-  const InventoryScreen({super.key, required this.usuarioActual});
+class InventoryScreen extends ConsumerStatefulWidget {
+  final UsuarioEntity usuarioLogueado;
+  const InventoryScreen({super.key, required this.usuarioLogueado});
 
   @override
-  State<InventoryScreen> createState() => _InventoryScreenState();
+  ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends State<InventoryScreen> {
+class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final IsarService _isarService = IsarService();
-  List<ProductoEntity> _productos = [];
+  final SyncService _syncService = SyncService();
+  
+  List<ProductoEntity> _productos = []; 
   bool _isLoading = true;
   String _filtroBusqueda = '';
   bool _soloStockBajo = false;
 
-  bool get _esAdmin => widget.usuarioActual.rol == 'admin';
+  bool get _esAdmin => widget.usuarioLogueado.rol == 'admin';
 
   @override
   void initState() {
@@ -273,6 +279,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     producto.proveedorNombre = proveedorNombreController.text.trim();
                     producto.proveedorTelefono = proveedorTelController.text.trim();
 
+<<<<<<< HEAD
                     // 1. Guardar en la base de datos local (Isar)
                     await _isarService.guardarProducto(producto);
 
@@ -280,6 +287,58 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     await SyncService().sincronizarCategoriasASupabase();
                     await SyncService().sincronizarProductosASupabase();
                     
+=======
+                    // Guardar producto en la BD local
+                    await _isarService.guardarProducto(producto);
+
+                    // Registrar movimiento de inventario asociado
+                    final double stockAnterior = productoAEditar?.stock ?? 0.0;
+                    final double diferencia = producto.stock - stockAnterior;
+
+                    final usuarioActual = ref.read(usuarioActualProvider);
+                    // Guardar el nombre del usuario para mayor legibilidad en la tabla remota
+                    final String usuarioIdStr = usuarioActual != null ? usuarioActual.nombre : 'SISTEMA';
+
+                    // Determinar tipo de movimiento y cantidad absoluta
+                    final String tipoMovimiento;
+                    if (!isEditing) {
+                      tipoMovimiento = 'ENTRADA_INICIAL';
+                    } else {
+                      if (diferencia > 0) {
+                        tipoMovimiento = 'AJUSTE_MANUAL';
+                      } else if (diferencia < 0) {
+                        tipoMovimiento = 'SALIDA';
+                      } else {
+                        tipoMovimiento = 'AJUSTE_MANUAL';
+                      }
+                    }
+
+                    final movimiento = MovimientoInventarioEntity()
+                      ..productoId = producto.codigoBarras
+                      ..nombreProducto = producto.nombre
+                      ..tipoMovimiento = tipoMovimiento
+                      ..cantidad = diferencia.abs()
+                      ..stockResultante = producto.stock
+                      ..fecha = DateTime.now()
+                      ..usuarioId = usuarioIdStr
+                      ..sincronizado = false;
+
+                    await _isarService.guardarMovimientoInventario(movimiento);
+
+                    // Mostrar notificación breve si hubo cambio de stock
+                    if (diferencia != 0 && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Movimiento registrado: $tipoMovimiento (${movimiento.cantidad})'), backgroundColor: Colors.orange, duration: const Duration(seconds: 2)),
+                      );
+                    }
+
+                    // Intentar sincronizar catálogo y movimientos en background
+                    _syncService.sincronizarProductosASupabase().then((_) {
+                      _syncService.sincronizarMovimientosInventario();
+                    }).catchError((e) {
+                      // Ignorar errores aquí; se reintentará con el monitor de conectividad
+                    });
+>>>>>>> origin/feature/Diegodevelop
 
                     if (context.mounted) {
                       Navigator.pop(context);

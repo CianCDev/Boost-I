@@ -3,6 +3,7 @@ import 'package:app_gestion_m/features/pos/presentation/widgets/printer_selectio
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:app_gestion_m/features/pos/presentation/services/sync_service.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
@@ -21,16 +22,16 @@ import 'inventory_screen.dart';
 import 'login_screen.dart';
 import 'sales_history_screen.dart' as sales_history_screen;
 import '../../presentation/providers/usuario_provider.dart';
-import '../services/sync_service.dart';
+
 
 /// Vista Principal del Punto de Venta (POS) para Escritorio.
 /// Permite gestionar ventas rápidas, lectura de códigos de barras,
 /// pesaje en balanza, cálculo multimoneda (BCV) e integración offline con Isar DB y Supabase.
 class PosDesktopScreen extends ConsumerStatefulWidget {
   /// Entidad del usuario que mantiene la sesión activa en el POS.
-  final UsuarioEntity usuarioActual;
+  final UsuarioEntity usuarioLogueado;
 
-  const PosDesktopScreen({super.key, required this.usuarioActual});
+  const PosDesktopScreen({super.key, required this.usuarioLogueado});
 
   @override
   ConsumerState<PosDesktopScreen> createState() => _PosDesktopScreenState();
@@ -81,7 +82,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
   @override
   void initState() {
     super.initState();
-    _cajeroActual = widget.usuarioActual.nombre;
+    _cajeroActual = widget.usuarioLogueado.nombre;
 
     // Escuchar eventos globales del teclado físico para atajos (F1, F2, F12, ESC)
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
@@ -94,7 +95,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
     // Inicializaciones de Riverpod diferidas para evitar errores de modificación durante la construcción
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ref.read(usuarioActualProvider.notifier).setUsuario(widget.usuarioActual);
+        ref.read(usuarioActualProvider.notifier).setUsuario(widget.usuarioLogueado);
         ref.read(bcvProvider).actualizarTasa();
       }
     });
@@ -115,7 +116,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
   /// Registra el estado operativo del cajero ('activo', 'descanso', 'inactivo') en Isar DB.
   Future<void> _registrarEstadoUsuario(String estado) async {
-    await _isarService.actualizarEstadoUsuario(widget.usuarioActual.id, estado);
+    await _isarService.actualizarEstadoUsuario(widget.usuarioLogueado.id, estado);
   }
 
   /// Recupera el catálogo completo de productos desde Isar DB para autocompletado.
@@ -252,7 +253,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               onPressed: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => InventoryScreen(usuarioActual: widget.usuarioActual)),
+                  MaterialPageRoute(builder: (context) => InventoryScreen(usuarioLogueado: widget.usuarioLogueado)),
                 );
               },
               child: const Text('Ver Inventario General'),
@@ -307,11 +308,10 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
               onPressed: () {
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Módulo de personal guardado correctamente.'), backgroundColor: Color(0xFF10B981)),
-                );
+                // Abrir el modal para crear/editar usuarios inmediatamente
+                _mostrarDialogCrearEditarUsuario();
               },
-              child: const Text('Guardar Cambios'),
+              child: const Text('Crear/Editar Usuario'),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -319,6 +319,124 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             ),
           ],
         );
+      },
+    );
+  }
+
+  /// Muestra un formulario para crear o editar un usuario local y opcionalmente crear su cuenta en Supabase con contraseña de 8 dígitos.
+  void _mostrarDialogCrearEditarUsuario({UsuarioEntity? usuarioExistente}) {
+    final bool esNuevo = usuarioExistente == null;
+    final nombreCtrl = TextEditingController(text: usuarioExistente?.nombre ?? '');
+    final pinCtrl = TextEditingController(text: usuarioExistente?.pin ?? '');
+    final emailCtrl = TextEditingController(text: usuarioExistente?.email ?? '');
+    String rol = usuarioExistente?.rol ?? 'cajero';
+    bool crearEnSupabase = false;
+    final passwordCtrl = TextEditingController(text: '');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(builder: (context, setStateDialog) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            title: Text(esNuevo ? 'Nuevo Usuario' : 'Editar Usuario'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(controller: nombreCtrl, decoration: const InputDecoration(labelText: 'Nombre')),
+                  const SizedBox(height: 8),
+                  TextField(controller: pinCtrl, decoration: const InputDecoration(labelText: 'PIN (4 dígitos)'), keyboardType: TextInputType.number, maxLength: 4),
+                  const SizedBox(height: 8),
+                  TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: 'Email (opcional para Supabase)')),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Text('Rol: '),
+                      const SizedBox(width: 8),
+                      DropdownButton<String>(
+                        value: rol,
+                        items: const [
+                          DropdownMenuItem(value: 'cajero', child: Text('Cajero')),
+                          DropdownMenuItem(value: 'admin', child: Text('Administrador')),
+                        ],
+                        onChanged: (v) => setStateDialog(() => rol = v ?? 'cajero'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: crearEnSupabase,
+                    onChanged: (v) => setStateDialog(() => crearEnSupabase = v ?? false),
+                    title: const Text('Crear usuario en Supabase (auth)'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  if (crearEnSupabase) ...[
+                    TextField(
+                      controller: passwordCtrl,
+                      decoration: const InputDecoration(labelText: 'Password para Supabase (Exactamente 8 dígitos)'),
+                      obscureText: true,
+                      keyboardType: TextInputType.number,
+                      maxLength: 8,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+              ElevatedButton(
+                onPressed: () async {
+                  final nombre = nombreCtrl.text.trim();
+                  final pin = pinCtrl.text.trim();
+                  final email = emailCtrl.text.trim();
+                  final password = passwordCtrl.text;
+
+                  if (nombre.isEmpty || pin.length < 4) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nombre y PIN (4 dígitos) son requeridos')));
+                    return;
+                  }
+
+                  if (crearEnSupabase) {
+                    if (email.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El email es requerido para crear usuario en Supabase')));
+                      return;
+                    }
+                    if (password.length != 8) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El password para Supabase debe tener exactamente 8 dígitos')));
+                      return;
+                    }
+                  }
+
+                  final usuario = usuarioExistente ?? UsuarioEntity();
+                  usuario.nombre = nombre;
+                  usuario.pin = pin;
+                  usuario.email = email.isEmpty ? null : email;
+                  usuario.rol = rol;
+                  usuario.activo = true;
+
+                  // Guardar localmente
+                  await _isarService.guardarUsuario(usuario);
+
+                  // Intentar crear también en la nube (opcional)
+                  if (crearEnSupabase && email.isNotEmpty && password.length == 8) {
+                    final syncSvc = SyncService();
+                    final res = await syncSvc.crearUsuarioEnServidor(usuario, email: email, password: password);
+                    if (res != null && res['supabaseUser']) {
+                      usuario.supabaseUid = res['supabaseUser']?['id']?.toString();
+                      await _isarService.guardarUsuario(usuario);
+                    }
+                  }
+
+                  if (!mounted) return;
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Usuario guardado exitosamente'), backgroundColor: Colors.green));
+                },
+                child: const Text('Guardar'),
+              ),
+            ],
+          );
+        });
       },
     );
   }
@@ -387,11 +505,11 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                     }
 
                     try {
-                      final exito = await _isarService.cambiarClaveUsuario(widget.usuarioActual.id, nuevaClave);
+                      final exito = await _isarService.cambiarClaveUsuario(widget.usuarioLogueado.id, nuevaClave);
 
                       if (context.mounted) {
                         if (exito) {
-                          widget.usuarioActual.pin = nuevaClave;
+                          widget.usuarioLogueado.pin = nuevaClave;
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Clave actualizada correctamente.'), backgroundColor: Color(0xFF10B981)),
@@ -999,7 +1117,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                     _ejecutarCierreDeCaja(granTotal, granTotalBs, ventasDelDia.length);
                   },
                 ),
-                if (widget.usuarioActual.rol == 'admin')
+                if (widget.usuarioLogueado.rol == 'admin')
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF10B981),
@@ -1198,7 +1316,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           ),
 
           // 3. MONITOR CAJEROS (Solo Administrador)
-          if (widget.usuarioActual.rol == 'admin')
+          if (widget.usuarioLogueado.rol == 'admin')
             IconButton(
               icon: const Icon(Icons.monitor_heart_outlined, color: Color(0xFF38BDF8)),
               tooltip: 'Monitor de Cajeros',
@@ -1206,7 +1324,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             ),
 
           // 4. BOTÓN DE DESCANSO (Solo Cajeros)
-          if (widget.usuarioActual.rol == 'cajero')
+          if (widget.usuarioLogueado.rol == 'cajero')
             IconButton(
               icon: const Icon(Icons.coffee, color: Colors.orange),
               tooltip: 'Tomar Descanso',
@@ -1289,7 +1407,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             onPressed: () async {
               await Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => InventoryCatalogScreen(usuarioActual: widget.usuarioActual),
+                  builder: (context) => InventoryCatalogScreen(usuarioLogueado: widget.usuarioLogueado),
                 ),
               );
               _cargarProductosAutocompletado();
@@ -1323,7 +1441,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             offset: const Offset(0, 50),
             onSelected: (value) async {
               if (value == 'gestion_personal') {
-                if (widget.usuarioActual.rol == 'admin') {
+                if (widget.usuarioLogueado.rol == 'admin') {
                   _mostrarModuloGestionPersonal();
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1352,12 +1470,12 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                   children: [
                     Text(_cajeroActual, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 14)),
                     const SizedBox(height: 2),
-                    Text('Rol: ${widget.usuarioActual.rol.toUpperCase()} | $_turnoActual', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                    Text('Rol: ${widget.usuarioLogueado.rol.toUpperCase()} | $_turnoActual', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                   ],
                 ),
               ),
               const PopupMenuDivider(),
-              if (widget.usuarioActual.rol == 'admin')
+              if (widget.usuarioLogueado.rol == 'admin')
                 const PopupMenuItem(
                   value: 'gestion_personal',
                   child: Row(

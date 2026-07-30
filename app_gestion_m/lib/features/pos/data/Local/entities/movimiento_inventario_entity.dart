@@ -1,5 +1,6 @@
 import 'package:isar/isar.dart';
 
+<<<<<<< HEAD
 // Esta línea marcará error hasta que corras el comando de generación de código (build_runner)
 part 'movimiento_inventario_entity.g.dart';
 
@@ -27,3 +28,32 @@ class MovimientoInventarioEntity {
   @Index()
   bool sincronizado = false; 
 }
+=======
+part 'movimiento_inventario_entity.g.dart';
+
+@Collection()
+class MovimientoInventarioEntity {
+  Id id = Isar.autoIncrement;
+
+  // Referencia al producto (puede ser codigoBarras o id según uso en la app)
+  String productoId = '';
+
+  late String nombreProducto;
+
+  /// Tipo de movimiento: 'ENTRADA_INICIAL', 'AJUSTE_MANUAL', 'SALIDA', etc.
+  late String tipoMovimiento;
+
+  late double cantidad;
+
+  /// Stock resultante después del movimiento
+  late double stockResultante;
+
+  late DateTime fecha;
+
+  /// Identificador del usuario que realizó el movimiento (nombre o id)
+  String usuarioId = '';
+
+  /// Si ya fue sincronizado hacia el backend remoto
+  bool sincronizado = false;
+}
+>>>>>>> origin/feature/Diegodevelop
