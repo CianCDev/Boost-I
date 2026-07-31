@@ -1,7 +1,9 @@
-/// ============================================================
+/// 
 /// DEFINICIONES MANUALES PARA IMPRESIÓN
 /// No dependemos de exportaciones del paquete
-/// ============================================================
+// ignore: dangling_library_doc_comments
+/// 
+library;
 
 /// Tipo de conexión de la impresora
 enum PrinterType { usb, bluetooth, network }
