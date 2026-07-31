@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/responsive_helper.dart';
 
 class PosSummaryPanel extends StatelessWidget {
   final double subtotal;
@@ -18,111 +19,164 @@ class PosSummaryPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final fontSize = ResponsiveHelper.getFontSize(context, baseSize: 14);
+    
+    // Determinar padding según el dispositivo
+    final paddingHorizontal = isMobile ? 12.0 : (isTablet ? 16.0 : 20.0);
+    final paddingVertical = isMobile ? 12.0 : (isTablet ? 16.0 : 20.0);
+    
+    // Altura de botones
+    final buttonHeight = isMobile ? 44.0 : 48.0;
+    final buttonFontSize = isMobile ? 12.0 : 14.0;
+
     return Card(
-      elevation: 2,
+      elevation: isMobile ? 1 : 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: BorderSide(
+          color: Colors.grey.shade300,
+          width: isMobile ? 0.5 : 1,
+        ),
       ),
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: EdgeInsets.symmetric(
+          horizontal: paddingHorizontal,
+          vertical: paddingVertical,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            // Título
+            Text(
               'RESUMEN DE VENTA',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: isMobile ? fontSize * 0.85 : fontSize,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF64748B),
-                letterSpacing: 1.2,
+                color: Colors.grey.shade600,
+                letterSpacing: 0.8,
               ),
             ),
-            const Divider(height: 24, color: Color(0xFFE2E8F0)),
-            
-            // Subtotal
-            _buildRow('Subtotal', '\$${subtotal.toStringAsFixed(2)}'),
             const SizedBox(height: 12),
             
-            // IVA (16%)
-            _buildRow('IVA (16%)', '\$${impuesto.toStringAsFixed(2)}'),
-            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+            // Subtotal
+            _buildRow(
+              'Subtotal',
+              '\$${subtotal.toStringAsFixed(2)}',
+              fontSize,
+              isMobile,
+            ),
+            const SizedBox(height: 6),
             
-            // Total Destacado
+            // IVA
+            _buildRow(
+              'IVA (16%)',
+              '\$${impuesto.toStringAsFixed(2)}',
+              fontSize,
+              isMobile,
+            ),
+            const Divider(height: 20, color: Color(0xFFCECECE)),
+            
+            // Total (destacado)
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 10 : 14,
+                vertical: isMobile ? 10 : 14,
+              ),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: Colors.grey.shade50,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: Colors.grey.shade300),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'TOTAL',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: isMobile ? fontSize * 1.1 : fontSize * 1.2,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A),
+                      color: Colors.grey.shade800,
                     ),
                   ),
                   Text(
                     '\$${total.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 26,
+                    style: TextStyle(
+                      fontSize: isMobile ? fontSize * 1.5 : fontSize * 1.8,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF10B981),
+                      color: const Color(0xFF10B981),
                     ),
                   ),
                 ],
               ),
             ),
-            const Spacer(),
             
-            // Botón de Cobro Principal
+            const SizedBox(height: 12),
+            
+            // Botón Cobrar
             SizedBox(
-              height: 52,
+              height: buttonHeight,
+              width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: total > 0 ? onPagarPressed : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981),
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: const Color(0xFFE2E8F0),
-                  disabledForegroundColor: const Color(0xFF94A3B8),
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  disabledForegroundColor: Colors.grey.shade600,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                   elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
-                icon: const Icon(Icons.payment, size: 22),
-                label: const Text(
-                  'COBRAR (F12)',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                icon: Icon(
+                  Icons.payment,
+                  size: isMobile ? 18 : 22,
+                ),
+                label: Text(
+                  isMobile ? 'COBRAR' : 'COBRAR (F12)',
+                  style: TextStyle(
+                    fontSize: buttonFontSize,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
             
-            // Botón Limpiar Venta
+            const SizedBox(height: 8),
+            
+            // Botón Cancelar
             SizedBox(
-              height: 44,
+              height: isMobile ? 38 : 42,
+              width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: subtotal > 0 ? onLimpiarPressed : null,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.redAccent,
-                  disabledForegroundColor: const Color(0xFFCBD5E1),
+                  disabledForegroundColor: Colors.grey.shade400,
                   side: BorderSide(
-                    color: subtotal > 0 ? Colors.redAccent : const Color(0xFFE2E8F0),
+                    color: subtotal > 0 ? Colors.redAccent : Colors.grey.shade300,
+                    width: 1.5,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
-                icon: const Icon(Icons.delete_sweep, size: 18),
-                label: const Text(
-                  'CANCELAR VENTA',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                icon: Icon(
+                  Icons.delete_sweep,
+                  size: isMobile ? 16 : 18,
+                ),
+                label: Text(
+                  isMobile ? 'CANCELAR' : 'CANCELAR VENTA',
+                  style: TextStyle(
+                    fontSize: isMobile ? 11 : 13,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -132,17 +186,23 @@ class PosSummaryPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildRow(String label, String value) {
+  Widget _buildRow(String label, String value, double fontSize, bool isMobile) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: Color(0xFF64748B), fontSize: 15)),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: isMobile ? fontSize * 0.85 : fontSize,
+          ),
+        ),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w600,
-            fontSize: 15,
-            color: Color(0xFF0F172A),
+            fontSize: isMobile ? fontSize * 0.9 : fontSize,
+            color: Colors.grey.shade800,
           ),
         ),
       ],

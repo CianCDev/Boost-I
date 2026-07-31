@@ -5,6 +5,7 @@ import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../presentation/providers/usuario_provider.dart';
 import 'pos_desktop_screen.dart';
+import '../utils/responsive_helper.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -15,7 +16,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final IsarService _isarService = IsarService();
-  
+
   // Controladores para opción 1 (Usuario y PIN local/Supabase)
   final TextEditingController _pinController = TextEditingController();
   List<UsuarioEntity> _usuarios = [];
@@ -25,7 +26,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  bool _isEmailMode = false; // Alternar entre modos de inicio de sesión
+  bool _isEmailMode = false;
   bool _cargando = true;
   String _errorMessage = '';
 
@@ -38,7 +39,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _inicializarYCargarUsuarios() async {
     await _isarService.inicializarUsuarioAdminPorDefecto();
     final usuarios = await _isarService.obtenerUsuariosActivos();
-    
+
     setState(() {
       _usuarios = usuarios;
       if (usuarios.isNotEmpty) {
@@ -48,15 +49,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
-  // Sincroniza la sesión de Supabase Auth en segundo plano
   Future<void> _autenticarEnSupabase(UsuarioEntity usuario) async {
     try {
       final supabase = Supabase.instance.client;
-      
-      // Si ya hay una sesión activa, no hacemos nada
       if (supabase.auth.currentSession != null) return;
-
-      // Si entra como ADMIN, autenticamos con la cuenta administrativa en Supabase
       if (usuario.rol.toLowerCase() == 'admin') {
         await supabase.auth.signInWithPassword(
           email: 'admin@tuapp.com',
@@ -65,12 +61,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         debugPrint('✅ Sesión de Supabase iniciada correctamente como ADMIN');
       }
     } catch (e) {
-      // No bloqueamos el POS si está sin internet, solo registramos el aviso
       debugPrint('⚠️ No se pudo iniciar sesión en Supabase (modo offline): $e');
     }
   }
 
-  // Opción 1: Validar por Usuario y PIN (Local + Supabase opcional)
   Future<void> _intentarLoginPin() async {
     if (_usuarioSeleccionado == null) return;
 
@@ -85,7 +79,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _errorMessage = '';
     });
 
-    // Validar en Supabase si tiene correo vinculado
     if ((_usuarioSeleccionado!.email ?? '').isNotEmpty) {
       try {
         final email = _usuarioSeleccionado!.email!;
@@ -109,20 +102,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     }
 
-    // Fallback de validación local por PIN
     final usuarioValido = await _isarService.validarLogin(
       _usuarioSeleccionado!.nombre,
       pinIngresado,
     );
 
     if (usuarioValido != null && mounted) {
-      // Guardamos el usuario en Riverpod
       ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
-
-      // ABRIMOS SESIÓN EN SUPABASE EN SEGUNDO PLANO PARA PERMITIR RLS
       await _autenticarEnSupabase(usuarioValido);
-
-      // Navegamos al POS
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -139,7 +126,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  // Opción 2: Validar por Correo electrónico y Contraseña (Supabase Auth + tabla usuarios)
   Future<void> _intentarLoginEmail() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -156,7 +142,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       final supabase = Supabase.instance.client;
-
       final AuthResponse response = await supabase.auth.signInWithPassword(
         email: email,
         password: password,
@@ -213,14 +198,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isTablet = ResponsiveHelper.isTablet(context);
+    ResponsiveHelper.getFontSize(context, baseSize: 14);
+
+    // Ancho del contenedor
+    double containerWidth;
+    double paddingSize;
+    double titleFontSize;
+    double buttonHeight;
+
+    if (isMobile) {
+      containerWidth = double.infinity;
+      paddingSize = 20.0;
+      titleFontSize = 18.0;
+      buttonHeight = 48.0;
+    } else if (isTablet) {
+      containerWidth = 400.0;
+      paddingSize = 28.0;
+      titleFontSize = 20.0;
+      buttonHeight = 50.0;
+    } else {
+      containerWidth = 420.0;
+      paddingSize = 32.0;
+      titleFontSize = 22.0;
+      buttonHeight = 52.0;
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       body: Center(
         child: _cargando && _usuarios.isEmpty
             ? const CircularProgressIndicator(color: Color(0xFF10B981))
             : Container(
-                width: 420,
-                padding: const EdgeInsets.all(32),
+                width: containerWidth,
+                margin: isMobile ? const EdgeInsets.symmetric(horizontal: 16) : EdgeInsets.zero,
+                padding: EdgeInsets.all(paddingSize),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
@@ -236,29 +249,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Row(
+                    // Logo y título
+                    Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.point_of_sale, size: 36, color: Color(0xFF3B82F6)),
-                        SizedBox(width: 12),
+                        Icon(
+                          Icons.point_of_sale,
+                          size: isMobile ? 30 : 36,
+                          color: const Color(0xFF3B82F6),
+                        ),
+                        SizedBox(width: isMobile ? 8 : 12),
                         Text(
                           'SmartPOS',
                           style: TextStyle(
-                            fontSize: 22,
+                            fontSize: titleFontSize,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A),
+                            color: const Color(0xFF0F172A),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    const Center(
+                    Center(
                       child: Text(
                         'Inicia sesión para abrir tu turno',
-                        style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                        style: TextStyle(
+                          color: const Color(0xFF64748B),
+                          fontSize: isMobile ? 12 : 13,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                   SizedBox(height: isMobile ? 12 : 16),
 
                     // Selector de Modo de Acceso
                     Row(
@@ -268,9 +289,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             style: OutlinedButton.styleFrom(
                               backgroundColor: !_isEmailMode ? const Color(0xFF3B82F6) : Colors.transparent,
                               foregroundColor: !_isEmailMode ? Colors.white : const Color(0xFF334155),
+                              padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
-                            onPressed: () => setState(() { _isEmailMode = false; _errorMessage = ''; }),
-                            child: const Text('Con PIN', style: TextStyle(fontSize: 12)),
+                            onPressed: () => setState(() {
+                              _isEmailMode = false;
+                              _errorMessage = '';
+                            }),
+                            child: Text(
+                              'Con PIN',
+                              style: TextStyle(
+                                fontSize: isMobile ? 11 : 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -279,30 +313,60 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             style: OutlinedButton.styleFrom(
                               backgroundColor: _isEmailMode ? const Color(0xFF3B82F6) : Colors.transparent,
                               foregroundColor: _isEmailMode ? Colors.white : const Color(0xFF334155),
+                              padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
-                            onPressed: () => setState(() { _isEmailMode = true; _errorMessage = ''; }),
-                            child: const Text('Con Correo', style: TextStyle(fontSize: 12)),
+                            onPressed: () => setState(() {
+                              _isEmailMode = true;
+                              _errorMessage = '';
+                            }),
+                            child: Text(
+                              'Con Correo',
+                              style: TextStyle(
+                                fontSize: isMobile ? 11 : 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: isMobile ? 16 : 20),
 
-                    // Campos dinámicos basados en la selección
+                    // Campos dinámicos
                     if (!_isEmailMode) ...[
                       // OPCIÓN 1: Usuario y PIN
-                      const Text('Seleccionar Usuario', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
+                      Text(
+                        'Seleccionar Usuario',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isMobile ? 11 : 12,
+                          color: const Color(0xFF334155),
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       DropdownButtonFormField<UsuarioEntity>(
                         initialValue: _usuarioSeleccionado,
                         decoration: InputDecoration(
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: isMobile ? 10 : 12,
+                          ),
                         ),
                         items: _usuarios.map((u) {
                           return DropdownMenuItem(
                             value: u,
-                            child: Text('${u.nombre} (${u.rol.toUpperCase()})'),
+                            child: Text(
+                              '${u.nombre} (${u.rol.toUpperCase()})',
+                              style: TextStyle(
+                                fontSize: isMobile ? 13 : 14,
+                              ),
+                            ),
                           );
                         }).toList(),
                         onChanged: (val) {
@@ -312,91 +376,159 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           });
                         },
                       ),
-                      const SizedBox(height: 16),
-                      const Text('PIN de Acceso', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
+                      SizedBox(height: isMobile ? 12 : 16),
+                      Text(
+                        'PIN de Acceso',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isMobile ? 11 : 12,
+                          color: const Color(0xFF334155),
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       TextField(
                         controller: _pinController,
                         obscureText: true,
                         keyboardType: TextInputType.number,
                         maxLength: 6,
+                        style: TextStyle(
+                          fontSize: isMobile ? 16 : 18,
+                        ),
                         decoration: InputDecoration(
                           hintStyle: const TextStyle(color: Color.fromARGB(255, 145, 145, 145)),
                           hintText: 'Ingresa tu PIN',
                           counterText: '',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                           prefixIcon: const Icon(Icons.lock_outline),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: isMobile ? 10 : 12,
+                          ),
                         ),
                         onSubmitted: (_) => _intentarLoginPin(),
                       ),
                     ] else ...[
                       // OPCIÓN 2: Correo electrónico y Contraseña
-                      const Text('Correo Electrónico', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
+                      Text(
+                        'Correo Electrónico',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isMobile ? 11 : 12,
+                          color: const Color(0xFF334155),
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       TextField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
+                        style: TextStyle(
+                          fontSize: isMobile ? 14 : 15,
+                        ),
                         decoration: InputDecoration(
                           hintStyle: const TextStyle(color: Color.fromARGB(255, 145, 145, 145)),
                           hintText: 'ejemplo@correo.com',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                           prefixIcon: const Icon(Icons.email_outlined),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: isMobile ? 10 : 12,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      const Text('Contraseña', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
+                  SizedBox(height: isMobile ? 12 : 16),
+                      Text(
+                        'Contraseña',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isMobile ? 11 : 12,
+                          color: const Color(0xFF334155),
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       TextField(
                         controller: _passwordController,
                         obscureText: true,
+                        style: TextStyle(
+                          fontSize: isMobile ? 14 : 15,
+                        ),
                         decoration: InputDecoration(
                           hintStyle: const TextStyle(color: Color.fromARGB(255, 145, 145, 145)),
                           hintText: 'Ingresa tu contraseña',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                           prefixIcon: const Icon(Icons.lock_outline),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: isMobile ? 10 : 12,
+                          ),
                         ),
                         onSubmitted: (_) => _intentarLoginEmail(),
                       ),
                     ],
-                    
+
                     if (_errorMessage.isNotEmpty) ...[
                       const SizedBox(height: 10),
                       Text(
                         _errorMessage,
-                        style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
 
-                    const SizedBox(height: 24),
+                    SizedBox(height: isMobile ? 16 : 24),
 
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    // Botón principal
+                    SizedBox(
+                      height: buttonHeight,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 2,
+                        ),
+                        onPressed: _cargando
+                            ? null
+                            : (_isEmailMode ? _intentarLoginEmail : _intentarLoginPin),
+                        child: _cargando
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                isMobile ? 'Ingresar' : 'Ingresar al Sistema',
+                                style: TextStyle(
+                                  fontSize: isMobile ? 14 : 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
-                      onPressed: _cargando 
-                          ? null 
-                          : (_isEmailMode ? _intentarLoginEmail : _intentarLoginPin),
-                      child: _cargando
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                            )
-                          : const Text(
-                              'Ingresar al Sistema',
-                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                            ),
                     ),
-                    
+
                     const SizedBox(height: 12),
-                    const Center(
+                    Center(
                       child: Text(
                         'Nota: Admin por defecto PIN: 1234 | Cajero PIN: 0000',
-                        style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+                        style: TextStyle(
+                          fontSize: isMobile ? 9 : 10,
+                          color: const Color(0xFF94A3B8),
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ],

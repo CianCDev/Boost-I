@@ -1,9 +1,0 @@
-targets:
-  $default:
-    builders:
-      isar_generator:
-        options:
-          # Esto le dice al generador que ignore avisos experimentales en el .g.dart
-          ignore_for_file:
-            - experimental_member_use
-            - experimental_member_use_from_same_package
