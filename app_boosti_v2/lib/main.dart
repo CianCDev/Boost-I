@@ -38,7 +38,7 @@ class AppGestionM extends ConsumerWidget {
     final isLocked = ref.watch(lockProvider);
 
     return MaterialApp(
-      title: 'SmartMarket - JAH Lab',
+      title: 'BoostI POS - JAH Lab',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF10B981)),
