@@ -6,6 +6,7 @@ import '../../data/Local/entities/usuario_entity.dart';
 import '../../presentation/providers/usuario_provider.dart';
 import '../utils/responsive_helper.dart';
 import 'inventory_catalog_screen.dart';
+import '../../presentation/services/sync_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -149,10 +150,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
     if (usuarioValido != null && mounted) {
       ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
+      print('🔍 ID del usuario logueado en Isar: ${usuarioValido.id}');
+
+      try {
+    final syncService = SyncService();
+    await syncService.actualizarEstadoUsuarioEnSupabase(usuarioValido.id, 'activo');
+    // Opcional: también actualizar localmente por si acaso
+    await _isarService.actualizarEstadoUsuario(usuarioValido.id, 'activo');
+  } catch (e) {
+    // Si falla, no bloquees el login, solo registra
+    print('⚠️ No se pudo actualizar estado en Supabase: $e');
+  }
       await _autenticarEnSupabase(usuarioValido);
+
+      
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => InventoryCatalogScreen(usuarioLogueado: usuarioValido)),
+          
         );
       }
     } else {

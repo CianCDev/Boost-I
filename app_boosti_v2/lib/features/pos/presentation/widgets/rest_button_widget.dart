@@ -47,12 +47,9 @@ class CajeroRestButton extends ConsumerWidget {
                 Navigator.pop(context);
                 
                 // 1. Actualizar estado en Isar (Local)
-                await isarService.actualizarEstadoUsuario(usuario.id, 'descanso');
+                await isarService.actualizarEstadoUsuario(usuario.id, 'en_descanso');
                 
-                // 2. Actualizar estado en Supabase (Nube)
-                // NOTA: Asegúrate de que 'id_isar' exista en tu tabla de Supabase, ya que Isar usa enteros (int) y Supabase usa UUID.
-                await syncService.actualizarEstadoUsuarioEnSupabase(usuario.id, 'descanso');
-                
+                await syncService.actualizarEstadoUsuarioEnSupabase(usuario.id, 'en_descanso');
                 // 3. Bloquear la pantalla
                 ref.read(lockProvider.notifier).manualRest();
               },

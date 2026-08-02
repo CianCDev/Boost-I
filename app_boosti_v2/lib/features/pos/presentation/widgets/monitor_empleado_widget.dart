@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import '../../presentation/services/sync_service.dart';
 import '../../data/Local/entities/isar_service.dart';
