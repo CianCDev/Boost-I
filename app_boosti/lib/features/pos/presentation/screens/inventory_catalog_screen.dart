@@ -779,7 +779,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -792,7 +792,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF10B981).withValues(alpha: 0.1),
+              color: const Color(0xFF10B981).withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Stack(
@@ -997,7 +997,7 @@ class _ProductCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
+              color: Colors.black.withOpacity(0.02),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -1049,7 +1049,7 @@ class _ProductCard extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.9),
+                        color: Colors.white.withOpacity(0.9),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(

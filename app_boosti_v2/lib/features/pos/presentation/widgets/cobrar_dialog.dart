@@ -319,9 +319,9 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
           // Aumentamos el padding en tablet/desktop para que sean más fáciles de tocar
           padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 14, vertical: isMobile ? 6 : 10),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
+            color: color.withOpacity(0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withValues(alpha: 0.25)),
+            border: Border.all(color: color.withOpacity(0.25)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

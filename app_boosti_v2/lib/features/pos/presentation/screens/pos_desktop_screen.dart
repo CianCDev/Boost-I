@@ -456,7 +456,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: colorEstado.withValues(alpha: 0.15),
+                        backgroundColor: colorEstado.withOpacity(0.15),
                         child: Icon(iconoEstado, color: colorEstado, size: 20),
                       ),
                       title: Text(
@@ -470,9 +470,9 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: colorEstado.withValues(alpha: 0.15),
+                          color: colorEstado.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: colorEstado.withValues(alpha: 0.5)),
+                          border: Border.all(color: colorEstado.withOpacity(0.5)),
                         ),
                         child: Text(
                           textoEstado,
@@ -1667,8 +1667,8 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                         ref.read(cartProvider.notifier).setAplicaIva(_aplicaIva);
                       },
                       borderRadius: BorderRadius.circular(8),
-                      hoverColor: Colors.white.withValues(alpha: 0.1),
-                      splashColor: Colors.white.withValues(alpha: 0.2),
+                      hoverColor: Colors.white.withOpacity(0.1),
+                      splashColor: Colors.white.withOpacity(0.2),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                         child: Text(

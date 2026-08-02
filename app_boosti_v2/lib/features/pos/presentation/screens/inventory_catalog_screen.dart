@@ -252,7 +252,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: Colors.black.withOpacity(0.05),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -269,7 +269,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                              color: const Color(0xFF10B981).withOpacity(0.1),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.shopping_cart_outlined, color: Color(0xFF10B981), size: 20),
@@ -663,7 +663,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: Colors.white.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: IconButton(
@@ -700,7 +700,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                        color: const Color(0xFFF59E0B).withOpacity(0.4),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -767,13 +767,13 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                 margin: const EdgeInsets.only(left: 4, right: 8),
                 decoration: BoxDecoration(
                   color: cargandoBcv 
-                      ? Colors.white.withValues(alpha: 0.25) 
-                      : Colors.white.withValues(alpha: 0.15),
+                      ? Colors.white.withOpacity(0.25) 
+                      : Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                  border: Border.all(color: Colors.white.withOpacity(0.4)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
+                      color: Colors.black.withOpacity(0.1),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -992,7 +992,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
         border: Border(top: BorderSide(color: Colors.grey.shade300, width: isTablet ? 2 : 1)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 10,
             offset: const Offset(0, -4),
           ),
@@ -1286,7 +1286,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
-                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2))],
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
                       ),
                       child: Row(
                         children: [
@@ -1539,7 +1539,7 @@ class _CategoryButtonState extends State<_CategoryButton> {
             color: backgroundColor,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: borderColor, width: isTablet ? 2 : 1.5),
-            boxShadow: widget.esSeleccionada ? [BoxShadow(color: (esStockBajo ? Colors.red : const Color(0xFF10B981)).withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 4))] : null,
+            boxShadow: widget.esSeleccionada ? [BoxShadow(color: (esStockBajo ? Colors.red : const Color(0xFF10B981)).withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 4))] : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1623,7 +1623,7 @@ class _ProductCardState extends State<_ProductCard> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isTablet ? 0.08 : 0.04),
+                    color: Colors.black.withOpacity(isTablet ? 0.08 : 0.04),
                     blurRadius: isTablet ? 16 : 12,
                     offset: const Offset(0, 4),
                   ),
@@ -1673,7 +1673,7 @@ class _ProductCardState extends State<_ProductCard> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.9),
+                                color: Colors.white.withOpacity(0.9),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -1764,7 +1764,7 @@ class _ProductCardSkeleton extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Column(
         children: [

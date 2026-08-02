@@ -602,9 +602,9 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
+            color: color.withOpacity(0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withValues(alpha: 0.25)),
+            border: Border.all(color: color.withOpacity(0.25)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
