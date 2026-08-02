@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,12 @@ import '../providers/bcv_provider.dart';
 import '../services/ticket_service.dart';
 import '../widgets/cobrar_dialog.dart';
 import '../utils/responsive_helper.dart';
+import '../services/scale_service.dart';
+import 'inventory_screen.dart';
+import 'pos_menu_screen.dart'; // <--- Servicio de la Balanza
+
+// Asegúrate de tener importado tu nuevo Panel de Control
+// import 'pos_menu_screen.dart'; 
 
 class InventoryCatalogScreen extends ConsumerStatefulWidget {
   final UsuarioEntity? usuarioLogueado;
@@ -35,6 +42,12 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
+  // ==========================================
+  // VARIABLES DE LA BALANZA ELECTRÓNICA
+  // ==========================================
+  final ScaleService _scaleService = ScaleService();
+  StreamSubscription<double>? _weightSub;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +61,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(bcvProvider).actualizarTasa();
+      _scaleService.connect(); // <--- CONECTA LA BALANZA AL INICIAR
     });
   }
 
@@ -57,6 +71,8 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
 
   @override
   void dispose() {
+    _scaleService.dispose(); // <--- CIERRA LA CONEXIÓN AL SALIR
+    _weightSub?.cancel();
     HardwareKeyboard.instance.removeHandler(_manejarTecladoFisico);
     _searchController.dispose();
     _searchFocusNode.dispose();
@@ -166,6 +182,8 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
       return;
     }
 
+    HapticFeedback.lightImpact();
+
     final productItem = ProductItem(
       id: producto.id.toString(),
       codigoBarras: producto.codigoBarras,
@@ -193,92 +211,188 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     _filtrarProductos();
   }
 
+  // ==========================================
+  // MODAL DE CANTIDAD (CON BALANZA)
+  // ==========================================
   void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
     final TextEditingController cantidadController = TextEditingController(
       text: producto.esPesado ? '1.000' : '1',
     );
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final isDesktop = !isTablet && !ResponsiveHelper.isMobile(context);
+
+    // 1. SUSCRIPCIÓN AL PESO
+    if (producto.esPesado) {
+      _weightSub = _scaleService.weightStream.listen((peso) {
+        if (peso > 0) {
+          cantidadController.text = peso.toStringAsFixed(3);
+          cantidadController.selection = TextSelection.fromPosition(
+            TextPosition(offset: cantidadController.text.length)
+          );
+        }
+      });
+    }
 
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
-            'Cantidad para ${producto.nombre}',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF0F172A)),
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          elevation: 8,
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: isTablet || isDesktop ? 40.0 : 16.0,
+            vertical: 24.0,
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                producto.esPesado
-                    ? 'Producto de Balanza (ingrese peso en kg):'
-                    : 'Ingrese la cantidad deseada (unidades):',
-                style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: cantidadController,
-                autofocus: true,
-                keyboardType: TextInputType.numberWithOptions(decimal: producto.esPesado),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: isTablet || isDesktop ? 550.0 : double.infinity,
+            ),
+            padding: EdgeInsets.all(isTablet ? 32.0 : 20.0), 
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: SingleChildScrollView( 
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.shopping_cart_outlined, color: Color(0xFF10B981), size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Agregar ${producto.nombre}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: Color(0xFF0F172A),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
                     producto.esPesado
-                        ? RegExp(r'^\d*\.?\d{0,3}')
-                        : RegExp(r'^\d*'),
+                        ? 'Producto de Balanza (ingresa el peso en kg):'
+                        : 'Ingresa la cantidad deseada (unidades):',
+                    style: TextStyle(
+                      fontSize: isTablet || isDesktop ? 16 : 14,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: cantidadController,
+                    autofocus: true,
+                    keyboardType: TextInputType.numberWithOptions(decimal: producto.esPesado),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        producto.esPesado
+                            ? RegExp(r'^\d*\.?\d{0,3}')
+                            : RegExp(r'^\d*'),
+                      ),
+                    ],
+                    onTap: () {
+                      cantidadController.selection = TextSelection(
+                        baseOffset: 0,
+                        extentOffset: cantidadController.text.length,
+                      );
+                    },
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                    decoration: InputDecoration(
+                      labelText: 'Cantidad',
+                      labelStyle: TextStyle(fontSize: isTablet || isDesktop ? 16 : 14, color: Colors.grey.shade600),
+                      suffixText: producto.esPesado ? 'kg' : 'unid',
+                      suffixStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color.fromRGBO(97, 97, 97, 1)),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isTablet || isDesktop ? 20 : 14),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
+                      ),
+                    ),
+                    onSubmitted: (val) {
+                      _weightSub?.cancel(); 
+                      final double? cantidad = double.tryParse(val);
+                      if (cantidad != null && cantidad > 0) {
+                        Navigator.of(dialogContext).pop();
+                        _agregarAlCarrito(producto, cantidad);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 28),
+
+                  // BOTONES DE ACCIÓN
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          foregroundColor: Colors.grey.shade700,
+                          backgroundColor: const Color(0xFFF1F5F9),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () {
+                          _weightSub?.cancel(); // CANCELAR SUSCRIPCIÓN
+                          cantidadController.dispose();
+                          Navigator.of(dialogContext).pop();
+                        },
+                        child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 4,
+                        ),
+                        onPressed: () {
+                          _weightSub?.cancel(); // CANCELAR SUSCRIPCIÓN
+                          final double? cantidad = double.tryParse(cantidadController.text);
+                          if (cantidad == null || cantidad <= 0) return;
+
+                          Navigator.of(dialogContext).pop();
+                          _agregarAlCarrito(producto, cantidad);
+                          cantidadController.dispose();
+                        },
+                        child: const Text('Agregar al Carrito', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      ),
+                    ],
                   ),
                 ],
-                onTap: () {
-                  cantidadController.selection = TextSelection(
-                    baseOffset: 0,
-                    extentOffset: cantidadController.text.length,
-                  );
-                },
-                decoration: InputDecoration(
-                  labelText: 'Cantidad',
-                  suffixText: producto.esPesado ? 'kg' : 'unid',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                  ),
-                ),
-                onSubmitted: (val) {
-                  final double? cantidad = double.tryParse(val);
-                  if (cantidad != null && cantidad > 0) {
-                    Navigator.of(dialogContext).pop();
-                    _agregarAlCarrito(producto, cantidad);
-                  }
-                },
               ),
-            ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                cantidadController.dispose();
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Cancelar', style: TextStyle(color: Color(0xFF64748B))),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF10B981),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () {
-                final double? cantidad = double.tryParse(cantidadController.text);
-                if (cantidad == null || cantidad <= 0) return;
-
-                Navigator.of(dialogContext).pop();
-                _agregarAlCarrito(producto, cantidad);
-                cantidadController.dispose();
-              },
-              child: const Text('Agregar al Carrito', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
         );
       },
     );
@@ -287,6 +401,8 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   Future<void> _mostrarModalCobro(BuildContext context) async {
     final cartState = ref.read(cartProvider);
     if (cartState.total <= 0) return;
+
+    HapticFeedback.mediumImpact();
 
     double tasaActual = ref.read(bcvProvider).tasa;
     if (tasaActual.isNaN || tasaActual <= 0) tasaActual = 0.0;
@@ -387,18 +503,20 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Reiniciar Venta', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold)),
-          content: const Text('¿Estás seguro de que quieres reiniciar la venta actual? Se borrarán todos los productos del carrito.'),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Reiniciar Venta', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 22)),
+          content: const Text('¿Estás seguro de que quieres reiniciar la venta actual? Se borrarán todos los productos del carrito.', style: TextStyle(fontSize: 18)),
           actions: [
             TextButton(
+              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancelar', style: TextStyle(color: Color(0xFF64748B))),
+              child: const Text('Cancelar', style: TextStyle(fontSize: 18, color: Color(0xFF64748B))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFEF4444),
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () {
@@ -408,7 +526,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                   const SnackBar(content: Text('Carrito reiniciado correctamente.'), duration: Duration(seconds: 1)),
                 );
               },
-              child: const Text('Sí, reiniciar'),
+              child: const Text('Sí, reiniciar', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -447,26 +565,27 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
+        leadingWidth: 85,
         leading: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(10.0),
           child: Image.asset(
             'assets/logo.png',
-            errorBuilder: (context, error, stackTrace) => const Icon(Icons.storefront, color: Colors.white),
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) => const Icon(Icons.storefront, color: Colors.white, size: 32),
           ),
         ),
         title: Text(
-          isMobile ? 'Catálogo' : 'Catálogo de Inventario y POS',
+          isMobile ? '' : 'Catálogo de Inventario y POS',
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
-        // NUEVO GRADIENTE VIBRANTE (MORADO A ÍNDIGO)
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF8B5CF6), // Púrpura vibrante
-                Color(0xFF4F46E5), // Índigo profundo
+                Color.fromRGBO(68, 109, 241, 1),
+                Color.fromARGB(255, 85, 59, 235),
               ],
             ),
           ),
@@ -474,35 +593,87 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         backgroundColor: Colors.transparent,
         elevation: 2,
         foregroundColor: Colors.white,
-        actions: [
-          // BOTÓN DE INVENTARIO (Naranja brillante para destacar sobre el morado)
+            actions: [
+          // 1. BOTÓN AL PANEL DE CONTROL (Estilo Cristal)
+          Tooltip(
+            message: 'Panel de Control POS',
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.grid_view_rounded, color: Colors.white, size: 24),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const PosMenuScreen()),
+                  );
+                },
+                splashRadius: 20,
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+          
+          const SizedBox(width: 6),
+
+          // 2. BOTÓN DE INVENTARIO (Gradiente y Sombra)
           Tooltip(
             message: 'Ir a Gestión de Inventario',
             child: Stack(
+              clipBehavior: Clip.none,
               children: [
                 Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF59E0B), // Naranja Ámbar
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+                    ),
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: IconButton(
                     icon: const Icon(Icons.inventory_2_outlined, color: Colors.white),
                     onPressed: () {
-                      Navigator.pushNamed(context, '/inventory');
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => InventoryScreen(usuarioLogueado: widget.usuarioLogueado!),
+                        ),
+                      );
                     },
-                    splashRadius: 24,
+                    splashRadius: 20,
+                    padding: EdgeInsets.zero,
                   ),
                 ),
                 if (lowStockCount > 0)
                   Positioned(
-                    right: 2,
-                    top: 2,
+                    right: -2,
+                    top: -2,
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: const BoxDecoration(
                         color: Colors.red,
                         shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.redAccent,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
                       ),
                       constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                       child: Text(
@@ -519,53 +690,81 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
               ],
             ),
           ),
-          // Widget Tasa BCV
+
+          const SizedBox(width: 4),
+
+          // 3. BOTÓN DE TASA BCV (Refinado y Elegante)
           Tooltip(
             message: 'Tasa oficial BCV (Haz clic para actualizar)',
-            child: InkWell(
-              onTap: () => ref.read(bcvProvider).actualizarTasa(),
-              borderRadius: BorderRadius.circular(20),
+            child: AnimatedScale(
+              scale: cargandoBcv ? 0.95 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                margin: const EdgeInsets.only(left: 4, right: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
+                  color: cargandoBcv 
+                      ? Colors.white.withValues(alpha: 0.25) 
+                      : Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Row(
                   children: [
                     const Icon(Icons.currency_exchange, size: 16, color: Color(0xFF38BDF8)),
                     const SizedBox(width: 6),
-                    cargandoBcv
-                        ? const SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
-                          )
-                        : Text(
-                            'BCV: Bs. ${tasaBcv.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                              color: Colors.white,
-                            ),
-                          ),
+                    AnimatedOpacity(
+                      opacity: cargandoBcv ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                      ),
+                    ),
+                    AnimatedOpacity(
+                      opacity: cargandoBcv ? 0.0 : 1.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: Text(
+                        'BCV: Bs. ${tasaBcv.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            tooltip: 'Actualizar Catálogo',
-            onPressed: _cargarProductosDesdeIsar,
-          ),
+        
+
           const SizedBox(width: 8),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
+          ? GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                childAspectRatio: childAspectRatio,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemCount: 6,
+              itemBuilder: (context, index) => const _ProductCardSkeleton(),
+            )
           : useSidebar
               ? _buildDesktopTabletLayout(cartState, crossAxisCount, childAspectRatio)
               : _buildMobileTabletPortraitLayout(cartState, crossAxisCount, childAspectRatio),
@@ -593,39 +792,59 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   }
 
   Widget _buildCatalogPanel(dynamic cartState, int crossAxisCount, double childAspectRatio) {
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final isMobile = ResponsiveHelper.isMobile(context);
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(isTablet ? 24.0 : 16.0),
       child: Column(
         children: [
-          _buildSearchBar(false),
+          _buildSearchBar(isMobile),
           const SizedBox(height: 16),
-          _buildCategoryChips(false),
+          _buildCategoryChips(),
           const SizedBox(height: 16),
           Expanded(
-            child: _productosFiltrados.isEmpty
-                ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.inventory_2_outlined, size: 48, color: Color(0xFFCBD5E1)), SizedBox(height: 12), Text('No se encontraron productos.', style: TextStyle(color: Color(0xFF64748B), fontSize: 14))]))
-                : GridView.builder(
-                    padding: const EdgeInsets.only(bottom: 40),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      childAspectRatio: childAspectRatio,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
+            child: RefreshIndicator(
+              onRefresh: _cargarProductosDesdeIsar,
+              child: _productosFiltrados.isEmpty
+                  ? SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.5,
+                        child: const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.inventory_2_outlined, size: 48, color: Color(0xFFCBD5E1)),
+                              SizedBox(height: 12),
+                              Text('No se encontraron productos.', style: TextStyle(color: Color(0xFF64748B), fontSize: 14))
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  : GridView.builder(
+                      padding: const EdgeInsets.only(bottom: 40),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        childAspectRatio: childAspectRatio,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                      ),
+                      itemCount: _productosFiltrados.length,
+                      itemBuilder: (context, index) {
+                        final producto = _productosFiltrados[index];
+                        final bool stockBajo = producto.stock <= producto.stockMinimo;
+                        return _ProductCard(
+                          producto: producto,
+                          stockBajo: stockBajo,
+                          onTap: () => _mostrarModalCantidad(context, producto),
+                          isMobile: false,
+                          index: index,
+                          animationController: _animationController,
+                        );
+                      },
                     ),
-                    itemCount: _productosFiltrados.length,
-                    itemBuilder: (context, index) {
-                      final producto = _productosFiltrados[index];
-                      final bool stockBajo = producto.stock <= producto.stockMinimo;
-                      return _ProductCard(
-                        producto: producto,
-                        stockBajo: stockBajo,
-                        onTap: () => _mostrarModalCantidad(context, producto),
-                        isMobile: false,
-                        index: index,
-                        animationController: _animationController,
-                      );
-                    },
-                  ),
+            ),
           ),
         ],
       ),
@@ -633,42 +852,62 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   }
 
   Widget _buildMobileTabletPortraitLayout(dynamic cartState, int crossAxisCount, double childAspectRatio) {
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final isMobile = ResponsiveHelper.isMobile(context);
     return Column(
       children: [
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: EdgeInsets.all(isTablet ? 24.0 : 12.0),
             child: Column(
               children: [
-                _buildSearchBar(true),
-                const SizedBox(height: 16),
-                _buildCategoryChips(true),
-                const SizedBox(height: 16),
+                _buildSearchBar(isMobile),
+                const SizedBox(height: 12),
+                _buildCategoryChips(),
+                const SizedBox(height: 12),
                 Expanded(
-                  child: _productosFiltrados.isEmpty
-                      ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.inventory_2_outlined, size: 48, color: Color(0xFFCBD5E1)), SizedBox(height: 12), Text('No se encontraron productos.', style: TextStyle(color: Color(0xFF64748B), fontSize: 14))]))
-                      : GridView.builder(
-                          padding: const EdgeInsets.only(bottom: 20),
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: crossAxisCount,
-                            childAspectRatio: childAspectRatio,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
+                  child: RefreshIndicator(
+                    onRefresh: _cargarProductosDesdeIsar,
+                    child: _productosFiltrados.isEmpty
+                        ? SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.5,
+                              child: const Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.inventory_2_outlined, size: 48, color: Color(0xFFCBD5E1)),
+                                    SizedBox(height: 12),
+                                    Text('No se encontraron productos.', style: TextStyle(color: Color(0xFF64748B), fontSize: 14))
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                        : GridView.builder(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossAxisCount,
+                              childAspectRatio: childAspectRatio,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                            ),
+                            itemCount: _productosFiltrados.length,
+                            itemBuilder: (context, index) {
+                              final producto = _productosFiltrados[index];
+                              final bool stockBajo = producto.stock <= producto.stockMinimo;
+                              return _ProductCard(
+                                producto: producto,
+                                stockBajo: stockBajo,
+                                onTap: () => _mostrarModalCantidad(context, producto),
+                                isMobile: true,
+                                index: index,
+                                animationController: _animationController,
+                              );
+                            },
                           ),
-                          itemCount: _productosFiltrados.length,
-                          itemBuilder: (context, index) {
-                            final producto = _productosFiltrados[index];
-                            final bool stockBajo = producto.stock <= producto.stockMinimo;
-                            return _ProductCard(
-                              producto: producto,
-                              stockBajo: stockBajo,
-                              onTap: () => _mostrarModalCantidad(context, producto),
-                              isMobile: true,
-                              index: index,
-                              animationController: _animationController,
-                            );
-                          },
-                        ),
+                  ),
                 ),
               ],
             ),
@@ -679,19 +918,16 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     );
   }
 
-  // ==========================================
-  // BARRA INFERIOR (MÁS GRANDE Y TÁCTIL)
-  // ==========================================
   Widget _buildFixedCartSummary(dynamic cartState) {
     final isTablet = ResponsiveHelper.isTablet(context);
-    // Aumentamos la altura a 110px para tablets y 95px para móviles
-    final double barHeight = isTablet ? 110.0 : 95.0;
+    final double barHeight = isTablet ? 140.0 : 120.0;
 
     return Container(
       height: barHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade300)),
+        border: Border(top: BorderSide(color: Colors.grey.shade300, width: isTablet ? 2 : 1)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
@@ -700,89 +936,88 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Row(
-        children: [
-          // Información de totales (Texto más grande)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Total: \$${cartState.total.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold, 
-                  fontSize: isTablet ? 22 : 18, 
-                  color: const Color(0xFF0F172A)
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: isTablet ? 15 : 13, 
-                  color: const Color(0xFF3B82F6), 
-                  fontWeight: FontWeight.w600
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          
-          // Badge de ítems
-          if (cartState.items.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEE2E2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${cartState.items.length}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFFDC2626)),
-              ),
-            ),
-            
-          // Botón de Ver Carrito (Más grande y ancho)
-          SizedBox(
-            height: isTablet ? 56 : 48,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF10B981),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                padding: EdgeInsets.symmetric(horizontal: isTablet ? 28 : 20, vertical: 12),
-                elevation: 4,
-              ),
-              onPressed: cartState.items.isEmpty 
-                  ? null 
-                  : () => _openCartBottomSheet(context, cartState),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.shopping_cart_outlined, size: 20),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Ver Carrito',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold, 
-                      fontSize: isTablet ? 18 : 15
-                    ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Total: \$${cartState.total.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold, 
+                    fontSize: isTablet ? 28 : 17,
+                    color: const Color(0xFF0F172A)
                   ),
-                ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: isTablet ? 20 : 13, 
+                    color: const Color(0xFF3B82F6), 
+                    fontWeight: FontWeight.w600
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            
+            if (cartState.items.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(right: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFECACA), width: 1.5),
+                ),
+                child: Text(
+                  '${cartState.items.length}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFDC2626)),
+                ),
+              ),
+            
+            SizedBox(
+              height: isTablet ? 66 : 44,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: EdgeInsets.symmetric(horizontal: isTablet ? 28 : 12, vertical: 12),
+                  elevation: 6,
+                  side: const BorderSide(color: Color(0xFF059669), width: 1.5),
+                ),
+                onPressed: cartState.items.isEmpty 
+                    ? null 
+                    : () => _openCartBottomSheet(context, cartState),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.shopping_cart_outlined, size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Ver Carrito',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: isTablet ? 20 : 14
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // ==========================================
-  // BOTTOM SHEET DEL CARRITO (MÓVIL / TABLET RETRATO)
-  // ==========================================
   void _openCartBottomSheet(BuildContext context, dynamic cartState) {
+    final isTablet = ResponsiveHelper.isTablet(context);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -792,129 +1027,150 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
       ),
       builder: (BuildContext context) {
         return Container(
-          padding: const EdgeInsets.all(20),
-          height: MediaQuery.of(context).size.height * 0.85, 
+          padding: const EdgeInsets.all(24),
+          height: MediaQuery.of(context).size.height * 0.95, 
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Mi Carrito', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                  Row(
-                    children: [
-                      if (cartState.items.isNotEmpty)
+          child: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Mi Carrito', style: TextStyle(fontSize: isTablet ? 28 : 22, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                    Row(
+                      children: [
+                        if (cartState.items.isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.refresh_outlined, color: Color(0xFFEF4444), size: 28),
+                            tooltip: 'Reiniciar Venta',
+                            splashRadius: 28,
+                            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              _limpiarCarritoConConfirmacion();
+                            },
+                          ),
+                        const SizedBox(width: 4),
                         IconButton(
-                          icon: const Icon(Icons.refresh_outlined, color: Color(0xFFEF4444)),
-                          tooltip: 'Reiniciar Venta',
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            _limpiarCarritoConConfirmacion();
+                          icon: const Icon(Icons.close_rounded, size: 28),
+                          splashRadius: 28,
+                          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const Divider(thickness: 2),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: cartState.items.isEmpty
+                      ? const Center(child: Text('El carrito está vacío', style: TextStyle(fontSize: 18, color: Color(0xFF94A3B8))))
+                      : ListView.separated(
+                          itemCount: cartState.items.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final cartItem = cartState.items[index];
+                            final double subtotal = cartItem.producto.precioUnidad * cartItem.cantidad.toDouble();
+                            return Container(
+                              padding: EdgeInsets.all(isTablet ? 20 : 16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: const Color(0xFFCBD5E1), width: isTablet ? 2 : 1.5),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(cartItem.producto.nombre, style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        const SizedBox(height: 6),
+                                        Text('${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}', style: TextStyle(color: Color(0xFF64748B), fontSize: isTablet ? 16 : 14)),
+                                      ],
+                                    ),
+                                  ),
+                                  Text('\$${subtotal.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 17, color: Color(0xFF059669))),
+                                  const SizedBox(width: 12),
+                                  InkWell(
+                                    onTap: () => ref.read(cartProvider.notifier).eliminarItem(index),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: EdgeInsets.all(isTablet ? 12 : 10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFEE2E2),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.red.shade200),
+                                      ),
+                                      child: Icon(Icons.close_rounded, color: Colors.redAccent, size: isTablet ? 28 : 22),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
                           },
                         ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const Divider(),
-              const SizedBox(height: 8),
-              Expanded(
-                child: cartState.items.isEmpty
-                    ? const Center(child: Text('El carrito está vacío', style: TextStyle(color: Color(0xFF94A3B8))))
-                    : ListView.separated(
-                        itemCount: cartState.items.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final cartItem = cartState.items[index];
-                          final double subtotal = cartItem.producto.precioUnidad * cartItem.cantidad.toDouble();
-                          return Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(cartItem.producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                      Text('${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF64748B), fontSize: 12)),
-                                    ],
-                                  ),
-                                ),
-                                Text('\$${subtotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF059669))),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFFEF4444)),
-                                  onPressed: () => ref.read(cartProvider.notifier).eliminarItem(index),
-                                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                ),
-                              ],
-                            ),
-                          );
+                ),
+                const Divider(thickness: 2),
+                const SizedBox(height: 12),
+                Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('TOTAL USD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 14, color: Color(0xFF64748B))),
+                        Text('\$${cartState.total.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 30 : 20, color: Color(0xFF059669))),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('TOTAL BOLÍVARES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 18 : 12, color: Color(0xFF94A3B8))),
+                        Text('Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 22 : 14, color: Color(0xFF3B82F6))),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: isTablet ? 76 : 56,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 6,
+                          side: const BorderSide(color: Color(0xFF059669), width: 1.5),
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _mostrarModalCobro(context);
                         },
-                      ),
-              ),
-              const Divider(),
-              Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [const Text('TOTAL USD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF64748B))), Text('\$${cartState.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Color(0xFF059669)))],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [const Text('TOTAL BOLÍVARES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF94A3B8))), Text('Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF3B82F6)))],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        elevation: 2,
-                      ),
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        _mostrarModalCobro(context);
-                      },
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.payments_outlined, size: 22),
-                          SizedBox(width: 12),
-                          Text('COBRAR ORDEN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        ],
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.payments_outlined, size: isTablet ? 32 : 24),
+                            SizedBox(width: 16),
+                            Text('COBRAR ORDEN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 24 : 18, letterSpacing: 1.0)),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  // ==========================================
-  // BARRA LATERAL (DESKTOP / PAISAJE)
-  // ==========================================
   Widget _buildCartSidebarDesktop(dynamic cartState) {
     return Column(
       children: [
@@ -943,7 +1199,8 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                 Tooltip(
                   message: 'Reiniciar Venta',
                   child: IconButton(
-                    icon: const Icon(Icons.refresh_outlined, color: Color(0xFFEF4444)),
+                    icon: const Icon(Icons.refresh_outlined, color: Color(0xFFEF4444), size: 24),
+                    splashRadius: 24,
                     onPressed: _limpiarCarritoConConfirmacion,
                   ),
                 ),
@@ -966,7 +1223,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
                         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2))],
                       ),
                       child: Row(
@@ -986,10 +1243,10 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                           Container(
                             decoration: const BoxDecoration(color: Color(0xFFFEE2E2), shape: BoxShape.circle),
                             child: IconButton(
-                              icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFFEF4444)),
+                              icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFFEF4444)),
+                              splashRadius: 24,
                               onPressed: () => ref.read(cartProvider.notifier).eliminarItem(index),
-                              splashRadius: 20,
-                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                             ),
                           ),
                         ],
@@ -1025,7 +1282,8 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                     backgroundColor: cartState.items.isEmpty ? Colors.grey.shade300 : const Color(0xFF10B981),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    elevation: 2,
+                    elevation: 4,
+                    side: cartState.items.isEmpty ? null : const BorderSide(color: Color(0xFF059669), width: 1.5),
                   ),
                   onPressed: cartState.items.isEmpty ? null : () => _mostrarModalCobro(context),
                   child: const Row(
@@ -1045,7 +1303,11 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     );
   }
 
+  // ==========================================
+  // BUSCADOR CON BOTÓN DE ESCANEO
+  // ==========================================
   Widget _buildSearchBar(bool isMobile) {
+    final isTablet = ResponsiveHelper.isTablet(context);
     return SizedBox(
       height: 46,
       child: TextField(
@@ -1053,9 +1315,36 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         focusNode: _searchFocusNode,
         onChanged: (_) => _filtrarProductos(),
         decoration: InputDecoration(
-          hintText: isMobile ? 'Buscar...' : 'Buscar por nombre / código (F2)...',
-          hintStyle: TextStyle(fontSize: isMobile ? 13 : 14, color: const Color(0xFF94A3B8)),
-          prefixIcon: const Icon(Icons.search, size: 22, color: Color(0xFF64748B)),
+          hintText: 'Buscar por nombre / código (F2)...',
+          hintStyle: TextStyle(fontSize: isTablet ? 18 : 14, color: const Color(0xFF94A3B8)),
+          prefixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 28, color: Color(0xFF475569)),
+                  tooltip: 'Escanear código de barras',
+                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('📷 Escáner de código de barras próximo a implementar...'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.search, size: 22, color: Color(0xFF64748B)),
+            ],
+          ),
           suffixIcon: IconButton(
             icon: const Icon(Icons.clear, size: 18),
             onPressed: () {
@@ -1066,8 +1355,14 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
           contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 14),
           filled: true,
           fillColor: Colors.white,
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: const Color(0xFFCBD5E1), width: isTablet ? 2.5 : 1.5),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+          ),
         ),
         onSubmitted: (val) {
           if (_productosFiltrados.length == 1) {
@@ -1078,39 +1373,68 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     );
   }
 
-  Widget _buildCategoryChips(bool isMobile) {
+  Widget _buildCategoryChips() {
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final double height = isTablet ? 60 : 48;
+
     return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.zero,
-        itemCount: _categorias.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final cat = _categorias[index];
-          return _CategoryButton(
-            categoria: cat,
-            esSeleccionada: _categoriaSeleccionada == cat,
-            onTap: () {
-              setState(() {
-                _categoriaSeleccionada = cat;
-              });
-              _filtrarProductos();
-            },
-            isMobile: isMobile,
-          );
-        },
-      ),
+      height: height,
+      child: isTablet
+          ? Scrollbar(
+              thickness: 6,
+              radius: const Radius.circular(10),
+              scrollbarOrientation: ScrollbarOrientation.bottom,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _categorias.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final cat = _categorias[index];
+                  return _CategoryButton(
+                    categoria: cat,
+                    esSeleccionada: _categoriaSeleccionada == cat,
+                    onTap: () {
+                      setState(() {
+                        _categoriaSeleccionada = cat;
+                      });
+                      _filtrarProductos();
+                    },
+                  );
+                },
+              ),
+            )
+          : ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16), 
+              itemCount: _categorias.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final cat = _categorias[index];
+                return _CategoryButton(
+                  categoria: cat,
+                  esSeleccionada: _categoriaSeleccionada == cat,
+                  onTap: () {
+                    setState(() {
+                      _categoriaSeleccionada = cat;
+                    });
+                    _filtrarProductos();
+                  },
+                );
+              },
+            ),
     );
   }
 }
 
+// ==========================================
+// BOTÓN DE CATEGORÍA
+// ==========================================
 class _CategoryButton extends StatefulWidget {
   final String categoria;
   final bool esSeleccionada;
   final VoidCallback onTap;
-  final bool isMobile;
-  const _CategoryButton({required this.categoria, required this.esSeleccionada, required this.onTap, this.isMobile = false});
+  const _CategoryButton({required this.categoria, required this.esSeleccionada, required this.onTap});
   @override
   State<_CategoryButton> createState() => _CategoryButtonState();
 }
@@ -1119,18 +1443,27 @@ class _CategoryButtonState extends State<_CategoryButton> {
   @override
   Widget build(BuildContext context) {
     final bool esStockBajo = widget.categoria == 'Stock Bajo';
+    final bool isTablet = ResponsiveHelper.isTablet(context);
+
     Color backgroundColor;
     Color borderColor;
     Color textColor;
+
     if (widget.esSeleccionada) {
       backgroundColor = esStockBajo ? const Color(0xFFEF4444) : const Color(0xFF10B981);
       borderColor = backgroundColor;
       textColor = Colors.white;
     } else {
       backgroundColor = _isHovered ? const Color(0xFFF1F5F9) : Colors.white;
-      borderColor = _isHovered ? const Color(0xFF94A3B8) : const Color(0xFFE2E8F0);
+      borderColor = _isHovered ? const Color(0xFF94A3B8) : const Color(0xFFCBD5E1);
       textColor = const Color(0xFF334155);
     }
+
+    final double fontSize = isTablet ? 16.0 : 13.0;
+    final padding = isTablet
+        ? const EdgeInsets.symmetric(horizontal: 20, vertical: 8)
+        : const EdgeInsets.symmetric(horizontal: 14, vertical: 6);
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -1139,19 +1472,19 @@ class _CategoryButtonState extends State<_CategoryButton> {
         borderRadius: BorderRadius.circular(10),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: widget.isMobile ? const EdgeInsets.symmetric(horizontal: 12, vertical: 6) : const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: padding,
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: borderColor),
+            border: Border.all(color: borderColor, width: isTablet ? 2 : 1.5),
             boxShadow: widget.esSeleccionada ? [BoxShadow(color: (esStockBajo ? Colors.red : const Color(0xFF10B981)).withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 4))] : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (esStockBajo) ...[Icon(Icons.warning_amber_rounded, size: 14, color: widget.esSeleccionada ? Colors.white : Colors.amber), const SizedBox(width: 4)]
-              else if (widget.esSeleccionada) ...[const Icon(Icons.check_circle, size: 14, color: Colors.white), const SizedBox(width: 4)],
-              Text(widget.categoria, style: TextStyle(fontSize: widget.isMobile ? 12.0 : 13.0, fontWeight: widget.esSeleccionada ? FontWeight.bold : FontWeight.w500, color: textColor)),
+              if (esStockBajo) ...[Icon(Icons.warning_amber_rounded, size: 16, color: widget.esSeleccionada ? Colors.white : Colors.amber), const SizedBox(width: 4)]
+              else if (widget.esSeleccionada) ...[const Icon(Icons.check_circle, size: 16, color: Colors.white), const SizedBox(width: 4)],
+              Text(widget.categoria, style: TextStyle(fontSize: fontSize, fontWeight: widget.esSeleccionada ? FontWeight.bold : FontWeight.w500, color: textColor)),
             ],
           ),
         ),
@@ -1160,6 +1493,9 @@ class _CategoryButtonState extends State<_CategoryButton> {
   }
 }
 
+// ==========================================
+// TARJETA DE PRODUCTO
+// ==========================================
 class _ProductCard extends StatefulWidget {
   final ProductoEntity producto;
   final bool stockBajo;
@@ -1200,6 +1536,8 @@ class _ProductCardState extends State<_ProductCard> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isTablet = ResponsiveHelper.isTablet(context);
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -1216,13 +1554,15 @@ class _ProductCardState extends State<_ProductCard> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: widget.stockBajo ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0),
-                  width: widget.stockBajo ? 1.5 : 1,
+                  color: widget.stockBajo 
+                    ? const Color(0xFFFCA5A5) 
+                    : (isTablet ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0)),
+                  width: widget.stockBajo ? 2 : (isTablet ? 2.5 : 1.5),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 12,
+                    color: Colors.black.withValues(alpha: isTablet ? 0.08 : 0.04),
+                    blurRadius: isTablet ? 16 : 12,
                     offset: const Offset(0, 4),
                   ),
                 ],
@@ -1298,13 +1638,13 @@ class _ProductCardState extends State<_ProductCard> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: widget.isMobile ? 13 : 14,
+                              fontSize: widget.isMobile ? 13 : (isTablet ? 18 : 14),
                               color: const Color(0xFF0F172A),
                             ),
                           ),
                           Text(
                             'Cód: ${widget.producto.codigoBarras}',
-                            style: TextStyle(fontSize: widget.isMobile ? 9 : 10, color: const Color(0xFF94A3B8)),
+                            style: TextStyle(fontSize: widget.isMobile ? 9 : (isTablet ? 12 : 10), color: const Color(0xFF94A3B8)),
                           ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1312,22 +1652,23 @@ class _ProductCardState extends State<_ProductCard> {
                               Text(
                                 '\$${widget.producto.precioUnidad.toStringAsFixed(2)}',
                                 style: TextStyle(
-                                  fontSize: widget.isMobile ? 15 : 16,
+                                  fontSize: widget.isMobile ? 15 : (isTablet ? 20 : 16),
                                   fontWeight: FontWeight.bold,
                                   color: const Color(0xFF059669),
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: widget.stockBajo ? const Color(0xFFFEE2E2) : const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(4),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
                                 ),
                                 child: Text(
                                   'Stock: ${widget.producto.stock}',
                                   style: TextStyle(
-                                    fontSize: widget.isMobile ? 9 : 10,
-                                    fontWeight: FontWeight.w500,
+                                    fontSize: widget.isMobile ? 9 : (isTablet ? 12 : 10),
+                                    fontWeight: FontWeight.w600,
                                     color: widget.stockBajo ? const Color(0xFFEF4444) : const Color(0xFF475569),
                                   ),
                                 ),
@@ -1343,6 +1684,59 @@ class _ProductCardState extends State<_ProductCard> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// SKELETON LOADER
+// ==========================================
+class _ProductCardSkeleton extends StatelessWidget {
+  const _ProductCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            flex: 6,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(height: 14, width: double.infinity, color: const Color(0xFFF1F5F9)),
+                  Container(height: 10, width: 80, color: const Color(0xFFF1F5F9)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(height: 16, width: 60, color: const Color(0xFFF1F5F9)),
+                      Container(height: 14, width: 70, color: const Color(0xFFF1F5F9)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

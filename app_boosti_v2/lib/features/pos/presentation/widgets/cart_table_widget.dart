@@ -56,7 +56,7 @@ class _CartTableWidgetState extends State<CartTableWidget> {
           children: [
             Icon(
               Icons.shopping_cart_outlined,
-              size: isMobile ? 48 : 64,
+              size: isMobile ? 48 : 72,
               color: Colors.grey.shade400,
             ),
             const SizedBox(height: 12),
@@ -64,7 +64,7 @@ class _CartTableWidgetState extends State<CartTableWidget> {
               'No hay productos en el carrito',
               style: TextStyle(
                 color: Colors.grey.shade500,
-                fontSize: isMobile ? 14 : 16,
+                fontSize: isMobile ? 14 : 18,
               ),
             ),
           ],
@@ -79,20 +79,22 @@ class _CartTableWidgetState extends State<CartTableWidget> {
       child: isMobile || isTablet
           ? ListView.separated(
               itemCount: widget.items.length,
-              padding: const EdgeInsets.all(4),
-              separatorBuilder: (_, _) => const Divider(height: 1),
+              padding: const EdgeInsets.all(8),
+              // ignore: unnecessary_underscores
+              separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final item = widget.items[index];
                 final esPesado = item.producto.esPesado;
                 final controller = _getController(index, item.cantidad, esPesado);
 
-                return _buildMobileItem(
+                return _buildResponsiveItem(
                   context,
                   item,
                   index,
                   controller,
                   esPesado,
                   fontSize,
+                  isTablet,
                 );
               },
             )
@@ -108,11 +110,11 @@ class _CartTableWidgetState extends State<CartTableWidget> {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
-        columnSpacing: 16,
+        columnSpacing: 24,
         horizontalMargin: 16,
-        headingRowHeight: 44,
-        dataRowMinHeight: 52,
-        dataRowMaxHeight: 64,
+        headingRowHeight: 48,
+        dataRowMinHeight: 64, 
+        dataRowMaxHeight: 76,
         columns: const [
           DataColumn(label: Text('Producto', style: TextStyle(fontWeight: FontWeight.bold))),
           DataColumn(label: Text('Precio', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -130,7 +132,7 @@ class _CartTableWidgetState extends State<CartTableWidget> {
             cells: [
               DataCell(
                 SizedBox(
-                  width: 180,
+                  width: 200,
                   child: Text(
                     item.producto.nombre,
                     style: TextStyle(fontSize: fontSize),
@@ -146,8 +148,8 @@ class _CartTableWidgetState extends State<CartTableWidget> {
               ),
               DataCell(
                 SizedBox(
-                  width: 120,
-                  height: 38,
+                  width: 130,
+                  height: 40,
                   child: _buildQuantityField(
                     controller: controller,
                     esPesado: esPesado,
@@ -157,6 +159,7 @@ class _CartTableWidgetState extends State<CartTableWidget> {
                         widget.onCantidadChanged(index, nuevaCant);
                       }
                     },
+                    isDesktop: true,
                   ),
                 ),
               ),
@@ -172,7 +175,9 @@ class _CartTableWidgetState extends State<CartTableWidget> {
               ),
               DataCell(
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 22),
+                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 26),
+                  splashRadius: 24,
+                  constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
                   onPressed: () {
                     _controllers.remove(index)?.dispose();
                     widget.onEliminarItem(index);
@@ -187,19 +192,27 @@ class _CartTableWidgetState extends State<CartTableWidget> {
   }
 
   // ==========================================
-  // VERSIÓN MÓVIL (Lista compacta)
+  // VERSIÓN RESPONSIVA (MÓVIL / TABLETA)
   // ==========================================
 
-  Widget _buildMobileItem(
+  Widget _buildResponsiveItem(
     BuildContext context,
     CartItem item,
     int index,
     TextEditingController controller,
     bool esPesado,
     double fontSize,
+    bool isTablet,
   ) {
+    final double paddingX = isTablet ? 20.0 : 10.0;
+    final double paddingY = isTablet ? 16.0 : 10.0;
+    final double iconSize = isTablet ? 30.0 : 24.0;
+    final double inputWidth = isTablet ? 80.0 : 54.0;
+    final double inputHeight = isTablet ? 48.0 : 36.0;
+    final double nameFontSize = isTablet ? fontSize * 1.4 : fontSize;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: paddingX, vertical: paddingY),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -214,16 +227,17 @@ class _CartTableWidgetState extends State<CartTableWidget> {
                   item.producto.nombre,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: fontSize,
+                    fontSize: nameFontSize,
+                    color: const Color(0xFF0F172A),
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   '\$${item.producto.precioUnidad.toStringAsFixed(2)} / ${esPesado ? 'kg' : 'unid'}',
                   style: TextStyle(
-                    fontSize: fontSize * 0.8,
+                    fontSize: isTablet ? fontSize : fontSize * 0.8,
                     color: Colors.grey.shade600,
                   ),
                 ),
@@ -231,77 +245,47 @@ class _CartTableWidgetState extends State<CartTableWidget> {
             ),
           ),
 
-          // Cantidad y subtotal
+          // Controles de Cantidad y Subtotal
           Expanded(
             flex: 2,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // Botón restar
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline, size: 22),
-                  onPressed: () {
-                    final step = esPesado ? 0.1 : 1.0;
-                    if (item.cantidad > step) {
-                      final nuevaCant = item.cantidad - step;
-                      widget.onCantidadChanged(index, nuevaCant);
-                      _updateController(index, nuevaCant, esPesado);
-                    }
-                  },
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                // Control de Cantidad Personalizado
+                _buildQuantityControl(
+                  index: index,
+                  cantidad: item.cantidad,
+                  esPesado: esPesado,
+                  controller: controller,
+                  iconSize: iconSize,
+                  inputWidth: inputWidth,
+                  inputHeight: inputHeight,
                 ),
 
-                // Campo de cantidad
-                SizedBox(
-                  width: 50,
-                  height: 34,
-                  child: _buildQuantityField(
-                    controller: controller,
-                    esPesado: esPesado,
-                    onChanged: (val) {
-                      final nuevaCant = double.tryParse(val) ?? 0.0;
-                      if (nuevaCant > 0) {
-                        widget.onCantidadChanged(index, nuevaCant);
-                      }
-                    },
-                    compact: true,
-                  ),
-                ),
-
-                // Botón sumar
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline, size: 22),
-                  onPressed: () {
-                    final step = esPesado ? 0.1 : 1.0;
-                    final nuevaCant = item.cantidad + step;
-                    widget.onCantidadChanged(index, nuevaCant);
-                    _updateController(index, nuevaCant, esPesado);
-                  },
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                ),
+                const SizedBox(width: 16),
 
                 // Subtotal
-                const SizedBox(width: 8),
                 Text(
                   '\$${item.subtotal.toStringAsFixed(2)}',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: fontSize * 1.1,
+                    fontSize: isTablet ? fontSize * 1.5 : fontSize * 1.1,
                     color: Colors.green.shade700,
                   ),
                 ),
 
-                // Botón eliminar
+                const SizedBox(width: 8),
+
+                // Botón Eliminar (Grande y fácil de tocar)
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.redAccent, size: 20),
+                  icon: Icon(Icons.close_rounded, color: Colors.redAccent, size: iconSize),
+                  splashRadius: isTablet ? 30 : 24,
+                  constraints: BoxConstraints(minWidth: isTablet ? 48 : 36, minHeight: isTablet ? 48 : 36),
+                  padding: EdgeInsets.zero,
                   onPressed: () {
                     _controllers.remove(index)?.dispose();
                     widget.onEliminarItem(index);
                   },
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
               ],
             ),
@@ -312,28 +296,129 @@ class _CartTableWidgetState extends State<CartTableWidget> {
   }
 
   // ==========================================
-  // CAMPO DE CANTIDAD COMPARTIDO
+  // CONTROL DE CANTIDAD (MEJORADO)
+  // ==========================================
+
+  Widget _buildQuantityControl({
+    required int index,
+    required double cantidad,
+    required bool esPesado,
+    required TextEditingController controller,
+    required double iconSize,
+    required double inputWidth,
+    required double inputHeight,
+  }) {
+    final double step = esPesado ? 0.1 : 1.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Botón Restar
+          InkWell(
+            onTap: () {
+              if (cantidad > step) {
+                final nuevaCant = cantidad - step;
+                widget.onCantidadChanged(index, nuevaCant);
+                _updateController(index, nuevaCant, esPesado);
+              }
+            },
+            borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: inputHeight * 0.2, vertical: inputHeight * 0.2),
+              decoration: const BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.horizontal(left: Radius.circular(8)),
+              ),
+              child: Icon(Icons.remove_rounded, size: iconSize * 0.8, color: Colors.grey.shade700),
+            ),
+          ),
+
+          // Campo de Cantidad
+          Container(
+            width: inputWidth,
+            height: inputHeight,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: TextField(
+              controller: controller,
+              keyboardType: TextInputType.numberWithOptions(decimal: esPesado),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Color(0xFF0F172A),
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(
+                  esPesado ? RegExp(r'^\d*\.?\d{0,3}') : RegExp(r'^\d*'),
+                ),
+              ],
+              onTap: () {
+                controller.selection = TextSelection(
+                  baseOffset: 0,
+                  extentOffset: controller.text.length,
+                );
+              },
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                isDense: true,
+              ),
+              onChanged: (val) {
+                final nuevaCant = double.tryParse(val) ?? 0.0;
+                if (nuevaCant >= 0) {
+                  widget.onCantidadChanged(index, nuevaCant);
+                }
+              },
+            ),
+          ),
+
+          // Botón Sumar
+          InkWell(
+            onTap: () {
+              final nuevaCant = cantidad + step;
+              widget.onCantidadChanged(index, nuevaCant);
+              _updateController(index, nuevaCant, esPesado);
+            },
+            borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: inputHeight * 0.2, vertical: inputHeight * 0.2),
+              decoration: const BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.horizontal(right: Radius.circular(8)),
+              ),
+              child: Icon(Icons.add_rounded, size: iconSize * 0.8, color: Colors.grey.shade700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // CAMPOS COMPARTIDOS
   // ==========================================
 
   Widget _buildQuantityField({
     required TextEditingController controller,
     required bool esPesado,
     required Function(String) onChanged,
-    bool compact = false,
+    bool isDesktop = false,
   }) {
     return TextField(
       controller: controller,
       keyboardType: TextInputType.numberWithOptions(decimal: esPesado),
       textAlign: TextAlign.center,
-      style: TextStyle(
-        fontWeight: FontWeight.bold,
-        fontSize: compact ? 12 : 13,
-      ),
+      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
       inputFormatters: [
         FilteringTextInputFormatter.allow(
-          esPesado
-              ? RegExp(r'^\d*\.?\d{0,3}')
-              : RegExp(r'^\d*'),
+          esPesado ? RegExp(r'^\d*\.?\d{0,3}') : RegExp(r'^\d*'),
         ),
       ],
       onTap: () {
@@ -345,10 +430,7 @@ class _CartTableWidgetState extends State<CartTableWidget> {
       decoration: InputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         suffixText: esPesado ? 'kg' : null,
-        suffixStyle: TextStyle(
-          fontSize: compact ? 9 : 11,
-          color: Colors.grey.shade500,
-        ),
+        suffixStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
         filled: true,
         fillColor: Colors.grey.shade100,
         border: OutlineInputBorder(
@@ -357,9 +439,9 @@ class _CartTableWidgetState extends State<CartTableWidget> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(4),
-          borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
         ),
-        isDense: compact,
+        isDense: !isDesktop,
       ),
       onChanged: onChanged,
     );

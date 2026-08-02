@@ -4,8 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../presentation/providers/usuario_provider.dart';
-import 'pos_desktop_screen.dart';
 import '../utils/responsive_helper.dart';
+import 'inventory_catalog_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -134,7 +134,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           if (usuarioValido != null && mounted) {
             ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
             Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => PosDesktopScreen(usuarioActual: usuarioValido)),
+              MaterialPageRoute(builder: (context) => InventoryCatalogScreen(usuarioLogueado: usuarioValido)),
             );
             return;
           }
@@ -152,7 +152,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       await _autenticarEnSupabase(usuarioValido);
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => PosDesktopScreen(usuarioActual: usuarioValido)),
+          MaterialPageRoute(builder: (context) => InventoryCatalogScreen(usuarioLogueado: usuarioValido)),
         );
       }
     } else {
@@ -205,7 +205,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       if (mounted) {
         ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => PosDesktopScreen(usuarioActual: usuarioValido)),
+          MaterialPageRoute(builder: (context) => InventoryCatalogScreen(usuarioLogueado: usuarioValido)),
         );
       }
     } catch (e) {
@@ -253,9 +253,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF1E3A5F),
-              Color(0xFF3D7199),
-              Color(0xFF6198AE),
+              Color.fromARGB(255, 13, 9, 63),
+              Color.fromARGB(255, 81, 61, 153),
+              Color.fromARGB(255, 130, 97, 174),
             ],
             stops: [0.0, 0.5, 1.0],
           ),
@@ -379,8 +379,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF10B981),
-                Color(0xFF3B82F6),
+                Color.fromARGB(255, 67, 16, 185),
+                Color.fromARGB(255, 36, 107, 219),
               ],
             ),
             shape: BoxShape.circle,
@@ -404,8 +404,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF10B981),
-              Color(0xFF3B82F6),
+              Color.fromARGB(255, 16, 83, 185),
+              Color.fromARGB(255, 100, 59, 246),
             ],
           ).createShader(bounds),
           child: Text(

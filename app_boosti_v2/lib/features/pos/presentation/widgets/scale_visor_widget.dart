@@ -27,20 +27,17 @@ class ScaleVisorWidget extends StatelessWidget {
     // Tamaño de la fuente del peso
     final pesoFontSize = isMobile ? fontSize * 1.1 : fontSize * 1.5;
 
-    // Texto de estado más corto en móvil
-    final estadoTexto = isMobile ? 'BALANZA' : 'BALANZA ACTIVA';
-
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: horizontalPadding,
         vertical: verticalPadding,
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
-        borderRadius: BorderRadius.circular(8),
+        color: const Color(0xFFF1F5F9), // Fondo gris muy suave y amigable (antes era 0xFF0F172A)
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: estaConectada ? Colors.green.shade700 : Colors.red.shade700,
-          width: 1,
+          color: estaConectada ? Colors.green.shade300 : Colors.red.shade300,
+          width: 1.5,
         ),
       ),
       child: Row(
@@ -50,14 +47,14 @@ class ScaleVisorWidget extends StatelessWidget {
             children: [
               Icon(
                 Icons.scale,
-                color: estaConectada ? Colors.green : Colors.red,
+                color: estaConectada ? Colors.green.shade600 : Colors.red,
                 size: iconSize,
               ),
               const SizedBox(width: 8),
               Text(
-                estadoTexto,
+                estaConectada ? 'BALANZA' : 'DESCONECTADA',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: estaConectada ? Colors.green.shade700 : Colors.red,
                   fontSize: isMobile ? fontSize * 0.75 : fontSize,
                   fontWeight: FontWeight.bold,
                 ),
@@ -80,7 +77,7 @@ class ScaleVisorWidget extends StatelessWidget {
               Text(
                 pesoActual.toStringAsFixed(3),
                 style: TextStyle(
-                  color: estaConectada ? Colors.greenAccent : Colors.redAccent,
+                  color: const Color(0xFF0F172A), // Texto oscuro para contrastar con el fondo claro
                   fontSize: pesoFontSize,
                   fontWeight: FontWeight.bold,
                 ),
@@ -88,7 +85,7 @@ class ScaleVisorWidget extends StatelessWidget {
               Text(
                 ' KG',
                 style: TextStyle(
-                  color: Colors.grey.shade400,
+                  color: Colors.grey.shade600,
                   fontSize: isMobile ? fontSize * 0.7 : fontSize * 0.8,
                   fontWeight: FontWeight.w500,
                 ),

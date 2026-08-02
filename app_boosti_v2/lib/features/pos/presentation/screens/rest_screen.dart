@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/lock_provider.dart';
 import '../../data/Local/entities/isar_service.dart';
+import '../utils/responsive_helper.dart';
 
 class RestScreen extends ConsumerStatefulWidget {
   const RestScreen({super.key});
@@ -25,7 +26,6 @@ class _RestScreenState extends ConsumerState<RestScreen> {
     super.dispose();
   }
 
-  /// Valida el PIN contra todos los usuarios registrados en Isar DB
   Future<void> _tryUnlock() async {
     final pinIngresado = _pinController.text.trim();
     if (pinIngresado.isEmpty || _cargando) return;
@@ -36,26 +36,18 @@ class _RestScreenState extends ConsumerState<RestScreen> {
     });
 
     try {
-      // 1. Obtiene todos los usuarios registrados en Isar DB
       final usuarios = await _isarService.obtenerUsuarios();
-
-      // 2. Compara el PIN ingresado con los PINs guardados o la clave maestra ('1234')
       final usuarioEncontrado = usuarios.where((u) => u.pin == pinIngresado).firstOrNull;
       final esClaveMaestra = pinIngresado == '1234';
 
       if (usuarioEncontrado != null || esClaveMaestra) {
-        // Si el PIN pertenece a un cajero o usuario, reactivamos su estado en la BD
         if (usuarioEncontrado != null) {
           await _isarService.actualizarEstadoUsuario(usuarioEncontrado.id, 'activo');
         }
-
         if (mounted) {
-          // Ya validamos que el usuario tiene permiso, así que forzamos a lockProvider 
-          // enviándole '1234' para que libere la pantalla y no lance la excepción.
           try {
             ref.read(lockProvider.notifier).unlockScreen('1234');
           } catch (e) {
-            // Si el proveedor usa otra lógica, hacemos un respaldo limpio
             ref.read(lockProvider.notifier).unlockScreen(pinIngresado);
           }
         }
@@ -85,138 +77,80 @@ class _RestScreenState extends ConsumerState<RestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isTablet = ResponsiveHelper.isTablet(context);
+
+    final double cardWidth = isMobile ? double.infinity : (isTablet ? 500 : 600);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // Slate 900
-      body: Center(
-        child: Container(
-          width: 450,
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E293B), // Slate 800
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF334155), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.fromRGBO(122, 153, 255, 1),
+              Color.fromARGB(255, 85, 59, 235),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Icono de descanso
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.coffee_rounded,
-                  size: 48,
-                  color: Color(0xFF10B981),
-                ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+            child: Container(
+              width: cardWidth,
+              padding: EdgeInsets.all(isMobile ? 24.0 : 40.0),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.98),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 40, offset: const Offset(0, 20))],
               ),
-              const SizedBox(height: 24),
-
-              // Título principal
-              const Text(
-                "CAJA EN DESCANSO",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 8),
-              
-              const Text(
-                "Esta estación se encuentra temporalmente pausada.\nIngrese su PIN de cajero o administrador para continuar.",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color(0xFF94A3B8),
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Campo de texto para el PIN
-              TextField(
-                controller: _pinController,
-                focusNode: _pinFocus,
-                autofocus: true,
-                obscureText: true,
-                maxLength: 4,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  letterSpacing: 8,
-                ),
-                decoration: InputDecoration(
-                  counterText: "",
-                  hintText: "••••",
-                  hintStyle: const TextStyle(color: Color(0xFF475569)),
-                  filled: true,
-                  fillColor: const Color(0xFF0F172A),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF334155)),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF10B981).withValues(alpha: 0.15), shape: BoxShape.circle), child: const Icon(Icons.coffee_rounded, size: 48, color: Color(0xFF10B981))),
+                  const SizedBox(height: 24),
+                  const Text("CAJA EN DESCANSO", style: TextStyle(color: Color(0xFF0F172A), fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                  const SizedBox(height: 8),
+                  const Text("Esta estación se encuentra temporalmente pausada.\nIngrese su PIN de cajero o administrador para continuar.", textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+                  const SizedBox(height: 32),
+                  TextField(
+                    controller: _pinController,
+                    focusNode: _pinFocus,
+                    autofocus: true,
+                    obscureText: true,
+                    maxLength: 4,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Color(0xFF0F172A), fontSize: 24, letterSpacing: 8),
+                    decoration: InputDecoration(
+                      counterText: "",
+                      hintText: "••••",
+                      hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+                      errorText: _errorMessage.isEmpty ? null : _errorMessage,
+                      errorStyle: const TextStyle(color: Colors.redAccent),
+                    ),
+                    onSubmitted: (_) => _tryUnlock(),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF334155)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                  ),
-                  errorText: _errorMessage.isEmpty ? null : _errorMessage,
-                  errorStyle: const TextStyle(color: Colors.redAccent),
-                ),
-                onSubmitted: (_) => _tryUnlock(),
-              ),
-              const SizedBox(height: 24),
-
-              // Botón de acción principal
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white, elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      onPressed: _cargando ? null : _tryUnlock,
+                      child: _cargando ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text("DESBLOQUEAR CAJA", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                     ),
                   ),
-                  onPressed: _cargando ? null : _tryUnlock,
-                  child: _cargando
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          "DESBLOQUEAR CAJA",
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

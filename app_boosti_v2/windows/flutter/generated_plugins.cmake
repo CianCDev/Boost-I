@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   charset_converter
   connectivity_plus
+  flutter_libserialport
   isar_flutter_libs
   printing
   url_launcher_windows

@@ -1,0 +1,33 @@
+<svg width="200" height="240" viewBox="0 0 200 240" xmlns="http://www.w3.org/2000/svg">
+  <!-- Grupo con distorsión de velocidad (inclina el carrito y las ruedas) -->
+  <g transform="skewX(-12)">
+    <!-- Rueda izquierda -->
+    <circle cx="60" cy="110" r="14" fill="white" />
+    <!-- Llama de la rueda izquierda (Minimalista) -->
+    <path d="M48 105 Q55 90 50 78 Q58 90 62 105 Z" fill="white" opacity="0.8" />
+    
+    <!-- Rueda derecha -->
+    <circle cx="130" cy="110" r="14" fill="white" />
+    <!-- Llama de la rueda derecha -->
+    <path d="M118 105 Q125 90 120 78 Q128 90 132 105 Z" fill="white" opacity="0.8" />
+
+    <!-- Cesta del carrito (Forma trapezoidal inclinada) -->
+    <path d="M40 40 L70 90 L120 90 L140 40 Z" stroke="white" stroke-width="6" fill="none" stroke-linejoin="round" />
+    
+    <!-- Asa del carrito (Estirada hacia adelante para simular velocidad) -->
+    <path d="M50 40 Q50 10 95 10 Q135 10 135 40" stroke="white" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+
+  <!-- Nombre debajo del carrito (también distorsionado como fuego) -->
+  <text 
+    x="100" y="190" 
+    font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" 
+    font-size="28" 
+    fill="white" 
+    text-anchor="middle" 
+    font-weight="900" 
+    font-style="italic" 
+    transform="skewX(-10)">
+    BoostI POS
+  </text>
+</svg>
