@@ -134,7 +134,7 @@ class _CashClosingScreenState extends State<CashClosingScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                color: const Color(0xFF10B981).withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(color: const Color(0xFF10B981)),
                               ),

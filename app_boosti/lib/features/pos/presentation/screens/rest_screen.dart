@@ -97,7 +97,7 @@ class _RestScreenState extends ConsumerState<RestScreen> {
             border: Border.all(color: const Color(0xFF334155), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
+                color: Colors.black.withOpacity(0.4),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -110,7 +110,7 @@ class _RestScreenState extends ConsumerState<RestScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                  color: const Color(0xFF10B981).withOpacity(0.15),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(

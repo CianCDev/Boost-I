@@ -594,10 +594,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         ],
                       ),
                     );
-                    if (confirmed == true && mounted) {
+                    if (confirmed == true) {
                       final deletedId = p.id;
                       await _isarService.eliminarProducto(p.id);
                       await SyncService().sincronizarProductosASupabase();
+                      if (!mounted) return;
                       _cargarInventario();
 
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -609,6 +610,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                             textColor: Colors.white,
                             onPressed: () async {
                               await _isarService.restaurarProducto(deletedId);
+                              if (!mounted) return;
                               _cargarInventario();
                               await SyncService().sincronizarProductosASupabase();
                             },
@@ -735,10 +737,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           ],
                         ),
                       );
-                      if (confirmed == true && mounted) {
+                      if (confirmed == true) {
                        final deletedId = p.id;
                        await _isarService.eliminarProducto(p.id);
                        await SyncService().sincronizarProductosASupabase();
+                       if (!mounted) return;
                        _cargarInventario();
 
                        ScaffoldMessenger.of(context).showSnackBar(
@@ -750,6 +753,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                              textColor: Colors.white,
                              onPressed: () async {
                                await _isarService.restaurarProducto(deletedId);
+                               if (!mounted) return;
                                _cargarInventario();
                                await SyncService().sincronizarProductosASupabase();
                              },
@@ -758,6 +762,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                        );
                      }
                    },
+
                   ),
                 ],
               ),
