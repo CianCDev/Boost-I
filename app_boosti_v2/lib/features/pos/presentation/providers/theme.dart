@@ -23,10 +23,9 @@ ThemeData lightTheme() {
       onSurface: Color(0xFF0F172A),
     ),
     scaffoldBackgroundColor: bgLight,
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData( // ← CAMBIADO DE CardTheme A CardThemeData
       color: cardLight,
       elevation: 2,
-      // Sin shape ni clipBehavior para evitar errores
     ),
     appBarTheme: const AppBarTheme(
       backgroundColor: cardLight,
@@ -79,7 +78,7 @@ ThemeData darkTheme() {
       onSurface: Colors.white,
     ),
     scaffoldBackgroundColor: bgDark,
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData( // ← CAMBIADO DE CardTheme A CardThemeData
       color: cardDark,
       elevation: 2,
     ),

@@ -8,6 +8,7 @@ import '../widgets/monitor_empleado_widget.dart';
 import '../widgets/gestion_personal_dialog.dart';
 import '../widgets/cambiar_pin_dialog.dart';
 import '../../presentation/providers/usuario_provider.dart';
+import '../../presentation/providers/theme_provider.dart'; // ← Importa el provider del tema
 
 class PosMenuScreen extends ConsumerStatefulWidget {
   const PosMenuScreen({super.key});
@@ -50,7 +51,9 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
+    final theme = Theme.of(context); // ← Para usar colores dinámicos
 
+    // Lista de opciones del menú (incluye el switch de tema al final)
     final List<Map<String, dynamic>> menuOptions = [
       {
         'title': 'Volver al Catálogo',
@@ -104,10 +107,19 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
         'color': const Color(0xFF8B5CF6),
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SalesHistoryScreen())),
       },
+      // 🔘 NUEVA OPCIÓN: Modo Oscuro (Switch)
+      {
+        'title': 'Modo Oscuro',
+        'subtitle': 'Activar o desactivar tema oscuro',
+        'icon': Icons.dark_mode,
+        'color': Colors.amber,
+        'onTap': null, // No se usa, el switch maneja el cambio
+        'isSwitch': true, // Flag para identificar que es un switch
+      },
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: theme.scaffoldBackgroundColor, // ← Dinámico
       appBar: AppBar(
         title: const Text('Panel de Control POS', style: TextStyle(fontWeight: FontWeight.bold)),
         flexibleSpace: Container(
@@ -135,6 +147,10 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
           itemCount: menuOptions.length,
           itemBuilder: (context, index) {
             final option = menuOptions[index];
+            // Si es la opción del switch, la construimos diferente
+            if (option['isSwitch'] == true) {
+              return _buildThemeSwitch(context);
+            }
             return _buildMenuCard(
               context,
               title: option['title'],
@@ -150,10 +166,60 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     );
   }
 
+  // Widget para el switch de tema
+  Widget _buildThemeSwitch(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, child) {
+        final themeMode = ref.watch(themeModeProvider);
+        final isDark = themeMode == ThemeMode.dark ||
+            (themeMode == ThemeMode.system &&
+                MediaQuery.of(context).platformBrightness == Brightness.dark);
+
+        return Card(
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isDark ? Icons.dark_mode : Icons.light_mode,
+                  size: 48,
+                  color: isDark ? Colors.amber : Colors.orange,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isDark ? 'Modo Oscuro' : 'Modo Claro',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Switch(
+                  value: isDark,
+                  onChanged: (_) {
+                    final nuevoModo = isDark ? ThemeMode.light : ThemeMode.dark;
+                    ref.read(themeModeProvider.notifier).state = nuevoModo;
+                  },
+                  activeColor: Colors.amber,
+                ),
+                Text(
+                  isDark ? 'Activado' : 'Desactivado',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildMenuCard(BuildContext context, {required String title, required String subtitle, required IconData icon, required Color color, required VoidCallback onTap, required bool isMobile}) {
+    final theme = Theme.of(context);
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      color: theme.cardColor, // ← Dinámico
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
@@ -161,13 +227,39 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
           padding: const EdgeInsets.all(20.0),
           child: Row(
             children: [
-              Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)), child: Icon(icon, size: isMobile ? 32 : 48, color: color)),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, size: isMobile ? 32 : 48, color: color),
+              ),
               const SizedBox(width: 20),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: isMobile ? 16 : 22, color: const Color(0xFF0F172A))),
-                const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(fontSize: isMobile ? 12 : 14, color: Colors.grey.shade600)),
-              ])),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: isMobile ? 16 : 22,
+                        color: theme.textTheme.bodyLarge?.color, // ← Dinámico
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: isMobile ? 12 : 14,
+                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7), // ← Dinámico
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
