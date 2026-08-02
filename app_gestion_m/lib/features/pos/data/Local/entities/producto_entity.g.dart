@@ -27,38 +27,53 @@ const ProductoEntitySchema = CollectionSchema(
       name: r'codigoBarras',
       type: IsarType.string,
     ),
-    r'esPesado': PropertySchema(
+    r'eliminado': PropertySchema(
       id: 2,
+      name: r'eliminado',
+      type: IsarType.bool,
+    ),
+    r'eliminadoEn': PropertySchema(
+      id: 3,
+      name: r'eliminadoEn',
+      type: IsarType.dateTime,
+    ),
+    r'esPesado': PropertySchema(
+      id: 4,
       name: r'esPesado',
       type: IsarType.bool,
     ),
     r'nombre': PropertySchema(
-      id: 3,
+      id: 5,
       name: r'nombre',
       type: IsarType.string,
     ),
     r'precioUnidad': PropertySchema(
-      id: 4,
+      id: 6,
       name: r'precioUnidad',
       type: IsarType.double,
     ),
     r'proveedorNombre': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'proveedorNombre',
       type: IsarType.string,
     ),
     r'proveedorTelefono': PropertySchema(
-      id: 6,
+      id: 8,
       name: r'proveedorTelefono',
       type: IsarType.string,
     ),
+    r'sincronizado': PropertySchema(
+      id: 9,
+      name: r'sincronizado',
+      type: IsarType.bool,
+    ),
     r'stock': PropertySchema(
-      id: 7,
+      id: 10,
       name: r'stock',
       type: IsarType.double,
     ),
     r'stockMinimo': PropertySchema(
-      id: 8,
+      id: 11,
       name: r'stockMinimo',
       type: IsarType.double,
     )
@@ -113,13 +128,16 @@ void _productoEntitySerialize(
 ) {
   writer.writeString(offsets[0], object.categoria);
   writer.writeString(offsets[1], object.codigoBarras);
-  writer.writeBool(offsets[2], object.esPesado);
-  writer.writeString(offsets[3], object.nombre);
-  writer.writeDouble(offsets[4], object.precioUnidad);
-  writer.writeString(offsets[5], object.proveedorNombre);
-  writer.writeString(offsets[6], object.proveedorTelefono);
-  writer.writeDouble(offsets[7], object.stock);
-  writer.writeDouble(offsets[8], object.stockMinimo);
+  writer.writeBool(offsets[2], object.eliminado);
+  writer.writeDateTime(offsets[3], object.eliminadoEn);
+  writer.writeBool(offsets[4], object.esPesado);
+  writer.writeString(offsets[5], object.nombre);
+  writer.writeDouble(offsets[6], object.precioUnidad);
+  writer.writeString(offsets[7], object.proveedorNombre);
+  writer.writeString(offsets[8], object.proveedorTelefono);
+  writer.writeBool(offsets[9], object.sincronizado);
+  writer.writeDouble(offsets[10], object.stock);
+  writer.writeDouble(offsets[11], object.stockMinimo);
 }
 
 ProductoEntity _productoEntityDeserialize(
@@ -131,14 +149,17 @@ ProductoEntity _productoEntityDeserialize(
   final object = ProductoEntity();
   object.categoria = reader.readString(offsets[0]);
   object.codigoBarras = reader.readString(offsets[1]);
-  object.esPesado = reader.readBool(offsets[2]);
+  object.eliminado = reader.readBool(offsets[2]);
+  object.eliminadoEn = reader.readDateTimeOrNull(offsets[3]);
+  object.esPesado = reader.readBool(offsets[4]);
   object.id = id;
-  object.nombre = reader.readString(offsets[3]);
-  object.precioUnidad = reader.readDouble(offsets[4]);
-  object.proveedorNombre = reader.readString(offsets[5]);
-  object.proveedorTelefono = reader.readString(offsets[6]);
-  object.stock = reader.readDouble(offsets[7]);
-  object.stockMinimo = reader.readDouble(offsets[8]);
+  object.nombre = reader.readString(offsets[5]);
+  object.precioUnidad = reader.readDouble(offsets[6]);
+  object.proveedorNombre = reader.readString(offsets[7]);
+  object.proveedorTelefono = reader.readString(offsets[8]);
+  object.sincronizado = reader.readBool(offsets[9]);
+  object.stock = reader.readDouble(offsets[10]);
+  object.stockMinimo = reader.readDouble(offsets[11]);
   return object;
 }
 
@@ -156,16 +177,22 @@ P _productoEntityDeserializeProp<P>(
     case 2:
       return (reader.readBool(offset)) as P;
     case 3:
-      return (reader.readString(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 4:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 5:
       return (reader.readString(offset)) as P;
     case 6:
-      return (reader.readString(offset)) as P;
-    case 7:
       return (reader.readDouble(offset)) as P;
+    case 7:
+      return (reader.readString(offset)) as P;
     case 8:
+      return (reader.readString(offset)) as P;
+    case 9:
+      return (reader.readBool(offset)) as P;
+    case 10:
+      return (reader.readDouble(offset)) as P;
+    case 11:
       return (reader.readDouble(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -638,6 +665,90 @@ extension ProductoEntityQueryFilter
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'codigoBarras',
         value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      eliminadoEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'eliminado',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      eliminadoEnIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'eliminadoEn',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      eliminadoEnIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'eliminadoEn',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      eliminadoEnEqualTo(DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'eliminadoEn',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      eliminadoEnGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'eliminadoEn',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      eliminadoEnLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'eliminadoEn',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      eliminadoEnBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'eliminadoEn',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
       ));
     });
   }
@@ -1182,6 +1293,16 @@ extension ProductoEntityQueryFilter
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      sincronizadoEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'sincronizado',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
       stockEqualTo(
     double value, {
     double epsilon = Query.epsilon,
@@ -1349,6 +1470,33 @@ extension ProductoEntityQuerySortBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> sortByEliminado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByEliminadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminado', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByEliminadoEn() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminadoEn', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByEliminadoEnDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminadoEn', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> sortByEsPesado() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'esPesado', Sort.asc);
@@ -1417,6 +1565,20 @@ extension ProductoEntityQuerySortBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortBySincronizado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'sincronizado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortBySincronizadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'sincronizado', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> sortByStock() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'stock', Sort.asc);
@@ -1470,6 +1632,33 @@ extension ProductoEntityQuerySortThenBy
       thenByCodigoBarrasDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'codigoBarras', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> thenByEliminado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByEliminadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminado', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByEliminadoEn() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminadoEn', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByEliminadoEnDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminadoEn', Sort.desc);
     });
   }
 
@@ -1553,6 +1742,20 @@ extension ProductoEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenBySincronizado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'sincronizado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenBySincronizadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'sincronizado', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> thenByStock() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'stock', Sort.asc);
@@ -1596,6 +1799,20 @@ extension ProductoEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByEliminado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'eliminado');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByEliminadoEn() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'eliminadoEn');
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QDistinct> distinctByEsPesado() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'esPesado');
@@ -1629,6 +1846,13 @@ extension ProductoEntityQueryWhereDistinct
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'proveedorTelefono',
           caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctBySincronizado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'sincronizado');
     });
   }
 
@@ -1667,6 +1891,19 @@ extension ProductoEntityQueryProperty
     });
   }
 
+  QueryBuilder<ProductoEntity, bool, QQueryOperations> eliminadoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'eliminado');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, DateTime?, QQueryOperations>
+      eliminadoEnProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'eliminadoEn');
+    });
+  }
+
   QueryBuilder<ProductoEntity, bool, QQueryOperations> esPesadoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'esPesado');
@@ -1697,6 +1934,12 @@ extension ProductoEntityQueryProperty
       proveedorTelefonoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'proveedorTelefono');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, bool, QQueryOperations> sincronizadoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'sincronizado');
     });
   }
 

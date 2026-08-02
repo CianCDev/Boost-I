@@ -17,4 +17,16 @@ class ProductoEntity {
   String proveedorNombre = '';
   String proveedorTelefono = '';
   double stockMinimo = 5.0;
+
+  // Soft-delete & sync metadata
+  /// Indica si el producto fue marcado como eliminado (soft-delete). Los productos eliminados
+  /// no se muestran en el inventario local pero se mantienen en la DB para poder sincronizarlos
+  /// y ofrecer la opción de deshacer.
+  bool eliminado = false;
+
+  /// Fecha (UTC) en la que se marcó como eliminado, si aplica
+  DateTime? eliminadoEn;
+
+  /// Indica si los cambios locales ya fueron sincronizados con Supabase
+  bool sincronizado = false;
 }

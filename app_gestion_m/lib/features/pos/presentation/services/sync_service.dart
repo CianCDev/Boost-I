@@ -259,7 +259,8 @@ class SyncService {
 
   Future<bool> sincronizarProductosASupabase() async {
     try {
-      final productosLocales = await _isarService.obtenerProductos();
+      // Obtenemos sólo los productos con cambios pendientes de sincronización
+      final productosLocales = await _isarService.obtenerProductosParaSync();
       if (productosLocales.isEmpty) return true;
 
       final List<Map<String, dynamic>> payloadList = productosLocales.map((p) {
@@ -273,11 +274,21 @@ class SyncService {
           'categoria': p.categoria,
           'proveedor_nombre': p.proveedorNombre,
           'proveedor_telefono': p.proveedorTelefono,
+          // Metadata para soft-delete
+          'eliminado': p.eliminado,
+          'eliminado_en': p.eliminadoEn?.toIso8601String(),
         };
       }).toList();
 
       await _supabase.from('productos').upsert(payloadList, onConflict: 'codigo_barras');
       debugPrint('✅ ${productosLocales.length} productos sincronizados con Supabase');
+
+      // Marcar como sincronizados localmente
+      for (var p in productosLocales) {
+        p.sincronizado = true;
+        await _isarService.guardarProducto(p);
+      }
+
       return true;
     } catch (e) {
       debugPrint('🚫 Error sincronizando productos: $e');
@@ -306,6 +317,11 @@ class SyncService {
           producto.categoria = item['categoria'] ?? 'General';
           producto.proveedorNombre = item['proveedor_nombre'] ?? '';
           producto.proveedorTelefono = item['proveedor_telefono'] ?? '';
+
+          // Estos productos vienen desde el servidor: marcarlos como sincronizados localmente
+          producto.sincronizado = true;
+          producto.eliminado = item['eliminado'] == true;
+          producto.eliminadoEn = item['eliminado_en'] != null ? DateTime.tryParse(item['eliminado_en'])?.toUtc() : null;
 
           await _isarService.guardarProducto(producto);
         }
