@@ -12,9 +12,8 @@ final isDarkModeProvider = Provider<bool>((ref) {
   final themeMode = ref.watch(themeModeProvider);
   // Si es sistema, detecta el modo del sistema
   if (themeMode == ThemeMode.system) {
-    // ignore: deprecated_member_use
     return WidgetsBinding.instance.window.platformBrightness == Brightness.dark;
   }
-  return themeMode == ThemeMode.dark; //
+  return themeMode == ThemeMode.dark;
 });
 

@@ -354,6 +354,7 @@ class SyncService {
     }
   }
 
+
   /// Sincroniza todos los datos pendientes
   Future<void> sincronizarTodo() async {
     await sincronizarVentasPendientes();
@@ -362,6 +363,41 @@ class SyncService {
     await sincronizarCategoriasASupabase();
   }
 
+Stream<List<UsuarioEntity>> streamUsuariosEnTiempoReal() {
+  return _supabase
+      .from('usuarios') // ← TABLA FÍSICA
+      .stream(primaryKey: ['id'])
+      .map((data) {
+        return data.map<UsuarioEntity>((row) {
+          return UsuarioEntity()
+            ..id = row['id_isar'] as int
+            ..nombre = row['nombre'] as String
+            ..rol = row['rol'] as String
+            ..estado = row['estado'] as String? ?? 'inactivo';
+        }).toList();
+      });
+}
+
+Future<bool> actualizarEstadoUsuarioEnSupabase(int userId, String nuevoEstado) async {
+  try {
+    print('🔍 Intentando actualizar userId: $userId a estado: $nuevoEstado');
+    
+    final response = await _supabase
+        .from('usuarios')
+        .update({'estado': nuevoEstado})
+        .eq('id_isar', userId)
+        .select(); // ← .select() devuelve las filas afectadas
+
+    print('✅ Filas afectadas: ${response.length}');
+    if (response.isNotEmpty) {
+      print('✅ Usuario actualizado: ${response.first}');
+    }
+    return response.isNotEmpty;
+  } catch (e) {
+    print('❌ Error en actualizarEstadoUsuarioEnSupabase: $e');
+    return false;
+  }
+}
   /// Limpia recursos
   void dispose() {
     detenerMonitoreo();
