@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:app_boosti_v2/features/pos/presentation/widgets/rest_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,12 +11,12 @@ import '../../domain/models/product_item.dart';
 import '../controllers/cart_controller.dart';
 import '../providers/bcv_provider.dart';
 import '../services/ticket_service.dart';
+import '../widgets/admin_validation_dialog.dart';
 import '../widgets/cobrar_dialog.dart';
 import '../utils/responsive_helper.dart';
 import '../services/scale_service.dart';
 import 'inventory_screen.dart';
 import 'pos_menu_screen.dart'; // <--- Servicio de la Balanza
- // <--- Modal de Monitor de Empleados
 
 // Asegúrate de tener importado tu nuevo Panel de Control
 // import 'pos_menu_screen.dart'; 
@@ -216,185 +215,246 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   // ==========================================
   // MODAL DE CANTIDAD (CON BALANZA)
   // ==========================================
-  void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
+void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
     final TextEditingController cantidadController = TextEditingController(
       text: producto.esPesado ? '1.000' : '1',
     );
+    // NUEVO: Controlador para el precio personalizado
+    final TextEditingController precioController = TextEditingController(
+      text: producto.precioUnidad.toStringAsFixed(2),
+    );
+
     final isTablet = ResponsiveHelper.isTablet(context);
     final isDesktop = !isTablet && !ResponsiveHelper.isMobile(context);
 
-    // 1. SUSCRIPCIÓN AL PESO
-    if (producto.esPesado) {
-      _weightSub = _scaleService.weightStream.listen((peso) {
-        if (peso > 0) {
-          cantidadController.text = peso.toStringAsFixed(3);
-          cantidadController.selection = TextSelection.fromPosition(
-            TextPosition(offset: cantidadController.text.length)
-          );
-        }
-      });
-    }
+    // NUEVO: Variable para saber si ya pasamos la validación del admin en esta transacción
+    bool adminValidoParaEstaVenta = false;
 
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          elevation: 8,
-          insetPadding: EdgeInsets.symmetric(
-            horizontal: isTablet || isDesktop ? 40.0 : 16.0,
-            vertical: 24.0,
-          ),
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: isTablet || isDesktop ? 550.0 : double.infinity,
-            ),
-            padding: EdgeInsets.all(isTablet ? 32.0 : 20.0), 
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: SingleChildScrollView( 
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.shopping_cart_outlined, color: Color(0xFF10B981), size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Agregar ${producto.nombre}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: Color(0xFF0F172A),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    producto.esPesado
-                        ? 'Producto de Balanza (ingresa el peso en kg):'
-                        : 'Ingresa la cantidad deseada (unidades):',
-                    style: TextStyle(
-                      fontSize: isTablet || isDesktop ? 16 : 14,
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: cantidadController,
-                    autofocus: true,
-                    keyboardType: TextInputType.numberWithOptions(decimal: producto.esPesado),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        producto.esPesado
-                            ? RegExp(r'^\d*\.?\d{0,3}')
-                            : RegExp(r'^\d*'),
-                      ),
-                    ],
-                    onTap: () {
-                      cantidadController.selection = TextSelection(
-                        baseOffset: 0,
-                        extentOffset: cantidadController.text.length,
-                      );
-                    },
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                    decoration: InputDecoration(
-                      labelText: 'Cantidad',
-                      labelStyle: TextStyle(fontSize: isTablet || isDesktop ? 16 : 14, color: Colors.grey.shade600),
-                      suffixText: producto.esPesado ? 'kg' : 'unid',
-                      suffixStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color.fromRGBO(97, 97, 97, 1)),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isTablet || isDesktop ? 20 : 14),
-                      filled: true,
-                      fillColor: const Color(0xFFF8FAFC),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
-                      ),
-                    ),
-                    onSubmitted: (val) {
-                      _weightSub?.cancel(); 
-                      final double? cantidad = double.tryParse(val);
-                      if (cantidad != null && cantidad > 0) {
-                        Navigator.of(dialogContext).pop();
-                        _agregarAlCarrito(producto, cantidad);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 28),
-
-                  // BOTONES DE ACCIÓN
-                  Wrap(
-                    alignment: WrapAlignment.end,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                          foregroundColor: Colors.grey.shade700,
-                          backgroundColor: const Color(0xFFF1F5F9),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () {
-                          _weightSub?.cancel(); // CANCELAR SUSCRIPCIÓN
-                          cantidadController.dispose();
-                          Navigator.of(dialogContext).pop();
-                        },
-                        child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 4,
-                        ),
-                        onPressed: () {
-                          _weightSub?.cancel(); // CANCELAR SUSCRIPCIÓN
-                          final double? cantidad = double.tryParse(cantidadController.text);
-                          if (cantidad == null || cantidad <= 0) return;
-
-                          Navigator.of(dialogContext).pop();
-                          _agregarAlCarrito(producto, cantidad);
-                          cantidadController.dispose();
-                        },
-                        child: const Text('Agregar al Carrito', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                      ),
-                    ],
-                  ),
-                ],
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              elevation: 8,
+              insetPadding: EdgeInsets.symmetric(
+                horizontal: isTablet || isDesktop ? 40.0 : 16.0,
+                vertical: 24.0,
               ),
-            ),
-          ),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: isTablet || isDesktop ? 550.0 : double.infinity,
+                ),
+                padding: EdgeInsets.all(isTablet ? 32.0 : 20.0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Título
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.shopping_cart_outlined, color: Color(0xFF10B981), size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Agregar ${producto.nombre}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: Color(0xFF0F172A),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Texto descriptivo
+                      Text(
+                        producto.esPesado
+                            ? 'Producto de Balanza (ingresa el peso en kg):'
+                            : 'Ingresa la cantidad deseada (unidades):',
+                        style: TextStyle(
+                          fontSize: isTablet || isDesktop ? 16 : 14,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // CAMPO DE CANTIDAD
+                      TextField(
+                        controller: cantidadController,
+                        autofocus: true,
+                        keyboardType: TextInputType.numberWithOptions(decimal: producto.esPesado),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            producto.esPesado
+                                ? RegExp(r'^\d*\.?\d{0,3}')
+                                : RegExp(r'^\d*'),
+                          ),
+                        ],
+                        onTap: () {
+                          cantidadController.selection = TextSelection(
+                            baseOffset: 0,
+                            extentOffset: cantidadController.text.length,
+                          );
+                        },
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                        decoration: InputDecoration(
+                          labelText: 'Cantidad',
+                          labelStyle: TextStyle(fontSize: isTablet || isDesktop ? 16 : 14, color: Colors.grey.shade600),
+                          suffixText: producto.esPesado ? 'kg' : 'unid',
+                          suffixStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color.fromRGBO(97, 97, 97, 1)),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isTablet || isDesktop ? 20 : 14),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
+                          ),
+                        ),
+                        onSubmitted: (val) {
+                          final double? cantidad = double.tryParse(val);
+                          if (cantidad != null && cantidad > 0) {
+                            _agregarAlCarrito(producto, cantidad);
+                          }
+                        },
+                      ),
+
+                      // NUEVO: CAMPO DE PRECIO PERSONALIZADO
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: precioController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                        decoration: InputDecoration(
+                          labelText: 'Precio por unidad (\$)',
+                          prefixText: '\$ ',
+                          labelStyle: TextStyle(fontSize: isTablet || isDesktop ? 16 : 14, color: Colors.grey.shade600),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isTablet || isDesktop ? 20 : 14),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5)),
+                        ),
+                      ),
+
+                      const SizedBox(height: 28),
+
+                      // BOTONES DE ACCIÓN
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                              foregroundColor: Colors.grey.shade700,
+                              backgroundColor: const Color(0xFFF1F5F9),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () {
+                              Navigator.of(dialogContext).pop();
+                              cantidadController.dispose();
+                              precioController.dispose();
+                            },
+                            child: const Text('Cancelar', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 4,
+                            ),
+                            onPressed: () async {
+                              final double? cantidad = double.tryParse(cantidadController.text);
+                              if (cantidad == null || cantidad <= 0) return;
+
+                              final double precioIngresado = double.tryParse(precioController.text) ?? producto.precioUnidad;
+                              final double precioOriginal = producto.precioUnidad;
+                              final double topeDescuento = precioOriginal * 0.80; // 80% del precio original es el tope
+
+                              // Lógica de validación
+                              if (!adminValidoParaEstaVenta && precioIngresado < topeDescuento) {
+                                // Se dispara la validación del admin
+                                await showDialog(
+                                  context: dialogContext,
+                                  builder: (context) => AdminValidationDialog(
+                                    onSuccess: () {
+                                      setStateModal(() => adminValidoParaEstaVenta = true);
+                                    },
+                                    onCancel: () {
+                                      // Si el admin cancela, limpiamos el precio
+                                      precioController.text = producto.precioUnidad.toStringAsFixed(2);
+                                    },
+                                  ),
+                                );
+                                // Si la validación falló, detenemos el flujo aquí
+                                if (!adminValidoParaEstaVenta) return;
+                              }
+
+                              // Si llegamos aquí, la venta está autorizada
+                              // ignore: use_build_context_synchronously
+                              Navigator.of(dialogContext).pop();
+                              cantidadController.dispose();
+                              precioController.dispose();
+
+                              // Creamos una copia temporal del producto con el nuevo precio para el carrito
+                              final productoConPrecioModificado = ProductoEntity()
+                                ..id = producto.id
+                                ..codigoBarras = producto.codigoBarras
+                                ..nombre = producto.nombre
+                                ..precioUnidad = precioIngresado
+                                ..esPesado = producto.esPesado
+                                ..categoria = producto.categoria
+                                ..stock = producto.stock
+                                ..stockMinimo = producto.stockMinimo
+                                ..proveedorNombre = producto.proveedorNombre
+                                ..proveedorTelefono = producto.proveedorTelefono;
+
+                              _agregarAlCarrito(productoConPrecioModificado, cantidad);
+                            },
+                            child: const Text('Agregar al Carrito', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -619,8 +679,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
               ),
             ),
           ),
-           if (widget.usuarioLogueado != null)
-            CajeroRestButton(usuario: widget.usuarioLogueado!),
+          
           const SizedBox(width: 6),
 
           // 2. BOTÓN DE INVENTARIO (Gradiente y Sombra)

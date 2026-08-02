@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../utils/responsive_helper.dart';
 import '../../data/Local/entities/isar_service.dart';
+import '../widgets/admin_validation_dialog.dart';
 import 'cash_closing_screen.dart';
 import 'sales_history_screen.dart';
 import '../widgets/monitor_empleado_widget.dart';
@@ -52,6 +53,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final theme = Theme.of(context); // ← Para usar colores dinámicos
+    final usuarioLogueado = ref.read(usuarioActualProvider);
 
     // Lista de opciones del menú (incluye el switch de tema al final)
     final List<Map<String, dynamic>> menuOptions = [
@@ -69,30 +71,67 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
         'color': _ventasPendientesSync > 0 ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
         'onTap': _sincronizarVentas,
       },
-      {
-        'title': 'Monitor de Empleados',
-        'subtitle': 'Estado de cajeros conectados',
-        'icon': Icons.people_alt_rounded,
-        'color': const Color(0xFF3B82F6),
+
+         // --------------------------------------------
+      // OPCIONES SOLO PARA ADMINISTRADORES
+      // --------------------------------------------
+      if (usuarioLogueado?.rol == 'admin') ...[
+        {
+          'title': 'Monitor de Empleados',
+          'subtitle': 'Estado de cajeros conectados',
+          'icon': Icons.people_alt_rounded,
+          'color': const Color(0xFF3B82F6),
         'onTap': () => showDialog(context: context, builder: (context) => const EmployeeMonitorDialog()),
       },
       {
-        'title': 'Gestión de Personal',
-        'subtitle': 'Crear y administrar admins y cajeros',
-        'icon': Icons.admin_panel_settings_rounded,
-        'color': const Color(0xFF8B5CF6),
-        'onTap': () => showDialog(context: context, builder: (context) => const PersonnelManagementDialog()),
-      },
+       'title': 'Gestión de Personal',
+          'subtitle': 'Crear y administrar admins y cajeros',
+          'icon': Icons.admin_panel_settings_rounded,
+          'color': const Color(0xFF8B5CF6),
+          'onTap': () => showDialog(context: context, builder: (context) => const PersonnelManagementDialog()),   },
       {
-        'title': 'Cambiar mi Clave',
+       'title': 'Cambiar mi Clave',
         'subtitle': 'Actualizar PIN de acceso',
         'icon': Icons.lock_reset_rounded,
         'color': const Color(0xFF0EA5E9),
         'onTap': () {
           final usuarioActual = ref.read(usuarioActualProvider);
-          if (usuarioActual != null) showDialog(context: context, builder: (context) => ChangePinDialog(usuario: usuarioActual));
+          if (usuarioActual == null) return;
+
+          if (usuarioActual.rol == 'admin') {
+            // ADMIN: Cambia su propio PIN directamente
+            showDialog(
+              context: context,
+              builder: (context) => AdminPinChangeDialog(
+                admin: usuarioActual,
+                isarService: _isarService
+              ),
+            );
+          } else {
+            // CAJERO: Primero validación del admin, luego diálogo de cambio
+            showDialog(
+              context: context,
+              builder: (context) => AdminValidationDialog(
+                onSuccess: () {
+                  // Si la validación es exitosa, mostramos el diálogo del cajero
+                  showDialog(
+                    context: context,
+                    builder: (context) => CashierPinChangeDialog(
+                      cajero: usuarioActual,
+                      isarService: _isarService,
+                        ),
+                  );
+                },
+                onCancel: () {
+                  // Si el admin cancela, simplemente cerramos el diálogo
+                  Navigator.of(context).pop();
+                },
+              ),
+            );
+          }
         },
       },
+              
       {
         'title': 'Cierre de Caja',
         'subtitle': 'Arqueo y balance del día',
@@ -106,6 +145,26 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
         'icon': Icons.receipt_long_rounded,
         'color': const Color(0xFF8B5CF6),
         'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SalesHistoryScreen())),
+
+      },
+      ],
+        // --------------------------------------------
+      // OPCIONES PARA AMBOS ROLES
+      // -------------------------------------------
+      {
+      
+         'title': 'Cierre de Caja',
+        'subtitle': 'Arqueo y balance del día',
+        'icon': Icons.money_off_csred_rounded,
+        'color': const Color(0xFFF59E0B),
+        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const CashClosingScreen())),
+      },
+      {
+        'title': 'Salir del POS',
+        'subtitle': 'Cerrar sesión y volver al login',
+        'icon': Icons.logout_rounded,
+        'color': const Color(0xFFEF4444),
+        'onTap': () => Navigator.of(context).popUntil((route) => route.isFirst),
       },
       // 🔘 NUEVA OPCIÓN: Modo Oscuro (Switch)
       {
