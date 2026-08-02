@@ -369,12 +369,20 @@ class IsarService {
 
   // ==================== GESTIÓN DE INVENTARIO Y PROVEEDORES ====================
   
+  /// Obtiene sólo los productos que NO están marcados como eliminados (soft-delete)
   Future<List<ProductoEntity>> obtenerProductos() async {
     final isar = await db;
-    return await isar.productoEntitys.where().findAll();
+    return await isar.productoEntitys.filter().eliminadoEqualTo(false).findAll();
   }
 
-  /// Búsqueda rápida por código o nombre para el POS
+  /// Obtiene productos que requieren sincronización hacia Supabase
+  Future<List<ProductoEntity>> obtenerProductosParaSync() async {
+    final isar = await db;
+    return await isar.productoEntitys.filter().sincronizadoEqualTo(false).findAll();
+  }
+
+  /// Búsqueda rápida por código o nombre para el POS (incluye productos eliminados para poder
+  /// encontrar coincidencias aunque hayan sido marcados como eliminados)
   Future<List<ProductoEntity>> buscarProductoPorCodigoONombre(String query) async {
     if (query.trim().isEmpty) return [];
     final isar = await db;
@@ -395,10 +403,32 @@ class IsarService {
     });
   }
 
+  /// Soft-delete: marca el producto como eliminado en lugar de borrarlo físicamente.
+  /// Esto permite sincronizar la eliminación con Supabase y ofrecer "Deshacer".
   Future<void> eliminarProducto(int id) async {
     final isar = await db;
     await isar.writeTxn(() async {
-      await isar.productoEntitys.delete(id);
+      final producto = await isar.productoEntitys.get(id);
+      if (producto != null) {
+        producto.eliminado = true;
+        producto.eliminadoEn = DateTime.now().toUtc();
+        producto.sincronizado = false; // marcar para sincronizar el cambio
+        await isar.productoEntitys.put(producto);
+      }
+    });
+  }
+
+  /// Restaura un producto previamente marcado como eliminado (undo)
+  Future<void> restaurarProducto(int id) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final producto = await isar.productoEntitys.get(id);
+      if (producto != null) {
+        producto.eliminado = false;
+        producto.eliminadoEn = null;
+        producto.sincronizado = false; // marcar para sincronizar restauración
+        await isar.productoEntitys.put(producto);
+      }
     });
   }
 

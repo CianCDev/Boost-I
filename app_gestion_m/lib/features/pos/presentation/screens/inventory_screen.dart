@@ -268,6 +268,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     producto.proveedorNombre = proveedorNombreController.text.trim();
                     producto.proveedorTelefono = proveedorTelController.text.trim();
 
+                    // Marcar como pendiente de sincronización localmente
+                    producto.sincronizado = false;
                     await _isarService.guardarProducto(producto);
                     await SyncService().sincronizarCategoriasASupabase();
                     await SyncService().sincronizarProductosASupabase();
@@ -565,9 +567,58 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ],
       ),
       trailing: _esAdmin
-          ? IconButton(
-              icon: const Icon(Icons.edit, color: Colors.blueGrey, size: 20),
-              onPressed: () => _mostrarFormularioProducto(productoAEditar: p),
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.blueGrey, size: 20),
+                  onPressed: () => _mostrarFormularioProducto(productoAEditar: p),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                  tooltip: 'Eliminar producto',
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (dialogContext) => AlertDialog(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        title: const Text('Confirmar eliminación', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                        content: Text('¿Estás seguro de que deseas eliminar el producto "${p.nombre}"?\nEsta acción es irreversible.', style: const TextStyle(fontSize: 14)),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                            onPressed: () => Navigator.pop(dialogContext, true),
+                            child: const Text('Eliminar'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true && mounted) {
+                      final deletedId = p.id;
+                      await _isarService.eliminarProducto(p.id);
+                      await SyncService().sincronizarProductosASupabase();
+                      _cargarInventario();
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('✅ Producto eliminado correctamente.'),
+                          backgroundColor: Colors.green,
+                          action: SnackBarAction(
+                            label: 'Deshacer',
+                            textColor: Colors.white,
+                            onPressed: () async {
+                              await _isarService.restaurarProducto(deletedId);
+                              _cargarInventario();
+                              await SyncService().sincronizarProductosASupabase();
+                            },
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
             )
           : null,
     );
@@ -650,15 +701,65 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           if (_esAdmin)
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => _mostrarFormularioProducto(productoAEditar: p),
-                icon: const Icon(Icons.edit, size: 14, color: Colors.blueGrey),
-                label: const Text('Editar', style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _mostrarFormularioProducto(productoAEditar: p),
+                    icon: const Icon(Icons.edit, size: 14, color: Colors.blueGrey),
+                    label: const Text('Editar', style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                    tooltip: 'Eliminar producto',
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          title: const Text('Confirmar eliminación', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                          content: Text('¿Estás seguro de que deseas eliminar el producto "${p.nombre}"?\nEsta acción es irreversible.', style: const TextStyle(fontSize: 14)),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                              onPressed: () => Navigator.pop(dialogContext, true),
+                              child: const Text('Eliminar'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true && mounted) {
+                       final deletedId = p.id;
+                       await _isarService.eliminarProducto(p.id);
+                       await SyncService().sincronizarProductosASupabase();
+                       _cargarInventario();
+
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         SnackBar(
+                           content: const Text('✅ Producto eliminado correctamente.'),
+                           backgroundColor: Colors.green,
+                           action: SnackBarAction(
+                             label: 'Deshacer',
+                             textColor: Colors.white,
+                             onPressed: () async {
+                               await _isarService.restaurarProducto(deletedId);
+                               _cargarInventario();
+                               await SyncService().sincronizarProductosASupabase();
+                             },
+                           ),
+                         ),
+                       );
+                     }
+                   },
+                  ),
+                ],
               ),
             ),
         ],
