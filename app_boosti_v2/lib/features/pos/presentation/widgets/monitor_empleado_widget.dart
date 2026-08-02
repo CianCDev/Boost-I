@@ -1,7 +1,4 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import '../../presentation/services/sync_service.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 
@@ -13,15 +10,7 @@ class EmployeeMonitorDialog extends StatefulWidget {
 }
 
 class _EmployeeMonitorDialogState extends State<EmployeeMonitorDialog> {
-  final SyncService _syncService = SyncService();
-  // Variable para almacenar la suscripción y poder cancelarla al cerrar el modal
-  StreamSubscription? _realtimeSub;
-
-  @override
-  void dispose() {
-    _realtimeSub?.cancel();
-    super.dispose();
-  }
+  final IsarService _isarService = IsarService();
 
   @override
   Widget build(BuildContext context) {
@@ -31,15 +20,14 @@ class _EmployeeMonitorDialogState extends State<EmployeeMonitorDialog> {
         children: [
           Icon(Icons.monitor_heart_outlined, color: Color(0xFF3B82F6), size: 28),
           SizedBox(width: 10),
-          Text('Monitor en Tiempo Real', style: TextStyle(fontWeight: FontWeight.bold)),
+          Text('Monitor de Cajeros', style: TextStyle(fontWeight: FontWeight.bold)),
         ],
       ),
       content: SizedBox(
         width: 480,
-        height: 360,
-        // CAMBIO: De FutureBuilder a StreamBuilder
-        child: StreamBuilder<List<UsuarioEntity>>(
-          stream: _syncService.streamUsuariosEnTiempoReal(),
+        height: 320,
+        child: FutureBuilder<List<UsuarioEntity>>(
+          future: _isarService.obtenerUsuarios(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)));
@@ -47,7 +35,6 @@ class _EmployeeMonitorDialogState extends State<EmployeeMonitorDialog> {
             if (snapshot.hasError) {
               return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red, fontSize: 13)));
             }
-            
             final usuarios = snapshot.data ?? [];
             if (usuarios.isEmpty) {
               return const Center(child: Text('No hay cajeros registrados.', style: TextStyle(color: Color(0xFF64748B))));
