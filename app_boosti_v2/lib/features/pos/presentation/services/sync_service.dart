@@ -10,6 +10,7 @@ import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/movimiento_inventario_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
+import 'package:supabase/supabase.dart';
 
 /// Servicio encargado de sincronizar las ventas, catálogo y movimientos (Isar DB)
 /// hacia la base de datos remota en la nube (Supabase).
@@ -137,6 +138,10 @@ class SyncService {
       } catch (e) {
         debugPrint('⚠️ Microservicio falló, intentando con Supabase directo: $e');
       }
+
+
+
+      
 
       // Fallback: intentar con Supabase directo
       final responseVenta = await _supabase.from('ventas').insert(payload).select('id').single();

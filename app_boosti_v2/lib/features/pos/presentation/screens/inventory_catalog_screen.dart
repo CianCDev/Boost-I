@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/rest_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import '../utils/responsive_helper.dart';
 import '../services/scale_service.dart';
 import 'inventory_screen.dart';
 import 'pos_menu_screen.dart'; // <--- Servicio de la Balanza
+ // <--- Modal de Monitor de Empleados
 
 // Asegúrate de tener importado tu nuevo Panel de Control
 // import 'pos_menu_screen.dart'; 
@@ -575,7 +577,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
           ),
         ),
         title: Text(
-          isMobile ? '' : 'Catálogo de Inventario y POS',
+          isMobile ? '' : 'Catálogo',
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         flexibleSpace: Container(
@@ -617,7 +619,8 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
               ),
             ),
           ),
-          
+           if (widget.usuarioLogueado != null)
+            CajeroRestButton(usuario: widget.usuarioLogueado!),
           const SizedBox(width: 6),
 
           // 2. BOTÓN DE INVENTARIO (Gradiente y Sombra)
