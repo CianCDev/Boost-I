@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:device_preview/device_preview.dart';
+
+// 👇 IMPORTS NECESARIOS PARA EL TEMA
+import 'features/pos/presentation/providers/theme_provider.dart';
+import 'features/pos/presentation/theme/theme.dart';
+
+// 👇 IMPORTS DE TU APP
 import 'features/pos/presentation/screens/login_screen.dart';
 import 'features/pos/data/Local/entities/isar_service.dart';
 import 'features/pos/presentation/providers/lock_provider.dart';
@@ -35,15 +41,16 @@ class AppGestionM extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 👇 Escucha los cambios del tema
+    final themeMode = ref.watch(themeModeProvider);
     final isLocked = ref.watch(lockProvider);
 
     return MaterialApp(
       title: 'BoostI POS - JAH Lab',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF10B981)),
-        useMaterial3: true,
-      ),
+      theme: lightTheme(),      // Tema claro
+      darkTheme: darkTheme(),   // Tema oscuro
+      themeMode: themeMode,     // 👈 Controlado por el provider
       home: const LoginScreen(),
       builder: (context, child) {
         return IdleDetector(

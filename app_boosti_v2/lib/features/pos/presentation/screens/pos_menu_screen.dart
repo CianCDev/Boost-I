@@ -8,7 +8,7 @@ import '../widgets/monitor_empleado_widget.dart';
 import '../widgets/gestion_personal_dialog.dart';
 import '../widgets/cambiar_pin_dialog.dart';
 import '../../presentation/providers/usuario_provider.dart';
-import '../../presentation/providers/theme_provider.dart'; // ← Importa el provider del tema
+import '../../presentation/providers/theme_provider.dart';
 
 class PosMenuScreen extends ConsumerStatefulWidget {
   const PosMenuScreen({super.key});
@@ -39,9 +39,23 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     try {
       final sincronizadas = await _isarService.sincronizarVentasConServidor();
       await _cargarEstadoSync();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('¡$sincronizadas ventas sincronizadas! 🎉'), backgroundColor: const Color(0xFF10B981)));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('¡$sincronizadas ventas sincronizadas! 🎉'),
+            backgroundColor: const Color(0xFF10B981),
+          ),
+        );
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al sincronizar: $e'), backgroundColor: Colors.red));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al sincronizar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _sincronizando = false);
     }
@@ -51,9 +65,8 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
-    final theme = Theme.of(context); // ← Para usar colores dinámicos
+    final theme = Theme.of(context);
 
-    // Lista de opciones del menú (incluye el switch de tema al final)
     final List<Map<String, dynamic>> menuOptions = [
       {
         'title': 'Volver al Catálogo',
@@ -90,7 +103,12 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
         'color': const Color(0xFF0EA5E9),
         'onTap': () {
           final usuarioActual = ref.read(usuarioActualProvider);
-          if (usuarioActual != null) showDialog(context: context, builder: (context) => ChangePinDialog(usuario: usuarioActual));
+          if (usuarioActual != null) {
+            showDialog(
+              context: context,
+              builder: (context) => ChangePinDialog(usuario: usuarioActual),
+            );
+          }
         },
       },
       {
@@ -98,30 +116,38 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
         'subtitle': 'Arqueo y balance del día',
         'icon': Icons.money_off_csred_rounded,
         'color': const Color(0xFFF59E0B),
-        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const CashClosingScreen())),
+        'onTap': () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const CashClosingScreen()),
+        ),
       },
       {
         'title': 'Historial de Ventas',
         'subtitle': 'Ventas del día y turnos',
         'icon': Icons.receipt_long_rounded,
         'color': const Color(0xFF8B5CF6),
-        'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SalesHistoryScreen())),
+        'onTap': () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const SalesHistoryScreen()),
+        ),
       },
-      // 🔘 NUEVA OPCIÓN: Modo Oscuro (Switch)
       {
         'title': 'Modo Oscuro',
         'subtitle': 'Activar o desactivar tema oscuro',
         'icon': Icons.dark_mode,
         'color': Colors.amber,
-        'onTap': null, // No se usa, el switch maneja el cambio
-        'isSwitch': true, // Flag para identificar que es un switch
+        'onTap': null,
+        'isSwitch': true,
       },
     ];
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor, // ← Dinámico
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Panel de Control POS', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Panel de Control POS',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -147,7 +173,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
           itemCount: menuOptions.length,
           itemBuilder: (context, index) {
             final option = menuOptions[index];
-            // Si es la opción del switch, la construimos diferente
             if (option['isSwitch'] == true) {
               return _buildThemeSwitch(context);
             }
@@ -166,8 +191,9 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     );
   }
 
-  // Widget para el switch de tema
+  // Widget para el switch de tema (AHORA CON COLORES DINÁMICOS)
   Widget _buildThemeSwitch(BuildContext context) {
+    final theme = Theme.of(context);
     return Consumer(
       builder: (context, ref, child) {
         final themeMode = ref.watch(themeModeProvider);
@@ -178,6 +204,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
         return Card(
           elevation: 4,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          color: theme.cardColor, // ← Dinámico
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -191,7 +218,11 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
                 const SizedBox(height: 8),
                 Text(
                   isDark ? 'Modo Oscuro' : 'Modo Claro',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: theme.textTheme.bodyLarge?.color, // ← Dinámico
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Switch(
@@ -204,7 +235,10 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
                 ),
                 Text(
                   isDark ? 'Activado' : 'Desactivado',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7), // ← Dinámico
+                  ),
                 ),
               ],
             ),
@@ -214,12 +248,20 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     );
   }
 
-  Widget _buildMenuCard(BuildContext context, {required String title, required String subtitle, required IconData icon, required Color color, required VoidCallback onTap, required bool isMobile}) {
+  Widget _buildMenuCard(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    required bool isMobile,
+  }) {
     final theme = Theme.of(context);
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: theme.cardColor, // ← Dinámico
+      color: theme.cardColor,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
@@ -230,7 +272,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
+                  color: color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(icon, size: isMobile ? 32 : 48, color: color),
@@ -246,7 +288,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: isMobile ? 16 : 22,
-                        color: theme.textTheme.bodyLarge?.color, // ← Dinámico
+                        color: theme.textTheme.bodyLarge?.color,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -254,7 +296,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
                       subtitle,
                       style: TextStyle(
                         fontSize: isMobile ? 12 : 14,
-                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7), // ← Dinámico
+                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                       ),
                     ),
                   ],

@@ -43,7 +43,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     super.initState();
     _inicializarYCargarUsuarios();
 
-    // Configurar animaciones
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -66,7 +65,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       ),
     );
 
-    // Iniciar animación al cargar
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _animationController.forward();
     });
@@ -82,7 +80,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // MÉTODOS DE AUTENTICACIÓN
+  // MÉTODOS DE AUTENTICACIÓN (SIN CAMBIOS)
   // ============================================================
 
   Future<void> _inicializarYCargarUsuarios() async {
@@ -153,21 +151,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       print('🔍 ID del usuario logueado en Isar: ${usuarioValido.id}');
 
       try {
-    final syncService = SyncService();
-    await syncService.actualizarEstadoUsuarioEnSupabase(usuarioValido.id, 'activo');
-    // Opcional: también actualizar localmente por si acaso
-    await _isarService.actualizarEstadoUsuario(usuarioValido.id, 'activo');
-  } catch (e) {
-    // Si falla, no bloquees el login, solo registra
-    print('⚠️ No se pudo actualizar estado en Supabase: $e');
-  }
+        final syncService = SyncService();
+        await syncService.actualizarEstadoUsuarioEnSupabase(usuarioValido.id, 'activo');
+        await _isarService.actualizarEstadoUsuario(usuarioValido.id, 'activo');
+      } catch (e) {
+        print('⚠️ No se pudo actualizar estado en Supabase: $e');
+      }
       await _autenticarEnSupabase(usuarioValido);
 
-      
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => InventoryCatalogScreen(usuarioLogueado: usuarioValido)),
-          
         );
       }
     } else {
@@ -236,30 +230,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   // BUILD
   // ============================================================
 
-    @override
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final screenSize = MediaQuery.of(context).size;
 
-    // --- CORRECCIÓN FINAL DE TAMAÑO PARA TABLETS ---
     double containerWidth;
     if (isMobile) {
-      // Móviles: 90% del ancho de la pantalla
       containerWidth = screenSize.width * 0.9;
     } else {
-      // Tablets y Escritorios: Un tamaño fijo y amplio (600px)
-      // Esto asegura que en iPads grandes (con escala 2.0x) no se vea diminuto.
       containerWidth = 600.0;
-      // Seguridad extra: Si la pantalla es muy pequeña, no sobrepasar el 90%
       if (containerWidth > screenSize.width * 0.9) {
         containerWidth = screenSize.width * 0.9;
       }
     }
 
-    final paddingSize = isMobile ? 24.0 : 42.0; // Respiración amplia en tablet
-    final buttonHeight = isMobile ? 50.0 : 62.0; // Botón táctil y grande
-    final logoSize = isMobile ? 80.0 : 120.0;    // Logo grande para llenar el espacio
+    final paddingSize = isMobile ? 24.0 : 42.0;
+    final buttonHeight = isMobile ? 50.0 : 62.0;
+    final logoSize = isMobile ? 80.0 : 120.0;
 
     return Scaffold(
       body: Container(
@@ -289,17 +279,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           : EdgeInsets.zero,
                       padding: EdgeInsets.all(paddingSize),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.98),
+                        color: theme.cardColor,
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
+                            color: Colors.black.withOpacity(0.25),
                             blurRadius: 40,
                             offset: const Offset(0, 20),
                           ),
                         ],
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
+                          color: theme.colorScheme.surface.withOpacity(0.1),
                           width: 1,
                         ),
                       ),
@@ -308,43 +298,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _buildLogo(logoSize, isMobile),
+                            _buildLogo(logoSize, isMobile, theme),
                             const SizedBox(height: 16),
                             Center(
                               child: Text(
                                 'Inicia sesión para abrir tu turno',
                                 style: TextStyle(
-                                  color: Colors.grey.shade600,
+                                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                                   fontSize: isMobile ? 13 : 15,
                                   fontWeight: FontWeight.w400,
                                 ),
                               ),
                             ),
                             SizedBox(height: isMobile ? 24 : 32),
-                            _buildModeSelector(isMobile),
+                            _buildModeSelector(isMobile, theme),
                             SizedBox(height: isMobile ? 20 : 28),
                             if (!_isEmailMode)
-                              _buildPinMode(isMobile, isTablet)
+                              _buildPinMode(isMobile, isTablet, theme)
                             else
-                              _buildEmailMode(isMobile, isTablet),
+                              _buildEmailMode(isMobile, isTablet, theme),
                             if (_errorMessage.isNotEmpty) ...[
                               const SizedBox(height: 16),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                 decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
+                                  color: theme.colorScheme.error.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.red.shade200),
+                                  border: Border.all(color: theme.colorScheme.error.withOpacity(0.3)),
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(Icons.error_outline, color: Colors.red.shade700, size: 18),
+                                    Icon(Icons.error_outline, color: theme.colorScheme.error, size: 18),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
                                         _errorMessage,
                                         style: TextStyle(
-                                          color: Colors.red.shade700,
+                                          color: theme.colorScheme.error,
                                           fontSize: 13,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -355,14 +345,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               ),
                             ],
                             SizedBox(height: isMobile ? 24 : 32),
-                            _buildLoginButton(buttonHeight, isMobile),
+                            _buildLoginButton(buttonHeight, isMobile, theme),
                             const SizedBox(height: 16),
                             Center(
                               child: Text(
                                 'Admin PIN: 1234 | Cajero PIN: 0000',
                                 style: TextStyle(
                                   fontSize: isMobile ? 10 : 12,
-                                  color: Colors.grey.shade500,
+                                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.6),
                                   fontWeight: FontWeight.w400,
                                 ),
                               ),
@@ -382,7 +372,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   // COMPONENTES UI
   // ============================================================
 
-  Widget _buildLogo(double size, bool isMobile) {
+  Widget _buildLogo(double size, bool isMobile, ThemeData theme) {
     final double iconSize = isMobile ? 48 : 64;
     return Column(
       children: [
@@ -401,7 +391,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                color: const Color(0xFF10B981).withOpacity(0.3),
                 blurRadius: 30,
                 offset: const Offset(0, 8),
               ),
@@ -426,7 +416,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           child: Text(
             'BoostI POS',
             style: TextStyle(
-              fontSize: isMobile ? 26 : 36, 
+              fontSize: isMobile ? 26 : 36,
               fontWeight: FontWeight.w900,
               color: Colors.white,
               letterSpacing: 1.0,
@@ -437,12 +427,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildModeSelector(bool isMobile) {
+  Widget _buildModeSelector(bool isMobile, ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
         borderRadius: BorderRadius.circular(12),
+        border: isDark
+            ? Border.all(color: Colors.grey.shade600, width: 1.5)
+            : null,
       ),
       child: Row(
         children: [
@@ -458,6 +452,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 });
               },
               isMobile: isMobile,
+              theme: theme,
             ),
           ),
           Expanded(
@@ -472,6 +467,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 });
               },
               isMobile: isMobile,
+              theme: theme,
             ),
           ),
         ],
@@ -485,6 +481,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     required bool isSelected,
     required VoidCallback onTap,
     required bool isMobile,
+    required ThemeData theme,
   }) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -493,12 +490,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         vertical: isMobile ? 10 : 14,
       ),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.white : Colors.transparent,
+        color: isSelected ? theme.cardColor : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         boxShadow: isSelected
             ? [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: Colors.black.withOpacity(0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -516,7 +513,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               Icon(
                 icon,
                 size: 18,
-                color: isSelected ? const Color(0xFF0F172A) : Colors.grey.shade600,
+                color: isSelected
+                    ? theme.colorScheme.onSurface
+                    : theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
               ),
               const SizedBox(width: 8),
               Text(
@@ -524,7 +523,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 style: TextStyle(
                   fontSize: isMobile ? 13 : 15,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: isSelected ? const Color(0xFF0F172A) : Colors.grey.shade600,
+                  color: isSelected
+                      ? theme.colorScheme.onSurface
+                      : theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
                 ),
               ),
             ],
@@ -534,7 +535,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildPinMode(bool isMobile, bool isTablet) {
+  Widget _buildPinMode(bool isMobile, bool isTablet, ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
     final double fontSizeLabel = isMobile ? 13.0 : 15.0;
     final double paddingVerticalInput = isTablet ? 22.0 : 18.0;
 
@@ -546,14 +548,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: fontSizeLabel,
-            color: Colors.grey.shade700,
+            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
           ),
         ),
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(
+              color: isDark ? Colors.grey.shade600 : theme.dividerColor,
+              width: isDark ? 1.5 : 1.0,
+            ),
           ),
           child: DropdownButtonFormField<UsuarioEntity>(
             initialValue: _usuarioSeleccionado,
@@ -568,6 +573,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   '${u.nombre} (${u.rol.toUpperCase()})',
                   style: TextStyle(
                     fontSize: isMobile ? 14 : 16,
+                    color: theme.textTheme.bodyMedium?.color,
                   ),
                 ),
               );
@@ -580,7 +586,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             },
             icon: Icon(
               Icons.keyboard_arrow_down,
-              color: Colors.grey.shade600,
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
             ),
           ),
         ),
@@ -590,11 +596,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: fontSizeLabel,
-            color: Colors.grey.shade700,
+            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
           ),
         ),
         const SizedBox(height: 8),
-        // CAMPO DE PIN CON TIPOGRAFÍA MÁS LIMPIA Y ESPACIADO PERFECTO
         TextFormField(
           controller: _pinController,
           obscureText: _obscurePin,
@@ -603,39 +608,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           style: TextStyle(
             fontSize: isMobile ? 16 : 20,
             letterSpacing: 4,
+            color: theme.textTheme.bodyLarge?.color,
           ),
           decoration: InputDecoration(
             hintText: 'Ingresa tu PIN',
             hintStyle: TextStyle(
-              fontSize: isMobile ? 14 : 16, 
-              color: Colors.grey.shade400,
-              letterSpacing: 0.5, 
+              fontSize: isMobile ? 14 : 16,
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+              letterSpacing: 0.5,
               fontWeight: FontWeight.w400,
             ),
             counterText: '',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade300,
+                width: isDark ? 1.5 : 1.0,
+              ),
+            ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
+              borderSide: BorderSide(
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade300,
+                width: isDark ? 1.5 : 1.0,
+              ),
             ),
             prefixIcon: Padding(
               padding: const EdgeInsets.only(left: 12.0),
-              child: Icon(Icons.lock_outline_rounded, color: Colors.grey.shade500, size: isTablet ? 28 : 24),
+              child: Icon(
+                Icons.lock_outline_rounded,
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                size: isTablet ? 28 : 24,
+              ),
             ),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: Colors.grey.shade500,
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
                 size: isTablet ? 28 : 24,
               ),
               onPressed: () => setState(() => _obscurePin = !_obscurePin),
             ),
-            // Espaciado vertical extra en tablets para ser fácil de tocar
             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
+            filled: true,
+            fillColor: theme.colorScheme.surface,
           ),
           onFieldSubmitted: (_) => _intentarLoginPin(),
         ),
@@ -643,7 +663,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildEmailMode(bool isMobile, bool isTablet) {
+  Widget _buildEmailMode(bool isMobile, bool isTablet, ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
     final double fontSizeLabel = isMobile ? 13.0 : 15.0;
     final double paddingVerticalInput = isTablet ? 22.0 : 18.0;
 
@@ -655,32 +676,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: fontSizeLabel,
-            color: Colors.grey.shade700,
+            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
           ),
         ),
         const SizedBox(height: 8),
         TextFormField(
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
-          style: TextStyle(fontSize: isMobile ? 15 : 18),
+          style: TextStyle(fontSize: isMobile ? 15 : 18, color: theme.textTheme.bodyLarge?.color),
           decoration: InputDecoration(
             hintText: 'ejemplo@correo.com',
-            hintStyle: TextStyle(fontSize: isMobile ? 14 : 16, color: Colors.grey.shade400),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            hintStyle: TextStyle(fontSize: isMobile ? 14 : 16, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade300,
+                width: isDark ? 1.5 : 1.0,
+              ),
+            ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
+              borderSide: BorderSide(
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade300,
+                width: isDark ? 1.5 : 1.0,
+              ),
             ),
             prefixIcon: Padding(
               padding: const EdgeInsets.only(left: 12.0),
-              child: Icon(Icons.email_outlined, color: Colors.grey.shade500, size: isTablet ? 28 : 24),
+              child: Icon(
+                Icons.email_outlined,
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                size: isTablet ? 28 : 24,
+              ),
             ),
             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
+            filled: true,
+            fillColor: theme.colorScheme.surface,
           ),
+          onFieldSubmitted: (_) => _intentarLoginEmail(),
         ),
         SizedBox(height: isMobile ? 16 : 24),
         Text(
@@ -688,39 +725,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: fontSizeLabel,
-            color: Colors.grey.shade700,
+            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
           ),
         ),
         const SizedBox(height: 8),
         TextFormField(
           controller: _passwordController,
           obscureText: _obscurePassword,
-          style: TextStyle(fontSize: isMobile ? 15 : 18),
+          style: TextStyle(fontSize: isMobile ? 15 : 18, color: theme.textTheme.bodyLarge?.color),
           decoration: InputDecoration(
             hintText: 'Ingresa tu contraseña',
-            hintStyle: TextStyle(fontSize: isMobile ? 14 : 16, color: Colors.grey.shade400),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            hintStyle: TextStyle(fontSize: isMobile ? 14 : 16, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade300,
+                width: isDark ? 1.5 : 1.0,
+              ),
+            ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
+              borderSide: BorderSide(
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade300,
+                width: isDark ? 1.5 : 1.0,
+              ),
             ),
             prefixIcon: Padding(
               padding: const EdgeInsets.only(left: 12.0),
-              child: Icon(Icons.lock_outline_rounded, color: Colors.grey.shade500, size: isTablet ? 28 : 24),
+              child: Icon(
+                Icons.lock_outline_rounded,
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                size: isTablet ? 28 : 24,
+              ),
             ),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: Colors.grey.shade500,
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
                 size: isTablet ? 28 : 24,
               ),
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
+            filled: true,
+            fillColor: theme.colorScheme.surface,
           ),
           onFieldSubmitted: (_) => _intentarLoginEmail(),
         ),
@@ -728,7 +780,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildLoginButton(double height, bool isMobile) {
+  Widget _buildLoginButton(double height, bool isMobile, ThemeData theme) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       height: height,
