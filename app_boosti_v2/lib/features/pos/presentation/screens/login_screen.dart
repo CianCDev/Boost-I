@@ -150,7 +150,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
     if (usuarioValido != null && mounted) {
       ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
-      print('🔍 ID del usuario logueado en Isar: ${usuarioValido.id}');
+      debugPrint('🔍 ID del usuario logueado en Isar: ${usuarioValido.id}');
 
       try {
     final syncService = SyncService();
@@ -159,7 +159,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     await _isarService.actualizarEstadoUsuario(usuarioValido.id, 'activo');
   } catch (e) {
     // Si falla, no bloquees el login, solo registra
-    print('⚠️ No se pudo actualizar estado en Supabase: $e');
+    debugPrint('⚠️ No se pudo actualizar estado en Supabase: $e');
   }
       await _autenticarEnSupabase(usuarioValido);
 
@@ -289,17 +289,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           : EdgeInsets.zero,
                       padding: EdgeInsets.all(paddingSize),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.98),
+                        color: Colors.white.withValues(alpha: 0.98),
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.25),
+                            color: Colors.black.withValues(alpha: 0.25),
                             blurRadius: 40,
                             offset: const Offset(0, 20),
                           ),
                         ],
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withValues(alpha: 0.1),
                           width: 1,
                         ),
                       ),
@@ -401,7 +401,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF10B981).withOpacity(0.3),
+                color: const Color(0xFF10B981).withValues(alpha: 0.3),
                 blurRadius: 30,
                 offset: const Offset(0, 8),
               ),
@@ -498,7 +498,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         boxShadow: isSelected
             ? [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),

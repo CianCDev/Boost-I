@@ -1,3 +1,4 @@
+// ignore: unused_import
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../data/Local/entities/isar_service.dart';
@@ -70,10 +71,10 @@ class _EmployeeMonitorDialogState extends State<EmployeeMonitorDialog> {
                 }
 
                 return ListTile(
-                  leading: CircleAvatar(backgroundColor: colorEstado.withOpacity(0.15), child: Icon(iconoEstado, color: colorEstado, size: 20)),
+                  leading: CircleAvatar(backgroundColor: colorEstado.withValues(alpha: 0.15), child: Icon(iconoEstado, color: colorEstado, size: 20)),
                   title: Text(usuario.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   subtitle: Text('Rol: ${usuario.rol.toUpperCase()} | Caja: ${usuario.cajaAsignada ?? "No asignada"}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                  trailing: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: colorEstado.withOpacity(0.15), borderRadius: BorderRadius.circular(12), border: Border.all(color: colorEstado.withOpacity(0.5))), child: Text(textoEstado, style: TextStyle(color: colorEstado, fontWeight: FontWeight.bold, fontSize: 12))),
+                  trailing: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: colorEstado.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12), border: Border.all(color: colorEstado.withValues(alpha: 0.5))), child: Text(textoEstado, style: TextStyle(color: colorEstado, fontWeight: FontWeight.bold, fontSize: 12))),
                 );
               },
             );
