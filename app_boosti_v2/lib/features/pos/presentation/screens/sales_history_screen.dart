@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/venta_entity.dart';
 import '../utils/responsive_helper.dart';
@@ -146,13 +151,15 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
         ? (venta.total * tasaVentaValida)
         : venta.totalBolivares;
 
+    final isLargeScreen = !ResponsiveHelper.isMobile(context);
+
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Container(
-            width: 600,
+            width: isLargeScreen ? 650 : 600,
             constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
@@ -168,8 +175,8 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                         Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.receipt_long, color: Colors.white, size: 20)),
                         const SizedBox(width: 12),
                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Venta #${venta.ventaIdString}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
-                          Text(fechaFormatted, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                          Text('Venta #${venta.ventaIdString}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 18 : 16, color: Color(0xFF0F172A))),
+                          Text(fechaFormatted, style: TextStyle(fontSize: isLargeScreen ? 13 : 12, color: Color(0xFF64748B))),
                         ]),
                       ],
                     ),
@@ -184,7 +191,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                   _columnaDetalle('Sincronizado', venta.sincronizado ? 'Sí' : 'No', colorValor: venta.sincronizado ? const Color(0xFF059669) : const Color(0xFFD97706)),
                 ])),
                 const SizedBox(height: 16),
-                const Text('Detalle de Productos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A))),
+                Text('Detalle de Productos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 15 : 13, color: Color(0xFF0F172A))),
                 const SizedBox(height: 8),
                 Flexible(
                   child: SingleChildScrollView(
@@ -196,15 +203,15 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                 ),
                 const SizedBox(height: 16),
                 Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(10)), child: Column(children: [
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Subtotal USD:', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)), Text('\$${venta.subtotal.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12))]),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Subtotal USD:', style: TextStyle(color: Color(0xFF94A3B8), fontSize: isLargeScreen ? 13 : 12)), Text('\$${venta.subtotal.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12))]),
                   const SizedBox(height: 4),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Impuesto (IVA USD):', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)), Text('\$${venta.impuesto.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12))]),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Impuesto (IVA USD):', style: TextStyle(color: Color(0xFF94A3B8), fontSize: isLargeScreen ? 13 : 12)), Text('\$${venta.impuesto.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12))]),
                   const SizedBox(height: 4),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Tasa BCV:', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.bold)), Text('Bs. ${tasaVentaValida.toStringAsFixed(2)} / \$', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.bold))]),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Tasa BCV:', style: TextStyle(color: Color(0xFF38BDF8), fontSize: isLargeScreen ? 13 : 12, fontWeight: FontWeight.bold)), Text('Bs. ${tasaVentaValida.toStringAsFixed(2)} / \$', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.bold))]),
                   const Divider(color: Color(0xFF334155), height: 16),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('TOTAL USD:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)), Text('\$${venta.total.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF34D399), fontWeight: FontWeight.bold, fontSize: 17))]),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('TOTAL USD:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 16 : 14)), Text('\$${venta.total.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF34D399), fontWeight: FontWeight.bold, fontSize: 17))]),
                   const SizedBox(height: 4),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('TOTAL BS:', style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.bold, fontSize: 12)), Text('Bs. ${totalBsVentaValido.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 15))]),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('TOTAL BS:', style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 13 : 12)), Text('Bs. ${totalBsVentaValido.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 15))]),
                 ])),
               ],
             ),
@@ -216,7 +223,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
 
   Widget _columnaDetalle(String titulo, String valor, {Color? colorValor}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(titulo, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))), const SizedBox(height: 2), Text(valor, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colorValor ?? const Color(0xFF0F172A)))]);
 
-  // CORREGIDO: Se eliminaron los paréntesis y punto y coma extra al final.
   Widget _celdaHeader(String texto) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
     child: Text(
@@ -239,37 +245,106 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     ),
   );
 
+  // ==========================================
+  // EXPORTAR A CSV (CORREGIDO EL ERROR DE TIPOS)
+  // ==========================================
+  Future<void> _exportarCSV() async {
+    if (_ventasFiltradas.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay ventas para exportar en el período seleccionado.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    try {
+      // 1. Construir el contenido del CSV
+      final StringBuffer buffer = StringBuffer();
+      buffer.writeln('ID Venta;Fecha;Empleado;Método Pago;Total USD;Total Bs.');
+
+      for (var venta in _ventasFiltradas) {
+        final fechaLocal = venta.fecha.toLocal();
+        final String fechaStr = '${fechaLocal.day}/${fechaLocal.month}/${fechaLocal.year} ${fechaLocal.hour}:${fechaLocal.minute}';
+        final double tasaVentaValida = (venta.tasaBcv.isNaN || venta.tasaBcv <= 0) ? 0.0 : venta.tasaBcv;
+        final double totalBsVentaValido = (venta.totalBolivares.isNaN || venta.totalBolivares <= 0)
+            ? (venta.total * tasaVentaValida)
+            : venta.totalBolivares;
+
+        buffer.writeln('${venta.ventaIdString};$fechaStr;${venta.empleado};${venta.metodoPago};${venta.total.toStringAsFixed(2)};${totalBsVentaValido.toStringAsFixed(2)}');
+      }
+
+      // 2. Guardar archivo temporal
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = 'ventas_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsString(buffer.toString(), encoding: utf8);
+
+      // 3. Compartir el archivo (Se eliminó fileNameOverrides para evitar errores de tipo)
+      final shareResult = await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'Historial de Ventas Exportado',
+      );
+
+      if (shareResult.status == ShareResultStatus.success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('¡Archivo CSV exportado correctamente!'), backgroundColor: Color(0xFF10B981)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al exportar CSV: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
-    // ignore: unused_local_variable
     final isTablet = ResponsiveHelper.isTablet(context);
+
+    // Tamaños de fuente y padding dinámicos según el dispositivo
+    final double hPadding = isTablet ? 20.0 : 12.0;
+    final double vPadding = isTablet ? 20.0 : 12.0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Historial de Transacciones', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text('Historial de Transacciones', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 22 : 18)),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color.fromRGBO(122, 153, 255, 1), Color.fromARGB(255, 85, 59, 235)],
+              colors: [Color.fromRGBO(81, 120, 252, 1), Color.fromARGB(255, 62, 40, 189)],
             ),
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 2,
         foregroundColor: Colors.white,
-        actions: [IconButton(icon: const Icon(Icons.refresh, color: Colors.white), tooltip: 'Actualizar Historial', onPressed: _cargarVentas), const SizedBox(width: 8)],
+        actions: [
+          // BOTÓN DE EXPORTACIÓN
+          IconButton(
+            icon: const Icon(Icons.download_rounded),
+            tooltip: 'Exportar CSV de ventas',
+            onPressed: _exportarCSV,
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Actualizar Historial',
+            onPressed: _cargarVentas,
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
           : Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
               child: Column(
                 children: [
-                  // FILTROS DE PERIODO (Responsivos con SingleChildScrollView)
+                  // FILTROS DE PERIODO (Aumentado en Tablets)
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
@@ -286,50 +361,110 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                       ],
                     ),
                   ),
+
                   // SELECTORES DE MES/AÑO
                   if (_periodoSeleccionado == 'mes') ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
-                          child: Container(height: 40, padding: const EdgeInsets.symmetric(horizontal: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF10B981), width: 1.5)), child: DropdownButtonHideUnderline(child: DropdownButton<String>(isExpanded: true, value: _mesSeleccionadoDropdown, icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981)), style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600), items: _listaMesesDropdown.map((mes) => DropdownMenuItem(value: mes, child: Text(mes == 'Actual' ? 'Mes Actual' : mes))).toList(), onChanged: (val) { if (val != null) { setState(() => _mesSeleccionadoDropdown = val); _aplicarFiltros(); } }))),
+                          child: Container(
+                            height: isTablet ? 48 : 40,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF10B981), width: 1.5)),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                value: _mesSeleccionadoDropdown,
+                                icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981)),
+                                style: TextStyle(fontSize: isTablet ? 15 : 13, color: const Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                                items: _listaMesesDropdown.map((mes) => DropdownMenuItem(value: mes, child: Text(mes == 'Actual' ? 'Mes Actual' : mes))).toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() => _mesSeleccionadoDropdown = val);
+                                    _aplicarFiltros();
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Container(height: 40, padding: const EdgeInsets.symmetric(horizontal: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF10B981), width: 1.5)), child: DropdownButtonHideUnderline(child: DropdownButton<int>(isExpanded: true, value: _anioSeleccionadoDropdown, icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981)), style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600), items: _listaAniosDisponibles.map((anio) => DropdownMenuItem(value: anio, child: Text('$anio${anio == DateTime.now().year ? ' (Actual)' : ''}'))).toList(), onChanged: (val) { if (val != null) { setState(() => _anioSeleccionadoDropdown = val); _aplicarFiltros(); } }))),
+                          child: Container(
+                            height: isTablet ? 48 : 40,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF10B981), width: 1.5)),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<int>(
+                                isExpanded: true,
+                                value: _anioSeleccionadoDropdown,
+                                icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981)),
+                                style: TextStyle(fontSize: isTablet ? 15 : 13, color: const Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                                items: _listaAniosDisponibles.map((anio) => DropdownMenuItem(value: anio, child: Text('$anio${anio == DateTime.now().year ? ' (Actual)' : ''}'))).toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() => _anioSeleccionadoDropdown = val);
+                                    _aplicarFiltros();
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     )
                   ] else if (_periodoSeleccionado == 'anio') ...[
-                    const SizedBox(height: 10),
-                    Container(height: 40, padding: const EdgeInsets.symmetric(horizontal: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF10B981), width: 1.5)), child: DropdownButtonHideUnderline(child: DropdownButton<int>(isExpanded: true, value: _anioSeleccionadoDropdown, icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981)), style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600), items: _listaAniosDisponibles.map((anio) => DropdownMenuItem(value: anio, child: Text('$anio${anio == DateTime.now().year ? ' (Actual)' : ''}'))).toList(), onChanged: (val) { if (val != null) { setState(() => _anioSeleccionadoDropdown = val); _aplicarFiltros(); } }))),
+                    const SizedBox(height: 12),
+                    Container(
+                      height: isTablet ? 48 : 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFF10B981), width: 1.5)),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          isExpanded: true,
+                          value: _anioSeleccionadoDropdown,
+                          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981)),
+                          style: TextStyle(fontSize: isTablet ? 15 : 13, color: const Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                          items: _listaAniosDisponibles.map((anio) => DropdownMenuItem(value: anio, child: Text('$anio${anio == DateTime.now().year ? ' (Actual)' : ''}'))).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => _anioSeleccionadoDropdown = val);
+                              _aplicarFiltros();
+                            }
+                          },
+                        ),
+                      ),
+                    ),
                   ],
-                  const SizedBox(height: 12),
-                  // TARJETAS DE RESUMEN
+                  const SizedBox(height: 16),
+
+                  // TARJETAS DE RESUMEN (MÁS GRANDES EN TABLET)
                   Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+                    spacing: 12,
+                    runSpacing: 12,
                     children: [
-                      _tarjetaResumen('Ventas', '${_ventasFiltradas.length}', Icons.receipt_long, const Color(0xFF3B82F6), isMobile),
-                      _tarjetaResumen('Total USD', '\$${_totalUSD.toStringAsFixed(2)}', Icons.attach_money, const Color(0xFF10B981), isMobile),
-                      _tarjetaResumen('Total Bs.', 'Bs. ${_totalBs.toStringAsFixed(2)}', Icons.currency_exchange, const Color(0xFF0284C7), isMobile),
+                      _tarjetaResumen('Ventas', '${_ventasFiltradas.length}', Icons.receipt_long, const Color(0xFF3B82F6), isMobile, isTablet),
+                      _tarjetaResumen('Total USD', '\$${_totalUSD.toStringAsFixed(2)}', Icons.attach_money, const Color(0xFF10B981), isMobile, isTablet),
+                      _tarjetaResumen('Total Bs.', 'Bs. ${_totalBs.toStringAsFixed(2)}', Icons.currency_exchange, const Color(0xFF0284C7), isMobile, isTablet),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+
                   // BARRA DE BÚSQUEDA Y FILTRO DE MÉTODO DE PAGO
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(isTablet ? 16.0 : 12.0),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
                     child: Column(
                       children: [
                         SizedBox(
-                          height: 40,
+                          height: isTablet ? 48 : 40,
                           child: TextField(
                             onChanged: (val) { _searchQuery = val; _aplicarFiltros(); },
                             decoration: InputDecoration(
                               hintText: 'Buscar por ID, Cédula o Empleado...',
-                              hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-                              prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
+                              hintStyle: TextStyle(fontSize: isTablet ? 15 : 13, color: Color(0xFF94A3B8)),
+                              prefixIcon: Icon(Icons.search, size: isTablet ? 24 : 20, color: Color(0xFF64748B)),
                               contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
                               filled: true,
                               fillColor: const Color(0xFFF8FAFC),
@@ -338,7 +473,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         // CHIPS DE MÉTODO DE PAGO
                         SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
@@ -351,13 +486,13 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                                   onTap: () { setState(() { _metodoSeleccionado = metodo; }); _aplicarFiltros(); },
                                   borderRadius: BorderRadius.circular(6),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    padding: EdgeInsets.symmetric(horizontal: isTablet ? 14 : 10, vertical: isTablet ? 8 : 6),
                                     decoration: BoxDecoration(
                                       color: esSeleccionado ? const Color(0xFF0F172A) : Colors.white,
                                       borderRadius: BorderRadius.circular(6),
                                       border: Border.all(color: esSeleccionado ? const Color(0xFF0F172A) : const Color(0xFFCBD5E1)),
                                     ),
-                                    child: Text(metodo, style: TextStyle(fontSize: 12, fontWeight: esSeleccionado ? FontWeight.bold : FontWeight.normal, color: esSeleccionado ? Colors.white : const Color(0xFF475569))),
+                                    child: Text(metodo, style: TextStyle(fontSize: isTablet ? 14 : 12, fontWeight: esSeleccionado ? FontWeight.bold : FontWeight.normal, color: esSeleccionado ? Colors.white : const Color(0xFF475569))),
                                   ),
                                 ),
                               );
@@ -367,14 +502,15 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+
                   // LISTA DE VENTAS
                   Expanded(
                     child: _ventasFiltradas.isEmpty
-                        ? const Center(child: Text('No hay ventas registradas en el periodo seleccionado.', style: TextStyle(color: Color(0xFF64748B), fontSize: 14)))
+                        ? Center(child: Text('No hay ventas registradas en el periodo seleccionado.', style: TextStyle(fontSize: isTablet ? 16 : 14, color: Color(0xFF64748B))))
                         : ListView.separated(
                             itemCount: _ventasFiltradas.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 8),
+                            separatorBuilder: (_, _) => const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               final venta = _ventasFiltradas[index];
                               final fechaLocal = venta.fecha.toLocal();
@@ -386,31 +522,40 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                                 onTap: () => _mostrarModalDetalleVenta(context, venta),
                                 borderRadius: BorderRadius.circular(10),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  padding: EdgeInsets.symmetric(horizontal: isTablet ? 20 : 16, vertical: isTablet ? 16 : 12),
                                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
                                   child: Row(
                                     children: [
-                                      Container(width: 40, height: 40, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.article_outlined, color: Color(0xFF334155), size: 22)),
-                                      const SizedBox(width: 14),
+                                      Container(
+                                        width: isTablet ? 48 : 40,
+                                        height: isTablet ? 48 : 40,
+                                        decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(8)),
+                                        child: Icon(Icons.article_outlined, color: Color(0xFF334155), size: isTablet ? 28 : 22),
+                                      ),
+                                      const SizedBox(width: 16),
                                       Expanded(
                                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                           Row(children: [
-                                            Text('Venta #${venta.ventaIdString}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A))),
+                                            Text('Venta #${venta.ventaIdString}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 17 : 14, color: Color(0xFF0F172A))),
                                             const SizedBox(width: 8),
-                                            Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(4), border: Border.all(color: const Color(0xFFBAE6FD))), child: Text('Tasa: Bs. ${tasaVentaValida.toStringAsFixed(2)}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF0369A1))))
+                                            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(4), border: Border.all(color: const Color(0xFFBAE6FD))), child: Text('Tasa: Bs. ${tasaVentaValida.toStringAsFixed(2)}', style: TextStyle(fontSize: isTablet ? 11 : 9, fontWeight: FontWeight.bold, color: Color(0xFF0369A1))))
                                           ]),
                                           const SizedBox(height: 4),
-                                          Text('$fechaFormatted • Atendido por: ${venta.empleado}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                                          Text('$fechaFormatted • Atendido por: ${venta.empleado}', style: TextStyle(fontSize: isTablet ? 13 : 11, color: Color(0xFF64748B))),
                                         ]),
                                       ),
-                                      Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(6)), child: Text(venta.metodoPago.toLowerCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669)))),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(6)),
+                                        child: Text(venta.metodoPago.toLowerCase(), style: TextStyle(fontSize: isTablet ? 13 : 11, fontWeight: FontWeight.bold, color: Color(0xFF059669))),
+                                      ),
                                       const SizedBox(width: 16),
                                       Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                                        Text('\$${venta.total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF059669))),
-                                        Text('Bs. ${totalBsVentaValido.toStringAsFixed(2)}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0284C7))),
+                                        Text('\$${venta.total.toStringAsFixed(2)}', style: TextStyle(fontSize: isTablet ? 18 : 15, fontWeight: FontWeight.bold, color: Color(0xFF059669))),
+                                        Text('Bs. ${totalBsVentaValido.toStringAsFixed(2)}', style: TextStyle(fontSize: isTablet ? 13 : 11, fontWeight: FontWeight.bold, color: Color(0xFF0284C7))),
                                       ]),
                                       const SizedBox(width: 12),
-                                      const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1), size: 20),
+                                      Icon(Icons.chevron_right, color: Color(0xFFCBD5E1), size: isTablet ? 26 : 20),
                                     ],
                                   ),
                                 ),
@@ -426,12 +571,14 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
 
   Widget _botonPeriodo(String clave, String titulo, IconData icono) {
     final bool seleccionado = _periodoSeleccionado == clave;
+    final bool isTablet = ResponsiveHelper.isTablet(context);
+
     return InkWell(
       onTap: () { setState(() { _periodoSeleccionado = clave; }); _aplicarFiltros(); },
       borderRadius: BorderRadius.circular(8),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        padding: EdgeInsets.symmetric(vertical: isTablet ? 12 : 8, horizontal: isTablet ? 16 : 12),
         decoration: BoxDecoration(
           color: seleccionado ? const Color(0xFF0F172A) : Colors.white,
           borderRadius: BorderRadius.circular(8),
@@ -440,15 +587,14 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icono, size: 13, color: seleccionado ? Colors.white : const Color(0xFF475569)),
+            Icon(icono, size: isTablet ? 16 : 13, color: seleccionado ? Colors.white : const Color(0xFF475569)),
             const SizedBox(width: 4),
-            // CORREGIDO: Se eliminó el paréntesis de cierre extra que sobraba
             Flexible(
               child: Text(
                 titulo,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: isTablet ? 14 : 11,
                   fontWeight: seleccionado ? FontWeight.bold : FontWeight.normal,
                   color: seleccionado ? Colors.white : const Color(0xFF475569),
                 ),
@@ -459,18 +605,20 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       ),
     );
   }
-  Widget _tarjetaResumen(String titulo, String valor, IconData icono, Color color, bool isMobile) {
+
+  Widget _tarjetaResumen(String titulo, String valor, IconData icono, Color color, bool isMobile, bool isTablet) {
+    final double size = isTablet ? 18.0 : 14.0;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(isTablet ? 14.0 : 12.0),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE2E8F0))),
       child: Row(
         mainAxisSize: isMobile ? MainAxisSize.min : MainAxisSize.max,
         children: [
-          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: Icon(icono, color: color, size: 18)),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: Icon(icono, color: color, size: size)),
           const SizedBox(width: 10),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(titulo, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-            Text(valor, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+            Text(titulo, style: TextStyle(fontSize: isTablet ? 13 : 11, color: Color(0xFF64748B))),
+            Text(valor, style: TextStyle(fontSize: isTablet ? 20 : 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
           ]),
         ],
       ),
