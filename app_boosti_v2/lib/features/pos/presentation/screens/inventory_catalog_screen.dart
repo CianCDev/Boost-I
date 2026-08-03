@@ -16,10 +16,7 @@ import '../widgets/cobrar_dialog.dart';
 import '../utils/responsive_helper.dart';
 import '../services/scale_service.dart';
 import 'inventory_screen.dart';
-import 'pos_menu_screen.dart'; // <--- Servicio de la Balanza
-
-// Asegúrate de tener importado tu nuevo Panel de Control
-// import 'pos_menu_screen.dart'; 
+import 'pos_menu_screen.dart';
 
 class InventoryCatalogScreen extends ConsumerStatefulWidget {
   final UsuarioEntity? usuarioLogueado;
@@ -62,7 +59,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(bcvProvider).actualizarTasa();
-      _scaleService.connect(); // <--- CONECTA LA BALANZA AL INICIAR
+      _scaleService.connect();
     });
   }
 
@@ -72,7 +69,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
 
   @override
   void dispose() {
-    _scaleService.dispose(); // <--- CIERRA LA CONEXIÓN AL SALIR
+    _scaleService.dispose();
     _weightSub?.cancel();
     HardwareKeyboard.instance.removeHandler(_manejarTecladoFisico);
     _searchController.dispose();
@@ -142,7 +139,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al cargar inventario: $e'),
-            backgroundColor: Colors.redAccent,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -175,9 +172,9 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   void _agregarAlCarrito(ProductoEntity producto, double cantidad) {
     if (producto.stock < cantidad && !producto.esPesado) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Stock insuficiente para agregar esta cantidad'),
-          backgroundColor: Colors.redAccent,
+        SnackBar(
+          content: const Text('Stock insuficiente para agregar esta cantidad'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
@@ -215,11 +212,11 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   // ==========================================
   // MODAL DE CANTIDAD (CON BALANZA)
   // ==========================================
-void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
+  void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
+    final theme = Theme.of(context);
     final TextEditingController cantidadController = TextEditingController(
       text: producto.esPesado ? '1.000' : '1',
     );
-    // NUEVO: Controlador para el precio personalizado
     final TextEditingController precioController = TextEditingController(
       text: producto.precioUnidad.toStringAsFixed(2),
     );
@@ -227,7 +224,6 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
     final isTablet = ResponsiveHelper.isTablet(context);
     final isDesktop = !isTablet && !ResponsiveHelper.isMobile(context);
 
-    // NUEVO: Variable para saber si ya pasamos la validación del admin en esta transacción
     bool adminValidoParaEstaVenta = false;
 
     showDialog(
@@ -248,11 +244,11 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                 ),
                 padding: EdgeInsets.all(isTablet ? 32.0 : 20.0),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.cardColor,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: Colors.black.withOpacity(0.05),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -263,13 +259,12 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Título
                       Row(
                         children: [
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                              color: const Color(0xFF10B981).withOpacity(0.1),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.shopping_cart_outlined, color: Color(0xFF10B981), size: 20),
@@ -278,10 +273,10 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                           Expanded(
                             child: Text(
                               'Agregar ${producto.nombre}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 18,
-                                color: Color(0xFF0F172A),
+                                color: theme.textTheme.bodyLarge?.color,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -291,20 +286,18 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                       ),
                       const SizedBox(height: 20),
 
-                      // Texto descriptivo
                       Text(
                         producto.esPesado
                             ? 'Producto de Balanza (ingresa el peso en kg):'
                             : 'Ingresa la cantidad deseada (unidades):',
                         style: TextStyle(
                           fontSize: isTablet || isDesktop ? 16 : 14,
-                          color: Colors.grey.shade600,
+                          color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // CAMPO DE CANTIDAD
                       TextField(
                         controller: cantidadController,
                         autofocus: true,
@@ -322,18 +315,21 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                             extentOffset: cantidadController.text.length,
                           );
                         },
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: theme.textTheme.bodyLarge?.color),
                         decoration: InputDecoration(
                           labelText: 'Cantidad',
-                          labelStyle: TextStyle(fontSize: isTablet || isDesktop ? 16 : 14, color: Colors.grey.shade600),
+                          labelStyle: TextStyle(fontSize: isTablet || isDesktop ? 16 : 14, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7)),
                           suffixText: producto.esPesado ? 'kg' : 'unid',
-                          suffixStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color.fromRGBO(97, 97, 97, 1)),
+                          suffixStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: theme.textTheme.bodyMedium?.color),
                           contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isTablet || isDesktop ? 20 : 14),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
+                          fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.5),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey.shade300),
+                            borderSide: BorderSide(
+                              color: theme.brightness == Brightness.dark ? Colors.grey.shade600 : Colors.grey.shade300,
+                              width: 1.5,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -348,27 +344,34 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                         },
                       ),
 
-                      // NUEVO: CAMPO DE PRECIO PERSONALIZADO
                       const SizedBox(height: 12),
                       TextField(
                         controller: precioController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: theme.textTheme.bodyLarge?.color),
                         decoration: InputDecoration(
                           labelText: 'Precio por unidad (\$)',
                           prefixText: '\$ ',
-                          labelStyle: TextStyle(fontSize: isTablet || isDesktop ? 16 : 14, color: Colors.grey.shade600),
+                          labelStyle: TextStyle(fontSize: isTablet || isDesktop ? 16 : 14, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7)),
                           contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isTablet || isDesktop ? 20 : 14),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5)),
+                          fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: theme.brightness == Brightness.dark ? Colors.grey.shade600 : Colors.grey.shade300,
+                              width: 1.5,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
+                          ),
                         ),
                       ),
 
                       const SizedBox(height: 28),
 
-                      // BOTONES DE ACCIÓN
                       Wrap(
                         alignment: WrapAlignment.end,
                         crossAxisAlignment: WrapCrossAlignment.center,
@@ -378,8 +381,8 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                           TextButton(
                             style: TextButton.styleFrom(
                               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                              foregroundColor: Colors.grey.shade700,
-                              backgroundColor: const Color(0xFFF1F5F9),
+                              foregroundColor: theme.textTheme.bodyMedium?.color,
+                              backgroundColor: theme.colorScheme.surfaceVariant,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             onPressed: () {
@@ -403,11 +406,9 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
 
                               final double precioIngresado = double.tryParse(precioController.text) ?? producto.precioUnidad;
                               final double precioOriginal = producto.precioUnidad;
-                              final double topeDescuento = precioOriginal * 0.80; // 80% del precio original es el tope
+                              final double topeDescuento = precioOriginal * 0.80;
 
-                              // Lógica de validación
                               if (!adminValidoParaEstaVenta && precioIngresado < topeDescuento) {
-                                // Se dispara la validación del admin
                                 await showDialog(
                                   context: dialogContext,
                                   builder: (context) => AdminValidationDialog(
@@ -415,22 +416,17 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                                       setStateModal(() => adminValidoParaEstaVenta = true);
                                     },
                                     onCancel: () {
-                                      // Si el admin cancela, limpiamos el precio
                                       precioController.text = producto.precioUnidad.toStringAsFixed(2);
                                     },
                                   ),
                                 );
-                                // Si la validación falló, detenemos el flujo aquí
                                 if (!adminValidoParaEstaVenta) return;
                               }
 
-                              // Si llegamos aquí, la venta está autorizada
-                              // ignore: use_build_context_synchronously
                               Navigator.of(dialogContext).pop();
                               cantidadController.dispose();
                               precioController.dispose();
 
-                              // Creamos una copia temporal del producto con el nuevo precio para el carrito
                               final productoConPrecioModificado = ProductoEntity()
                                 ..id = producto.id
                                 ..codigoBarras = producto.codigoBarras
@@ -554,25 +550,26 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al registrar la venta: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error al registrar la venta: $e'), backgroundColor: Theme.of(context).colorScheme.error),
         );
       }
     }
   }
 
   void _limpiarCarritoConConfirmacion() {
+    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Reiniciar Venta', style: TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 22)),
-          content: const Text('¿Estás seguro de que quieres reiniciar la venta actual? Se borrarán todos los productos del carrito.', style: TextStyle(fontSize: 18)),
+          title: Text('Reiniciar Venta', style: TextStyle(color: theme.textTheme.bodyLarge?.color, fontWeight: FontWeight.bold, fontSize: 22)),
+          content: Text('¿Estás seguro de que quieres reiniciar la venta actual? Se borrarán todos los productos del carrito.', style: TextStyle(fontSize: 18, color: theme.textTheme.bodyMedium?.color)),
           actions: [
             TextButton(
               style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancelar', style: TextStyle(fontSize: 18, color: Color(0xFF64748B))),
+              child: Text('Cancelar', style: TextStyle(fontSize: 18, color: theme.textTheme.bodyMedium?.color)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -598,6 +595,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final cartState = ref.watch(cartProvider);
     final bcvController = ref.watch(bcvProvider);
     final double tasaBcv = bcvController.tasa;
@@ -625,7 +623,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
     final int lowStockCount = _getLowStockCount();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         leadingWidth: 85,
         leading: Padding(
@@ -655,15 +653,14 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
         backgroundColor: Colors.transparent,
         elevation: 2,
         foregroundColor: Colors.white,
-            actions: [
-          // 1. BOTÓN AL PANEL DE CONTROL (Estilo Cristal)
+        actions: [
           Tooltip(
             message: 'Panel de Control POS',
             child: Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: Colors.white.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: IconButton(
@@ -679,10 +676,8 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
               ),
             ),
           ),
-          
           const SizedBox(width: 6),
 
-          // 2. BOTÓN DE INVENTARIO (Gradiente y Sombra)
           Tooltip(
             message: 'Ir a Gestión de Inventario',
             child: Stack(
@@ -700,7 +695,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                        color: const Color(0xFFF59E0B).withOpacity(0.4),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -755,7 +750,6 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
 
           const SizedBox(width: 4),
 
-          // 3. BOTÓN DE TASA BCV (Refinado y Elegante)
           Tooltip(
             message: 'Tasa oficial BCV (Haz clic para actualizar)',
             child: AnimatedScale(
@@ -766,14 +760,14 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 margin: const EdgeInsets.only(left: 4, right: 8),
                 decoration: BoxDecoration(
-                  color: cargandoBcv 
-                      ? Colors.white.withValues(alpha: 0.25) 
-                      : Colors.white.withValues(alpha: 0.15),
+                  color: cargandoBcv
+                      ? Colors.white.withOpacity(0.25)
+                      : Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                  border: Border.all(color: Colors.white.withOpacity(0.4)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
+                      color: Colors.black.withOpacity(0.1),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -789,7 +783,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                       child: SizedBox(
                         width: 14,
                         height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: const Color(0xFF10B981)),
                       ),
                     ),
                     AnimatedOpacity(
@@ -810,8 +804,6 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
               ),
             ),
           ),
-        
-
           const SizedBox(width: 8),
         ],
       ),
@@ -834,6 +826,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
   }
 
   Widget _buildDesktopTabletLayout(dynamic cartState, int crossAxisCount, double childAspectRatio) {
+    final theme = Theme.of(context);
     return Row(
       children: [
         Expanded(
@@ -842,10 +835,15 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
         ),
         Container(
           width: 380,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(left: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
-            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(-2, 0))],
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            border: Border(
+              left: BorderSide(
+                color: theme.brightness == Brightness.dark ? Colors.grey.shade700 : const Color(0xFFE2E8F0),
+                width: 1,
+              ),
+            ),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(-2, 0))],
           ),
           child: _buildCartSidebarDesktop(cartState),
         ),
@@ -854,6 +852,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
   }
 
   Widget _buildCatalogPanel(dynamic cartState, int crossAxisCount, double childAspectRatio) {
+    final theme = Theme.of(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final isMobile = ResponsiveHelper.isMobile(context);
     return Padding(
@@ -872,13 +871,13 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                       physics: const AlwaysScrollableScrollPhysics(),
                       child: SizedBox(
                         height: MediaQuery.of(context).size.height * 0.5,
-                        child: const Center(
+                        child: Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.inventory_2_outlined, size: 48, color: Color(0xFFCBD5E1)),
-                              SizedBox(height: 12),
-                              Text('No se encontraron productos.', style: TextStyle(color: Color(0xFF64748B), fontSize: 14))
+                              Icon(Icons.inventory_2_outlined, size: 48, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.3)),
+                              const SizedBox(height: 12),
+                              Text('No se encontraron productos.', style: TextStyle(color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7), fontSize: 14))
                             ],
                           ),
                         ),
@@ -914,6 +913,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
   }
 
   Widget _buildMobileTabletPortraitLayout(dynamic cartState, int crossAxisCount, double childAspectRatio) {
+    final theme = Theme.of(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final isMobile = ResponsiveHelper.isMobile(context);
     return Column(
@@ -935,13 +935,13 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                             physics: const AlwaysScrollableScrollPhysics(),
                             child: SizedBox(
                               height: MediaQuery.of(context).size.height * 0.5,
-                              child: const Center(
+                              child: Center(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.inventory_2_outlined, size: 48, color: Color(0xFFCBD5E1)),
-                                    SizedBox(height: 12),
-                                    Text('No se encontraron productos.', style: TextStyle(color: Color(0xFF64748B), fontSize: 14))
+                                    Icon(Icons.inventory_2_outlined, size: 48, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.3)),
+                                    const SizedBox(height: 12),
+                                    Text('No se encontraron productos.', style: TextStyle(color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7), fontSize: 14))
                                   ],
                                 ),
                               ),
@@ -981,6 +981,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
   }
 
   Widget _buildFixedCartSummary(dynamic cartState) {
+    final theme = Theme.of(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final double barHeight = isTablet ? 140.0 : 120.0;
 
@@ -988,11 +989,16 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
       height: barHeight,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade300, width: isTablet ? 2 : 1)),
+        color: theme.cardColor,
+        border: Border(
+          top: BorderSide(
+            color: theme.brightness == Brightness.dark ? Colors.grey.shade700 : Colors.grey.shade300,
+            width: isTablet ? 2 : 1,
+          ),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 10,
             offset: const Offset(0, -4),
           ),
@@ -1008,39 +1014,37 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                 Text(
                   'Total: \$${cartState.total.toStringAsFixed(2)}',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold, 
+                    fontWeight: FontWeight.bold,
                     fontSize: isTablet ? 28 : 17,
-                    color: const Color(0xFF0F172A)
+                    color: theme.textTheme.bodyLarge?.color,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
                   style: TextStyle(
-                    fontSize: isTablet ? 20 : 13, 
-                    color: const Color(0xFF3B82F6), 
-                    fontWeight: FontWeight.w600
+                    fontSize: isTablet ? 20 : 13,
+                    color: const Color(0xFF3B82F6),
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
             const Spacer(),
-            
             if (cartState.items.isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(right: 10),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEE2E2),
+                  color: theme.colorScheme.error.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFECACA), width: 1.5),
+                  border: Border.all(color: theme.colorScheme.error.withOpacity(0.3), width: 1.5),
                 ),
                 child: Text(
                   '${cartState.items.length}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFDC2626)),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.colorScheme.error),
                 ),
               ),
-            
             SizedBox(
               height: isTablet ? 66 : 44,
               child: ElevatedButton(
@@ -1052,8 +1056,8 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                   elevation: 6,
                   side: const BorderSide(color: Color(0xFF059669), width: 1.5),
                 ),
-                onPressed: cartState.items.isEmpty 
-                    ? null 
+                onPressed: cartState.items.isEmpty
+                    ? null
                     : () => _openCartBottomSheet(context, cartState),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1063,8 +1067,8 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                     Text(
                       'Ver Carrito',
                       style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        fontSize: isTablet ? 20 : 14
+                        fontWeight: FontWeight.bold,
+                        fontSize: isTablet ? 20 : 14,
                       ),
                     ),
                   ],
@@ -1078,6 +1082,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
   }
 
   void _openCartBottomSheet(BuildContext context, dynamic cartState) {
+    final theme = Theme.of(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
     showModalBottomSheet(
@@ -1090,10 +1095,10 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
       builder: (BuildContext context) {
         return Container(
           padding: const EdgeInsets.all(24),
-          height: MediaQuery.of(context).size.height * 0.95, 
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          height: MediaQuery.of(context).size.height * 0.95,
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: SafeArea(
             child: Column(
@@ -1102,7 +1107,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Mi Carrito', style: TextStyle(fontSize: isTablet ? 28 : 22, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                    Text('Mi Carrito', style: TextStyle(fontSize: isTablet ? 28 : 22, fontWeight: FontWeight.bold, color: theme.textTheme.bodyLarge?.color)),
                     Row(
                       children: [
                         if (cartState.items.isNotEmpty)
@@ -1118,7 +1123,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                           ),
                         const SizedBox(width: 4),
                         IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 28),
+                          icon: Icon(Icons.close_rounded, size: 28, color: theme.textTheme.bodyLarge?.color),
                           splashRadius: 28,
                           constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                           onPressed: () => Navigator.of(context).pop(),
@@ -1127,11 +1132,11 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                     ),
                   ],
                 ),
-                const Divider(thickness: 2),
+                Divider(thickness: 2, color: theme.dividerColor),
                 const SizedBox(height: 16),
                 Expanded(
                   child: cartState.items.isEmpty
-                      ? const Center(child: Text('El carrito está vacío', style: TextStyle(fontSize: 18, color: Color(0xFF94A3B8))))
+                      ? Center(child: Text('El carrito está vacío', style: TextStyle(fontSize: 18, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6))))
                       : ListView.separated(
                           itemCount: cartState.items.length,
                           separatorBuilder: (_, _) => const SizedBox(height: 12),
@@ -1141,9 +1146,12 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                             return Container(
                               padding: EdgeInsets.all(isTablet ? 20 : 16),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
+                                color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: const Color(0xFFCBD5E1), width: isTablet ? 2 : 1.5),
+                                border: Border.all(
+                                  color: theme.brightness == Brightness.dark ? Colors.grey.shade700 : const Color(0xFFCBD5E1),
+                                  width: isTablet ? 2 : 1.5,
+                                ),
                               ),
                               child: Row(
                                 children: [
@@ -1151,13 +1159,13 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(cartItem.producto.nombre, style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 16), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                        Text(cartItem.producto.nombre, style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 16, color: theme.textTheme.bodyLarge?.color), maxLines: 1, overflow: TextOverflow.ellipsis),
                                         const SizedBox(height: 6),
-                                        Text('${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}', style: TextStyle(color: Color(0xFF64748B), fontSize: isTablet ? 16 : 14)),
+                                        Text('${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}', style: TextStyle(color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7), fontSize: isTablet ? 16 : 14)),
                                       ],
                                     ),
                                   ),
-                                  Text('\$${subtotal.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 17, color: Color(0xFF059669))),
+                                  Text('\$${subtotal.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 17, color: const Color(0xFF059669))),
                                   const SizedBox(width: 12),
                                   InkWell(
                                     onTap: () => ref.read(cartProvider.notifier).eliminarItem(index),
@@ -1165,11 +1173,11 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                                     child: Container(
                                       padding: EdgeInsets.all(isTablet ? 12 : 10),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFFEE2E2),
+                                        color: theme.colorScheme.error.withOpacity(0.15),
                                         borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: Colors.red.shade200),
+                                        border: Border.all(color: theme.colorScheme.error.withOpacity(0.3)),
                                       ),
-                                      child: Icon(Icons.close_rounded, color: Colors.redAccent, size: isTablet ? 28 : 22),
+                                      child: Icon(Icons.close_rounded, color: theme.colorScheme.error, size: isTablet ? 28 : 22),
                                     ),
                                   ),
                                 ],
@@ -1178,23 +1186,23 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                           },
                         ),
                 ),
-                const Divider(thickness: 2),
+                Divider(thickness: 2, color: theme.dividerColor),
                 const SizedBox(height: 12),
                 Column(
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('TOTAL USD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 14, color: Color(0xFF64748B))),
-                        Text('\$${cartState.total.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 30 : 20, color: Color(0xFF059669))),
+                        Text('TOTAL USD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 14, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7))),
+                        Text('\$${cartState.total.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 30 : 20, color: const Color(0xFF059669))),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('TOTAL BOLÍVARES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 18 : 12, color: Color(0xFF94A3B8))),
-                        Text('Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 22 : 14, color: Color(0xFF3B82F6))),
+                        Text('TOTAL BOLÍVARES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 18 : 12, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6))),
+                        Text('Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 22 : 14, color: const Color(0xFF3B82F6))),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -1234,24 +1242,25 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
   }
 
   Widget _buildCartSidebarDesktop(dynamic cartState) {
+    final theme = Theme.of(context);
     return Column(
       children: [
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: theme.dividerColor)),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  const Text('🛒 Orden Activa', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A))),
+                  Text('🛒 Orden Activa', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: theme.textTheme.bodyLarge?.color)),
                   if (cartState.items.isNotEmpty) ...[
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(color: theme.colorScheme.primary, borderRadius: BorderRadius.circular(12)),
                       child: Text('${cartState.items.length} ítems', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                     ),
                   ],
@@ -1271,7 +1280,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
         ),
         Expanded(
           child: cartState.items.isEmpty
-              ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shopping_cart_outlined, size: 48, color: Color(0xFFCBD5E1)), SizedBox(height: 8), Text('Carrito vacío', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13))]))
+              ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shopping_cart_outlined, size: 48, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.3)), const SizedBox(height: 8), Text('Carrito vacío', style: TextStyle(color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6), fontSize: 13))]))
               : ListView.separated(
                   padding: const EdgeInsets.all(12),
                   itemCount: cartState.items.length,
@@ -1283,10 +1292,13 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: theme.cardColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
-                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2))],
+                        border: Border.all(
+                          color: theme.brightness == Brightness.dark ? Colors.grey.shade700 : const Color(0xFFCBD5E1),
+                          width: 1.5,
+                        ),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
                       ),
                       child: Row(
                         children: [
@@ -1294,18 +1306,18 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(cartItem.producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                Text(cartItem.producto.nombre, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textTheme.bodyLarge?.color), maxLines: 1, overflow: TextOverflow.ellipsis),
                                 const SizedBox(height: 4),
-                                Text('${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                                Text('${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}', style: TextStyle(fontSize: 12, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7))),
                               ],
                             ),
                           ),
-                          Text('\$${subtotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF059669))),
+                          Text('\$${subtotal.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF059669))),
                           const SizedBox(width: 10),
                           Container(
-                            decoration: const BoxDecoration(color: Color(0xFFFEE2E2), shape: BoxShape.circle),
+                            decoration: BoxDecoration(color: theme.colorScheme.error.withOpacity(0.15), shape: BoxShape.circle),
                             child: IconButton(
-                              icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFFEF4444)),
+                              icon: Icon(Icons.close_rounded, size: 20, color: theme.colorScheme.error),
                               splashRadius: 24,
                               onPressed: () => ref.read(cartProvider.notifier).eliminarItem(index),
                               constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
@@ -1319,21 +1331,26 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
         ),
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
-            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, -2))],
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            border: Border(
+              top: BorderSide(
+                color: theme.brightness == Brightness.dark ? Colors.grey.shade700 : const Color(0xFFE2E8F0),
+                width: 1,
+              ),
+            ),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, -2))],
           ),
           child: Column(
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [const Text('TOTAL USD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF64748B))), Text('\$${cartState.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Color(0xFF059669)))],
+                children: [Text('TOTAL USD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7))), Text('\$${cartState.total.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: const Color(0xFF059669)))],
               ),
               const SizedBox(height: 4),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [const Text('TOTAL BOLÍVARES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF94A3B8))), Text('Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF3B82F6)))],
+                children: [Text('TOTAL BOLÍVARES', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6))), Text('Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: const Color(0xFF3B82F6)))],
               ),
               const SizedBox(height: 12),
               SizedBox(
@@ -1341,7 +1358,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                 height: 56,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: cartState.items.isEmpty ? Colors.grey.shade300 : const Color(0xFF10B981),
+                    backgroundColor: cartState.items.isEmpty ? theme.colorScheme.surfaceVariant : const Color(0xFF10B981),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     elevation: 4,
@@ -1369,6 +1386,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
   // BUSCADOR CON BOTÓN DE ESCANEO
   // ==========================================
   Widget _buildSearchBar(bool isMobile) {
+    final theme = Theme.of(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     return SizedBox(
       height: 46,
@@ -1378,13 +1396,13 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
         onChanged: (_) => _filtrarProductos(),
         decoration: InputDecoration(
           hintText: 'Buscar por nombre / código (F2)...',
-          hintStyle: TextStyle(fontSize: isTablet ? 18 : 14, color: const Color(0xFF94A3B8)),
+          hintStyle: TextStyle(fontSize: isTablet ? 18 : 14, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5)),
           prefixIcon: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: IconButton(
@@ -1404,11 +1422,11 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.search, size: 22, color: Color(0xFF64748B)),
+              Icon(Icons.search, size: 22, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6)),
             ],
           ),
           suffixIcon: IconButton(
-            icon: const Icon(Icons.clear, size: 18),
+            icon: Icon(Icons.clear, size: 18, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6)),
             onPressed: () {
               _searchController.clear();
               _filtrarProductos();
@@ -1416,10 +1434,13 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 14),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: theme.cardColor,
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: const Color(0xFFCBD5E1), width: isTablet ? 2.5 : 1.5),
+            borderSide: BorderSide(
+              color: theme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFCBD5E1),
+              width: isTablet ? 2.5 : 1.5,
+            ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
@@ -1436,6 +1457,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
   }
 
   Widget _buildCategoryChips() {
+    final theme = Theme.of(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final double height = isTablet ? 60 : 48;
 
@@ -1468,7 +1490,7 @@ void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
             )
           : ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16), 
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: _categorias.length,
               separatorBuilder: (context, index) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
@@ -1504,6 +1526,7 @@ class _CategoryButtonState extends State<_CategoryButton> {
   bool _isHovered = false;
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final bool esStockBajo = widget.categoria == 'Stock Bajo';
     final bool isTablet = ResponsiveHelper.isTablet(context);
 
@@ -1516,9 +1539,11 @@ class _CategoryButtonState extends State<_CategoryButton> {
       borderColor = backgroundColor;
       textColor = Colors.white;
     } else {
-      backgroundColor = _isHovered ? const Color(0xFFF1F5F9) : Colors.white;
-      borderColor = _isHovered ? const Color(0xFF94A3B8) : const Color(0xFFCBD5E1);
-      textColor = const Color(0xFF334155);
+      backgroundColor = _isHovered ? theme.colorScheme.surfaceVariant.withOpacity(0.7) : theme.cardColor;
+      borderColor = _isHovered
+          ? (theme.brightness == Brightness.dark ? Colors.grey.shade500 : const Color(0xFF94A3B8))
+          : (theme.brightness == Brightness.dark ? Colors.grey.shade700 : const Color(0xFFCBD5E1));
+      textColor = theme.textTheme.bodyMedium?.color ?? Colors.black;
     }
 
     final double fontSize = isTablet ? 16.0 : 13.0;
@@ -1539,7 +1564,7 @@ class _CategoryButtonState extends State<_CategoryButton> {
             color: backgroundColor,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: borderColor, width: isTablet ? 2 : 1.5),
-            boxShadow: widget.esSeleccionada ? [BoxShadow(color: (esStockBajo ? Colors.red : const Color(0xFF10B981)).withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 4))] : null,
+            boxShadow: widget.esSeleccionada ? [BoxShadow(color: (esStockBajo ? Colors.red : const Color(0xFF10B981)).withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 4))] : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1598,6 +1623,7 @@ class _ProductCardState extends State<_ProductCard> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final bool isTablet = ResponsiveHelper.isTablet(context);
 
     return MouseRegion(
@@ -1613,17 +1639,19 @@ class _ProductCardState extends State<_ProductCard> {
             borderRadius: BorderRadius.circular(16),
             child: Ink(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.cardColor,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: widget.stockBajo 
-                    ? const Color(0xFFFCA5A5) 
-                    : (isTablet ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0)),
+                  color: widget.stockBajo
+                      ? const Color(0xFFFCA5A5)
+                      : (theme.brightness == Brightness.dark
+                          ? Colors.grey.shade600
+                          : const Color(0xFFE2E8F0)),
                   width: widget.stockBajo ? 2 : (isTablet ? 2.5 : 1.5),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isTablet ? 0.08 : 0.04),
+                    color: Colors.black.withOpacity(isTablet ? 0.08 : 0.04),
                     blurRadius: isTablet ? 16 : 12,
                     offset: const Offset(0, 4),
                   ),
@@ -1634,9 +1662,9 @@ class _ProductCardState extends State<_ProductCard> {
                   Expanded(
                     flex: 6,
                     child: Container(
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                       ),
                       child: Stack(
                         children: [
@@ -1647,9 +1675,9 @@ class _ProductCardState extends State<_ProductCard> {
                                     fit: BoxFit.cover,
                                     width: double.infinity,
                                     height: double.infinity,
-                                    errorBuilder: (_, _, _) => const Icon(Icons.inventory_2, size: 40, color: Color(0xFF3B82F6)),
+                                    errorBuilder: (_, _, _) => Icon(Icons.inventory_2, size: 40, color: theme.colorScheme.primary),
                                   )
-                                : const Icon(Icons.inventory_2, size: 40, color: Color(0xFF3B82F6)),
+                                : Icon(Icons.inventory_2, size: 40, color: theme.colorScheme.primary),
                           ),
                           if (widget.stockBajo)
                             Positioned(
@@ -1673,12 +1701,12 @@ class _ProductCardState extends State<_ProductCard> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.9),
+                                color: theme.cardColor.withOpacity(0.9),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 widget.producto.esPesado ? 'Balanza' : 'Unidad',
-                                style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: theme.textTheme.bodyMedium?.color),
                               ),
                             ),
                           ),
@@ -1701,12 +1729,12 @@ class _ProductCardState extends State<_ProductCard> {
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: widget.isMobile ? 13 : (isTablet ? 18 : 14),
-                              color: const Color(0xFF0F172A),
+                              color: theme.textTheme.bodyLarge?.color,
                             ),
                           ),
                           Text(
                             'Cód: ${widget.producto.codigoBarras}',
-                            style: TextStyle(fontSize: widget.isMobile ? 9 : (isTablet ? 12 : 10), color: const Color(0xFF94A3B8)),
+                            style: TextStyle(fontSize: widget.isMobile ? 9 : (isTablet ? 12 : 10), color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6)),
                           ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1722,16 +1750,19 @@ class _ProductCardState extends State<_ProductCard> {
                               Container(
                                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: widget.stockBajo ? const Color(0xFFFEE2E2) : const Color(0xFFF1F5F9),
+                                  color: widget.stockBajo ? theme.colorScheme.error.withOpacity(0.15) : theme.colorScheme.surfaceVariant.withOpacity(0.5),
                                   borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                                  border: Border.all(
+                                    color: theme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFE2E8F0),
+                                    width: 1,
+                                  ),
                                 ),
                                 child: Text(
                                   'Stock: ${widget.producto.stock}',
                                   style: TextStyle(
                                     fontSize: widget.isMobile ? 9 : (isTablet ? 12 : 10),
                                     fontWeight: FontWeight.w600,
-                                    color: widget.stockBajo ? const Color(0xFFEF4444) : const Color(0xFF475569),
+                                    color: widget.stockBajo ? theme.colorScheme.error : theme.textTheme.bodyMedium?.color,
                                   ),
                                 ),
                               ),
@@ -1759,21 +1790,25 @@ class _ProductCardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(
+          color: theme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFE2E8F0),
+          width: 1.5,
+        ),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Column(
         children: [
           Expanded(
             flex: 6,
             child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               ),
             ),
           ),
@@ -1785,13 +1820,13 @@ class _ProductCardSkeleton extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(height: 14, width: double.infinity, color: const Color(0xFFF1F5F9)),
-                  Container(height: 10, width: 80, color: const Color(0xFFF1F5F9)),
+                  Container(height: 14, width: double.infinity, color: theme.colorScheme.surfaceVariant.withOpacity(0.5)),
+                  Container(height: 10, width: 80, color: theme.colorScheme.surfaceVariant.withOpacity(0.5)),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(height: 16, width: 60, color: const Color(0xFFF1F5F9)),
-                      Container(height: 14, width: 70, color: const Color(0xFFF1F5F9)),
+                      Container(height: 16, width: 60, color: theme.colorScheme.surfaceVariant.withOpacity(0.5)),
+                      Container(height: 14, width: 70, color: theme.colorScheme.surfaceVariant.withOpacity(0.5)),
                     ],
                   ),
                 ],

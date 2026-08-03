@@ -34,10 +34,9 @@ class _AdminValidationDialogState extends State<AdminValidationDialog> {
       _errorMessage = '';
     });
 
-      try {
+    try {
       final admins = await _isarService.obtenerUsuarios();
 
-      // Búsqueda manual (El método más seguro y sin errores de tipos)
       UsuarioEntity? adminValido;
       for (var user in admins) {
         if (user.rol.toLowerCase() == 'admin' && user.pin == pin) {
@@ -46,22 +45,18 @@ class _AdminValidationDialogState extends State<AdminValidationDialog> {
         }
       }
 
-        if (mounted) {
+      if (mounted) {
         setState(() => _isLoading = false);
 
         if (adminValido != null) {
-          // 1. Ejecuta la acción restringida
           widget.onSuccess();
-
-          // 2. Cierra el diálogo
           Navigator.of(context).pop();
         } else {
           setState(() {
             _errorMessage = 'PIN de Administrador incorrecto.';
           });
-              _pinController.clear();
-         }
-        
+          _pinController.clear();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -75,21 +70,46 @@ class _AdminValidationDialogState extends State<AdminValidationDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Row(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.brightness == Brightness.dark
+              ? Colors.grey.shade700
+              : Colors.transparent,
+          width: 1,
+        ),
+      ),
+      backgroundColor: theme.cardColor,
+      title: Row(
         children: [
-          Icon(Icons.admin_panel_settings, color: Color(0xFF3B82F6)),
-          SizedBox(width: 8),
-          Text('Validación de Administrador', style: TextStyle(fontWeight: FontWeight.bold)),
+          Icon(
+            Icons.admin_panel_settings,
+            color: theme.brightness == Brightness.dark
+                ? Colors.blue.shade300
+                : const Color(0xFF3B82F6),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Validación de Administrador',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: theme.textTheme.bodyLarge?.color,
+            ),
+          ),
         ],
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
+          Text(
             'Esta acción requiere autorización de un administrador. Ingresa su PIN para continuar.',
-            style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+            style: TextStyle(
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+              fontSize: 13,
+            ),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -98,13 +118,28 @@ class _AdminValidationDialogState extends State<AdminValidationDialog> {
             keyboardType: TextInputType.number,
             maxLength: 4,
             autofocus: true,
+            style: TextStyle(color: theme.textTheme.bodyLarge?.color),
             decoration: InputDecoration(
               labelText: 'PIN del Administrador',
+              labelStyle: TextStyle(color: theme.textTheme.bodyMedium?.color),
               errorText: _errorMessage.isEmpty ? null : _errorMessage,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              filled: true,
+              fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: theme.brightness == Brightness.dark
+                      ? Colors.grey.shade700
+                      : const Color(0xFFCBD5E1),
+                ),
+              ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+              ),
+              errorStyle: TextStyle(
+                color: theme.colorScheme.error,
+                fontSize: 12,
               ),
             ),
             onSubmitted: (_) => _validarAdmin(),
@@ -113,6 +148,9 @@ class _AdminValidationDialogState extends State<AdminValidationDialog> {
       ),
       actions: [
         TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: theme.textTheme.bodyMedium?.color,
+          ),
           onPressed: () {
             Navigator.of(context).pop();
             widget.onCancel();
@@ -129,9 +167,15 @@ class _AdminValidationDialogState extends State<AdminValidationDialog> {
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
-              : const Text('Validar', style: TextStyle(fontWeight: FontWeight.bold)),
+              : const Text(
+                  'Validar',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
         ),
       ],
     );

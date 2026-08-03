@@ -43,7 +43,12 @@ class _CashierPinChangeDialogState extends State<CashierPinChangeDialog> {
   Future<void> _guardarCambio() async {
     final newPin = _pinController.text.trim();
     if (newPin.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El PIN debe tener 4 dígitos.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('El PIN debe tener 4 dígitos.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
       return;
     }
     setState(() => _cargando = true);
@@ -53,28 +58,67 @@ class _CashierPinChangeDialogState extends State<CashierPinChangeDialog> {
       if (exito) {
         widget.cajero.pin = newPin;
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Clave actualizada correctamente.'), backgroundColor: Color(0xFF10B981)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Clave actualizada correctamente.'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al cambiar la clave.'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Error al cambiar la clave.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Row(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.brightness == Brightness.dark
+              ? Colors.grey.shade700
+              : Colors.transparent,
+          width: 1,
+        ),
+      ),
+      backgroundColor: theme.cardColor,
+      title: Row(
         children: [
-          Icon(Icons.lock_reset, color: Color(0xFF3B82F6)),
-          SizedBox(width: 8),
-          Text('Cambiar PIN del Cajero', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Icon(
+            Icons.lock_reset,
+            color: theme.brightness == Brightness.dark
+                ? Colors.blue.shade300
+                : const Color(0xFF3B82F6),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Cambiar PIN del Cajero',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: theme.textTheme.bodyLarge?.color,
+            ),
+          ),
         ],
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('El administrador ha validado el acceso. Puedes cambiar el PIN.', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+          Text(
+            'El administrador ha validado el acceso. Puedes cambiar el PIN.',
+            style: TextStyle(
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+              fontSize: 13,
+            ),
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _pinController,
@@ -82,20 +126,40 @@ class _CashierPinChangeDialogState extends State<CashierPinChangeDialog> {
             keyboardType: TextInputType.number,
             maxLength: 4,
             autofocus: true,
+            style: TextStyle(color: theme.textTheme.bodyLarge?.color),
             decoration: InputDecoration(
               labelText: 'Nuevo PIN (4 dígitos)',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              labelStyle: TextStyle(color: theme.textTheme.bodyMedium?.color),
+              filled: true,
+              fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: theme.brightness == Brightness.dark
+                      ? Colors.grey.shade700
+                      : const Color(0xFFCBD5E1),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+              ),
               suffixIcon: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Botón de revelar PIN (Solo visible aquí porque ya pasó la validación del admin)
                   IconButton(
-                    icon: Icon(_isRevealed ? Icons.visibility : Icons.visibility_off),
+                    icon: Icon(
+                      _isRevealed ? Icons.visibility : Icons.visibility_off,
+                      color: theme.textTheme.bodyMedium?.color,
+                    ),
                     onPressed: _toggleReveal,
                     tooltip: _isRevealed ? 'Ocultar PIN actual' : 'Revelar PIN actual',
                   ),
                   IconButton(
-                    icon: const Icon(Icons.lock_open),
+                    icon: Icon(
+                      Icons.lock_open,
+                      color: theme.textTheme.bodyMedium?.color,
+                    ),
                     onPressed: () {
                       setState(() {
                         _obscureText = !_obscureText;
@@ -110,13 +174,32 @@ class _CashierPinChangeDialogState extends State<CashierPinChangeDialog> {
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: theme.textTheme.bodyMedium?.color,
+          ),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
         ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF10B981),
+            foregroundColor: Colors.white,
+          ),
           onPressed: _cargando ? null : _guardarCambio,
           child: _cargando
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Guardar Cambios', style: TextStyle(fontWeight: FontWeight.bold)),
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text(
+                  'Guardar Cambios',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
         ),
       ],
     );
@@ -154,7 +237,12 @@ class _AdminPinChangeDialogState extends State<AdminPinChangeDialog> {
   Future<void> _guardarCambio() async {
     final newPin = _pinController.text.trim();
     if (newPin.length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El PIN debe tener 4 dígitos.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('El PIN debe tener 4 dígitos.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
       return;
     }
     setState(() => _cargando = true);
@@ -164,28 +252,67 @@ class _AdminPinChangeDialogState extends State<AdminPinChangeDialog> {
       if (exito) {
         widget.admin.pin = newPin;
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Clave de administrador actualizada correctamente.'), backgroundColor: Color(0xFF10B981)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Clave de administrador actualizada correctamente.'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al cambiar la clave.'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Error al cambiar la clave.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Row(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.brightness == Brightness.dark
+              ? Colors.grey.shade700
+              : Colors.transparent,
+          width: 1,
+        ),
+      ),
+      backgroundColor: theme.cardColor,
+      title: Row(
         children: [
-          Icon(Icons.admin_panel_settings, color: Color(0xFF3B82F6)),
-          SizedBox(width: 8),
-          Text('Cambiar mi PIN de Admin', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Icon(
+            Icons.admin_panel_settings,
+            color: theme.brightness == Brightness.dark
+                ? Colors.blue.shade300
+                : const Color(0xFF3B82F6),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Cambiar mi PIN de Admin',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: theme.textTheme.bodyLarge?.color,
+            ),
+          ),
         ],
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Ingresa tu nuevo PIN de administrador:', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+          Text(
+            'Ingresa tu nuevo PIN de administrador:',
+            style: TextStyle(
+              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+              fontSize: 13,
+            ),
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _pinController,
@@ -193,11 +320,29 @@ class _AdminPinChangeDialogState extends State<AdminPinChangeDialog> {
             keyboardType: TextInputType.number,
             maxLength: 4,
             autofocus: true,
+            style: TextStyle(color: theme.textTheme.bodyLarge?.color),
             decoration: InputDecoration(
               labelText: 'Nuevo PIN (4 dígitos)',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              labelStyle: TextStyle(color: theme.textTheme.bodyMedium?.color),
+              filled: true,
+              fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: theme.brightness == Brightness.dark
+                      ? Colors.grey.shade700
+                      : const Color(0xFFCBD5E1),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+              ),
               suffixIcon: IconButton(
-                icon: Icon(_obscureText ? Icons.visibility : Icons.visibility_off),
+                icon: Icon(
+                  _obscureText ? Icons.visibility : Icons.visibility_off,
+                  color: theme.textTheme.bodyMedium?.color,
+                ),
                 onPressed: () => setState(() => _obscureText = !_obscureText),
               ),
             ),
@@ -205,13 +350,32 @@ class _AdminPinChangeDialogState extends State<AdminPinChangeDialog> {
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: theme.textTheme.bodyMedium?.color,
+          ),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
         ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF10B981),
+            foregroundColor: Colors.white,
+          ),
           onPressed: _cargando ? null : _guardarCambio,
           child: _cargando
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Guardar Nuevo PIN', style: TextStyle(fontWeight: FontWeight.bold)),
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text(
+                  'Guardar Nuevo PIN',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
         ),
       ],
     );

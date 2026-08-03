@@ -60,9 +60,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al cargar el inventario. Intenta de nuevo.'),
-            backgroundColor: Colors.redAccent,
+          SnackBar(
+            content: const Text('Error al cargar el inventario. Intenta de nuevo.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -71,6 +71,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 
   Future<String?> _mostrarDialogoNuevaCategoria(BuildContext context) async {
     final controller = TextEditingController();
+    final theme = Theme.of(context);
     return showDialog<String>(
       context: context,
       builder: (dialogContext) {
@@ -81,27 +82,36 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
             padding: const EdgeInsets.all(24.0),
             constraints: const BoxConstraints(maxWidth: 450),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: theme.cardColor,
               borderRadius: BorderRadius.circular(24),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 8))],
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 8))],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Nueva Categoría', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Color(0xFF0F172A))),
+                Text('Nueva Categoría', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: theme.textTheme.bodyLarge?.color)),
                 const SizedBox(height: 16),
                 TextField(
                   controller: controller,
                   autofocus: true,
                   textCapitalization: TextCapitalization.words,
-                  style: const TextStyle(fontSize: 16),
+                  style: TextStyle(fontSize: 16, color: theme.textTheme.bodyLarge?.color),
                   decoration: InputDecoration(
                     hintText: 'Ej: Bebidas, Limpieza, Víveres...',
+                    hintStyle: TextStyle(color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5)),
                     filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+                    fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: theme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFCBD5E1),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                    ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   ),
                 ),
@@ -112,8 +122,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                   children: [
                     TextButton(
                       style: TextButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: theme.textTheme.bodyMedium?.color,
+                        backgroundColor: theme.colorScheme.surfaceVariant,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       ),
@@ -151,6 +161,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   void _mostrarFormularioProducto({ProductoEntity? productoAEditar}) {
     if (!_esAdmin) return;
 
+    final theme = Theme.of(context);
     final isEditing = productoAEditar != null;
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
@@ -186,6 +197,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateModal) {
+            final localTheme = Theme.of(context);
             return Dialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
               elevation: 8,
@@ -194,9 +206,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 constraints: BoxConstraints(maxWidth: isTablet || isDesktop ? 800.0 : double.infinity),
                 padding: EdgeInsets.all(isTablet ? 40.0 : 24.0),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: localTheme.cardColor,
                   borderRadius: BorderRadius.circular(28),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 8))],
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 8))],
                 ),
                 child: SingleChildScrollView(
                   child: Column(
@@ -207,12 +219,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                         children: [
                           Container(
                             padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(color: const Color(0xFF10B981).withValues(alpha: 0.1), shape: BoxShape.circle),
+                            decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.1), shape: BoxShape.circle),
                             child: Icon(isEditing ? Icons.edit_outlined : Icons.add_shopping_cart_outlined, color: const Color(0xFF10B981), size: 24),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: Text(isEditing ? 'Editar Producto' : 'Nuevo Producto', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Color(0xFF0F172A))),
+                            child: Text(isEditing ? 'Editar Producto' : 'Nuevo Producto', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: localTheme.textTheme.bodyLarge?.color)),
                           ),
                         ],
                       ),
@@ -220,43 +232,67 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 
                       TextField(
                         controller: codigoController,
-                        style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
+                        style: TextStyle(fontSize: 18, color: localTheme.textTheme.bodyLarge?.color),
                         decoration: InputDecoration(
                           labelText: 'Código de Barras',
-                          labelStyle: const TextStyle(fontSize: 16),
+                          labelStyle: TextStyle(fontSize: 16, color: localTheme.textTheme.bodyMedium?.color),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+                          fillColor: localTheme.colorScheme.surfaceVariant.withOpacity(0.5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: localTheme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFCBD5E1),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
                         ),
                       ),
                       const SizedBox(height: 14),
                       TextField(
                         controller: nombreController,
-                        style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
+                        style: TextStyle(fontSize: 18, color: localTheme.textTheme.bodyLarge?.color),
                         decoration: InputDecoration(
                           labelText: 'Nombre del Producto *',
-                          labelStyle: const TextStyle(fontSize: 16),
+                          labelStyle: TextStyle(fontSize: 16, color: localTheme.textTheme.bodyMedium?.color),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+                          fillColor: localTheme.colorScheme.surfaceVariant.withOpacity(0.5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: localTheme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFCBD5E1),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
                         ),
                       ),
                       const SizedBox(height: 14),
                       TextField(
                         controller: imagenUrlController,
-                        style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
+                        style: TextStyle(fontSize: 18, color: localTheme.textTheme.bodyLarge?.color),
                         onChanged: (val) => setStateModal(() => imagenUrlPreview = val),
                         decoration: InputDecoration(
                           labelText: 'URL de la Imagen',
-                          labelStyle: const TextStyle(fontSize: 16),
+                          labelStyle: TextStyle(fontSize: 16, color: localTheme.textTheme.bodyMedium?.color),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+                          fillColor: localTheme.colorScheme.surfaceVariant.withOpacity(0.5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: localTheme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFCBD5E1),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
                         ),
                       ),
@@ -265,7 +301,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                         Container(
                           height: 160,
                           width: double.infinity,
-                          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+                          decoration: BoxDecoration(
+                            color: localTheme.colorScheme.surfaceVariant.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: localTheme.brightness == Brightness.dark ? Colors.grey.shade600 : Colors.grey.shade300,
+                            ),
+                          ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
                             child: Image.network(
@@ -273,9 +315,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) => Center(
                                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                  Icon(Icons.image_not_supported_outlined, color: Colors.grey.shade400, size: 32),
+                                  Icon(Icons.image_not_supported_outlined, color: localTheme.textTheme.bodyMedium?.color?.withOpacity(0.4), size: 32),
                                   const SizedBox(height: 8),
-                                  Text('Imagen no válida', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                                  Text('Imagen no válida', style: TextStyle(color: localTheme.textTheme.bodyMedium?.color?.withOpacity(0.5), fontSize: 12)),
                                 ]),
                               ),
                             ),
@@ -289,14 +331,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             child: TextField(
                               controller: precioController,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
+                              style: TextStyle(fontSize: 18, color: localTheme.textTheme.bodyLarge?.color),
                               decoration: InputDecoration(
                                 labelText: 'Precio Unidad (\$) *',
-                                labelStyle: const TextStyle(fontSize: 16),
+                                labelStyle: TextStyle(fontSize: 16, color: localTheme.textTheme.bodyMedium?.color),
                                 filled: true,
-                                fillColor: const Color(0xFFF8FAFC),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+                                fillColor: localTheme.colorScheme.surfaceVariant.withOpacity(0.5),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: localTheme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFCBD5E1),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                                ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
                               ),
                             ),
@@ -306,14 +356,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             child: TextField(
                               controller: stockController,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
+                              style: TextStyle(fontSize: 18, color: localTheme.textTheme.bodyLarge?.color),
                               decoration: InputDecoration(
                                 labelText: 'Stock Inicial *',
-                                labelStyle: const TextStyle(fontSize: 16),
+                                labelStyle: TextStyle(fontSize: 16, color: localTheme.textTheme.bodyMedium?.color),
                                 filled: true,
-                                fillColor: const Color(0xFFF8FAFC),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+                                fillColor: localTheme.colorScheme.surfaceVariant.withOpacity(0.5),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: localTheme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFCBD5E1),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                                ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
                               ),
                             ),
@@ -328,14 +386,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             child: TextField(
                               controller: stockMinController,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
+                              style: TextStyle(fontSize: 18, color: localTheme.textTheme.bodyLarge?.color),
                               decoration: InputDecoration(
                                 labelText: 'Stock Mínimo *',
-                                labelStyle: const TextStyle(fontSize: 16),
+                                labelStyle: TextStyle(fontSize: 16, color: localTheme.textTheme.bodyMedium?.color),
                                 filled: true,
-                                fillColor: const Color(0xFFF8FAFC),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+                                fillColor: localTheme.colorScheme.surfaceVariant.withOpacity(0.5),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: localTheme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFCBD5E1),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                                ),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
                               ),
                             ),
@@ -349,23 +415,31 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                                   initialValue: categoriaSeleccionada,
                                   decoration: InputDecoration(
                                     labelText: 'Categoría',
-                                    labelStyle: const TextStyle(fontSize: 16),
+                                    labelStyle: TextStyle(fontSize: 16, color: localTheme.textTheme.bodyMedium?.color),
                                     filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+                                    fillColor: localTheme.colorScheme.surfaceVariant.withOpacity(0.5),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: localTheme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFCBD5E1),
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                                    ),
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
                                   ),
                                   isExpanded: true,
-                                  items: listaCategorias.map((cat) => DropdownMenuItem<String>(value: cat, child: Text(cat, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16)))).toList(),
+                                  items: listaCategorias.map((cat) => DropdownMenuItem<String>(value: cat, child: Text(cat, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, color: localTheme.textTheme.bodyLarge?.color)))).toList(),
                                   onChanged: (val) { if (val != null) setStateModal(() => categoriaSeleccionada = val); },
-                                  icon: const Icon(Icons.keyboard_arrow_down),
+                                  icon: Icon(Icons.keyboard_arrow_down, color: localTheme.textTheme.bodyMedium?.color),
                                 ),
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8),
                                   child: ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.1),
+                                      backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
                                       foregroundColor: const Color(0xFF10B981),
                                       elevation: 0,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -395,24 +469,32 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                       const SizedBox(height: 8),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('¿Es producto pesado (granel)?', style: TextStyle(fontSize: 16, color: Color(0xFF0F172A))),
+                        title: Text('¿Es producto pesado (granel)?', style: TextStyle(fontSize: 16, color: localTheme.textTheme.bodyLarge?.color)),
                         activeThumbColor: const Color(0xFF10B981),
                         value: esPesado,
                         onChanged: (val) => setStateModal(() => esPesado = val),
                       ),
-                      const Divider(height: 32),
-                      const Text('Información del Proveedor', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF475569), fontSize: 16)),
+                      Divider(height: 32, color: localTheme.dividerColor),
+                      Text('Información del Proveedor', style: TextStyle(fontWeight: FontWeight.bold, color: localTheme.textTheme.bodyMedium?.color, fontSize: 16)),
                       const SizedBox(height: 12),
                       TextField(
                         controller: proveedorNombreController,
-                        style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
+                        style: TextStyle(fontSize: 18, color: localTheme.textTheme.bodyLarge?.color),
                         decoration: InputDecoration(
                           labelText: 'Nombre del Proveedor / Empresa',
-                          labelStyle: const TextStyle(fontSize: 16),
+                          labelStyle: TextStyle(fontSize: 16, color: localTheme.textTheme.bodyMedium?.color),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+                          fillColor: localTheme.colorScheme.surfaceVariant.withOpacity(0.5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: localTheme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFCBD5E1),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
                         ),
                       ),
@@ -420,14 +502,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                       TextField(
                         controller: proveedorTelController,
                         keyboardType: TextInputType.phone,
-                        style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
+                        style: TextStyle(fontSize: 18, color: localTheme.textTheme.bodyLarge?.color),
                         decoration: InputDecoration(
                           labelText: 'Teléfono del Proveedor',
-                          labelStyle: const TextStyle(fontSize: 16),
+                          labelStyle: TextStyle(fontSize: 16, color: localTheme.textTheme.bodyMedium?.color),
                           filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF10B981), width: 2)),
+                          fillColor: localTheme.colorScheme.surfaceVariant.withOpacity(0.5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: localTheme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFCBD5E1),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
                         ),
                       ),
@@ -442,8 +532,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             TextButton(
                               style: TextButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-                                foregroundColor: Colors.grey.shade700,
-                                backgroundColor: const Color(0xFFF1F5F9),
+                                foregroundColor: localTheme.textTheme.bodyMedium?.color,
+                                backgroundColor: localTheme.colorScheme.surfaceVariant,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               onPressed: () => Navigator.pop(context),
@@ -451,8 +541,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                             ),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: guardando ? Colors.grey.shade300 : const Color(0xFF10B981),
-                              foregroundColor: guardando ? Colors.grey : Colors.white,
+                              backgroundColor: guardando ? localTheme.colorScheme.surfaceVariant : const Color(0xFF10B981),
+                              foregroundColor: guardando ? localTheme.textTheme.bodyMedium?.color : Colors.white,
                               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               elevation: 4,
@@ -521,39 +611,43 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
   // MODAL DE DETALLES DEL PRODUCTO
   // ==========================================
   void _mostrarDetalleProducto(ProductoEntity producto) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isTablet = ResponsiveHelper.isTablet(context);
-    // ignore: unused_local_variable
-    final isDesktop = !isMobile && !isTablet;
+  final theme = Theme.of(context);
+  final isMobile = ResponsiveHelper.isMobile(context);
+  final isTablet = ResponsiveHelper.isTablet(context);
 
-    final bool isLargeScreen = !isMobile;
-    final double maxWidth = isLargeScreen ? 850.0 : 600.0;
-    final double padding = isLargeScreen ? 32.0 : 24.0;
-    final double imageHeight = isLargeScreen ? 280 : 200;
-    final double imageMaxWidth = isLargeScreen ? 500 : 400;
-    final double insetHorizontal = isLargeScreen ? 60.0 : 16.0;
+  // Ajustar tamaños según el dispositivo
+  final bool isLargeScreen = !isMobile;
+  final double maxWidth = isLargeScreen ? 850.0 : 600.0;
+  final double padding = isMobile ? 16.0 : (isTablet ? 28.0 : 32.0);
+  final double imageHeight = isMobile ? 150 : (isTablet ? 220 : 280);
+  final double imageMaxWidth = isLargeScreen ? 500 : 400;
+  final double insetHorizontal = isMobile ? 8.0 : (isTablet ? 30.0 : 60.0);
 
-    final double titleSize = isLargeScreen ? 24 : 20;
-    final double nameSize = isLargeScreen ? 28 : 24;
-    final double detailSize = isLargeScreen ? 16 : 14;
-    final double priceSize = isLargeScreen ? 20 : 18;
-    final double stockSize = isLargeScreen ? 18 : 16;
+  final double titleSize = isMobile ? 18 : (isTablet ? 22 : 24);
+  final double nameSize = isMobile ? 20 : (isTablet ? 26 : 28);
+  final double detailSize = isMobile ? 12 : (isTablet ? 15 : 16);
+  final double priceSize = isMobile ? 16 : (isTablet ? 19 : 20);
+  final double stockSize = isMobile ? 14 : (isTablet ? 17 : 18);
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          elevation: 8,
-          insetPadding: EdgeInsets.symmetric(horizontal: insetHorizontal, vertical: 24),
-          child: Container(
-            constraints: BoxConstraints(maxWidth: maxWidth),
-            padding: EdgeInsets.all(padding),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 8))],
-            ),
+  showDialog(
+    context: context,
+    builder: (dialogContext) {
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 8,
+        insetPadding: EdgeInsets.symmetric(horizontal: insetHorizontal, vertical: 24),
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: maxWidth,
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          padding: EdgeInsets.all(padding),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 8))],
+          ),
+          child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -561,65 +655,149 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Detalles del Producto', style: TextStyle(fontWeight: FontWeight.bold, fontSize: titleSize, color: Color(0xFF0F172A))),
+                    Text(
+                      'Detalles del Producto',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: titleSize,
+                        color: theme.textTheme.bodyLarge?.color,
+                      ),
+                    ),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 28),
+                      icon: Icon(Icons.close_rounded, size: 28, color: theme.textTheme.bodyLarge?.color),
                       onPressed: () => Navigator.pop(dialogContext),
                     )
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Center(
                   child: Container(
                     height: imageHeight,
                     width: double.infinity,
                     constraints: BoxConstraints(maxWidth: imageMaxWidth),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                      border: Border.all(
+                        color: theme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFE2E8F0),
+                        width: 2,
+                      ),
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(16),
                       child: producto.imagenUrl?.isNotEmpty ?? false
-                        ? Image.network(producto.imagenUrl!, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey))
-                        : const Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
+                          ? Image.network(
+                              producto.imagenUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.inventory_2,
+                                size: 64,
+                                color: theme.colorScheme.primary,
+                              ),
+                            )
+                          : Icon(
+                              Icons.inventory_2,
+                              size: 64,
+                              color: theme.colorScheme.primary,
+                            ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Divider(),
                 const SizedBox(height: 16),
-                Text(producto.nombre, style: TextStyle(fontWeight: FontWeight.bold, fontSize: nameSize, color: Color(0xFF0F172A))),
+                Divider(color: theme.dividerColor),
+                const SizedBox(height: 12),
+                Text(
+                  producto.nombre,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: nameSize,
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 4),
-                Text('Cód: ${producto.codigoBarras}', style: TextStyle(fontSize: detailSize, color: Color(0xFF94A3B8))),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Precio: \$${producto.precioUnidad.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: priceSize, color: Color(0xFF10B981))),
-                    Text('Categoría: ${producto.categoria}', style: TextStyle(fontSize: detailSize, color: Color(0xFF64748B))),
-                  ],
+                Text(
+                  'Cód: ${producto.codigoBarras}',
+                  style: TextStyle(
+                    fontSize: detailSize,
+                    color: theme.textTheme.bodyMedium?.color,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Stock Actual: ${producto.stock % 1 == 0 ? producto.stock.toInt() : producto.stock}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: stockSize, color: Color(0xFF0F172A))),
                     Text(
-                      'Stock Mínimo: ${producto.stockMinimo.isFinite ? (producto.stockMinimo % 1 == 0 ? producto.stockMinimo.toInt() : producto.stockMinimo) : 0}',
-                      style: TextStyle(fontSize: detailSize, color: Color(0xFF64748B)),
+                      'Precio: \$${producto.precioUnidad.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: priceSize,
+                        color: const Color(0xFF10B981),
+                      ),
+                    ),
+                    Text(
+                      'Categoría: ${producto.categoria}',
+                      style: TextStyle(
+                        fontSize: detailSize,
+                        color: theme.textTheme.bodyMedium?.color,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Stock Actual: ${producto.stock % 1 == 0 ? producto.stock.toInt() : producto.stock}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: stockSize,
+                        color: theme.textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                    Text(
+                      'Stock Mínimo: ${producto.stockMinimo.isFinite ? (producto.stockMinimo % 1 == 0 ? producto.stockMinimo.toInt() : producto.stockMinimo) : 0}',
+                      style: TextStyle(
+                        fontSize: detailSize,
+                        color: theme.textTheme.bodyMedium?.color,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 if (producto.proveedorNombre.isNotEmpty) ...[
                   Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFC7D2FE), width: 1)),
-                    child: Text('Proveedor: ${producto.proveedorNombre} (${producto.proveedorTelefono.isNotEmpty ? producto.proveedorTelefono : "Sin teléfono"})', style: const TextStyle(fontStyle: FontStyle.italic, fontWeight: FontWeight.w500, color: Color(0xFF4F46E5))),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: theme.brightness == Brightness.dark
+                          ? Colors.indigo.withOpacity(0.2)
+                          : const Color(0xFFEEF2FF),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: theme.brightness == Brightness.dark
+                            ? Colors.indigo.withOpacity(0.3)
+                            : const Color(0xFFC7D2FE),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      'Proveedor: ${producto.proveedorNombre} (${producto.proveedorTelefono.isNotEmpty ? producto.proveedorTelefono : "Sin teléfono"})',
+                      style: TextStyle(
+                        fontStyle: FontStyle.italic,
+                        fontWeight: FontWeight.w500,
+                        color: theme.brightness == Brightness.dark
+                            ? Colors.indigo.shade300
+                            : const Color(0xFF4F46E5),
+                        fontSize: detailSize,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                 ],
                 if (_esAdmin) ...[
                   Row(
@@ -627,20 +805,32 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                     children: [
                       TextButton(
                         style: TextButton.styleFrom(
-                          padding: EdgeInsets.symmetric(horizontal: isLargeScreen ? 28 : 20, vertical: isLargeScreen ? 18 : 14),
-                          foregroundColor: Colors.grey.shade700,
-                          backgroundColor: const Color(0xFFF1F5F9),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 16 : 28,
+                            vertical: isMobile ? 12 : 18,
+                          ),
+                          foregroundColor: theme.textTheme.bodyMedium?.color,
+                          backgroundColor: theme.colorScheme.surfaceVariant,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         onPressed: () => Navigator.pop(dialogContext),
-                        child: Text('Cerrar', style: TextStyle(fontWeight: FontWeight.w600, fontSize: isLargeScreen ? 16 : 15)),
+                        child: Text(
+                          'Cerrar',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: isMobile ? 14 : 16,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF10B981),
                           foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(horizontal: isLargeScreen ? 32 : 24, vertical: isLargeScreen ? 18 : 14),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 20 : 32,
+                            vertical: isMobile ? 12 : 18,
+                          ),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           elevation: 2,
                         ),
@@ -649,7 +839,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                           _mostrarFormularioProducto(productoAEditar: producto);
                         },
                         icon: const Icon(Icons.edit_outlined, size: 20),
-                        label: Text('Editar Producto', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 16 : 15)),
+                        label: Text(
+                          'Editar Producto',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: isMobile ? 14 : 16,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -657,23 +853,27 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
               ],
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   // ==========================================
   // BARRA DE BÚSQUEDA CON ESCÁNER Y FILTRO
   // ==========================================
   Widget _buildSearchBar(bool isMobile) {
-    // ignore: unused_local_variable
+    final theme = Theme.of(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+        border: Border.all(
+          color: theme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFE2E8F0),
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
@@ -684,13 +884,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 onChanged: (val) => setState(() => _filtroBusqueda = val),
                 decoration: InputDecoration(
                   hintText: isMobile ? 'Buscar...' : 'Buscar por nombre o código de barras...',
-                  hintStyle: TextStyle(fontSize: isMobile ? 13 : 14, color: Colors.grey.shade500),
+                  hintStyle: TextStyle(fontSize: isMobile ? 13 : 14, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5)),
                   prefixIcon: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: IconButton(
@@ -710,12 +910,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                         ),
                       ),
                       const SizedBox(width: 8),
-                      const Icon(Icons.search, size: 20, color: Colors.grey),
+                      Icon(Icons.search, size: 20, color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6)),
                     ],
                   ),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
+                  filled: true,
+                  fillColor: theme.cardColor,
                 ),
+                style: TextStyle(color: theme.textTheme.bodyLarge?.color),
               ),
             ),
           ),
@@ -724,9 +927,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
             label: const Text('⚠️ Stock Bajo'),
             selected: _soloStockBajo,
             onSelected: (val) => setState(() => _soloStockBajo = val),
-            selectedColor: const Color(0xFFFEE2E2),
-            checkmarkColor: Colors.red,
-            labelStyle: TextStyle(fontSize: isMobile ? 10 : 13, fontWeight: FontWeight.bold),
+            selectedColor: theme.colorScheme.error.withOpacity(0.2),
+            checkmarkColor: theme.colorScheme.error,
+            labelStyle: TextStyle(fontSize: isMobile ? 10 : 13, fontWeight: FontWeight.bold, color: _soloStockBajo ? theme.colorScheme.error : theme.textTheme.bodyMedium?.color),
+            backgroundColor: theme.cardColor,
+            side: BorderSide(
+              color: _soloStockBajo ? theme.colorScheme.error : (theme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFE2E8F0)),
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -736,6 +943,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
@@ -746,12 +954,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
     }).toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        // CORRECCIÓN DE OVERFLOW EN APPBAR (Reducimos el leadingWidth a 90)
         leadingWidth: 90,
         leading: Row(
-          mainAxisSize: MainAxisSize.min, // Crucial para no empujar el título
+          mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
               icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
@@ -785,7 +992,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
           isMobile ? 'Inventario' : 'Gestión de Inventario y Proveedores',
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
         ),
-        centerTitle: isMobile ? true : false, // Ajustamos el centrado según el dispositivo
+        centerTitle: isMobile ? true : false,
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color.fromRGBO(95, 132, 255, 1), Color.fromARGB(255, 85, 59, 235)]),
@@ -843,9 +1050,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                       onRefresh: _cargarInventario,
                       color: const Color(0xFF10B981),
                       child: productosFiltrados.isEmpty
-                          ? const Center(child: Text('No se encontraron productos.', style: TextStyle(color: Colors.grey, fontSize: 14)))
+                          ? Center(child: Text('No se encontraron productos.', style: TextStyle(color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7), fontSize: 14)))
                           : GridView.builder(
-                              // CORRECCIÓN DE OVERFLOW EN MÓVIL: Incrementamos el padding de 80 a 100
                               padding: const EdgeInsets.only(bottom: 100),
                               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: isMobile ? 1 : (isTablet ? 2 : 3),
@@ -920,6 +1126,7 @@ class _ProductCardState extends State<_ProductCard> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final double safeStockMin = widget.producto.stockMinimo.isFinite ? widget.producto.stockMinimo : 0.0;
     final String stockMinStr = safeStockMin % 1 == 0 ? safeStockMin.toInt().toString() : safeStockMin.toStringAsFixed(1);
 
@@ -936,15 +1143,19 @@ class _ProductCardState extends State<_ProductCard> {
             borderRadius: BorderRadius.circular(16),
             child: Ink(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: theme.cardColor,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: widget.stockBajo ? const Color(0xFFFCA5A5) : (widget.isTablet ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0)),
+                  color: widget.stockBajo 
+                    ? const Color(0xFFFCA5A5) 
+                    : (theme.brightness == Brightness.dark 
+                        ? Colors.grey.shade600 
+                        : (widget.isTablet ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0))),
                   width: widget.stockBajo ? 2 : (widget.isTablet ? 2.5 : 1.5),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: widget.isTablet ? 0.08 : 0.05),
+                    color: Colors.black.withOpacity(widget.isTablet ? 0.08 : 0.05),
                     blurRadius: widget.isTablet ? 16 : 12,
                     offset: const Offset(0, 4),
                   ),
@@ -960,9 +1171,12 @@ class _ProductCardState extends State<_ProductCard> {
                       height: widget.isMobile ? 70 : (widget.isTablet ? 100 : 90),
                       constraints: const BoxConstraints(minWidth: 60, minHeight: 60),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
+                        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                        border: Border.all(
+                          color: theme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
                       ),
                       child: Center(
                         child: widget.producto.imagenUrl?.isNotEmpty ?? false
@@ -971,10 +1185,10 @@ class _ProductCardState extends State<_ProductCard> {
                                 child: Image.network(
                                   widget.producto.imagenUrl!,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => const Icon(Icons.inventory_2, size: 36, color: Color(0xFF3B82F6)),
+                                  errorBuilder: (_, _, _) => Icon(Icons.inventory_2, size: 36, color: theme.colorScheme.primary),
                                 ),
                               )
-                            : const Icon(Icons.inventory_2, size: 36, color: Color(0xFF3B82F6)),
+                            : Icon(Icons.inventory_2, size: 36, color: theme.colorScheme.primary),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -994,7 +1208,7 @@ class _ProductCardState extends State<_ProductCard> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: widget.isTablet ? 18 : (widget.isMobile ? 16 : 15),
-                                    color: const Color(0xFF0F172A),
+                                    color: theme.textTheme.bodyLarge?.color,
                                   ),
                                 ),
                               ),
@@ -1003,13 +1217,13 @@ class _ProductCardState extends State<_ProductCard> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFEE2E2),
+                                    color: theme.colorScheme.error.withOpacity(0.15),
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: const Color(0xFFFECACA), width: 1),
+                                    border: Border.all(color: theme.colorScheme.error.withOpacity(0.3), width: 1),
                                   ),
                                   child: Text(
                                     '⚠️ BAJO',
-                                    style: TextStyle(fontSize: widget.isTablet ? 11 : 9, color: const Color(0xFFEF4444), fontWeight: FontWeight.bold),
+                                    style: TextStyle(fontSize: widget.isTablet ? 11 : 9, color: theme.colorScheme.error, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ],
@@ -1019,7 +1233,7 @@ class _ProductCardState extends State<_ProductCard> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Cód: ${widget.producto.codigoBarras}', style: TextStyle(fontSize: widget.isTablet ? 15 : (widget.isMobile ? 14 : 13), color: const Color(0xFF94A3B8))),
+                              Text('Cód: ${widget.producto.codigoBarras}', style: TextStyle(fontSize: widget.isTablet ? 15 : (widget.isMobile ? 14 : 13), color: theme.textTheme.bodyMedium?.color)),
                               Text('\$${widget.producto.precioUnidad.toStringAsFixed(2)}', style: TextStyle(fontSize: widget.isTablet ? 18 : (widget.isMobile ? 16 : 15), fontWeight: FontWeight.bold, color: const Color(0xFF10B981))),
                             ],
                           ),
@@ -1027,8 +1241,8 @@ class _ProductCardState extends State<_ProductCard> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Cat: ${widget.producto.categoria}', style: TextStyle(fontSize: widget.isTablet ? 15 : (widget.isMobile ? 14 : 13), color: const Color(0xFF64748B))),
-                              Text('Stock: ${widget.producto.stock % 1 == 0 ? widget.producto.stock.toInt() : widget.producto.stock} / Mín: $stockMinStr', style: TextStyle(fontSize: widget.isTablet ? 15 : (widget.isMobile ? 14 : 13), fontWeight: FontWeight.w500, color: widget.stockBajo ? const Color(0xFFEF4444) : const Color(0xFF475569))),
+                              Text('Cat: ${widget.producto.categoria}', style: TextStyle(fontSize: widget.isTablet ? 15 : (widget.isMobile ? 14 : 13), color: theme.textTheme.bodyMedium?.color)),
+                              Text('Stock: ${widget.producto.stock % 1 == 0 ? widget.producto.stock.toInt() : widget.producto.stock} / Mín: $stockMinStr', style: TextStyle(fontSize: widget.isTablet ? 15 : (widget.isMobile ? 14 : 13), fontWeight: FontWeight.w500, color: widget.stockBajo ? theme.colorScheme.error : theme.textTheme.bodyMedium?.color)),
                             ],
                           ),
                           if (widget.producto.proveedorNombre.isNotEmpty) ...[
@@ -1036,13 +1250,16 @@ class _ProductCardState extends State<_ProductCard> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFEEF2FF),
+                                color: theme.brightness == Brightness.dark ? Colors.indigo.withOpacity(0.2) : const Color(0xFFEEF2FF),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: const Color(0xFFC7D2FE), width: 0.5),
+                                border: Border.all(
+                                  color: theme.brightness == Brightness.dark ? Colors.indigo.withOpacity(0.3) : const Color(0xFFC7D2FE),
+                                  width: 0.5,
+                                ),
                               ),
                               child: Text(
                                 '📞 ${widget.producto.proveedorNombre}${widget.producto.proveedorTelefono.isNotEmpty ? " (${widget.producto.proveedorTelefono})" : ''}',
-                                style: TextStyle(fontSize: widget.isTablet ? 14 : (widget.isMobile ? 12 : 12), fontStyle: FontStyle.italic, color: const Color(0xFF4F46E5)),
+                                style: TextStyle(fontSize: widget.isTablet ? 14 : (widget.isMobile ? 12 : 12), fontStyle: FontStyle.italic, color: theme.brightness == Brightness.dark ? Colors.indigo.shade300 : const Color(0xFF4F46E5)),
                               ),
                             ),
                           ],
@@ -1068,29 +1285,40 @@ class _ProductCardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(
+          color: theme.brightness == Brightness.dark ? Colors.grey.shade600 : const Color(0xFFE2E8F0),
+          width: 1.5,
+        ),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Row(
           children: [
-            Container(width: 70, height: 70, decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12))),
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(height: 18, width: double.infinity, color: const Color(0xFFF1F5F9)),
+                  Container(height: 18, width: double.infinity, color: theme.colorScheme.surfaceVariant.withOpacity(0.5)),
                   const SizedBox(height: 8),
-                  Container(height: 12, width: 60, color: const Color(0xFFF1F5F9)),
+                  Container(height: 12, width: 60, color: theme.colorScheme.surfaceVariant.withOpacity(0.5)),
                   const SizedBox(height: 8),
-                  Container(height: 12, width: 80, color: const Color(0xFFF1F5F9)),
+                  Container(height: 12, width: 80, color: theme.colorScheme.surfaceVariant.withOpacity(0.5)),
                 ],
               ),
             ),

@@ -13,19 +13,39 @@ class ScaleVisorWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final isMobile = ResponsiveHelper.isMobile(context);
     ResponsiveHelper.isTablet(context);
     final fontSize = ResponsiveHelper.getFontSize(context, baseSize: 14);
 
-    // Ajustar padding según el dispositivo
     final horizontalPadding = isMobile ? 12.0 : 16.0;
     final verticalPadding = isMobile ? 6.0 : 8.0;
-
-    // Tamaño del icono
     final iconSize = isMobile ? 18.0 : 24.0;
-
-    // Tamaño de la fuente del peso
     final pesoFontSize = isMobile ? fontSize * 1.1 : fontSize * 1.5;
+
+    // Colores dinámicos
+    final Color fondo = theme.brightness == Brightness.dark
+        ? Colors.grey.shade800
+        : const Color(0xFFF1F5F9);
+
+    final Color bordeConectado = theme.brightness == Brightness.dark
+        ? Colors.green.shade400
+        : Colors.green.shade300;
+
+    final Color bordeDesconectado = theme.brightness == Brightness.dark
+        ? Colors.red.shade400
+        : Colors.red.shade300;
+
+    final Color colorConectado = theme.brightness == Brightness.dark
+        ? Colors.green.shade300
+        : Colors.green.shade600;
+
+    final Color colorDesconectado = theme.brightness == Brightness.dark
+        ? Colors.red.shade300
+        : Colors.red;
+
+    final Color textoPeso = theme.textTheme.bodyLarge?.color ?? const Color(0xFF0F172A);
+    final Color textoKg = theme.textTheme.bodyMedium?.color?.withOpacity(0.7) ?? Colors.grey.shade600;
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -33,10 +53,10 @@ class ScaleVisorWidget extends StatelessWidget {
         vertical: verticalPadding,
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9), // Fondo gris muy suave y amigable (antes era 0xFF0F172A)
+        color: fondo,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: estaConectada ? Colors.green.shade300 : Colors.red.shade300,
+          color: estaConectada ? bordeConectado : bordeDesconectado,
           width: 1.5,
         ),
       ),
@@ -47,14 +67,14 @@ class ScaleVisorWidget extends StatelessWidget {
             children: [
               Icon(
                 Icons.scale,
-                color: estaConectada ? Colors.green.shade600 : Colors.red,
+                color: estaConectada ? colorConectado : colorDesconectado,
                 size: iconSize,
               ),
               const SizedBox(width: 8),
               Text(
                 estaConectada ? 'BALANZA' : 'DESCONECTADA',
                 style: TextStyle(
-                  color: estaConectada ? Colors.green.shade700 : Colors.red,
+                  color: estaConectada ? colorConectado : colorDesconectado,
                   fontSize: isMobile ? fontSize * 0.75 : fontSize,
                   fontWeight: FontWeight.bold,
                 ),
@@ -65,19 +85,19 @@ class ScaleVisorWidget extends StatelessWidget {
                   width: 6,
                   height: 6,
                   decoration: BoxDecoration(
-                    color: estaConectada ? Colors.green : Colors.red,
+                    color: estaConectada ? colorConectado : colorDesconectado,
                     shape: BoxShape.circle,
                   ),
                 ),
               ],
             ],
-          ),  
+          ),
           Row(
             children: [
               Text(
                 pesoActual.toStringAsFixed(3),
                 style: TextStyle(
-                  color: const Color(0xFF0F172A), // Texto oscuro para contrastar con el fondo claro
+                  color: textoPeso,
                   fontSize: pesoFontSize,
                   fontWeight: FontWeight.bold,
                 ),
@@ -85,7 +105,7 @@ class ScaleVisorWidget extends StatelessWidget {
               Text(
                 ' KG',
                 style: TextStyle(
-                  color: Colors.grey.shade600,
+                  color: textoKg,
                   fontSize: isMobile ? fontSize * 0.7 : fontSize * 0.8,
                   fontWeight: FontWeight.w500,
                 ),

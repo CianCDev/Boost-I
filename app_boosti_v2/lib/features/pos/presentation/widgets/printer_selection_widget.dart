@@ -23,7 +23,6 @@ class _PrinterSelectionDialogState
       _devices.clear();
     });
 
-    // Usamos PrinterManager del paquete (reexportado)
     PrinterManager.instance.discovery(type: _printerType).listen((device) {
       setState(() {
         _devices.add(device);
@@ -37,8 +36,26 @@ class _PrinterSelectionDialogState
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return AlertDialog(
-      title: const Text('Conectar Impresora POS'),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.brightness == Brightness.dark
+              ? Colors.grey.shade700
+              : Colors.transparent,
+          width: 1,
+        ),
+      ),
+      backgroundColor: theme.cardColor,
+      title: Text(
+        'Conectar Impresora POS',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: theme.textTheme.bodyLarge?.color,
+        ),
+      ),
       content: SizedBox(
         width: 400,
         height: 300,
@@ -48,6 +65,11 @@ class _PrinterSelectionDialogState
               children: [
                 DropdownButton<PrinterType>(
                   value: _printerType,
+                  dropdownColor: theme.cardColor,
+                  style: TextStyle(
+                    color: theme.textTheme.bodyLarge?.color,
+                    fontSize: 14,
+                  ),
                   items: const [
                     DropdownMenuItem(
                       value: PrinterType.usb,
@@ -71,22 +93,41 @@ class _PrinterSelectionDialogState
                 ),
                 const Spacer(),
                 ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: theme.brightness == Brightness.dark
+                        ? Colors.grey.shade800
+                        : Colors.grey.shade300,
+                    disabledForegroundColor: theme.brightness == Brightness.dark
+                        ? Colors.grey.shade600
+                        : Colors.grey.shade600,
+                  ),
                   onPressed: _isScanning ? null : _scan,
                   icon: const Icon(Icons.search),
                   label: const Text('Buscar'),
                 ),
               ],
             ),
-            const Divider(),
+            Divider(color: theme.dividerColor),
             Expanded(
               child: _isScanning
-                  ? const Center(child: CircularProgressIndicator())
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: theme.brightness == Brightness.dark
+                            ? Colors.green.shade300
+                            : const Color(0xFF10B981),
+                      ),
+                    )
                   : _devices.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
                             'No se encontraron dispositivos.\nPresiona "Buscar" para escanear.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey),
+                            style: TextStyle(
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withOpacity(0.6),
+                            ),
                           ),
                         )
                       : ListView.builder(
@@ -94,13 +135,29 @@ class _PrinterSelectionDialogState
                           itemBuilder: (context, index) {
                             final device = _devices[index];
                             return ListTile(
-                              leading: const Icon(Icons.print),
-                              title: Text(device.name),
+                              leading: Icon(
+                                Icons.print,
+                                color: theme.textTheme.bodyLarge?.color,
+                              ),
+                              title: Text(
+                                device.name,
+                                style: TextStyle(
+                                  color: theme.textTheme.bodyLarge?.color,
+                                ),
+                              ),
                               subtitle: Text(
                                 device.address ?? device.operatingSystem!,
+                                style: TextStyle(
+                                  color: theme.textTheme.bodyMedium?.color
+                                      ?.withOpacity(0.7),
+                                ),
                               ),
-                              trailing: const Icon(Icons.arrow_forward_ios,
-                                  size: 16, color: Colors.grey),
+                              trailing: Icon(
+                                Icons.arrow_forward_ios,
+                                size: 16,
+                                color: theme.textTheme.bodyMedium?.color
+                                    ?.withOpacity(0.4),
+                              ),
                               onTap: () {
                                 ref
                                     .read(printerProvider.notifier)
@@ -124,6 +181,9 @@ class _PrinterSelectionDialogState
       ),
       actions: [
         TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: theme.textTheme.bodyMedium?.color,
+          ),
           onPressed: () => Navigator.pop(context),
           child: const Text('Cerrar'),
         ),
