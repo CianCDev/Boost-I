@@ -23,6 +23,11 @@ import '../services/scale_service.dart';
 import 'inventory_screen.dart';
 import 'pos_menu_screen.dart';
 
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
+import '../services/telegram/telegram_config.dart';
+import '../services/telegram/telegram_service.dart'; 
+
 class InventoryCatalogScreen extends ConsumerStatefulWidget {
   final UsuarioEntity? usuarioLogueado;
   const InventoryCatalogScreen({super.key, this.usuarioLogueado});
@@ -96,7 +101,39 @@ class _InventoryCatalogScreenState
 
   Future<void> _inicializarPantalla() async {
     await _cargarProductosDesdeIsar();
+    _verificarStockBajoYAlertar();
   }
+
+  Future<void> _verificarStockBajoYAlertar() async {
+  try {
+    // Obtener productos con stock bajo
+    final productosBajos = _productosCatalog
+        .where((p) => p.stock <= p.stockMinimo)
+        .map((p) => {
+          'nombre': p.nombre,
+          'stock': p.stock,
+          'stockMinimo': p.stockMinimo,
+        })
+        .toList();
+
+    if (productosBajos.isEmpty) return;
+
+    // Cargar configuración de Telegram
+    final configJson = await rootBundle.loadString('assets/config.json');
+    final configMap = jsonDecode(configJson) as Map<String, dynamic>;
+    final config = TelegramConfig.fromJson(configMap);
+
+    if (!config.isValid) return;
+
+    // Crear servicio y enviar alerta
+    final telegramService = TelegramService(config);
+    await telegramService.alertarStockBajo(productosBajos);
+    
+    debugPrint('📨 Alerta de stock bajo enviada a Telegram');
+  } catch (e) {
+    debugPrint('⚠️ Error al enviar alerta de stock bajo: $e');
+  }
+}
 
   bool _manejarTecladoFisico(KeyEvent event) {
     if (event is KeyDownEvent) {

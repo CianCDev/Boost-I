@@ -1,0 +1,7 @@
+{
+  "syncServerUrl": "https://your-sync-server.example",
+  "syncApiKey": "<REPLACE_WITH_SYNC_API_KEY>",
+  "telegramBotToken": "8824665297:AAElIRSfbS4D7F_vShg1NIK7N7z8Y5Cl600",
+  "telegramChatId": "1524502914",
+  "telegramEnabled": true
+}

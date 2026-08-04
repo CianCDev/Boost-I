@@ -8,6 +8,10 @@ import 'features/pos/data/Local/entities/isar_service.dart';
 import 'features/pos/presentation/providers/lock_provider.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
+import 'features/pos/presentation/services/telegram/telegram_service.dart';
+import 'features/pos/presentation/services/telegram/telegram_config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +23,19 @@ void main() async {
 
   final isarService = IsarService();
   await isarService.inicializarUsuarioAdminPorDefecto();
+
+  TelegramService? _telegramService;
+
+try {
+  final configJson = await rootBundle.loadString('assets/config.json');
+  final configMap = jsonDecode(configJson) as Map<String, dynamic>;
+  final config = TelegramConfig.fromJson(configMap);
+  if (config.isValid) {
+    _telegramService = TelegramService(config);
+  }
+} catch (e) {
+  debugPrint('⚠️ Bot de Telegram desactivado: $e');
+}
 
   runApp(
     DevicePreview(
