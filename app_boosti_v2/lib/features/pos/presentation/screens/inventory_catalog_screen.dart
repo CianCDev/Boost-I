@@ -869,164 +869,176 @@ class _InventoryCatalogScreenState
         backgroundColor: Colors.transparent,
         elevation: 2,
         foregroundColor: Colors.white,
-        actions: [
-          // Panel de Control
+            actions: [
+              // 1. BOTÓN AL PANEL DE CONTROL (MÁS GRANDE EN TABLET)
           Tooltip(
             message: 'Panel de Control POS',
-            child: Container(
-              width: appBarButtonSize,
-              height: appBarButtonSize,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: IconButton(
-                icon: Icon(Icons.grid_view_rounded,
-                    color: Colors.white, size: appBarIconSize),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const PosMenuScreen()),
-                  );
-                },
-                splashRadius: appBarIconSize + 6,
-                padding: EdgeInsets.zero,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-
-          // Inventario
-          Tooltip(
-            message: 'Ir a Gestión de Inventario',
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: appBarButtonSize,
-                  height: appBarButtonSize,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Container(
+                    width: isTablet ? 44 : 36,
+                    height: isTablet ? 44 : 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                    child: IconButton(
+                      icon: const Icon(Icons.grid_view_rounded, color: Colors.white, size: 24),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const PosMenuScreen()),
+                        );
+                      },
+                      splashRadius: 24,
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+
+              // 2. BOTÓN DE INVENTARIO (Gradiente y Sombra, más grande en tablet)
+              Tooltip(
+                message: 'Ir a Gestión de Inventario',
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: isTablet ? 44 : 36,
+                        height: isTablet ? 44 : 36,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.inventory_2_outlined, color: Colors.white),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => InventoryScreen(usuarioLogueado: widget.usuarioLogueado!),
+                              ),
+                            );
+                          },
+                          splashRadius: 24,
+                          padding: EdgeInsets.zero,
+                        ),
                       ),
+                      if (lowStockCount > 0)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.redAccent,
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                            child: Text(
+                              '$lowStockCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
-                  child: IconButton(
-                    icon: Icon(Icons.inventory_2_outlined,
-                        color: Colors.white, size: appBarIconSize),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              InventoryScreen(usuarioLogueado: widget.usuarioLogueado!),
-                        ),
-                      );
-                    },
-                    splashRadius: appBarIconSize + 6,
-                    padding: EdgeInsets.zero,
-                  ),
-                ),
-                if (lowStockCount > 0)
-                  Positioned(
-                    right: -2,
-                    top: -2,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.redAccent,
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                      child: Text(
-                        '$lowStockCount',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 4),
-
-          // Tasa BCV
-          Tooltip(
-            message: 'Tasa oficial BCV (Haz clic para actualizar)',
-            child: AnimatedScale(
-              scale: cargandoBcv ? 0.95 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                margin: const EdgeInsets.only(left: 4, right: 8),
-                decoration: BoxDecoration(
-                  color: cargandoBcv
-                      ? Colors.white.withValues(alpha: 0.25)
-                      : Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.currency_exchange, size: 16, color: Color(0xFF38BDF8)),
-                    const SizedBox(width: 6),
-                    AnimatedOpacity(
-                      opacity: cargandoBcv ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
-                      ),
-                    ),
-                    AnimatedOpacity(
-                      opacity: cargandoBcv ? 0.0 : 1.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: Text(
-                        'BCV: Bs. ${tasaBcv.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
+
+              const SizedBox(width: 4),
+
+              // 3. BOTÓN DE TASA BCV (Refinado, funcional y con cursor mano)
+              Tooltip(
+                message: 'Tasa oficial BCV (Haz clic para actualizar)',
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: AnimatedScale(
+                    scale: cargandoBcv ? 0.95 : 1.0,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    child: InkWell(
+                      onTap: () => ref.read(bcvProvider).actualizarTasa(),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        margin: const EdgeInsets.only(left: 4, right: 8),
+                        decoration: BoxDecoration(
+                          color: cargandoBcv
+                              ? Colors.white.withValues(alpha: 0.25)
+                              : Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.currency_exchange, size: 16, color: Color(0xFF38BDF8)),
+                            const SizedBox(width: 6),
+                            AnimatedOpacity(
+                              opacity: cargandoBcv ? 1.0 : 0.0,
+                              duration: const Duration(milliseconds: 300),
+                              child: SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                              ),
+                            ),
+                            AnimatedOpacity(
+                              opacity: cargandoBcv ? 0.0 : 1.0,
+                              duration: const Duration(milliseconds: 300),
+                              child: Text(
+                                'BCV: Bs. ${tasaBcv.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Colors.white,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 8),
+            ],
       ),
       body: _isLoading
           ? GridView.builder(
