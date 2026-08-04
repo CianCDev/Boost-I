@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart'; // <--- CAMBIO AQUÍ (import añadido)
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
@@ -75,7 +75,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // ESCÁNER DE CÓDIGO DE BARRAS  <--- CAMBIO AQUÍ (nuevo método)
+  // ESCÁNER DE CÓDIGO DE BARRAS
   // ==========================================
   Future<void> _scanBarcode() async {
     final codigoEscaneado = await showDialog<String>(
@@ -110,7 +110,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // DIÁLOGO DE NUEVA CATEGORÍA (sin cambios)
+  // DIÁLOGO DE NUEVA CATEGORÍA
   // ==========================================
   Future<String?> _mostrarDialogoNuevaCategoria(BuildContext context) async {
     final controller = TextEditingController();
@@ -128,7 +128,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: Colors.black.withOpacity(0.05),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 )
@@ -216,7 +216,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // MODAL DE PRODUCTO (CREAR/EDITAR) - sin cambios
+  // MODAL DE PRODUCTO (CREAR/EDITAR)
   // ==========================================
   void _mostrarFormularioProducto({ProductoEntity? productoAEditar}) {
     if (!_esAdmin) return;
@@ -279,7 +279,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: Colors.black.withOpacity(0.05),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     )
@@ -295,7 +295,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                                color: const Color(0xFF10B981).withOpacity(0.1),
                                 shape: BoxShape.circle),
                             child: Icon(
                               isEditing
@@ -541,7 +541,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                                   child: ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF10B981)
-                                          .withValues(alpha: 0.1),
+                                          .withOpacity(0.1),
                                       foregroundColor: const Color(0xFF10B981),
                                       elevation: 0,
                                       shape: RoundedRectangleBorder(
@@ -779,297 +779,350 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // MODAL DE DETALLES DEL PRODUCTO (MEJORADO)  <--- CAMBIO AQUÍ
+  // MODAL DE DETALLES DEL PRODUCTO (CORREGIDO)
   // ==========================================
-  void _mostrarDetalleProducto(ProductoEntity producto) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isTablet = ResponsiveHelper.isTablet(context);
-    // ignore: unused_local_variable
-    final isDesktop = !isMobile && !isTablet;
+ void _mostrarDetalleProducto(ProductoEntity producto) {
+  final isMobile = ResponsiveHelper.isMobile(context);
+  final isTablet = ResponsiveHelper.isTablet(context);
 
-    final bool isLargeScreen = !isMobile;
-    final double maxWidth = isLargeScreen ? 850.0 : 600.0;
-    final double padding = isLargeScreen ? 32.0 : 24.0;
-    final double imageHeight = isLargeScreen ? 280 : 200;
-    final double imageMaxWidth = isLargeScreen ? 500 : 400;
-    final double insetHorizontal = isLargeScreen ? 60.0 : 16.0;
+  final bool isLargeScreen = !isMobile;
+  final double maxWidth = isLargeScreen ? 850.0 : 600.0;
+  final double padding = isMobile ? 12.0 : (isTablet ? 24.0 : 32.0);
+  final double imageHeight = isMobile ? 120 : (isTablet ? 200 : 280);
+  final double imageMaxWidth = isLargeScreen ? 500 : 400;
+  
+  // ✅ MÁRGENES LATERALES MEJORADOS
+  final double horizontalInset = isMobile ? 16.0 : (isTablet ? 40.0 : 60.0);
+  final double verticalInset = isMobile ? 16.0 : 24.0;
 
-    final double titleSize = isLargeScreen ? 24 : 20;
-    final double nameSize = isLargeScreen ? 28 : 24;
-    final double detailSize = isLargeScreen ? 16 : 14;
-    final double priceSize = isLargeScreen ? 20 : 18;
-    final double stockSize = isLargeScreen ? 18 : 16;
+  final double titleSize = isMobile ? 16 : (isTablet ? 20 : 24);
+  final double nameSize = isMobile ? 18 : (isTablet ? 24 : 28);
+  final double detailSize = isMobile ? 11 : (isTablet ? 14 : 16);
+  final double priceSize = isMobile ? 14 : (isTablet ? 18 : 20);
+  final double stockSize = isMobile ? 12 : (isTablet ? 16 : 18);
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          elevation: 8,
-          insetPadding: EdgeInsets.symmetric(horizontal: insetHorizontal, vertical: 24),
+  showDialog(
+    context: context,
+    builder: (dialogContext) {
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 8,
+        insetPadding: EdgeInsets.symmetric(
+          horizontal: horizontalInset, // ✅ MÁRGENES LATERALES
+          vertical: verticalInset,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: maxWidth,
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
           child: Container(
-            constraints: BoxConstraints(maxWidth: maxWidth),
             padding: EdgeInsets.all(padding),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: Colors.black.withOpacity(0.05),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 )
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Detalles del Producto',
-                      style: TextStyle(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // HEADER
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Detalles del Producto',
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: titleSize,
-                          color: Color(0xFF0F172A)),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 28),
-                      onPressed: () => Navigator.pop(dialogContext),
-                    )
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Center(
-                  child: Container(
-                    height: imageHeight,
-                    width: double.infinity,
-                    constraints: BoxConstraints(maxWidth: imageMaxWidth),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: producto.imagenUrl.isNotEmpty
-                          ? Image.network(
-                              producto.imagenUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => const Icon(
-                                Icons.inventory_2,
-                                size: 64,
-                                color: Colors.blueGrey,
-                              ),
-                            )
-                          : const Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 28),
+                        onPressed: () => Navigator.pop(dialogContext),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // IMAGEN
+                  Center(
+                    child: Container(
+                      height: imageHeight,
+                      width: double.infinity,
+                      constraints: BoxConstraints(maxWidth: imageMaxWidth),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: producto.imagenUrl.isNotEmpty
+                            ? Image.network(
+                                producto.imagenUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.inventory_2,
+                                  size: 64,
+                                  color: Colors.blueGrey,
+                                ),
+                              )
+                            : const Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 16),
-                Text(
-                  producto.nombre,
-                  style: TextStyle(
+                  const SizedBox(height: 12),
+
+                  // DIVIDER
+                  const Divider(),
+                  const SizedBox(height: 8),
+
+                  // NOMBRE
+                  Text(
+                    producto.nombre,
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: nameSize,
-                      color: Color(0xFF0F172A)),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Cód: ${producto.codigoBarras}',
-                  style: TextStyle(fontSize: detailSize, color: Color(0xFF94A3B8)),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Precio: \$${producto.precioUnidad.toStringAsFixed(2)}',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: priceSize,
-                          color: Color(0xFF10B981)),
+                      color: const Color(0xFF0F172A),
                     ),
-                    Text(
-                      'Categoría: ${producto.categoria}',
-                      style: TextStyle(fontSize: detailSize, color: Color(0xFF64748B)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Stock Actual: ${producto.stock % 1 == 0 ? producto.stock.toInt() : producto.stock}',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: stockSize,
-                          color: Color(0xFF0F172A)),
-                    ),
-                    Text(
-                      'Stock Mínimo: ${producto.stockMinimo.isFinite ? (producto.stockMinimo % 1 == 0 ? producto.stockMinimo.toInt() : producto.stockMinimo) : 0}',
-                      style: TextStyle(fontSize: detailSize, color: Color(0xFF64748B)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (producto.proveedorNombre.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                        color: const Color(0xFFEEF2FF),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFC7D2FE), width: 1)),
-                    child: Text(
-                      'Proveedor: ${producto.proveedorNombre} (${producto.proveedorTelefono.isNotEmpty ? producto.proveedorTelefono : "Sin teléfono"})',
-                      style: const TextStyle(
-                          fontStyle: FontStyle.italic,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF4F46E5)),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+
+                  // CÓDIGO
+                  Text(
+                    'Cód: ${producto.codigoBarras}',
+                    style: TextStyle(
+                      fontSize: detailSize,
+                      color: const Color(0xFF94A3B8),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                ],
-                if (_esAdmin) ...[
+                  const SizedBox(height: 8),
+
+                  // PRECIO Y CATEGORÍA
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Botón Cerrar
-                      TextButton(
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: isLargeScreen ? 28 : 20,
-                              vertical: isLargeScreen ? 18 : 14),
-                          foregroundColor: Colors.grey.shade700,
-                          backgroundColor: const Color(0xFFF1F5F9),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () => Navigator.pop(dialogContext),
-                        child: Text(
-                          'Cerrar',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: isLargeScreen ? 16 : 15),
+                      Text(
+                        'Precio: \$${producto.precioUnidad.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: priceSize,
+                          color: const Color(0xFF10B981),
                         ),
                       ),
-                      const SizedBox(width: 12),
-
-                      // Botón Editar (existente)
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(
-                              horizontal: isLargeScreen ? 32 : 24,
-                              vertical: isLargeScreen ? 18 : 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          elevation: 2,
-                        ),
-                        onPressed: () {
-                          Navigator.pop(dialogContext);
-                          _mostrarFormularioProducto(productoAEditar: producto);
-                        },
-                        icon: const Icon(Icons.edit_outlined, size: 20),
-                        label: Text(
-                          'Editar Producto',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: isLargeScreen ? 16 : 15),
-                        ),
-                      ),
-
-                      // NUEVO BOTÓN ELIMINAR (solo admin)  <--- CAMBIO AQUÍ
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFEF4444),
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(
-                              horizontal: isLargeScreen ? 32 : 24,
-                              vertical: isLargeScreen ? 18 : 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          elevation: 2,
-                        ),
-                        onPressed: () async {
-                          // Diálogo de confirmación
-                          final confirm = await showDialog<bool>(
-                            context: dialogContext,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Eliminar Producto'),
-                              content: Text(
-                                  '¿Estás seguro de que quieres eliminar el producto "${producto.nombre}"? Esta acción no se puede deshacer.'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context, false),
-                                  child: const Text('Cancelar'),
-                                ),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFEF4444),
-                                      foregroundColor: Colors.white),
-                                  onPressed: () => Navigator.pop(context, true),
-                                  child: const Text('Eliminar'),
-                                ),
-                              ],
-                            ),
-                          );
-
-                          if (confirm != true) return;
-
-                          // Eliminar físicamente (o lógicamente si se implementa)
-                          try {
-                            await _isarService.eliminarProducto(producto.id);
-                            if (mounted) {
-                              // ignore: use_build_context_synchronously
-                              Navigator.pop(dialogContext);
-                              _cargarInventario();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Producto eliminado correctamente.'),
-                                  backgroundColor: Color(0xFF10B981),
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Error al eliminar: $e'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          }
-                        },
-                        icon: const Icon(Icons.delete_outline, size: 20),
-                        label: Text(
-                          'Eliminar',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: isLargeScreen ? 16 : 15),
+                      Text(
+                        'Categoría: ${producto.categoria}',
+                        style: TextStyle(
+                          fontSize: detailSize,
+                          color: const Color(0xFF64748B),
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 6),
+
+                  // STOCK
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Stock Actual: ${producto.stock % 1 == 0 ? producto.stock.toInt() : producto.stock}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: stockSize,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        'Stock Mínimo: ${producto.stockMinimo.isFinite ? (producto.stockMinimo % 1 == 0 ? producto.stockMinimo.toInt() : producto.stockMinimo) : 0}',
+                        style: TextStyle(
+                          fontSize: detailSize,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // PROVEEDOR
+                  if (producto.proveedorNombre.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF2FF),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFC7D2FE), width: 1),
+                      ),
+                      child: Text(
+                        'Proveedor: ${producto.proveedorNombre} (${producto.proveedorTelefono.isNotEmpty ? producto.proveedorTelefono : "Sin teléfono"})',
+                        style: TextStyle(
+                          fontSize: detailSize,
+                          fontStyle: FontStyle.italic,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF4F46E5),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // BOTONES
+                  if (_esAdmin) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 12 : 28,
+                              vertical: isMobile ? 8 : 18,
+                            ),
+                            foregroundColor: Colors.grey.shade700,
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: Text(
+                            'Cerrar',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: isMobile ? 12 : 16,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 16 : 32,
+                              vertical: isMobile ? 8 : 18,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 2,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(dialogContext);
+                            _mostrarFormularioProducto(productoAEditar: producto);
+                          },
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          label: Text(
+                            'Editar',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isMobile ? 12 : 16,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEF4444),
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 16 : 32,
+                              vertical: isMobile ? 8 : 18,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 2,
+                          ),
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: dialogContext,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Eliminar Producto'),
+                                content: Text(
+                                  '¿Estás seguro de que quieres eliminar el producto "${producto.nombre}"? Esta acción no se puede deshacer.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('Cancelar'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFEF4444),
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('Eliminar'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm != true) return;
+
+                            try {
+                              await _isarService.eliminarProducto(producto.id);
+                              if (mounted) {
+                                // ignore: use_build_context_synchronously
+                                Navigator.pop(dialogContext);
+                                _cargarInventario();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Producto eliminado correctamente.'),
+                                    backgroundColor: Color(0xFF10B981),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error al eliminar: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.delete_outline, size: 20),
+                          label: Text(
+                            'Eliminar',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isMobile ? 12 : 16,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   // ==========================================
-  // BARRA DE BÚSQUEDA CON ESCÁNER (MEJORADA)  <--- CAMBIO AQUÍ
+  // BARRA DE BÚSQUEDA CON ESCÁNER
   // ==========================================
   Widget _buildSearchBar(bool isMobile) {
     return Container(
@@ -1108,7 +1161,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                           padding: EdgeInsets.zero,
                           onPressed: () {
                             HapticFeedback.lightImpact();
-                            _scanBarcode(); // <--- CAMBIO AQUÍ (antes snackbar)
+                            _scanBarcode();
                           },
                         ),
                       ),
@@ -1139,7 +1192,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // BUILD (sin cambios)
+  // BUILD
   // ==========================================
   @override
   Widget build(BuildContext context) {
@@ -1304,7 +1357,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 }
 
 // ==========================================
-// WIDGET DE TARJETA DE PRODUCTO (sin cambios)
+// WIDGET DE TARJETA DE PRODUCTO
 // ==========================================
 class _ProductCard extends StatefulWidget {
   final ProductoEntity producto;
@@ -1381,8 +1434,8 @@ class _ProductCardState extends State<_ProductCard> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(
-                        alpha: widget.isTablet ? 0.08 : 0.05),
+                    color: Colors.black.withOpacity(
+                        widget.isTablet ? 0.08 : 0.05),
                     blurRadius: widget.isTablet ? 16 : 12,
                     offset: const Offset(0, 4),
                   ),
@@ -1555,7 +1608,7 @@ class _ProductCardState extends State<_ProductCard> {
 }
 
 // ==========================================
-// SKELETON LOADER (sin cambios)
+// SKELETON LOADER
 // ==========================================
 class _ProductCardSkeleton extends StatelessWidget {
   const _ProductCardSkeleton();
@@ -1569,7 +1622,7 @@ class _ProductCardSkeleton extends StatelessWidget {
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           )
@@ -1611,7 +1664,7 @@ class _ProductCardSkeleton extends StatelessWidget {
 }
 
 // ==========================================
-// DIÁLOGO DEL ESCÁNER (NUEVO)  <--- CAMBIO AQUÍ
+// DIÁLOGO DEL ESCÁNER
 // ==========================================
 class _BarcodeScannerDialog extends StatefulWidget {
   const _BarcodeScannerDialog();
@@ -1669,7 +1722,7 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                    color: const Color(0xFF10B981).withOpacity(0.3),
                     blurRadius: 30,
                     spreadRadius: 10,
                   ),

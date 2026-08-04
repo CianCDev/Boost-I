@@ -1,9 +1,10 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:mobile_scanner/mobile_scanner.dart'; // <--- CAMBIO AQUÍ (import añadido)
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/detalle_venta_entity.dart';
@@ -36,7 +37,7 @@ class _InventoryCatalogScreenState
     with SingleTickerProviderStateMixin {
   final IsarService _isarService = IsarService();
   final SyncService syncService = SyncService();
-  final ScaleService _scaleService = ScaleService(); // Balanza
+  final ScaleService _scaleService = ScaleService();
 
   String _categoriaSeleccionada = 'Todas';
   List<String> _categorias = ['Todas', 'Stock Bajo'];
@@ -49,11 +50,9 @@ class _InventoryCatalogScreenState
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  // Realtime
   RealtimeChannel? _productosChannel;
   bool _realtimeSuscrito = false;
 
-  // Balanza - suscripción global para debug
   StreamSubscription<double>? _weightSubscription;
 
   @override
@@ -95,9 +94,6 @@ class _InventoryCatalogScreenState
     super.dispose();
   }
 
-  // ============================================================
-  // MÉTODOS AUXILIARES
-  // ============================================================
   Future<void> _inicializarPantalla() async {
     await _cargarProductosDesdeIsar();
   }
@@ -130,9 +126,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================================================
-  // REALTIME
-  // ============================================================
   void _suscribirseARealtime() {
     if (_realtimeSuscrito) return;
     try {
@@ -230,9 +223,6 @@ class _InventoryCatalogScreenState
     }
   }
 
-  // ============================================================
-  // CARGA DE PRODUCTOS Y FILTROS
-  // ============================================================
   Future<void> _cargarProductosDesdeIsar() async {
     try {
       if (mounted) setState(() => _isLoading = true);
@@ -317,9 +307,6 @@ class _InventoryCatalogScreenState
     _filtrarProductos();
   }
 
-  // ============================================================
-  // MÉTODOS DE COBRO
-  // ============================================================
   Future<void> _mostrarModalCobro(BuildContext context) async {
     final cartState = ref.read(cartProvider);
     if (cartState.total <= 0) return;
@@ -466,9 +453,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================================================
-  // ESCÁNER DE CÓDIGO DE BARRAS (NUEVO MÉTODO)  <--- CAMBIO AQUÍ
-  // ============================================================
   Future<void> _scanBarcode() async {
     final codigoEscaneado = await showDialog<String>(
       context: context,
@@ -501,9 +485,6 @@ class _InventoryCatalogScreenState
     }
   }
 
-  // ============================================================
-  // MODAL DE CANTIDAD CON BALANZA
-  // ============================================================
   void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
     final TextEditingController cantidadController = TextEditingController(
       text: producto.esPesado ? '0.000' : '1',
@@ -839,9 +820,6 @@ class _InventoryCatalogScreenState
     });
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
   @override
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
@@ -903,7 +881,6 @@ class _InventoryCatalogScreenState
         elevation: 2,
         foregroundColor: Colors.white,
         actions: [
-          // 1. BOTÓN AL PANEL DE CONTROL
           Tooltip(
             message: 'Panel de Control POS',
             child: MouseRegion(
@@ -931,7 +908,6 @@ class _InventoryCatalogScreenState
           ),
           const SizedBox(width: 6),
 
-          // 2. BOTÓN DE INVENTARIO
           Tooltip(
             message: 'Ir a Gestión de Inventario',
             child: MouseRegion(
@@ -1007,7 +983,6 @@ class _InventoryCatalogScreenState
 
           const SizedBox(width: 4),
 
-          // 3. BOTÓN DE TASA BCV
           Tooltip(
             message: 'Tasa oficial BCV (Haz clic para actualizar)',
             child: MouseRegion(
@@ -1091,9 +1066,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================================================
-  // LAYOUTS
-  // ============================================================
   Widget _buildDesktopTabletLayout(dynamic cartState, int crossAxisCount, double childAspectRatio) {
     return Row(
       children: [
@@ -1243,9 +1215,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================================================
-  // CARRITO – SIDEBAR (ESCRITORIO)
-  // ============================================================
   Widget _buildCartSidebarDesktop(dynamic cartState) {
     return Column(
       children: [
@@ -1402,9 +1371,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================================================
-  // CARRITO – RESUMEN FIJO (MÓVIL)
-  // ============================================================
   Widget _buildFixedCartSummary(dynamic cartState) {
     final isTablet = ResponsiveHelper.isTablet(context);
     final double barHeight = isTablet ? 140.0 : 120.0;
@@ -1495,9 +1461,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================================================
-  // BOTTOM SHEET DEL CARRITO (MÓVIL)
-  // ============================================================
   void _openCartBottomSheet(BuildContext context, dynamic cartState) {
     final isTablet = ResponsiveHelper.isTablet(context);
 
@@ -1517,154 +1480,164 @@ class _InventoryCatalogScreenState
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Mi Carrito',
-                        style: TextStyle(
-                            fontSize: isTablet ? 28 : 22,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A))),
-                    Row(
-                      children: [
-                        if (cartState.items.isNotEmpty)
-                          IconButton(
-                            icon: const Icon(Icons.refresh_outlined, color: Color(0xFFEF4444), size: 28),
-                            tooltip: 'Reiniciar Venta',
-                            splashRadius: 28,
-                            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              _limpiarCarritoConConfirmacion();
-                            },
-                          ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 28),
-                          splashRadius: 28,
-                          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const Divider(thickness: 2),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: cartState.items.isEmpty
-                      ? const Center(child: Text('El carrito está vacío',
-                          style: TextStyle(fontSize: 18, color: Color(0xFF94A3B8))))
-                      : ListView.separated(
-                          itemCount: cartState.items.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final cartItem = cartState.items[index];
-                            final double subtotal =
-                                cartItem.producto.precioUnidad * cartItem.cantidad.toDouble();
-                            return Container(
-                              padding: EdgeInsets.all(isTablet ? 20 : 16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: const Color(0xFFCBD5E1), width: isTablet ? 2 : 1.5),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(cartItem.producto.nombre,
-                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 16),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                            '${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}',
-                                            style: TextStyle(color: Color(0xFF64748B), fontSize: isTablet ? 16 : 14)),
-                                      ],
-                                    ),
-                                  ),
-                                  Text('\$${subtotal.toStringAsFixed(2)}',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 17, color: Color(0xFF059669))),
-                                  const SizedBox(width: 12),
-                                  InkWell(
-                                    onTap: () => ref.read(cartProvider.notifier).eliminarItem(index),
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Container(
-                                      padding: EdgeInsets.all(isTablet ? 12 : 10),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFEE2E2),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: Colors.red.shade200),
-                                      ),
-                                      child: Icon(Icons.close_rounded, color: Colors.redAccent, size: isTablet ? 28 : 22),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                ),
-                const Divider(thickness: 2),
-                const SizedBox(height: 12),
-                Column(
+            child: Consumer(
+              builder: (context, ref, child) {
+                final currentCartState = ref.watch(cartProvider);
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('TOTAL USD',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 14, color: Color(0xFF64748B))),
-                        Text('\$${cartState.total.toStringAsFixed(2)}',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 30 : 20, color: Color(0xFF059669))),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('TOTAL BOLÍVARES',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 18 : 12, color: Color(0xFF94A3B8))),
-                        Text(
-                            'Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 22 : 14, color: Color(0xFF3B82F6))),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: isTablet ? 76 : 56,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          elevation: 6,
-                          side: const BorderSide(color: Color(0xFF059669), width: 1.5),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          _mostrarModalCobro(context);
-                        },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        Text('Mi Carrito',
+                            style: TextStyle(
+                                fontSize: isTablet ? 28 : 22,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A))),
+                        Row(
                           children: [
-                            Icon(Icons.payments_outlined, size: isTablet ? 32 : 24),
-                            const SizedBox(width: 16),
-                            Text('COBRAR ORDEN',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 24 : 18, letterSpacing: 1.0)),
+                            if (currentCartState.items.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.refresh_outlined, color: Color(0xFFEF4444), size: 28),
+                                tooltip: 'Reiniciar Venta',
+                                splashRadius: 28,
+                                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                  _limpiarCarritoConConfirmacion();
+                                },
+                              ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 28),
+                              splashRadius: 28,
+                              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
                           ],
                         ),
-                      ),
+                      ],
+                    ),
+                    const Divider(thickness: 2),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: currentCartState.items.isEmpty
+                          ? const Center(child: Text('El carrito está vacío',
+                              style: TextStyle(fontSize: 18, color: Color(0xFF94A3B8))))
+                          : ListView.separated(
+                              itemCount: currentCartState.items.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final cartItem = currentCartState.items[index];
+                                final double subtotal =
+                                    cartItem.producto.precioUnidad * cartItem.cantidad.toDouble();
+                                return Container(
+                                  padding: EdgeInsets.all(isTablet ? 20 : 16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: const Color(0xFFCBD5E1), width: isTablet ? 2 : 1.5),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(cartItem.producto.nombre,
+                                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 16),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                                '${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}',
+                                                style: TextStyle(color: Color(0xFF64748B), fontSize: isTablet ? 16 : 14)),
+                                          ],
+                                        ),
+                                      ),
+                                      Text('\$${subtotal.toStringAsFixed(2)}',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 17, color: Color(0xFF059669))),
+                                      const SizedBox(width: 12),
+                                      InkWell(
+                                        onTap: () {
+                                          ref.read(cartProvider.notifier).eliminarItem(index);
+                                        },
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Container(
+                                          padding: EdgeInsets.all(isTablet ? 12 : 10),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFEE2E2),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: Colors.red.shade200),
+                                          ),
+                                          child: Icon(Icons.close_rounded, color: Colors.redAccent, size: isTablet ? 28 : 22),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    const Divider(thickness: 2),
+                    const SizedBox(height: 12),
+                    Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('TOTAL USD',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 14, color: Color(0xFF64748B))),
+                            Text('\$${currentCartState.total.toStringAsFixed(2)}',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 30 : 20, color: Color(0xFF059669))),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('TOTAL BOLÍVARES',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 18 : 12, color: Color(0xFF94A3B8))),
+                            Text(
+                                'Bs. ${(currentCartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 22 : 14, color: Color(0xFF3B82F6))),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          height: isTablet ? 76 : 56,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              elevation: 6,
+                              side: const BorderSide(color: Color(0xFF059669), width: 1.5),
+                            ),
+                            onPressed: currentCartState.items.isEmpty
+                                ? null
+                                : () {
+                                    Navigator.of(context).pop();
+                                    _mostrarModalCobro(context);
+                                  },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.payments_outlined, size: isTablet ? 32 : 24),
+                                const SizedBox(width: 16),
+                                Text('COBRAR ORDEN',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 24 : 18, letterSpacing: 1.0)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                ),
-              ],
+                );
+              },
             ),
           ),
         );
@@ -1672,9 +1645,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================================================
-  // SEARCH BAR (CORREGIDA)  <--- CAMBIO AQUÍ
-  // ============================================================
   Widget _buildSearchBar(bool isMobile) {
     final isTablet = ResponsiveHelper.isTablet(context);
     return SizedBox(
@@ -1701,7 +1671,7 @@ class _InventoryCatalogScreenState
                   padding: EdgeInsets.zero,
                   onPressed: () {
                     HapticFeedback.lightImpact();
-                    _scanBarcode(); // <--- CAMBIO AQUÍ (antes era SnackBar)
+                    _scanBarcode();
                   },
                 ),
               ),
@@ -1738,20 +1708,67 @@ class _InventoryCatalogScreenState
   }
 
   // ============================================================
-  // CATEGORY CHIPS
+  // 🎯 CATEGORY CHIPS CON BLUR MEJORADO (CORREGIDO)
   // ============================================================
-  Widget _buildCategoryChips() {
-    final isTablet = ResponsiveHelper.isTablet(context);
-    final double height = isTablet ? 60 : 48;
+  // ============================================================
+// 🎯 CATEGORY CHIPS CON BLUR PROFESIONAL
+// ============================================================
+Widget _buildCategoryChips() {
+  final isTablet = ResponsiveHelper.isTablet(context);
+  final double height = isTablet ? 60 : 48;
 
-    return SizedBox(
-      height: height,
-      child: isTablet
-          ? Scrollbar(
-              thickness: 6,
-              radius: const Radius.circular(10),
-              scrollbarOrientation: ScrollbarOrientation.bottom,
-              child: ListView.separated(
+  return ClipRect(
+    child: BackdropFilter(
+      // 🔥 BLUR SUAVE Y NATURAL
+      filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          // 🔥 FONDO MÁS SÓLIDO (75% opaco)
+          color: Colors.white.withOpacity(0.75),
+          // 🔥 SOMBRA MÁS NOTORIA
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+          // 🔥 BORDE SUTIL PARA DAR DEFINICIÓN
+          border: Border(
+            bottom: BorderSide(
+              color: Colors.grey.shade200.withOpacity(0.5),
+              width: 1,
+            ),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: isTablet
+            ? Scrollbar(
+                thickness: 6,
+                radius: const Radius.circular(10),
+                scrollbarOrientation: ScrollbarOrientation.bottom,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _categorias.length,
+                  separatorBuilder: (context, index) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) {
+                    final cat = _categorias[index];
+                    return _CategoryButton(
+                      categoria: cat,
+                      esSeleccionada: _categoriaSeleccionada == cat,
+                      onTap: () {
+                        setState(() {
+                          _categoriaSeleccionada = cat;
+                        });
+                        _filtrarProductos();
+                      },
+                    );
+                  },
+                ),
+              )
+            : ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: _categorias.length,
@@ -1770,33 +1787,12 @@ class _InventoryCatalogScreenState
                   );
                 },
               ),
-            )
-          : ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _categorias.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                final cat = _categorias[index];
-                return _CategoryButton(
-                  categoria: cat,
-                  esSeleccionada: _categoriaSeleccionada == cat,
-                  onTap: () {
-                    setState(() {
-                      _categoriaSeleccionada = cat;
-                    });
-                    _filtrarProductos();
-                  },
-                );
-              },
-            ),
-    );
-  }
+      ),
+    ),
+  );
+}
 }
 
-// ============================================================
-// WIDGETS AUXILIARES
-// ============================================================
 class _CategoryButton extends StatefulWidget {
   final String categoria;
   final bool esSeleccionada;
@@ -1890,9 +1886,6 @@ class _CategoryButtonState extends State<_CategoryButton> {
   }
 }
 
-// ============================================================
-// PRODUCT CARD
-// ============================================================
 class _ProductCard extends StatefulWidget {
   final ProductoEntity producto;
   final bool stockBajo;
@@ -1934,6 +1927,7 @@ class _ProductCardState extends State<_ProductCard> {
   @override
   Widget build(BuildContext context) {
     final bool isTablet = ResponsiveHelper.isTablet(context);
+    final bool isMobile = ResponsiveHelper.isMobile(context);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -1958,17 +1952,20 @@ class _ProductCardState extends State<_ProductCard> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isTablet ? 0.08 : 0.04),
+                    color: Colors.black.withOpacity(isTablet ? 0.08 : 0.04),
                     blurRadius: isTablet ? 16 : 12,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ✅ IMAGEN (flex 5 en lugar de 6)
                   Expanded(
-                    flex: 6,
+                    flex: 5,
                     child: Container(
+                      width: double.infinity,
                       decoration: const BoxDecoration(
                         color: Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -1982,7 +1979,7 @@ class _ProductCardState extends State<_ProductCard> {
                                     fit: BoxFit.cover,
                                     width: double.infinity,
                                     height: double.infinity,
-                                    errorBuilder: (_, _, _) =>
+                                    errorBuilder: (_, __, ___) =>
                                         const Icon(Icons.inventory_2, size: 40, color: Color(0xFF3B82F6)),
                                   )
                                 : const Icon(Icons.inventory_2, size: 40, color: Color(0xFF3B82F6)),
@@ -2009,7 +2006,7 @@ class _ProductCardState extends State<_ProductCard> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.9),
+                                color: Colors.white.withOpacity(0.9),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -2022,12 +2019,13 @@ class _ProductCardState extends State<_ProductCard> {
                       ),
                     ),
                   ),
+                  // ✅ INFORMACIÓN (flex 4 en lugar de 5)
                   Expanded(
                     flex: 4,
                     child: Padding(
-                      padding: const EdgeInsets.all(12.0),
+                      padding: EdgeInsets.all(isMobile ? 8.0 : 12.0),
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
@@ -2036,15 +2034,16 @@ class _ProductCardState extends State<_ProductCard> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: widget.isMobile ? 13 : (isTablet ? 18 : 14),
+                              fontSize: isMobile ? 12 : (isTablet ? 16 : 14),
                               color: const Color(0xFF0F172A),
                             ),
                           ),
                           Text(
                             'Cód: ${widget.producto.codigoBarras}',
                             style: TextStyle(
-                                fontSize: widget.isMobile ? 9 : (isTablet ? 12 : 10),
-                                color: const Color(0xFF94A3B8)),
+                              fontSize: isMobile ? 8 : (isTablet ? 11 : 10),
+                              color: const Color(0xFF94A3B8),
+                            ),
                           ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2052,22 +2051,22 @@ class _ProductCardState extends State<_ProductCard> {
                               Text(
                                 '\$${widget.producto.precioUnidad.toStringAsFixed(2)}',
                                 style: TextStyle(
-                                  fontSize: widget.isMobile ? 15 : (isTablet ? 20 : 16),
+                                  fontSize: isMobile ? 14 : (isTablet ? 18 : 16),
                                   fontWeight: FontWeight.bold,
                                   color: const Color(0xFF059669),
                                 ),
                               ),
                               Container(
-                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: widget.stockBajo ? const Color(0xFFFEE2E2) : const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: BorderRadius.circular(4),
                                   border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
                                 ),
                                 child: Text(
                                   'Stock: ${widget.producto.stock}',
                                   style: TextStyle(
-                                    fontSize: widget.isMobile ? 9 : (isTablet ? 12 : 10),
+                                    fontSize: isMobile ? 8 : (isTablet ? 11 : 10),
                                     fontWeight: FontWeight.w600,
                                     color: widget.stockBajo ? const Color(0xFFEF4444) : const Color(0xFF475569),
                                   ),
@@ -2089,9 +2088,6 @@ class _ProductCardState extends State<_ProductCard> {
   }
 }
 
-// ============================================================
-// SKELETON LOADER
-// ============================================================
 class _ProductCardSkeleton extends StatelessWidget {
   const _ProductCardSkeleton();
 
@@ -2148,9 +2144,6 @@ class _ProductCardSkeleton extends StatelessWidget {
   }
 }
 
-// ============================================================
-// DIÁLOGO DEL ESCÁNER DE CÓDIGO DE BARRAS  <--- CAMBIO AQUÍ (NUEVO WIDGET)
-// ============================================================
 class _BarcodeScannerDialog extends StatefulWidget {
   const _BarcodeScannerDialog();
 
@@ -2174,18 +2167,12 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // ignore: unused_local_variable
-    final isTablet = ResponsiveHelper.isTablet(context);
-    // ignore: unused_local_variable
-    final isMobile = ResponsiveHelper.isMobile(context);
-
     return Dialog(
       insetPadding: EdgeInsets.zero,
       backgroundColor: Colors.black,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Cámara
           MobileScanner(
             controller: _controller,
             onDetect: (capture) async {
@@ -2204,8 +2191,6 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
               });
             },
           ),
-
-          // Marco de escaneo
           Center(
             child: Container(
               width: MediaQuery.of(context).size.width * 0.7,
@@ -2236,8 +2221,6 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
               ),
             ),
           ),
-
-          // Botones superior (Linterna y Cerrar)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,
@@ -2281,8 +2264,6 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
               ],
             ),
           ),
-
-          // Instrucción inferior
           Positioned(
             bottom: MediaQuery.of(context).padding.bottom + 40,
             left: 0,

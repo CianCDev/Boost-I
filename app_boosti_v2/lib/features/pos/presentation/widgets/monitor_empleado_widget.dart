@@ -29,28 +29,47 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // ignore: unused_local_variable
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
+    // Dimensiones dinámicas para el diálogo
+    final double dialogWidth = isMobile 
+        ? MediaQuery.of(context).size.width * 0.92 
+        : (isTablet ? 700 : 600);
+    
+    final double dialogMaxHeight = MediaQuery.of(context).size.height * 0.85;
+    final double fontSizeTitle = isMobile ? 18 : (isTablet ? 26 : 22);
+    final double fontSizeSubtitle = isMobile ? 12 : (isTablet ? 16 : 14);
+    final double fontSizeName = isMobile ? 15 : (isTablet ? 18 : 16);
+    final double fontSizeDetail = isMobile ? 11 : (isTablet ? 13 : 11);
+    final double fontSizeEstado = isMobile ? 11 : (isTablet ? 14 : 12);
+    final double iconSize = isMobile ? 20 : 24;
+
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(
+          color: theme.brightness == Brightness.dark 
+              ? Colors.grey.shade700 
+              : Colors.transparent,
+          width: 1,
+        ),
+      ),
       elevation: 8,
       insetPadding: EdgeInsets.symmetric(
-        horizontal: isTablet ? 60.0 : 20.0,
+        horizontal: isMobile ? 12.0 : (isTablet ? 60.0 : 40.0),
         vertical: 24.0,
       ),
       child: Container(
-        width: isTablet ? 700 : double.infinity,
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
-        padding: const EdgeInsets.all(24.0),
+        width: dialogWidth,
+        constraints: BoxConstraints(maxHeight: dialogMaxHeight),
+        padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
         decoration: BoxDecoration(
-          // ignore: deprecated_member_use
-          color: theme.dialogBackgroundColor,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -60,51 +79,56 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Título
+            // TÍTULO
             Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                    color: const Color(0xFF3B82F6).withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.people_alt_rounded,
-                      color: Color(0xFF3B82F6), size: 28),
+                  child: Icon(
+                    Icons.people_alt_rounded,
+                    color: theme.brightness == Brightness.dark 
+                        ? Colors.blue.shade300 
+                        : const Color(0xFF3B82F6),
+                    size: iconSize,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Monitor de Empleados',
-                    style: theme.textTheme.titleLarge?.copyWith(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: isTablet ? 26 : 22,
+                      fontSize: fontSizeTitle,
+                      color: theme.textTheme.bodyLarge?.color,
                     ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 28),
+                  icon: Icon(Icons.close_rounded, size: 28, color: theme.textTheme.bodyLarge?.color),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               'Estado en tiempo real de los cajeros conectados',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontSize: isTablet ? 16 : 14,
-                color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+              style: TextStyle(
+                fontSize: fontSizeSubtitle,
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
               ),
             ),
-            const SizedBox(height: 20),
-            const Divider(),
             const SizedBox(height: 16),
+            Divider(color: theme.dividerColor),
+            const SizedBox(height: 12),
 
-            // Stream de usuarios en tiempo real
+            // LISTA DE EMPLEADOS
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () async {
-                  // Forzar actualización del stream
                   setState(() {});
                 },
                 color: const Color(0xFF10B981),
@@ -112,13 +136,18 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                   stream: _syncService.streamUsuariosEnTiempoReal(),
                   initialData: const [],
                   builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
+                      );
+                    }
+
                     if (snapshot.hasError) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.error_outline,
-                                size: 48, color: theme.colorScheme.error),
+                            Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
                             const SizedBox(height: 12),
                             Text(
                               'Error al cargar empleados',
@@ -145,8 +174,7 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.people_outline,
-                                size: 48, color: theme.disabledColor),
+                            Icon(Icons.people_outline, size: 48, color: theme.disabledColor),
                             const SizedBox(height: 12),
                             Text(
                               'No hay empleados registrados',
@@ -158,128 +186,128 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                     }
 
                     // Ordenar: activos primero, luego por nombre
-                    final ordenados = [...usuarios]
-                      ..sort((a, b) {
-                        final estadoA = a.estado;
-                        final estadoB = b.estado;
-                        if (estadoA == 'activo' && estadoB != 'activo') return -1;
-                        if (estadoA != 'activo' && estadoB == 'activo') return 1;
-                        return a.nombre.compareTo(b.nombre);
-                      });
+                    final ordenados = [...usuarios]..sort((a, b) {
+                      final estadoA = a.estado ?? 'inactivo';
+                      final estadoB = b.estado ?? 'inactivo';
+                      if (estadoA == 'activo' && estadoB != 'activo') return -1;
+                      if (estadoA != 'activo' && estadoB == 'activo') return 1;
+                      return a.nombre.compareTo(b.nombre);
+                    });
 
                     return ListView.separated(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 4 : 8,
+                        vertical: isMobile ? 4 : 8,
+                      ),
                       itemCount: ordenados.length,
-                      separatorBuilder: (_, _) => const Divider(height: 4),
+                      separatorBuilder: (_, __) => Divider(
+                        color: theme.dividerColor,
+                        height: 1,
+                      ),
                       itemBuilder: (context, index) {
                         final usuario = ordenados[index];
                         final isActive = usuario.estado == 'activo';
-                        final deviceId = usuario.deviceId ?? '';
+                        final isDescanso = usuario.estado == 'descanso' || usuario.estado == 'manualrest';
+
+                        Color estadoColor;
+                        String estadoTexto;
+                        IconData estadoIcon;
+
+                        if (isActive) {
+                          estadoColor = const Color(0xFF10B981);
+                          estadoTexto = 'Activo';
+                          estadoIcon = Icons.point_of_sale;
+                        } else if (isDescanso) {
+                          estadoColor = Colors.orange;
+                          estadoTexto = 'En Descanso';
+                          estadoIcon = Icons.coffee;
+                        } else {
+                          estadoColor = theme.brightness == Brightness.dark
+                              ? Colors.grey.shade500
+                              : const Color(0xFF64748B);
+                          estadoTexto = 'Inactivo';
+                          estadoIcon = Icons.power_off;
+                        }
 
                         return ListTile(
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 4 : 8,
+                            vertical: isMobile ? 2 : 4,
+                          ),
                           leading: CircleAvatar(
-                            backgroundColor: isActive
-                                ? const Color(0xFF10B981)
-                                : theme.dividerColor,
-                            child: Text(
-                              usuario.nombre.isNotEmpty
-                                  ? usuario.nombre[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            radius: isMobile ? 20 : 24,
+                            backgroundColor: estadoColor.withOpacity(0.15),
+                            child: Icon(
+                              estadoIcon,
+                              color: estadoColor,
+                              size: isMobile ? 18 : 22,
                             ),
                           ),
                           title: Text(
                             usuario.nombre,
-                            style: theme.textTheme.titleMedium?.copyWith(
+                            style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: isTablet ? 18 : 16,
+                              fontSize: fontSizeName,
+                              color: theme.textTheme.bodyLarge?.color,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          subtitle: Row(
                             children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.badge_outlined,
-                                    size: 14,
-                                    color: theme.textTheme.bodySmall?.color,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    usuario.rol.toUpperCase(),
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      fontSize: isTablet ? 13 : 11,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  // 🔥 device_id (NUEVO)
-                                  if (deviceId.isNotEmpty)
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.devices,
-                                          size: 14,
-                                          color: theme.textTheme.bodySmall?.color,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Tooltip(
-                                          message: deviceId, // Muestra el ID completo al pasar mouse
-                                          child: Text(
-                                            'Dispositivo: ${deviceId.substring(0, deviceId.length > 8 ? 8 : deviceId.length)}...',
-                                            style: theme.textTheme.bodySmall?.copyWith(
-                                              fontSize: isTablet ? 13 : 11,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                ],
+                              Text(
+                                'Rol: ${usuario.rol.toUpperCase()}',
+                                style: TextStyle(
+                                  fontSize: fontSizeDetail,
+                                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                                ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(width: 12),
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isMobile ? 6 : 8,
+                                  vertical: isMobile ? 2 : 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: isActive
-                                      ? const Color(0xFFD1FAE5)
-                                      : theme.dividerColor.withValues(alpha: 0.3),
+                                  color: estadoColor.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: isActive
-                                        ? const Color(0xFF10B981)
-                                        : theme.dividerColor,
+                                    color: estadoColor.withOpacity(0.3),
                                     width: 1,
                                   ),
                                 ),
-                                child: Text(
-                                  isActive ? '🟢 Activo' : '⚪ Inactivo',
-                                  style: TextStyle(
-                                    fontSize: isTablet ? 14 : 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: isActive
-                                        ? const Color(0xFF065F46)
-                                        : theme.textTheme.bodySmall?.color,
-                                  ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      estadoIcon,
+                                      size: isMobile ? 12 : 14,
+                                      color: estadoColor,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      estadoTexto,
+                                      style: TextStyle(
+                                        color: estadoColor,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: fontSizeEstado,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                           trailing: isActive
                               ? Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF10B981),
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF10B981),
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Color(0xFF10B981),
+                                        color: const Color(0xFF10B981).withOpacity(0.5),
                                         blurRadius: 8,
                                         spreadRadius: 2,
                                       ),
@@ -287,6 +315,7 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                   ),
                                 )
                               : null,
+                          dense: true,
                         );
                       },
                     );
@@ -295,25 +324,26 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
               ),
             ),
 
-            const SizedBox(height: 16),
-            const Divider(),
+            const SizedBox(height: 12),
+            Divider(color: theme.dividerColor),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   'Los cambios se actualizan automáticamente',
-                  style: theme.textTheme.bodySmall?.copyWith(
+                  style: TextStyle(
                     fontStyle: FontStyle.italic,
-                    fontSize: isTablet ? 13 : 11,
+                    fontSize: isMobile ? 11 : 13,
+                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
                   ),
                 ),
                 TextButton(
                   style: TextButton.styleFrom(
                     foregroundColor: const Color(0xFF10B981),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 20,
+                      vertical: isMobile ? 8 : 12,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -322,17 +352,23 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                   onPressed: () {
                     setState(() {});
                   },
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.refresh_rounded, size: 16),
-                      SizedBox(width: 4),
-                      Text('Actualizar', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Icon(Icons.refresh_rounded, size: isMobile ? 14 : 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Actualizar',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isMobile ? 12 : 14,
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
           ],
         ),
       ),
