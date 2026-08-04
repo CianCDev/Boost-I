@@ -1,19 +1,18 @@
+// usuario_entity.dart
 import 'package:isar/isar.dart';
-
 part 'usuario_entity.g.dart';
 
 @Collection()
 class UsuarioEntity {
-  Id id = Isar.autoIncrement; // ✅ Mantén int
+  Id id = Isar.autoIncrement;
 
-  @Index(unique: true, replace: true)
   late String nombre;
-
   late String pin;
   late String rol;
-  bool activo = true;
-  String? estado;
-  String? cajaAsignada;
-  String? email;
-  String? supabaseUid;
+  late bool activo;
+  late String estado;
+  late String cajaAsignada;
+  String? email;          // Correo electrónico (para login por email)
+  String? supabaseUid;    // ID de Supabase
+  String? deviceId; 
 }

@@ -34,33 +34,38 @@ const ProductoEntitySchema = CollectionSchema(
       name: r'esPesado',
       type: IsarType.bool,
     ),
-    r'nombre': PropertySchema(
+    r'imagenUrl': PropertySchema(
       id: 3,
+      name: r'imagenUrl',
+      type: IsarType.string,
+    ),
+    r'nombre': PropertySchema(
+      id: 4,
       name: r'nombre',
       type: IsarType.string,
     ),
     r'precioUnidad': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'precioUnidad',
       type: IsarType.double,
     ),
     r'proveedorNombre': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'proveedorNombre',
       type: IsarType.string,
     ),
     r'proveedorTelefono': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'proveedorTelefono',
       type: IsarType.string,
     ),
     r'stock': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'stock',
       type: IsarType.double,
     ),
     r'stockMinimo': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'stockMinimo',
       type: IsarType.double,
     )
@@ -101,6 +106,7 @@ int _productoEntityEstimateSize(
   var bytesCount = offsets.last;
   bytesCount += 3 + object.categoria.length * 3;
   bytesCount += 3 + object.codigoBarras.length * 3;
+  bytesCount += 3 + object.imagenUrl.length * 3;
   bytesCount += 3 + object.nombre.length * 3;
   bytesCount += 3 + object.proveedorNombre.length * 3;
   bytesCount += 3 + object.proveedorTelefono.length * 3;
@@ -116,12 +122,13 @@ void _productoEntitySerialize(
   writer.writeString(offsets[0], object.categoria);
   writer.writeString(offsets[1], object.codigoBarras);
   writer.writeBool(offsets[2], object.esPesado);
-  writer.writeString(offsets[3], object.nombre);
-  writer.writeDouble(offsets[4], object.precioUnidad);
-  writer.writeString(offsets[5], object.proveedorNombre);
-  writer.writeString(offsets[6], object.proveedorTelefono);
-  writer.writeDouble(offsets[7], object.stock);
-  writer.writeDouble(offsets[8], object.stockMinimo);
+  writer.writeString(offsets[3], object.imagenUrl);
+  writer.writeString(offsets[4], object.nombre);
+  writer.writeDouble(offsets[5], object.precioUnidad);
+  writer.writeString(offsets[6], object.proveedorNombre);
+  writer.writeString(offsets[7], object.proveedorTelefono);
+  writer.writeDouble(offsets[8], object.stock);
+  writer.writeDouble(offsets[9], object.stockMinimo);
 }
 
 ProductoEntity _productoEntityDeserialize(
@@ -135,12 +142,13 @@ ProductoEntity _productoEntityDeserialize(
   object.codigoBarras = reader.readString(offsets[1]);
   object.esPesado = reader.readBool(offsets[2]);
   object.id = id;
-  object.nombre = reader.readString(offsets[3]);
-  object.precioUnidad = reader.readDouble(offsets[4]);
-  object.proveedorNombre = reader.readString(offsets[5]);
-  object.proveedorTelefono = reader.readString(offsets[6]);
-  object.stock = reader.readDouble(offsets[7]);
-  object.stockMinimo = reader.readDouble(offsets[8]);
+  object.imagenUrl = reader.readString(offsets[3]);
+  object.nombre = reader.readString(offsets[4]);
+  object.precioUnidad = reader.readDouble(offsets[5]);
+  object.proveedorNombre = reader.readString(offsets[6]);
+  object.proveedorTelefono = reader.readString(offsets[7]);
+  object.stock = reader.readDouble(offsets[8]);
+  object.stockMinimo = reader.readDouble(offsets[9]);
   return object;
 }
 
@@ -160,14 +168,16 @@ P _productoEntityDeserializeProp<P>(
     case 3:
       return (reader.readString(offset)) as P;
     case 4:
-      return (reader.readDouble(offset)) as P;
-    case 5:
       return (reader.readString(offset)) as P;
+    case 5:
+      return (reader.readDouble(offset)) as P;
     case 6:
       return (reader.readString(offset)) as P;
     case 7:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 8:
+      return (reader.readDouble(offset)) as P;
+    case 9:
       return (reader.readDouble(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -705,6 +715,142 @@ extension ProductoEntityQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      imagenUrlEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'imagenUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      imagenUrlGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'imagenUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      imagenUrlLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'imagenUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      imagenUrlBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'imagenUrl',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      imagenUrlStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'imagenUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      imagenUrlEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'imagenUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      imagenUrlContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'imagenUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      imagenUrlMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'imagenUrl',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      imagenUrlIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'imagenUrl',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      imagenUrlIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'imagenUrl',
+        value: '',
       ));
     });
   }
@@ -1364,6 +1510,19 @@ extension ProductoEntityQuerySortBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> sortByImagenUrl() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'imagenUrl', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByImagenUrlDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'imagenUrl', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> sortByNombre() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombre', Sort.asc);
@@ -1500,6 +1659,19 @@ extension ProductoEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> thenByImagenUrl() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'imagenUrl', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByImagenUrlDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'imagenUrl', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> thenByNombre() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombre', Sort.asc);
@@ -1604,6 +1776,13 @@ extension ProductoEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct> distinctByImagenUrl(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'imagenUrl', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QDistinct> distinctByNombre(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1672,6 +1851,12 @@ extension ProductoEntityQueryProperty
   QueryBuilder<ProductoEntity, bool, QQueryOperations> esPesadoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'esPesado');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, String, QQueryOperations> imagenUrlProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'imagenUrl');
     });
   }
 

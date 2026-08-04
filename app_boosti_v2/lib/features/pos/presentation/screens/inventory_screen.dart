@@ -475,10 +475,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
 
                               setStateModal(() => guardando = true);
 
-                              final producto = productoAEditar ?? ProductoEntity();
+                             final producto = productoAEditar ?? ProductoEntity();
                               producto.codigoBarras = codigoController.text.trim();
                               producto.nombre = nombre;
-                              producto.imagenUrl = imagenUrlController.text.trim().isNotEmpty ? imagenUrlController.text.trim() : null;
+                              // ✅ CORRECCIÓN: Asignar '' en lugar de null
+                              producto.imagenUrl = imagenUrlController.text.trim().isNotEmpty 
+                                  ? imagenUrlController.text.trim() 
+                                  : '';  // <--- Cambio aquí
                               producto.precioUnidad = pPrecio;
                               producto.stock = pStock;
                               final pStockMin = double.tryParse(stockMinController.text.trim().replaceAll(',', '.')) ?? 5.0;
@@ -487,7 +490,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                               producto.esPesado = esPesado;
                               producto.proveedorNombre = proveedorNombreController.text.trim();
                               producto.proveedorTelefono = proveedorTelController.text.trim();
-
                               HapticFeedback.lightImpact();
 
                               await _isarService.guardarProducto(producto);
@@ -581,8 +583,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: producto.imagenUrl?.isNotEmpty ?? false
-                        ? Image.network(producto.imagenUrl!, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey))
+                      child: producto.imagenUrl.isNotEmpty
+                        ? Image.network(producto.imagenUrl, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey))
                         : const Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
                     ),
                   ),
@@ -965,11 +967,11 @@ class _ProductCardState extends State<_ProductCard> {
                         border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
                       ),
                       child: Center(
-                        child: widget.producto.imagenUrl?.isNotEmpty ?? false
+                        child: widget.producto.imagenUrl.isNotEmpty
                             ? ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: Image.network(
-                                  widget.producto.imagenUrl!,
+                                  widget.producto.imagenUrl,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, _, _) => const Icon(Icons.inventory_2, size: 36, color: Color(0xFF3B82F6)),
                                 ),

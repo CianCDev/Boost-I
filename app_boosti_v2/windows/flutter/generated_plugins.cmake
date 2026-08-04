@@ -6,7 +6,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   charset_converter
   connectivity_plus
-  flutter_libserialport
   isar_flutter_libs
   printing
   share_plus
@@ -15,6 +14,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
   jni
+  platform_serial
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

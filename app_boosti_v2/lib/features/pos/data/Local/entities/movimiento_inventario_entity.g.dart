@@ -36,17 +36,17 @@ const MovimientoInventarioEntitySchema = CollectionSchema(
     r'productoId': PropertySchema(
       id: 3,
       name: r'productoId',
-      type: IsarType.string,
-    ),
-    r'sincronizado': PropertySchema(
-      id: 4,
-      name: r'sincronizado',
-      type: IsarType.bool,
+      type: IsarType.long,
     ),
     r'stockResultante': PropertySchema(
-      id: 5,
+      id: 4,
       name: r'stockResultante',
       type: IsarType.double,
+    ),
+    r'syncStatus': PropertySchema(
+      id: 5,
+      name: r'syncStatus',
+      type: IsarType.string,
     ),
     r'tipoMovimiento': PropertySchema(
       id: 6,
@@ -56,7 +56,7 @@ const MovimientoInventarioEntitySchema = CollectionSchema(
     r'usuarioId': PropertySchema(
       id: 7,
       name: r'usuarioId',
-      type: IsarType.string,
+      type: IsarType.long,
     )
   },
   estimateSize: _movimientoInventarioEntityEstimateSize,
@@ -80,9 +80,8 @@ int _movimientoInventarioEntityEstimateSize(
 ) {
   var bytesCount = offsets.last;
   bytesCount += 3 + object.nombreProducto.length * 3;
-  bytesCount += 3 + object.productoId.length * 3;
+  bytesCount += 3 + object.syncStatus.length * 3;
   bytesCount += 3 + object.tipoMovimiento.length * 3;
-  bytesCount += 3 + object.usuarioId.length * 3;
   return bytesCount;
 }
 
@@ -95,11 +94,11 @@ void _movimientoInventarioEntitySerialize(
   writer.writeDouble(offsets[0], object.cantidad);
   writer.writeDateTime(offsets[1], object.fecha);
   writer.writeString(offsets[2], object.nombreProducto);
-  writer.writeString(offsets[3], object.productoId);
-  writer.writeBool(offsets[4], object.sincronizado);
-  writer.writeDouble(offsets[5], object.stockResultante);
+  writer.writeLong(offsets[3], object.productoId);
+  writer.writeDouble(offsets[4], object.stockResultante);
+  writer.writeString(offsets[5], object.syncStatus);
   writer.writeString(offsets[6], object.tipoMovimiento);
-  writer.writeString(offsets[7], object.usuarioId);
+  writer.writeLong(offsets[7], object.usuarioId);
 }
 
 MovimientoInventarioEntity _movimientoInventarioEntityDeserialize(
@@ -113,11 +112,11 @@ MovimientoInventarioEntity _movimientoInventarioEntityDeserialize(
   object.fecha = reader.readDateTime(offsets[1]);
   object.id = id;
   object.nombreProducto = reader.readString(offsets[2]);
-  object.productoId = reader.readString(offsets[3]);
-  object.sincronizado = reader.readBool(offsets[4]);
-  object.stockResultante = reader.readDouble(offsets[5]);
+  object.productoId = reader.readLong(offsets[3]);
+  object.stockResultante = reader.readDouble(offsets[4]);
+  object.syncStatus = reader.readString(offsets[5]);
   object.tipoMovimiento = reader.readString(offsets[6]);
-  object.usuarioId = reader.readString(offsets[7]);
+  object.usuarioId = reader.readLong(offsets[7]);
   return object;
 }
 
@@ -135,15 +134,15 @@ P _movimientoInventarioEntityDeserializeProp<P>(
     case 2:
       return (reader.readString(offset)) as P;
     case 3:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 4:
-      return (reader.readBool(offset)) as P;
-    case 5:
       return (reader.readDouble(offset)) as P;
+    case 5:
+      return (reader.readString(offset)) as P;
     case 6:
       return (reader.readString(offset)) as P;
     case 7:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -563,58 +562,49 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterFilterCondition> productoIdEqualTo(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+      QAfterFilterCondition> productoIdEqualTo(int value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'productoId',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> productoIdGreaterThan(
-    String value, {
+    int value, {
     bool include = false,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         include: include,
         property: r'productoId',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> productoIdLessThan(
-    String value, {
+    int value, {
     bool include = false,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.lessThan(
         include: include,
         property: r'productoId',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> productoIdBetween(
-    String lower,
-    String upper, {
+    int lower,
+    int upper, {
     bool includeLower = true,
     bool includeUpper = true,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
@@ -623,89 +613,6 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterFilterCondition> productoIdStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'productoId',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterFilterCondition> productoIdEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'productoId',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-          QAfterFilterCondition>
-      productoIdContains(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.contains(
-        property: r'productoId',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-          QAfterFilterCondition>
-      productoIdMatches(String pattern, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.matches(
-        property: r'productoId',
-        wildcard: pattern,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterFilterCondition> productoIdIsEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'productoId',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterFilterCondition> productoIdIsNotEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'productoId',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterFilterCondition> sincronizadoEqualTo(bool value) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'sincronizado',
-        value: value,
       ));
     });
   }
@@ -772,6 +679,144 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
         upper: upper,
         includeUpper: includeUpper,
         epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> syncStatusEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> syncStatusGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> syncStatusLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> syncStatusBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'syncStatus',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> syncStatusStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> syncStatusEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+          QAfterFilterCondition>
+      syncStatusContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+          QAfterFilterCondition>
+      syncStatusMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'syncStatus',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> syncStatusIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'syncStatus',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> syncStatusIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'syncStatus',
+        value: '',
       ));
     });
   }
@@ -915,58 +960,49 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterFilterCondition> usuarioIdEqualTo(
-    String value, {
-    bool caseSensitive = true,
-  }) {
+      QAfterFilterCondition> usuarioIdEqualTo(int value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'usuarioId',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> usuarioIdGreaterThan(
-    String value, {
+    int value, {
     bool include = false,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         include: include,
         property: r'usuarioId',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> usuarioIdLessThan(
-    String value, {
+    int value, {
     bool include = false,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.lessThan(
         include: include,
         property: r'usuarioId',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterFilterCondition> usuarioIdBetween(
-    String lower,
-    String upper, {
+    int lower,
+    int upper, {
     bool includeLower = true,
     bool includeUpper = true,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
@@ -975,79 +1011,6 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterFilterCondition> usuarioIdStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'usuarioId',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterFilterCondition> usuarioIdEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'usuarioId',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-          QAfterFilterCondition>
-      usuarioIdContains(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.contains(
-        property: r'usuarioId',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-          QAfterFilterCondition>
-      usuarioIdMatches(String pattern, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.matches(
-        property: r'usuarioId',
-        wildcard: pattern,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterFilterCondition> usuarioIdIsEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'usuarioId',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterFilterCondition> usuarioIdIsNotEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'usuarioId',
-        value: '',
       ));
     });
   }
@@ -1118,20 +1081,6 @@ extension MovimientoInventarioEntityQuerySortBy on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterSortBy> sortBySincronizado() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'sincronizado', Sort.asc);
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterSortBy> sortBySincronizadoDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'sincronizado', Sort.desc);
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterSortBy> sortByStockResultante() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'stockResultante', Sort.asc);
@@ -1142,6 +1091,20 @@ extension MovimientoInventarioEntityQuerySortBy on QueryBuilder<
       QAfterSortBy> sortByStockResultanteDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'stockResultante', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterSortBy> sortBySyncStatus() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncStatus', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterSortBy> sortBySyncStatusDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncStatus', Sort.desc);
     });
   }
 
@@ -1247,20 +1210,6 @@ extension MovimientoInventarioEntityQuerySortThenBy on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterSortBy> thenBySincronizado() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'sincronizado', Sort.asc);
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QAfterSortBy> thenBySincronizadoDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'sincronizado', Sort.desc);
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterSortBy> thenByStockResultante() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'stockResultante', Sort.asc);
@@ -1271,6 +1220,20 @@ extension MovimientoInventarioEntityQuerySortThenBy on QueryBuilder<
       QAfterSortBy> thenByStockResultanteDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'stockResultante', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterSortBy> thenBySyncStatus() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncStatus', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterSortBy> thenBySyncStatusDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncStatus', Sort.desc);
     });
   }
 
@@ -1328,16 +1291,9 @@ extension MovimientoInventarioEntityQueryWhereDistinct on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QDistinct> distinctByProductoId({bool caseSensitive = true}) {
+      QDistinct> distinctByProductoId() {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'productoId', caseSensitive: caseSensitive);
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QDistinct> distinctBySincronizado() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'sincronizado');
+      return query.addDistinctBy(r'productoId');
     });
   }
 
@@ -1345,6 +1301,13 @@ extension MovimientoInventarioEntityQueryWhereDistinct on QueryBuilder<
       QDistinct> distinctByStockResultante() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'stockResultante');
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QDistinct> distinctBySyncStatus({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'syncStatus', caseSensitive: caseSensitive);
     });
   }
 
@@ -1357,9 +1320,9 @@ extension MovimientoInventarioEntityQueryWhereDistinct on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
-      QDistinct> distinctByUsuarioId({bool caseSensitive = true}) {
+      QDistinct> distinctByUsuarioId() {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'usuarioId', caseSensitive: caseSensitive);
+      return query.addDistinctBy(r'usuarioId');
     });
   }
 }
@@ -1393,17 +1356,10 @@ extension MovimientoInventarioEntityQueryProperty on QueryBuilder<
     });
   }
 
-  QueryBuilder<MovimientoInventarioEntity, String, QQueryOperations>
+  QueryBuilder<MovimientoInventarioEntity, int, QQueryOperations>
       productoIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'productoId');
-    });
-  }
-
-  QueryBuilder<MovimientoInventarioEntity, bool, QQueryOperations>
-      sincronizadoProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'sincronizado');
     });
   }
 
@@ -1415,13 +1371,20 @@ extension MovimientoInventarioEntityQueryProperty on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, String, QQueryOperations>
+      syncStatusProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'syncStatus');
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, String, QQueryOperations>
       tipoMovimientoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'tipoMovimiento');
     });
   }
 
-  QueryBuilder<MovimientoInventarioEntity, String, QQueryOperations>
+  QueryBuilder<MovimientoInventarioEntity, int, QQueryOperations>
       usuarioIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'usuarioId');

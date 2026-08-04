@@ -1,12 +1,10 @@
+// lib/features/pos/presentation/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
-import '../../presentation/providers/usuario_provider.dart';
+import '../providers/auth_provider.dart';
 import '../utils/responsive_helper.dart';
 import 'inventory_catalog_screen.dart';
-import '../../presentation/services/sync_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -17,23 +15,14 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen>
     with SingleTickerProviderStateMixin {
-  final IsarService _isarService = IsarService();
-
-  // Controladores
   final TextEditingController _pinController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  List<UsuarioEntity> _usuarios = [];
-  UsuarioEntity? _usuarioSeleccionado;
-
   bool _isEmailMode = false;
-  bool _cargando = true;
-  String _errorMessage = '';
   bool _obscurePin = true;
   bool _obscurePassword = true;
 
-  // Animaciones
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -41,35 +30,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   void initState() {
     super.initState();
-    _inicializarYCargarUsuarios();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(authProvider.notifier).inicializarAdminPorDefecto();
+    });
 
-    // Configurar animaciones
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOut,
-      ),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
-
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.3),
       end: Offset.zero,
     ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOutCubic,
-      ),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
-
-    // Iniciar animación al cargar
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _animationController.forward();
-    });
+    _animationController.forward();
   }
 
   @override
@@ -81,185 +59,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     super.dispose();
   }
 
-  // ============================================================
-  // MÉTODOS DE AUTENTICACIÓN
-  // ============================================================
-
-  Future<void> _inicializarYCargarUsuarios() async {
-    await _isarService.inicializarUsuarioAdminPorDefecto();
-    final usuarios = await _isarService.obtenerUsuariosActivos();
-    setState(() {
-      _usuarios = usuarios;
-      if (usuarios.isNotEmpty) _usuarioSeleccionado = usuarios.first;
-      _cargando = false;
-    });
-  }
-
-  Future<void> _autenticarEnSupabase(UsuarioEntity usuario) async {
-    try {
-      final supabase = Supabase.instance.client;
-      if (supabase.auth.currentSession != null) return;
-      if (usuario.rol.toLowerCase() == 'admin') {
-        await supabase.auth.signInWithPassword(
-          email: 'admin@tuapp.com',
-          password: 'Admin123456!',
-        );
-        debugPrint('✅ Sesión de Supabase iniciada correctamente como ADMIN');
-      }
-    } catch (e) {
-      debugPrint('⚠️ No se pudo iniciar sesión en Supabase (modo offline): $e');
-    }
-  }
-
-  Future<void> _intentarLoginPin() async {
-    if (_usuarioSeleccionado == null) return;
-    final pinIngresado = _pinController.text.trim();
-    if (pinIngresado.isEmpty) {
-      setState(() => _errorMessage = 'Por favor ingresa tu PIN de acceso.');
-      return;
-    }
-    setState(() {
-      _cargando = true;
-      _errorMessage = '';
-    });
-    if ((_usuarioSeleccionado!.email ?? '').isNotEmpty) {
-      try {
-        final email = _usuarioSeleccionado!.email!;
-        final res = await Supabase.instance.client.auth.signInWithPassword(
-          email: email,
-          password: pinIngresado,
-        );
-        if (res.user != null) {
-          final usuarioValido =
-              await _isarService.validarLogin(_usuarioSeleccionado!.nombre, pinIngresado);
-          if (usuarioValido != null && mounted) {
-            ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => InventoryCatalogScreen(usuarioLogueado: usuarioValido)),
-            );
-            return;
-          }
-        }
-      } catch (e) {
-        debugPrint('Supabase login con PIN falló, intentando local: $e');
-      }
-    }
-    final usuarioValido = await _isarService.validarLogin(
-      _usuarioSeleccionado!.nombre,
-      pinIngresado,
-    );
-    if (usuarioValido != null && mounted) {
-      ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
-      debugPrint('🔍 ID del usuario logueado en Isar: ${usuarioValido.id}');
-
-      try {
-    final syncService = SyncService();
-    await syncService.actualizarEstadoUsuarioEnSupabase(usuarioValido.id, 'activo');
-    // Opcional: también actualizar localmente por si acaso
-    await _isarService.actualizarEstadoUsuario(usuarioValido.id, 'activo');
-  } catch (e) {
-    // Si falla, no bloquees el login, solo registra
-    debugPrint('⚠️ No se pudo actualizar estado en Supabase: $e');
-  }
-      await _autenticarEnSupabase(usuarioValido);
-
-      
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => InventoryCatalogScreen(usuarioLogueado: usuarioValido)),
-          
-        );
-      }
-    } else {
-      setState(() {
-        _errorMessage = 'PIN incorrecto. Inténtalo de nuevo.';
-        _pinController.clear();
-        _cargando = false;
-      });
-    }
-  }
-
-  Future<void> _intentarLoginEmail() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = 'Por favor ingresa tu correo y contraseña.');
-      return;
-    }
-    setState(() {
-      _cargando = true;
-      _errorMessage = '';
-    });
-    try {
-      final supabase = Supabase.instance.client;
-      final AuthResponse response = await supabase.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-      final User? authUser = response.user;
-      if (authUser == null) {
-        setState(() {
-          _errorMessage = 'Credenciales inválidas.';
-          _cargando = false;
-        });
-        return;
-      }
-      final Map<String, dynamic> dataUsuario = await supabase
-          .from('usuarios')
-          .select()
-          .eq('id', authUser.id)
-          .single();
-      final usuarioValido = UsuarioEntity()
-        ..id = 0
-        ..supabaseUid = authUser.id
-        ..nombre = dataUsuario['nombre'] ?? 'Sin Nombre'
-        ..rol = dataUsuario['rol'] ?? 'cajero'
-        ..pin = ''
-        ..email = authUser.email
-        ..activo = true;
-      if (mounted) {
-        ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => InventoryCatalogScreen(usuarioLogueado: usuarioValido)),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error en login con Supabase: $e');
-      setState(() {
-        _errorMessage = 'Correo o contraseña incorrectos.';
-        _cargando = false;
-      });
-    }
-  }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
-
-    @override
+  @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final screenSize = MediaQuery.of(context).size;
 
-    // --- CORRECCIÓN FINAL DE TAMAÑO PARA TABLETS ---
     double containerWidth;
     if (isMobile) {
-      // Móviles: 90% del ancho de la pantalla
       containerWidth = screenSize.width * 0.9;
     } else {
-      // Tablets y Escritorios: Un tamaño fijo y amplio (600px)
-      // Esto asegura que en iPads grandes (con escala 2.0x) no se vea diminuto.
       containerWidth = 600.0;
-      // Seguridad extra: Si la pantalla es muy pequeña, no sobrepasar el 90%
       if (containerWidth > screenSize.width * 0.9) {
         containerWidth = screenSize.width * 0.9;
       }
     }
 
-    final paddingSize = isMobile ? 24.0 : 42.0; // Respiración amplia en tablet
-    final buttonHeight = isMobile ? 50.0 : 62.0; // Botón táctil y grande
-    final logoSize = isMobile ? 80.0 : 120.0;    // Logo grande para llenar el espacio
+    final paddingSize = isMobile ? 24.0 : 42.0;
+    final buttonHeight = isMobile ? 50.0 : 62.0;
+    final logoSize = isMobile ? 80.0 : 120.0;
 
     return Scaffold(
       body: Container(
@@ -276,7 +95,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
         ),
         child: Center(
-          child: _cargando && _usuarios.isEmpty
+          child: authState.isLoading && authState.usuarios.isEmpty
               ? const CircularProgressIndicator(color: Color(0xFF10B981))
               : FadeTransition(
                   opacity: _fadeAnimation,
@@ -327,10 +146,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               _buildPinMode(isMobile, isTablet)
                             else
                               _buildEmailMode(isMobile, isTablet),
-                            if (_errorMessage.isNotEmpty) ...[
+                            if (authState.errorMessage != null) ...[
                               const SizedBox(height: 16),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
                                 decoration: BoxDecoration(
                                   color: Colors.red.shade50,
                                   borderRadius: BorderRadius.circular(8),
@@ -338,11 +158,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(Icons.error_outline, color: Colors.red.shade700, size: 18),
+                                    Icon(Icons.error_outline,
+                                        color: Colors.red.shade700, size: 18),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        _errorMessage,
+                                        authState.errorMessage!,
                                         style: TextStyle(
                                           color: Colors.red.shade700,
                                           fontSize: 13,
@@ -355,7 +176,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               ),
                             ],
                             SizedBox(height: isMobile ? 24 : 32),
-                            _buildLoginButton(buttonHeight, isMobile),
+                            _buildLoginButton(buttonHeight, isMobile,
+                                isLoading: authState.isLoading),
                             const SizedBox(height: 16),
                             Center(
                               child: Text(
@@ -426,7 +248,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           child: Text(
             'BoostI POS',
             style: TextStyle(
-              fontSize: isMobile ? 26 : 36, 
+              fontSize: isMobile ? 26 : 36,
               fontWeight: FontWeight.w900,
               color: Colors.white,
               letterSpacing: 1.0,
@@ -454,7 +276,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               onTap: () {
                 setState(() {
                   _isEmailMode = false;
-                  _errorMessage = '';
+                  // ✅ Usar método clearError
+                  ref.read(authProvider.notifier).clearError();
                 });
               },
               isMobile: isMobile,
@@ -468,7 +291,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               onTap: () {
                 setState(() {
                   _isEmailMode = true;
-                  _errorMessage = '';
+                  // ✅ Usar método clearError
+                  ref.read(authProvider.notifier).clearError();
                 });
               },
               isMobile: isMobile,
@@ -489,9 +313,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
-      padding: EdgeInsets.symmetric(
-        vertical: isMobile ? 10 : 14,
-      ),
+      padding: EdgeInsets.symmetric(vertical: isMobile ? 10 : 14),
       decoration: BoxDecoration(
         color: isSelected ? Colors.white : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
@@ -535,8 +357,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Widget _buildPinMode(bool isMobile, bool isTablet) {
-    final double fontSizeLabel = isMobile ? 13.0 : 15.0;
-    final double paddingVerticalInput = isTablet ? 22.0 : 18.0;
+    final authState = ref.watch(authProvider);
+    final fontSizeLabel = isMobile ? 13.0 : 15.0;
+    final paddingVerticalInput = isTablet ? 22.0 : 18.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -556,32 +379,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             border: Border.all(color: Colors.grey.shade300),
           ),
           child: DropdownButtonFormField<UsuarioEntity>(
-            initialValue: _usuarioSeleccionado,
+            initialValue: authState.usuarios.isNotEmpty ? authState.usuarios.first : null,
             decoration: InputDecoration(
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isTablet ? 18.0 : 12.0),
+              contentPadding: EdgeInsets.symmetric(
+                  horizontal: 16, vertical: isTablet ? 18.0 : 12.0),
             ),
-            items: _usuarios.map((u) {
+            items: authState.usuarios.map((u) {
               return DropdownMenuItem(
                 value: u,
                 child: Text(
                   '${u.nombre} (${u.rol.toUpperCase()})',
-                  style: TextStyle(
-                    fontSize: isMobile ? 14 : 16,
-                  ),
+                  style: TextStyle(fontSize: isMobile ? 14 : 16),
                 ),
               );
             }).toList(),
             onChanged: (val) {
-              setState(() {
-                _usuarioSeleccionado = val;
-                _errorMessage = '';
-              });
+              // No necesitamos hacer nada aquí, se usará en el login
             },
-            icon: Icon(
-              Icons.keyboard_arrow_down,
-              color: Colors.grey.shade600,
-            ),
+            icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
           ),
         ),
         SizedBox(height: isMobile ? 16 : 24),
@@ -594,7 +410,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
         ),
         const SizedBox(height: 8),
-        // CAMPO DE PIN CON TIPOGRAFÍA MÁS LIMPIA Y ESPACIADO PERFECTO
         TextFormField(
           controller: _pinController,
           obscureText: _obscurePin,
@@ -607,9 +422,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           decoration: InputDecoration(
             hintText: 'Ingresa tu PIN',
             hintStyle: TextStyle(
-              fontSize: isMobile ? 14 : 16, 
+              fontSize: isMobile ? 14 : 16,
               color: Colors.grey.shade400,
-              letterSpacing: 0.5, 
+              letterSpacing: 0.5,
               fontWeight: FontWeight.w400,
             ),
             counterText: '',
@@ -624,7 +439,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
             prefixIcon: Padding(
               padding: const EdgeInsets.only(left: 12.0),
-              child: Icon(Icons.lock_outline_rounded, color: Colors.grey.shade500, size: isTablet ? 28 : 24),
+              child: Icon(Icons.lock_outline_rounded,
+                  color: Colors.grey.shade500, size: isTablet ? 28 : 24),
             ),
             suffixIcon: IconButton(
               icon: Icon(
@@ -634,18 +450,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
               onPressed: () => setState(() => _obscurePin = !_obscurePin),
             ),
-            // Espaciado vertical extra en tablets para ser fácil de tocar
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
+            contentPadding:
+                EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
           ),
-          onFieldSubmitted: (_) => _intentarLoginPin(),
+          onFieldSubmitted: (_) => _loginWithPin(),
         ),
       ],
     );
   }
 
   Widget _buildEmailMode(bool isMobile, bool isTablet) {
-    final double fontSizeLabel = isMobile ? 13.0 : 15.0;
-    final double paddingVerticalInput = isTablet ? 22.0 : 18.0;
+    final fontSizeLabel = isMobile ? 13.0 : 15.0;
+    final paddingVerticalInput = isTablet ? 22.0 : 18.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -665,7 +481,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           style: TextStyle(fontSize: isMobile ? 15 : 18),
           decoration: InputDecoration(
             hintText: 'ejemplo@correo.com',
-            hintStyle: TextStyle(fontSize: isMobile ? 14 : 16, color: Colors.grey.shade400),
+            hintStyle:
+                TextStyle(fontSize: isMobile ? 14 : 16, color: Colors.grey.shade400),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -677,9 +494,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
             prefixIcon: Padding(
               padding: const EdgeInsets.only(left: 12.0),
-              child: Icon(Icons.email_outlined, color: Colors.grey.shade500, size: isTablet ? 28 : 24),
+              child: Icon(Icons.email_outlined,
+                  color: Colors.grey.shade500, size: isTablet ? 28 : 24),
             ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
+            contentPadding:
+                EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
           ),
         ),
         SizedBox(height: isMobile ? 16 : 24),
@@ -698,7 +517,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           style: TextStyle(fontSize: isMobile ? 15 : 18),
           decoration: InputDecoration(
             hintText: 'Ingresa tu contraseña',
-            hintStyle: TextStyle(fontSize: isMobile ? 14 : 16, color: Colors.grey.shade400),
+            hintStyle:
+                TextStyle(fontSize: isMobile ? 14 : 16, color: Colors.grey.shade400),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -710,7 +530,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
             prefixIcon: Padding(
               padding: const EdgeInsets.only(left: 12.0),
-              child: Icon(Icons.lock_outline_rounded, color: Colors.grey.shade500, size: isTablet ? 28 : 24),
+              child: Icon(Icons.lock_outline_rounded,
+                  color: Colors.grey.shade500, size: isTablet ? 28 : 24),
             ),
             suffixIcon: IconButton(
               icon: Icon(
@@ -720,15 +541,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
+            contentPadding:
+                EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
           ),
-          onFieldSubmitted: (_) => _intentarLoginEmail(),
+          onFieldSubmitted: (_) => _loginWithEmail(),
         ),
       ],
     );
   }
 
-  Widget _buildLoginButton(double height, bool isMobile) {
+  Widget _buildLoginButton(double height, bool isMobile,
+      {required bool isLoading}) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       height: height,
@@ -741,10 +564,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
           elevation: 0,
         ),
-        onPressed: _cargando
+        onPressed: isLoading
             ? null
-            : (_isEmailMode ? _intentarLoginEmail : _intentarLoginPin),
-        child: _cargando
+            : (_isEmailMode ? _loginWithEmail : _loginWithPin),
+        child: isLoading
             ? const SizedBox(
                 height: 24,
                 width: 24,
@@ -773,5 +596,66 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
       ),
     );
+  }
+
+  // ============================================================
+  // MÉTODOS DE AUTENTICACIÓN (LLAMAN AL PROVIDER)
+  // ============================================================
+
+  void _loginWithPin() async {
+    final authState = ref.read(authProvider);
+    if (authState.usuarios.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay usuarios disponibles')),
+      );
+      return;
+    }
+    final usuarioSeleccionado = authState.usuarios.first;
+    final pin = _pinController.text.trim();
+    if (pin.isEmpty) {
+      // ✅ Usar setError
+      ref.read(authProvider.notifier).setError('Por favor ingresa tu PIN.');
+      return;
+    }
+
+    final success = await ref.read(authProvider.notifier).loginWithPin(
+          usuarioSeleccionado,
+          pin,
+        );
+    if (success && mounted) {
+      final user = ref.read(authProvider).currentUser;
+      if (user != null) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
+          ),
+        );
+      }
+    }
+  }
+
+  void _loginWithEmail() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    if (email.isEmpty || password.isEmpty) {
+      // ✅ Usar setError
+      ref.read(authProvider.notifier).setError('Por favor ingresa correo y contraseña.');
+      return;
+    }
+
+    final success = await ref.read(authProvider.notifier).loginWithEmail(
+          email,
+          password,
+        );
+    if (success && mounted) {
+      final user = ref.read(authProvider).currentUser;
+      if (user != null) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
+          ),
+        );
+      }
+    }
   }
 }

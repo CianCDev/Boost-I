@@ -17,7 +17,6 @@ class ProductoEntity {
   String proveedorNombre = '';
   String proveedorTelefono = '';
   double stockMinimo = 5.0;
-   @ignore
-  String? imagenUrl; // Cambiado a String? para permitir null
+  late String imagenUrl; // Cambiado a String? para permitir null
    
 }

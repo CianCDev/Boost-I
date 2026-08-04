@@ -1,26 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 
-class UsuarioActualNotifier extends Notifier<UsuarioEntity?> {
-  @override
-  UsuarioEntity? build() {
-    // El estado inicia nulo hasta que se inicie sesión
-    return null;
-  }
+// lib/presentation/providers/usuario_provider.dart
 
-  /// Establece el usuario actual y notifica inmediatamente a todos los widgets que escuchan
-  void setUsuario(UsuarioEntity usuario) {
+class UsuarioNotifier extends StateNotifier<UsuarioEntity?> {
+  UsuarioNotifier() : super(null);
+
+  void setUsuario(UsuarioEntity? usuario) {
     state = usuario;
   }
 
-  /// Limpia la sesión del usuario
-  void cerrarSesion() {
+  void clearUsuario() {
     state = null;
   }
 }
 
-/// Provider global reactivo para el usuario activo
-final usuarioActualProvider =
-    NotifierProvider<UsuarioActualNotifier, UsuarioEntity?>(() {
-  return UsuarioActualNotifier();
+final usuarioActualProvider = StateNotifierProvider<UsuarioNotifier, UsuarioEntity?>((ref) {
+  return UsuarioNotifier();
 });

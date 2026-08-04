@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 // Entidades
 import '../entities/log_entity.dart';
 import '../entities/venta_entity.dart';
+import '../entities/detalle_venta_entity.dart'; // ⚠️ Asegúrate de que exista
 import '../entities/producto_entity.dart';
 import '../entities/usuario_entity.dart';
 import '../entities/movimiento_inventario_entity.dart';
@@ -35,9 +36,11 @@ class IsarService {
     final isar = await Isar.open(
       [
         VentaEntitySchema,
+        DetalleVentaEntitySchema, // ← AGREGADO
         ProductoEntitySchema,
         UsuarioEntitySchema,
         MovimientoInventarioEntitySchema,
+        // LogEntitySchema, // Si existe, también agregar
       ],
       directory: dir.path,
       inspector: true,
@@ -114,7 +117,7 @@ class IsarService {
     }
   }
 
-  // ==================== GESTIÓN DE USUARIOS (COMPLETA) ====================
+  // ==================== GESTIÓN DE USUARIOS ====================
   Future<void> inicializarUsuarioAdminPorDefecto() async {
     final isar = await db;
     await _inicializarUsuariosDemo(isar);
@@ -138,8 +141,12 @@ class IsarService {
     return usuario;
   }
 
-  /// Crea un nuevo usuario con validaciones
-  Future<void> crearUsuario({required String nombre, required String pin, required String rol, required String caja}) async {
+  Future<void> crearUsuario({
+    required String nombre,
+    required String pin,
+    required String rol,
+    required String caja,
+  }) async {
     final isar = await db;
     if (pin.trim().length != 4) throw Exception('El PIN debe tener 4 dígitos.');
     await isar.writeTxn(() async {
@@ -171,38 +178,6 @@ class IsarService {
         return true;
       }
       return false;
-    });
-  }
-
-
-
-  Future<void> guardarLog(LogEntity log) async {
-    final isar = await db;
-    await isar.writeTxn(() async {
-      await isar.logEntitys.put(log);
-    });
-  }
-
-  Future<List<LogEntity>> obtenerLogs() async {
-    final isar = await db;
-    return await isar.logEntitys.where().sortByFechaDesc().findAll();
-  }
-
-  Future<List<LogEntity>> obtenerLogsPendientesSync() async {
-    final isar = await db;
-    return await isar.logEntitys.filter().sincronizadoEqualTo(false).findAll();
-  }
-
-  Future<void> marcarLogsComoSincronizados(List<int> ids) async {
-    final isar = await db;
-    await isar.writeTxn(() async {
-      for (var id in ids) {
-        final log = await isar.logEntitys.get(id);
-        if (log != null) {
-          log.sincronizado = true;
-          await isar.logEntitys.put(log);
-        }
-      }
     });
   }
 
@@ -240,14 +215,61 @@ class IsarService {
           .and()
           .activoEqualTo(true)
           .findFirst();
-    } catch (_) { return null; }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ==================== LOGS ====================
+  Future<void> guardarLog(LogEntity log) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.logEntitys.put(log);
+    });
+  }
+
+  Future<List<LogEntity>> obtenerLogs() async {
+    final isar = await db;
+    return await isar.logEntitys.where().sortByFechaDesc().findAll();
+  }
+
+  Future<List<LogEntity>> obtenerLogsPendientesSync() async {
+    final isar = await db;
+    return await isar.logEntitys.filter().sincronizadoEqualTo(false).findAll();
+  }
+
+  Future<void> marcarLogsComoSincronizados(List<int> ids) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      for (var id in ids) {
+        final log = await isar.logEntitys.get(id);
+        if (log != null) {
+          log.sincronizado = true;
+          await isar.logEntitys.put(log);
+        }
+      }
+    });
   }
 
   // ==================== GESTIÓN DE VENTAS ====================
+
+  /// Guarda una venta y sus detalles, actualizando el stock
   Future<void> guardarVenta(VentaEntity venta) async {
     final isar = await db;
     await isar.writeTxn(() async {
+      // 1. Asegurar syncStatus
+      venta.syncStatus = venta.syncStatus.isEmpty ? 'pending' : venta.syncStatus;
+
+      // 2. Guardar la venta (se genera su ID)
       await isar.ventaEntitys.put(venta);
+
+      // 3. Asignar el ID de la venta a cada detalle y guardarlos
+      for (var item in venta.items) {
+        item.ventaId = venta.id; // ← vincular con la venta
+        await isar.detalleVentaEntitys.put(item);
+      }
+
+      // 4. Actualizar stock de productos
       for (var item in venta.items) {
         ProductoEntity? producto;
         if (item.productoId != null) {
@@ -285,7 +307,8 @@ class IsarService {
       finLocal = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
     } else if (periodo == 'semana') {
       inicioLocal = DateTime(now.year, now.month, now.day - (now.weekday - 1), 0, 0, 0);
-      finLocal = inicioLocal.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59, milliseconds: 999));
+      finLocal = inicioLocal.add(
+          const Duration(days: 6, hours: 23, minutes: 59, seconds: 59, milliseconds: 999));
     } else if (periodo == 'mes') {
       inicioLocal = DateTime(now.year, now.month, 1, 0, 0, 0);
       finLocal = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
@@ -294,76 +317,77 @@ class IsarService {
     }
     return await isar.ventaEntitys
         .filter()
-        .fechaBetween(inicioLocal.toUtc(), finLocal.toUtc(), includeLower: true, includeUpper: true)
+        .fechaBetween(
+          inicioLocal.toUtc(),
+          finLocal.toUtc(),
+          includeLower: true,
+          includeUpper: true,
+        )
         .sortByFechaDesc()
         .findAll();
   }
 
-  // ==================== SINCRONIZACIÓN ====================
+  // ==================== MÉTODOS DE SINCRONIZACIÓN CON syncStatus ====================
+
+  /// Obtiene todas las ventas con syncStatus 'pending' o 'failed'
   Future<List<VentaEntity>> obtenerVentasPendientesSync() async {
     final isar = await db;
-    return await isar.ventaEntitys.filter().sincronizadoEqualTo(false).findAll();
+    return await isar.ventaEntitys
+        .filter()
+        .syncStatusEqualTo('pending')
+        .or()
+        .syncStatusEqualTo('failed')
+        .findAll();
   }
 
-  Future<int> contarVentasPendientesSync() async {
+  /// Obtiene todos los movimientos con syncStatus 'pending' o 'failed'
+  Future<List<MovimientoInventarioEntity>> obtenerMovimientosPendientesSync() async {
     final isar = await db;
-    return await isar.ventaEntitys.filter().sincronizadoEqualTo(false).count();
+    return await isar.movimientoInventarioEntitys
+        .filter()
+        .syncStatusEqualTo('pending')
+        .or()
+        .syncStatusEqualTo('failed')
+        .findAll();
   }
 
-  Future<int> sincronizarVentasConServidor() async {
-    final pendientes = await obtenerVentasPendientesSync();
-    if (pendientes.isEmpty) return 0;
-    await Future.delayed(const Duration(seconds: 1));
+  /// Actualiza el syncStatus de una venta
+  Future<void> actualizarSyncStatusVenta(int id, String nuevoEstado) async {
     final isar = await db;
     await isar.writeTxn(() async {
-      for (var venta in pendientes) {
-        venta.sincronizado = true;
+      final venta = await isar.ventaEntitys.get(id);
+      if (venta != null) {
+        venta.syncStatus = nuevoEstado;
         await isar.ventaEntitys.put(venta);
       }
     });
-    return pendientes.length;
   }
 
-  Future<void> marcarVentasComoSincronizadas(List<int> ids) async {
+  /// Actualiza el syncStatus de un movimiento
+  Future<void> actualizarSyncStatusMovimiento(int id, String nuevoEstado) async {
     final isar = await db;
     await isar.writeTxn(() async {
-      for (var id in ids) {
-        final venta = await isar.ventaEntitys.get(id);
-        if (venta != null) {
-          venta.sincronizado = true;
-          await isar.ventaEntitys.put(venta);
-        }
+      final mov = await isar.movimientoInventarioEntitys.get(id);
+      if (mov != null) {
+        mov.syncStatus = nuevoEstado;
+        await isar.movimientoInventarioEntitys.put(mov);
       }
     });
   }
 
   // ==================== GESTIÓN DE MOVIMIENTOS ====================
+
   Future<void> guardarMovimientoInventario(MovimientoInventarioEntity movimiento) async {
     final isar = await db;
     await isar.writeTxn(() async {
+      // Asegurar syncStatus
+      movimiento.syncStatus = movimiento.syncStatus.isEmpty ? 'pending' : movimiento.syncStatus;
       await isar.movimientoInventarioEntitys.put(movimiento);
     });
   }
 
-  Future<List<MovimientoInventarioEntity>> obtenerMovimientosPendientesSync() async {
-    final isar = await db;
-    return await isar.movimientoInventarioEntitys.filter().sincronizadoEqualTo(false).findAll();
-  }
-
-  Future<void> marcarMovimientosComoSincronizados(List<int> ids) async {
-    final isar = await db;
-    await isar.writeTxn(() async {
-      for (var id in ids) {
-        final mov = await isar.movimientoInventarioEntitys.get(id);
-        if (mov != null) {
-          mov.sincronizado = true;
-          await isar.movimientoInventarioEntitys.put(mov);
-        }
-      }
-    });
-  }
-
   // ==================== GESTIÓN DE INVENTARIO ====================
+
   Future<List<ProductoEntity>> obtenerProductos() async {
     final isar = await db;
     return await isar.productoEntitys.where().findAll();

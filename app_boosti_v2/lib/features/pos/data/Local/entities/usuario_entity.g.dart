@@ -1,7 +1,5 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-// ignore_for_file: experimental_member_use
-
 part of 'usuario_entity.dart';
 
 // **************************************************************************
@@ -29,33 +27,38 @@ const UsuarioEntitySchema = CollectionSchema(
       name: r'cajaAsignada',
       type: IsarType.string,
     ),
-    r'email': PropertySchema(
+    r'deviceId': PropertySchema(
       id: 2,
+      name: r'deviceId',
+      type: IsarType.string,
+    ),
+    r'email': PropertySchema(
+      id: 3,
       name: r'email',
       type: IsarType.string,
     ),
     r'estado': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'estado',
       type: IsarType.string,
     ),
     r'nombre': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'nombre',
       type: IsarType.string,
     ),
     r'pin': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'pin',
       type: IsarType.string,
     ),
     r'rol': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'rol',
       type: IsarType.string,
     ),
     r'supabaseUid': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'supabaseUid',
       type: IsarType.string,
     )
@@ -65,21 +68,7 @@ const UsuarioEntitySchema = CollectionSchema(
   deserialize: _usuarioEntityDeserialize,
   deserializeProp: _usuarioEntityDeserializeProp,
   idName: r'id',
-  indexes: {
-    r'nombre': IndexSchema(
-      id: -8239814765453414572,
-      name: r'nombre',
-      unique: true,
-      replace: true,
-      properties: [
-        IndexPropertySchema(
-          name: r'nombre',
-          type: IndexType.hash,
-          caseSensitive: true,
-        )
-      ],
-    )
-  },
+  indexes: {},
   links: {},
   embeddedSchemas: {},
   getId: _usuarioEntityGetId,
@@ -94,8 +83,9 @@ int _usuarioEntityEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  bytesCount += 3 + object.cajaAsignada.length * 3;
   {
-    final value = object.cajaAsignada;
+    final value = object.deviceId;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
     }
@@ -106,12 +96,7 @@ int _usuarioEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
-  {
-    final value = object.estado;
-    if (value != null) {
-      bytesCount += 3 + value.length * 3;
-    }
-  }
+  bytesCount += 3 + object.estado.length * 3;
   bytesCount += 3 + object.nombre.length * 3;
   bytesCount += 3 + object.pin.length * 3;
   bytesCount += 3 + object.rol.length * 3;
@@ -132,12 +117,13 @@ void _usuarioEntitySerialize(
 ) {
   writer.writeBool(offsets[0], object.activo);
   writer.writeString(offsets[1], object.cajaAsignada);
-  writer.writeString(offsets[2], object.email);
-  writer.writeString(offsets[3], object.estado);
-  writer.writeString(offsets[4], object.nombre);
-  writer.writeString(offsets[5], object.pin);
-  writer.writeString(offsets[6], object.rol);
-  writer.writeString(offsets[7], object.supabaseUid);
+  writer.writeString(offsets[2], object.deviceId);
+  writer.writeString(offsets[3], object.email);
+  writer.writeString(offsets[4], object.estado);
+  writer.writeString(offsets[5], object.nombre);
+  writer.writeString(offsets[6], object.pin);
+  writer.writeString(offsets[7], object.rol);
+  writer.writeString(offsets[8], object.supabaseUid);
 }
 
 UsuarioEntity _usuarioEntityDeserialize(
@@ -148,14 +134,15 @@ UsuarioEntity _usuarioEntityDeserialize(
 ) {
   final object = UsuarioEntity();
   object.activo = reader.readBool(offsets[0]);
-  object.cajaAsignada = reader.readStringOrNull(offsets[1]);
-  object.email = reader.readStringOrNull(offsets[2]);
-  object.estado = reader.readStringOrNull(offsets[3]);
+  object.cajaAsignada = reader.readString(offsets[1]);
+  object.deviceId = reader.readStringOrNull(offsets[2]);
+  object.email = reader.readStringOrNull(offsets[3]);
+  object.estado = reader.readString(offsets[4]);
   object.id = id;
-  object.nombre = reader.readString(offsets[4]);
-  object.pin = reader.readString(offsets[5]);
-  object.rol = reader.readString(offsets[6]);
-  object.supabaseUid = reader.readStringOrNull(offsets[7]);
+  object.nombre = reader.readString(offsets[5]);
+  object.pin = reader.readString(offsets[6]);
+  object.rol = reader.readString(offsets[7]);
+  object.supabaseUid = reader.readStringOrNull(offsets[8]);
   return object;
 }
 
@@ -169,7 +156,7 @@ P _usuarioEntityDeserializeProp<P>(
     case 0:
       return (reader.readBool(offset)) as P;
     case 1:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 2:
       return (reader.readStringOrNull(offset)) as P;
     case 3:
@@ -181,6 +168,8 @@ P _usuarioEntityDeserializeProp<P>(
     case 6:
       return (reader.readString(offset)) as P;
     case 7:
+      return (reader.readString(offset)) as P;
+    case 8:
       return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -198,61 +187,6 @@ List<IsarLinkBase<dynamic>> _usuarioEntityGetLinks(UsuarioEntity object) {
 void _usuarioEntityAttach(
     IsarCollection<dynamic> col, Id id, UsuarioEntity object) {
   object.id = id;
-}
-
-extension UsuarioEntityByIndex on IsarCollection<UsuarioEntity> {
-  Future<UsuarioEntity?> getByNombre(String nombre) {
-    return getByIndex(r'nombre', [nombre]);
-  }
-
-  UsuarioEntity? getByNombreSync(String nombre) {
-    return getByIndexSync(r'nombre', [nombre]);
-  }
-
-  Future<bool> deleteByNombre(String nombre) {
-    return deleteByIndex(r'nombre', [nombre]);
-  }
-
-  bool deleteByNombreSync(String nombre) {
-    return deleteByIndexSync(r'nombre', [nombre]);
-  }
-
-  Future<List<UsuarioEntity?>> getAllByNombre(List<String> nombreValues) {
-    final values = nombreValues.map((e) => [e]).toList();
-    return getAllByIndex(r'nombre', values);
-  }
-
-  List<UsuarioEntity?> getAllByNombreSync(List<String> nombreValues) {
-    final values = nombreValues.map((e) => [e]).toList();
-    return getAllByIndexSync(r'nombre', values);
-  }
-
-  Future<int> deleteAllByNombre(List<String> nombreValues) {
-    final values = nombreValues.map((e) => [e]).toList();
-    return deleteAllByIndex(r'nombre', values);
-  }
-
-  int deleteAllByNombreSync(List<String> nombreValues) {
-    final values = nombreValues.map((e) => [e]).toList();
-    return deleteAllByIndexSync(r'nombre', values);
-  }
-
-  Future<Id> putByNombre(UsuarioEntity object) {
-    return putByIndex(r'nombre', object);
-  }
-
-  Id putByNombreSync(UsuarioEntity object, {bool saveLinks = true}) {
-    return putByIndexSync(r'nombre', object, saveLinks: saveLinks);
-  }
-
-  Future<List<Id>> putAllByNombre(List<UsuarioEntity> objects) {
-    return putAllByIndex(r'nombre', objects);
-  }
-
-  List<Id> putAllByNombreSync(List<UsuarioEntity> objects,
-      {bool saveLinks = true}) {
-    return putAllByIndexSync(r'nombre', objects, saveLinks: saveLinks);
-  }
 }
 
 extension UsuarioEntityQueryWhereSort
@@ -334,51 +268,6 @@ extension UsuarioEntityQueryWhere
       ));
     });
   }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause> nombreEqualTo(
-      String nombre) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IndexWhereClause.equalTo(
-        indexName: r'nombre',
-        value: [nombre],
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause>
-      nombreNotEqualTo(String nombre) {
-    return QueryBuilder.apply(this, (query) {
-      if (query.whereSort == Sort.asc) {
-        return query
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'nombre',
-              lower: [],
-              upper: [nombre],
-              includeUpper: false,
-            ))
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'nombre',
-              lower: [nombre],
-              includeLower: false,
-              upper: [],
-            ));
-      } else {
-        return query
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'nombre',
-              lower: [nombre],
-              includeLower: false,
-              upper: [],
-            ))
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'nombre',
-              lower: [],
-              upper: [nombre],
-              includeUpper: false,
-            ));
-      }
-    });
-  }
 }
 
 extension UsuarioEntityQueryFilter
@@ -394,26 +283,8 @@ extension UsuarioEntityQueryFilter
   }
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaIsNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNull(
-        property: r'cajaAsignada',
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      cajaAsignadaIsNotNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNotNull(
-        property: r'cajaAsignada',
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       cajaAsignadaEqualTo(
-    String? value, {
+    String value, {
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -427,7 +298,7 @@ extension UsuarioEntityQueryFilter
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       cajaAsignadaGreaterThan(
-    String? value, {
+    String value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -443,7 +314,7 @@ extension UsuarioEntityQueryFilter
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       cajaAsignadaLessThan(
-    String? value, {
+    String value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -459,8 +330,8 @@ extension UsuarioEntityQueryFilter
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       cajaAsignadaBetween(
-    String? lower,
-    String? upper, {
+    String lower,
+    String upper, {
     bool includeLower = true,
     bool includeUpper = true,
     bool caseSensitive = true,
@@ -542,6 +413,160 @@ extension UsuarioEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'cajaAsignada',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'deviceId',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'deviceId',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'deviceId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'deviceId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'deviceId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'deviceId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'deviceId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'deviceId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'deviceId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'deviceId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'deviceId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      deviceIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'deviceId',
         value: '',
       ));
     });
@@ -702,26 +727,8 @@ extension UsuarioEntityQueryFilter
   }
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoIsNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNull(
-        property: r'estado',
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      estadoIsNotNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNotNull(
-        property: r'estado',
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       estadoEqualTo(
-    String? value, {
+    String value, {
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -735,7 +742,7 @@ extension UsuarioEntityQueryFilter
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       estadoGreaterThan(
-    String? value, {
+    String value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -751,7 +758,7 @@ extension UsuarioEntityQueryFilter
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       estadoLessThan(
-    String? value, {
+    String value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -767,8 +774,8 @@ extension UsuarioEntityQueryFilter
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       estadoBetween(
-    String? lower,
-    String? upper, {
+    String lower,
+    String upper, {
     bool includeLower = true,
     bool includeUpper = true,
     bool caseSensitive = true,
@@ -1502,6 +1509,19 @@ extension UsuarioEntityQuerySortBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByDeviceId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'deviceId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByDeviceIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'deviceId', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByEmail() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'email', Sort.asc);
@@ -1601,6 +1621,19 @@ extension UsuarioEntityQuerySortThenBy
       thenByCajaAsignadaDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cajaAsignada', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByDeviceId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'deviceId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByDeviceIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'deviceId', Sort.desc);
     });
   }
 
@@ -1705,6 +1738,13 @@ extension UsuarioEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByDeviceId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'deviceId', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByEmail(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1762,10 +1802,15 @@ extension UsuarioEntityQueryProperty
     });
   }
 
-  QueryBuilder<UsuarioEntity, String?, QQueryOperations>
-      cajaAsignadaProperty() {
+  QueryBuilder<UsuarioEntity, String, QQueryOperations> cajaAsignadaProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'cajaAsignada');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, String?, QQueryOperations> deviceIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'deviceId');
     });
   }
 
@@ -1775,7 +1820,7 @@ extension UsuarioEntityQueryProperty
     });
   }
 
-  QueryBuilder<UsuarioEntity, String?, QQueryOperations> estadoProperty() {
+  QueryBuilder<UsuarioEntity, String, QQueryOperations> estadoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'estado');
     });

@@ -10,6 +10,7 @@ import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/movimiento_inventario_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
+// ✅ Eliminado: import '../services/sync_service.dart';
 
 /// Servicio encargado de sincronizar las ventas, catálogo y movimientos (Isar DB)
 /// hacia la base de datos remota en la nube (Supabase).
@@ -89,12 +90,14 @@ class SyncService {
       for (var venta in pendientes) {
         final exito = await _enviarVentaAlServidor(venta);
         if (exito) {
-          venta.sincronizado = true;
-          await _isarService.guardarVenta(venta);
+          // ✅ Actualizar syncStatus a 'synced' usando el método dedicado
+          await _isarService.actualizarSyncStatusVenta(venta.id, 'synced');
           ventasSincronizadas++;
         } else {
-          debugPrint('⚠️ [SyncService] Falló sincronización de venta ${venta.ventaIdString}, deteniendo...');
-          break;
+          // ✅ Marcar como 'failed' si falla
+          await _isarService.actualizarSyncStatusVenta(venta.id, 'failed');
+          debugPrint('⚠️ Venta ${venta.ventaIdString} marcada como failed');
+          // No interrumpimos el ciclo, seguimos con las demás
         }
       }
     } catch (e) {
@@ -120,6 +123,7 @@ class SyncService {
         'metodo_pago': venta.metodoPago,
         'documento': venta.documento,
         'empleado': venta.empleado,
+        'sync_status': 'synced', // Lo marcamos como sincronizado directamente en la nube
       };
 
       // Intentar primero con el microservicio
@@ -137,10 +141,6 @@ class SyncService {
       } catch (e) {
         debugPrint('⚠️ Microservicio falló, intentando con Supabase directo: $e');
       }
-
-
-
-      
 
       // Fallback: intentar con Supabase directo
       final responseVenta = await _supabase.from('ventas').insert(payload).select('id').single();
@@ -182,11 +182,13 @@ class SyncService {
       for (var mov in pendientes) {
         final exito = await _enviarMovimientoAlServidor(mov);
         if (exito) {
-          mov.sincronizado = true;
-          await _isarService.guardarMovimientoInventario(mov);
+          // ✅ Actualizar syncStatus a 'synced'
+          await _isarService.actualizarSyncStatusMovimiento(mov.id, 'synced');
           sincronizados++;
         } else {
-          break;
+          // ✅ Marcar como 'failed' si falla
+          await _isarService.actualizarSyncStatusMovimiento(mov.id, 'failed');
+          debugPrint('⚠️ Movimiento ${mov.id} marcado como failed');
         }
       }
 
@@ -201,32 +203,36 @@ class SyncService {
   Future<bool> _enviarMovimientoAlServidor(MovimientoInventarioEntity mov) async {
     await _loadConfig();
     try {
-      final payload = {
-        'producto_id': mov.productoId,
-        'nombre_producto': mov.nombreProducto,
-        'tipo_movimiento': mov.tipoMovimiento,
-        'cantidad': mov.cantidad,
-        'stock_resultante': mov.stockResultante,
-        'fecha': mov.fecha.toIso8601String(),
-        'usuario': mov.usuarioId,
-      };
+      // ✅ PASO 1: Ajustar el stock usando la RPC (operación atómica)
+      final rpcResponse = await _supabase.rpc(
+        'ajustar_stock',
+        params: {
+          'p_producto_id': mov.productoId, // Debe ser el UUID de Supabase, ajusta si usas otro identificador
+          'p_cantidad': mov.cantidad.toInt(),
+          'p_tipo_movimiento': mov.tipoMovimiento, // 'salida' o 'entrada'
+        },
+      );
 
-      // Intentar con el microservicio
-      final response = await http.post(
-        Uri.parse('$_syncServerUrl/api/inventario/movimientos'),
-        headers: _authHeaders(),
-        body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 10));
+      if (rpcResponse == true) {
+        // PASO 2: Registrar el movimiento en la tabla de movimientos
+        final payload = {
+          'producto_id': mov.productoId,
+          'nombre_producto': mov.nombreProducto,
+          'tipo_movimiento': mov.tipoMovimiento,
+          'cantidad': mov.cantidad,
+          'stock_resultante': mov.stockResultante,
+          'fecha': mov.fecha.toIso8601String(),
+          'usuario_id': mov.usuarioId,
+          'sync_status': 'synced',
+        };
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        debugPrint('✅ Movimiento ${mov.id} sincronizado');
+        await _supabase.from('movimientos_inventario').insert(payload);
+        debugPrint('✅ Movimiento ${mov.id} sincronizado vía RPC');
         return true;
+      } else {
+        debugPrint('⚠️ RPC ajustar_stock devolvió false para producto ${mov.productoId} (sin stock)');
+        return false; // Se marcará como failed
       }
-
-      // Fallback: Supabase directo
-      await _supabase.from('movimientos_inventario').insert(payload);
-      debugPrint('✅ Movimiento ${mov.id} sincronizado vía Supabase directo');
-      return true;
     } catch (e) {
       debugPrint('🚫 Error enviando movimiento ${mov.id}: $e');
       return false;
@@ -354,7 +360,6 @@ class SyncService {
     }
   }
 
-
   /// Sincroniza todos los datos pendientes
   Future<void> sincronizarTodo() async {
     await sincronizarVentasPendientes();
@@ -363,41 +368,44 @@ class SyncService {
     await sincronizarCategoriasASupabase();
   }
 
-Stream<List<UsuarioEntity>> streamUsuariosEnTiempoReal() {
-  return _supabase
-      .from('usuarios') // ← TABLA FÍSICA
-      .stream(primaryKey: ['id'])
-      .map((data) {
-        return data.map<UsuarioEntity>((row) {
-          return UsuarioEntity()
-            ..id = row['id_isar'] as int
-            ..nombre = row['nombre'] as String
-            ..rol = row['rol'] as String
-            ..estado = row['estado'] as String? ?? 'inactivo';
-        }).toList();
-      });
-}
-
-Future<bool> actualizarEstadoUsuarioEnSupabase(int userId, String nuevoEstado) async {
-  try {
-    debugPrint('🔍 Intentando actualizar userId: $userId a estado: $nuevoEstado');
-    
-    final response = await _supabase
+  /// Stream para monitorear usuarios en tiempo real (para el monitor de empleados)
+  Stream<List<UsuarioEntity>> streamUsuariosEnTiempoReal() {
+    return _supabase
         .from('usuarios')
-        .update({'estado': nuevoEstado})
-        .eq('id_isar', userId)
-        .select(); // ← .select() devuelve las filas afectadas
-
-    debugPrint('✅ Filas afectadas: ${response.length}');
-    if (response.isNotEmpty) {
-      debugPrint('✅ Usuario actualizado: ${response.first}');
-    }
-    return response.isNotEmpty;
-  } catch (e) {
-    debugPrint('❌ Error en actualizarEstadoUsuarioEnSupabase: $e');
-    return false;
+        .stream(primaryKey: ['id'])
+        .map((data) {
+          return data.map<UsuarioEntity>((row) {
+            return UsuarioEntity()
+              ..id = row['id_isar'] as int
+              ..nombre = row['nombre'] as String
+              ..rol = row['rol'] as String
+              ..estado = row['estado'] as String? ?? 'inactivo';
+          }).toList();
+        });
   }
-}
+
+  /// Actualiza el estado de un usuario en Supabase (activo/inactivo)
+  Future<bool> actualizarEstadoUsuarioEnSupabase(int userId, String nuevoEstado) async {
+    try {
+      debugPrint('🔍 Intentando actualizar userId: $userId a estado: $nuevoEstado');
+
+      final response = await _supabase
+          .from('usuarios')
+          .update({'estado': nuevoEstado})
+          .eq('id_isar', userId)
+          .select();
+
+      debugPrint('✅ Filas afectadas: ${response.length}');
+      if (response.isNotEmpty) {
+        debugPrint('✅ Usuario actualizado: ${response.first}');
+      }
+      return response.isNotEmpty;
+    } catch (e) {
+      debugPrint('❌ Error en actualizarEstadoUsuarioEnSupabase: $e');
+      return false;
+    }
+  }
+
   /// Limpia recursos
   void dispose() {
     detenerMonitoreo();

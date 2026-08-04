@@ -66,6 +66,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
           // ==========================================
           return Padding(
             padding: EdgeInsets.all(isMobile ? 12.0 : 24.0),
+
             child: GridView.builder(
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: isTablet ? 2 : 1, // 2 columnas en tablet, 1 en móvil
@@ -102,7 +103,7 @@ class _AuditLogScreenState extends State<AuditLogScreen> {
                 }
 
                 return Container(
-                  padding: EdgeInsets.all(isMobile ? 12.0 : 16.0),
+                  padding: EdgeInsets.all(isMobile ? 12.0 : 16.0),          
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),

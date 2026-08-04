@@ -1,31 +1,29 @@
+// venta_entity.dart
 import 'package:isar/isar.dart';
 
+import 'detalle_venta_entity.dart';
 part 'venta_entity.g.dart';
 
 @Collection()
 class VentaEntity {
-  Id id = Isar.autoIncrement; // ✅ Mantén int
+  Id id = Isar.autoIncrement;
 
   late String ventaIdString;
   late DateTime fecha;
-  late double total;
   late double subtotal;
   late double impuesto;
+  late double total;
   late double tasaBcv;
   late double totalBolivares;
   late String metodoPago;
   late String documento;
   late String empleado;
-  late bool sincronizado;
 
-  List<VentaItemEntity> items = [];
-}
+  @Ignore()
+  List<DetalleVentaEntity> items = [];
 
-@Embedded()
-class VentaItemEntity {
-  int? productoId;
-  late String nombreProducto;
-  late double precioUnidad;
-  late double cantidad;
-  late double subtotal;
+  // ✅ Campo syncStatus
+  String syncStatus = 'pending';
+
+  set sincronizado(bool sincronizado) {}
 }

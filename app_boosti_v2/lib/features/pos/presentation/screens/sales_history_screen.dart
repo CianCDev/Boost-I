@@ -26,18 +26,15 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   String _metodoSeleccionado = 'Todos';
   String _periodoSeleccionado = 'dia';
 
-  // Variables para el filtro de Mes específico
   String _mesSeleccionadoDropdown = 'Actual';
   final List<String> _listaMesesDropdown = [
     'Actual', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
   ];
 
-  // Variables para el filtro de Año dinámico
   int _anioSeleccionadoDropdown = DateTime.now().year;
   List<int> _listaAniosDisponibles = [];
 
-  // Acumuladores de totales
   double _totalUSD = 0.0;
   double _totalBs = 0.0;
 
@@ -184,35 +181,110 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                   ],
                 ),
                 const Divider(height: 24),
-                Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  _columnaDetalle('Cliente', venta.documento.isEmpty ? 'N/A' : venta.documento),
-                  _columnaDetalle('Atendido por', venta.empleado),
-                  _columnaDetalle('Método', venta.metodoPago),
-                  _columnaDetalle('Sincronizado', venta.sincronizado ? 'Sí' : 'No', colorValor: venta.sincronizado ? const Color(0xFF059669) : const Color(0xFFD97706)),
-                ])),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _columnaDetalle('Cliente', venta.documento.isEmpty ? 'N/A' : venta.documento),
+                      _columnaDetalle('Atendido por', venta.empleado),
+                      _columnaDetalle('Método', venta.metodoPago),
+                      // ✅ CORRECCIÓN AQUÍ
+                      _columnaDetalle(
+                        'Sincronizado',
+                        venta.syncStatus == 'synced' 
+                            ? 'Sí' 
+                            : (venta.syncStatus == 'pending' ? 'Pendiente' : 'Fallida'),
+                        colorValor: venta.syncStatus == 'synced' 
+                            ? const Color(0xFF059669) 
+                            : (venta.syncStatus == 'pending' 
+                                ? const Color(0xFFD97706) 
+                                : const Color(0xFFEF4444)),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
                 Text('Detalle de Productos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 15 : 13, color: Color(0xFF0F172A))),
                 const SizedBox(height: 8),
                 Flexible(
                   child: SingleChildScrollView(
-                    child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE2E8F0))), child: Table(columnWidths: const {0: FlexColumnWidth(3), 1: FlexColumnWidth(1), 2: FlexColumnWidth(1.5), 3: FlexColumnWidth(1.5)}, children: [
-                      TableRow(decoration: const BoxDecoration(color: Color(0xFFF1F5F9)), children: [_celdaHeader('Producto'), _celdaHeader('Cant.'), _celdaHeader('Precio (\$)'), _celdaHeader('Subtotal (\$)')]),
-                      ...venta.items.map((item) => TableRow(children: [_celdaBody(item.nombreProducto, alignLeft: true), _celdaBody(item.cantidad.toStringAsFixed(item.cantidad % 1 == 0 ? 0 : 3)), _celdaBody('\$${item.precioUnidad.toStringAsFixed(2)}'), _celdaBody('\$${item.subtotal.toStringAsFixed(2)}', esBold: true)])),
-                    ])),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Table(
+                        columnWidths: const {
+                          0: FlexColumnWidth(3),
+                          1: FlexColumnWidth(1),
+                          2: FlexColumnWidth(1.5),
+                          3: FlexColumnWidth(1.5)
+                        },
+                        children: [
+                          TableRow(
+                            decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
+                            children: [
+                              _celdaHeader('Producto'),
+                              _celdaHeader('Cant.'),
+                              _celdaHeader('Precio (\$)'),
+                              _celdaHeader('Subtotal (\$)')
+                            ],
+                          ),
+                          ...venta.items.map((item) => TableRow(
+                            children: [
+                              _celdaBody(item.nombreProducto, alignLeft: true),
+                              _celdaBody(item.cantidad.toStringAsFixed(item.cantidad % 1 == 0 ? 0 : 3)),
+                              _celdaBody('\$${item.precioUnidad.toStringAsFixed(2)}'),
+                              _celdaBody('\$${item.subtotal.toStringAsFixed(2)}', esBold: true)
+                            ],
+                          )),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(10)), child: Column(children: [
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Subtotal USD:', style: TextStyle(color: Color(0xFF94A3B8), fontSize: isLargeScreen ? 13 : 12)), Text('\$${venta.subtotal.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12))]),
-                  const SizedBox(height: 4),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Impuesto (IVA USD):', style: TextStyle(color: Color(0xFF94A3B8), fontSize: isLargeScreen ? 13 : 12)), Text('\$${venta.impuesto.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12))]),
-                  const SizedBox(height: 4),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Tasa BCV:', style: TextStyle(color: Color(0xFF38BDF8), fontSize: isLargeScreen ? 13 : 12, fontWeight: FontWeight.bold)), Text('Bs. ${tasaVentaValida.toStringAsFixed(2)} / \$', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.bold))]),
-                  const Divider(color: Color(0xFF334155), height: 16),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('TOTAL USD:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 16 : 14)), Text('\$${venta.total.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF34D399), fontWeight: FontWeight.bold, fontSize: 17))]),
-                  const SizedBox(height: 4),
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('TOTAL BS:', style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 13 : 12)), Text('Bs. ${totalBsVentaValido.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 15))]),
-                ])),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('Subtotal USD:', style: TextStyle(color: Color(0xFF94A3B8), fontSize: isLargeScreen ? 13 : 12)),
+                        Text('\$${venta.subtotal.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12))
+                      ]),
+                      const SizedBox(height: 4),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('Impuesto (IVA USD):', style: TextStyle(color: Color(0xFF94A3B8), fontSize: isLargeScreen ? 13 : 12)),
+                        Text('\$${venta.impuesto.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 12))
+                      ]),
+                      const SizedBox(height: 4),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('Tasa BCV:', style: TextStyle(color: Color(0xFF38BDF8), fontSize: isLargeScreen ? 13 : 12, fontWeight: FontWeight.bold)),
+                        Text('Bs. ${tasaVentaValida.toStringAsFixed(2)} / \$', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 12, fontWeight: FontWeight.bold))
+                      ]),
+                      const Divider(color: Color(0xFF334155), height: 16),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('TOTAL USD:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 16 : 14)),
+                        Text('\$${venta.total.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF34D399), fontWeight: FontWeight.bold, fontSize: 17))
+                      ]),
+                      const SizedBox(height: 4),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('TOTAL BS:', style: TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 13 : 12)),
+                        Text('Bs. ${totalBsVentaValido.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 15))
+                      ]),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -221,7 +293,14 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     );
   }
 
-  Widget _columnaDetalle(String titulo, String valor, {Color? colorValor}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(titulo, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))), const SizedBox(height: 2), Text(valor, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colorValor ?? const Color(0xFF0F172A)))]);
+  Widget _columnaDetalle(String titulo, String valor, {Color? colorValor}) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(titulo, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+      const SizedBox(height: 2),
+      Text(valor, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colorValor ?? const Color(0xFF0F172A))),
+    ],
+  );
 
   Widget _celdaHeader(String texto) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -245,9 +324,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     ),
   );
 
-  // ==========================================
-  // EXPORTAR A CSV (CORREGIDO EL ERROR DE TIPOS)
-  // ==========================================
   Future<void> _exportarCSV() async {
     if (_ventasFiltradas.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -257,7 +333,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     }
 
     try {
-      // 1. Construir el contenido del CSV
       final StringBuffer buffer = StringBuffer();
       buffer.writeln('ID Venta;Fecha;Empleado;Método Pago;Total USD;Total Bs.');
 
@@ -272,13 +347,11 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
         buffer.writeln('${venta.ventaIdString};$fechaStr;${venta.empleado};${venta.metodoPago};${venta.total.toStringAsFixed(2)};${totalBsVentaValido.toStringAsFixed(2)}');
       }
 
-      // 2. Guardar archivo temporal
       final directory = await getApplicationDocumentsDirectory();
       final fileName = 'ventas_${DateTime.now().millisecondsSinceEpoch}.csv';
       final file = File('${directory.path}/$fileName');
       await file.writeAsString(buffer.toString(), encoding: utf8);
 
-      // 3. Compartir el archivo (Se eliminó fileNameOverrides para evitar errores de tipo)
       final shareResult = await Share.shareXFiles(
         [XFile(file.path)],
         text: 'Historial de Ventas Exportado',
@@ -303,7 +376,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
-    // Tamaños de fuente y padding dinámicos según el dispositivo
     final double hPadding = isTablet ? 20.0 : 12.0;
     final double vPadding = isTablet ? 20.0 : 12.0;
 
@@ -324,7 +396,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
         elevation: 2,
         foregroundColor: Colors.white,
         actions: [
-          // BOTÓN DE EXPORTACIÓN
           IconButton(
             icon: const Icon(Icons.download_rounded),
             tooltip: 'Exportar CSV de ventas',
@@ -344,7 +415,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
               padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
               child: Column(
                 children: [
-                  // FILTROS DE PERIODO (Aumentado en Tablets)
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
@@ -362,7 +432,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                     ),
                   ),
 
-                  // SELECTORES DE MES/AÑO
                   if (_periodoSeleccionado == 'mes') ...[
                     const SizedBox(height: 12),
                     Row(
@@ -439,7 +508,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                   ],
                   const SizedBox(height: 16),
 
-                  // TARJETAS DE RESUMEN (MÁS GRANDES EN TABLET)
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
@@ -451,7 +519,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // BARRA DE BÚSQUEDA Y FILTRO DE MÉTODO DE PAGO
                   Container(
                     padding: EdgeInsets.all(isTablet ? 16.0 : 12.0),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
@@ -474,7 +541,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        // CHIPS DE MÉTODO DE PAGO
                         SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
@@ -504,7 +570,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // LISTA DE VENTAS
                   Expanded(
                     child: _ventasFiltradas.isEmpty
                         ? Center(child: Text('No hay ventas registradas en el periodo seleccionado.', style: TextStyle(fontSize: isTablet ? 16 : 14, color: Color(0xFF64748B))))
