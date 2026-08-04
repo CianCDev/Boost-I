@@ -8,6 +8,7 @@ import '../entities/detalle_venta_entity.dart'; // ⚠️ Asegúrate de que exis
 import '../entities/producto_entity.dart';
 import '../entities/usuario_entity.dart';
 import '../entities/movimiento_inventario_entity.dart';
+import 'gasto_entity.dart';
 
 class IsarService {
   static final IsarService _instance = IsarService._internal();
@@ -40,6 +41,7 @@ class IsarService {
         ProductoEntitySchema,
         UsuarioEntitySchema,
         MovimientoInventarioEntitySchema,
+        GastoEntitySchema,
         // LogEntitySchema, // Si existe, también agregar
       ],
       directory: dir.path,
@@ -122,6 +124,12 @@ class IsarService {
     final isar = await db;
     await _inicializarUsuariosDemo(isar);
   }
+
+
+Future<UsuarioEntity?> obtenerUsuarioPorId(int id) async {
+  final isar = await db;
+  return await isar.usuarioEntitys.get(id);
+}
 
   Future<List<UsuarioEntity>> obtenerUsuarios() async {
     final isar = await db;
@@ -219,6 +227,46 @@ class IsarService {
       return null;
     }
   }
+
+// ==================== GESTIÓN DE GASTOS ====================
+
+Future<void> guardarGasto(GastoEntity gasto) async {
+  final isar = await db;
+  gasto.syncStatus = gasto.syncStatus.isEmpty ? 'pending' : gasto.syncStatus;
+  await isar.writeTxn(() async {
+    await isar.gastoEntitys.put(gasto);
+  });
+}
+
+Future<List<GastoEntity>> obtenerGastos() async {
+  final isar = await db;
+  return await isar.gastoEntitys.where().sortByFechaDesc().findAll();
+}
+
+Future<List<GastoEntity>> obtenerGastosPendientesSync() async {
+  final isar = await db;
+  return await isar.gastoEntitys
+      .filter()
+      .syncStatusEqualTo('pending')
+      .or()
+      .syncStatusEqualTo('failed')
+      .findAll();
+}
+
+Future<void> actualizarSyncStatusGasto(int id, String nuevoEstado) async {
+  final isar = await db;
+  await isar.writeTxn(() async {
+    final gasto = await isar.gastoEntitys.get(id);
+    if (gasto != null) {
+      gasto.syncStatus = nuevoEstado;
+      await isar.gastoEntitys.put(gasto);
+    }
+  });
+}
+
+
+
+
 
   // ==================== LOGS ====================
   Future<void> guardarLog(LogEntity log) async {

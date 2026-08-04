@@ -376,10 +376,11 @@ class SyncService {
         .map((data) {
           return data.map<UsuarioEntity>((row) {
             return UsuarioEntity()
-              ..id = row['id_isar'] as int
-              ..nombre = row['nombre'] as String
-              ..rol = row['rol'] as String
-              ..estado = row['estado'] as String? ?? 'inactivo';
+               ..id = row['id_isar'] as int
+            ..nombre = row['nombre'] as String
+            ..rol = row['rol'] as String
+            ..estado = row['estado'] as String? ?? 'inactivo'
+            ..deviceId = row['device_id'] as String? ?? '';   // <--- NUEVO
           }).toList();
         });
   }

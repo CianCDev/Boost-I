@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// ✅ Eliminado: import '../providers/sync_provider.dart';
+import '../providers/auth_provider.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../../data/Local/entities/isar_service.dart';
-// ✅ Eliminado: import '../../data/Local/entities/detalle_venta_entity.dart';
 import '../widgets/admin_validation_dialog.dart';
 import 'cash_closing_screen.dart';
 import 'sales_history_screen.dart';
@@ -13,6 +12,9 @@ import '../widgets/gestion_personal_dialog.dart';
 import '../widgets/cambiar_pin_dialog.dart';
 import '../../presentation/providers/usuario_provider.dart';
 import '../../presentation/providers/theme_provider.dart';
+import '../services/backup_service.dart'; // Nuevo servicio
+import 'login_screen.dart'; // Para navegar al login
+import 'gastos_screen.dart';
 
 class PosMenuScreen extends ConsumerStatefulWidget {
   const PosMenuScreen({super.key});
@@ -23,7 +25,7 @@ class PosMenuScreen extends ConsumerStatefulWidget {
 
 class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
   final IsarService _isarService = IsarService();
-  final SyncService _syncService = SyncService(); // ✅ Instancia del servicio
+  final SyncService _syncService = SyncService();
   int _ventasPendientesSync = 0;
   bool _sincronizando = false;
 
@@ -34,7 +36,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
   }
 
   Future<void> _cargarEstadoSync() async {
-    // ✅ CORRECCIÓN: Obtener la lista y contar
     final pendientes = await _isarService.obtenerVentasPendientesSync();
     if (mounted) {
       setState(() => _ventasPendientesSync = pendientes.length);
@@ -45,7 +46,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     if (_ventasPendientesSync == 0 || _sincronizando) return;
     setState(() => _sincronizando = true);
     try {
-      // ✅ CORRECCIÓN: Usar SyncService en lugar de IsarService
       final sincronizadas = await _syncService.sincronizarVentasPendientes();
       await _cargarEstadoSync();
       if (mounted) {
@@ -70,14 +70,77 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     }
   }
 
+  /// Cierra sesión y navega al LoginScreen
+  Future<void> _logout() async {
+    // Mostrar diálogo de confirmación
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cerrar Sesión'),
+        content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cerrar Sesión'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Cerrar sesión en el provider
+    await ref.read(authProvider.notifier).logout();
+
+    // Limpiar el usuario actual
+    ref.read(usuarioActualProvider.notifier).clearUsuario();
+
+    if (mounted) {
+      // Navegar al LoginScreen y eliminar todo el stack
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
+
+  /// Ejecuta el backup y muestra feedback
+  Future<void> _crearBackup() async {
+    final backupService = BackupService();
+    final exito = await backupService.crearBackupYCompartir();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(exito 
+            ? '✅ Backup creado y compartido' 
+            : '❌ Error al crear el backup'),
+          backgroundColor: exito ? const Color(0xFF10B981) : Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final theme = Theme.of(context);
     final usuarioLogueado = ref.read(usuarioActualProvider);
+    final bool esAdmin = usuarioLogueado?.rol == 'admin';
 
+    // ==========================================
+    // LISTA DE OPCIONES DEL MENÚ (ORDENADA)
+    // ==========================================
     final List<Map<String, dynamic>> menuOptions = [
+      // 1. Siempre visible
       {
         'title': 'Volver al Catálogo',
         'subtitle': 'Pantalla de ventas y cobro',
@@ -96,7 +159,9 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
             : const Color(0xFF10B981),
         'onTap': _sincronizarVentas,
       },
-      if (usuarioLogueado?.rol == 'admin') ...[
+
+      // 2. Opciones solo para Administradores
+      if (esAdmin) ...[
         {
           'title': 'Monitor de Empleados',
           'subtitle': 'Estado de cajeros conectados',
@@ -117,6 +182,17 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
             builder: (context) => const PersonnelManagementDialog(),
           ),
         },
+
+        {
+        'title': 'Registrar Gasto',
+        'subtitle': 'Agregar egresos del día',
+        'icon': Icons.money_off_rounded,
+        'color': const Color(0xFFEF4444),
+        'onTap': () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const GastosScreen()),
+        ),
+      },
         {
           'title': 'Cambiar mi Clave',
           'subtitle': 'Actualizar PIN de acceso',
@@ -154,16 +230,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
           },
         },
         {
-          'title': 'Cierre de Caja',
-          'subtitle': 'Arqueo y balance del día',
-          'icon': Icons.money_off_csred_rounded,
-          'color': const Color(0xFFF59E0B),
-          'onTap': () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CashClosingScreen()),
-          ),
-        },
-        {
           'title': 'Historial de Ventas',
           'subtitle': 'Ventas del día y turnos',
           'icon': Icons.receipt_long_rounded,
@@ -173,24 +239,32 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
             MaterialPageRoute(builder: (context) => const SalesHistoryScreen()),
           ),
         },
+        {
+          'title': 'Backup de Datos', // 🔥 NUEVO
+          'subtitle': 'Crear y compartir copia de seguridad',
+          'icon': Icons.backup_rounded,
+          'color': const Color(0xFFF59E0B),
+          'onTap': _crearBackup,
+        },
+        {
+          'title': 'Cierre de Caja',
+          'subtitle': 'Arqueo y balance del día',
+          'icon': Icons.money_off_csred_rounded,
+          'color': const Color(0xFFF59E0B),
+          'onTap': () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const CashClosingScreen()),
+          ),
+        },
       ],
-      // Opciones para ambos roles
-      {
-        'title': 'Cierre de Caja',
-        'subtitle': 'Arqueo y balance del día',
-        'icon': Icons.money_off_csred_rounded,
-        'color': const Color(0xFFF59E0B),
-        'onTap': () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const CashClosingScreen()),
-        ),
-      },
+
+      // 3. Opciones para ambos roles (siempre visibles)
       {
         'title': 'Salir del POS',
         'subtitle': 'Cerrar sesión y volver al login',
         'icon': Icons.logout_rounded,
         'color': const Color(0xFFEF4444),
-        'onTap': () => Navigator.of(context).popUntil((route) => route.isFirst),
+        'onTap': _logout, // 🔥 Ahora usa el método que cierra sesión
       },
       {
         'title': 'Modo Oscuro',
@@ -205,16 +279,18 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Panel de Control POS',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Panel de Control POS',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color.fromRGBO(72, 111, 238, 1),
-                Color.fromARGB(255, 85, 59, 235)
+                theme.primaryColor,
+                theme.primaryColorDark,
               ],
             ),
           ),
@@ -254,7 +330,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
   }
 
   // ==========================================
-  // WIDGET DE SWITCH DE TEMA
+  // WIDGET DE SWITCH DE TEMA (mejorado)
   // ==========================================
   Widget _buildThemeSwitch(BuildContext context) {
     return Consumer(
@@ -263,12 +339,12 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
         final isDark = themeMode == ThemeMode.dark ||
             (themeMode == ThemeMode.system &&
                 MediaQuery.of(context).platformBrightness == Brightness.dark);
+        final theme = Theme.of(context);
 
         return Card(
           elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          color: theme.cardColor,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -282,8 +358,9 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
                 const SizedBox(height: 8),
                 Text(
                   isDark ? 'Modo Oscuro' : 'Modo Claro',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Switch(
@@ -296,7 +373,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
                 ),
                 Text(
                   isDark ? 'Activado' : 'Desactivado',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: theme.textTheme.bodySmall,
                 ),
               ],
             ),
@@ -307,7 +384,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
   }
 
   // ==========================================
-  // TARJETA DE MENÚ
+  // TARJETA DE MENÚ (con tema oscuro)
   // ==========================================
   Widget _buildMenuCard(
     BuildContext context, {
@@ -315,10 +392,11 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     required String subtitle,
     required IconData icon,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     required bool isMobile,
   }) {
     final theme = Theme.of(context);
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -346,19 +424,17 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         fontSize: isMobile ? 16 : 22,
-                        color: theme.textTheme.bodyLarge?.color,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: TextStyle(
+                      style: theme.textTheme.bodyMedium?.copyWith(
                         fontSize: isMobile ? 12 : 14,
-                        color: theme.textTheme.bodyMedium?.color
-                            ?.withValues(alpha: 0.7),
+                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                       ),
                     ),
                   ],

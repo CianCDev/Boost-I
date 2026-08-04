@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:mobile_scanner/mobile_scanner.dart'; // <--- CAMBIO AQUÍ (import añadido)
 
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/detalle_venta_entity.dart';
@@ -352,7 +353,7 @@ class _InventoryCatalogScreenState
 
       final itemsIsar = cartState.items.map((cartItem) {
         return DetalleVentaEntity()
-          ..productoId = cartItem.producto.id as int?
+          ..productoId = int.tryParse(cartItem.producto.id)
           ..nombreProducto = cartItem.producto.nombre
           ..precioUnidad = cartItem.producto.precioUnidad
           ..cantidad = cartItem.cantidad.toDouble()
@@ -464,7 +465,43 @@ class _InventoryCatalogScreenState
       },
     );
   }
-    // ============================================================
+
+  // ============================================================
+  // ESCÁNER DE CÓDIGO DE BARRAS (NUEVO MÉTODO)  <--- CAMBIO AQUÍ
+  // ============================================================
+  Future<void> _scanBarcode() async {
+    final codigoEscaneado = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => const _BarcodeScannerDialog(),
+    );
+
+    if (codigoEscaneado == null || codigoEscaneado.isEmpty) return;
+
+    final productos = await _isarService.buscarProductoPorCodigoONombre(codigoEscaneado);
+    final producto = productos.firstWhere(
+      (p) => p.codigoBarras == codigoEscaneado,
+      orElse: () => ProductoEntity(),
+    );
+
+    if (producto.id == 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Producto con código "$codigoEscaneado" no encontrado.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      _mostrarModalCantidad(context, producto);
+    }
+  }
+
+  // ============================================================
   // MODAL DE CANTIDAD CON BALANZA
   // ============================================================
   void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
@@ -802,7 +839,7 @@ class _InventoryCatalogScreenState
     });
   }
 
-    // ============================================================
+  // ============================================================
   // BUILD
   // ============================================================
   @override
@@ -832,10 +869,6 @@ class _InventoryCatalogScreenState
     }
 
     final int lowStockCount = _getLowStockCount();
-
-    // Tamaños de iconos para AppBar adaptados
-    final double appBarIconSize = isTablet ? 32 : 24;
-    final double appBarButtonSize = isTablet ? 48 : 40;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -869,176 +902,176 @@ class _InventoryCatalogScreenState
         backgroundColor: Colors.transparent,
         elevation: 2,
         foregroundColor: Colors.white,
-            actions: [
-              // 1. BOTÓN AL PANEL DE CONTROL (MÁS GRANDE EN TABLET)
+        actions: [
+          // 1. BOTÓN AL PANEL DE CONTROL
           Tooltip(
             message: 'Panel de Control POS',
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Container(
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Container(
+                width: isTablet ? 44 : 36,
+                height: isTablet ? 44 : 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.grid_view_rounded, color: Colors.white, size: 24),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const PosMenuScreen()),
+                    );
+                  },
+                  splashRadius: 24,
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+
+          // 2. BOTÓN DE INVENTARIO
+          Tooltip(
+            message: 'Ir a Gestión de Inventario',
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
                     width: isTablet ? 44 : 36,
                     height: isTablet ? 44 : 36,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.grid_view_rounded, color: Colors.white, size: 24),
+                      icon: const Icon(Icons.inventory_2_outlined, color: Colors.white),
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const PosMenuScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => InventoryScreen(usuarioLogueado: widget.usuarioLogueado!),
+                          ),
                         );
                       },
                       splashRadius: 24,
                       padding: EdgeInsets.zero,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 6),
-
-              // 2. BOTÓN DE INVENTARIO (Gradiente y Sombra, más grande en tablet)
-              Tooltip(
-                message: 'Ir a Gestión de Inventario',
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        width: isTablet ? 44 : 36,
-                        height: isTablet ? 44 : 36,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
-                          ),
+                  if (lowStockCount > 0)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                              color: Colors.redAccent,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
                             ),
                           ],
                         ),
-                        child: IconButton(
-                          icon: const Icon(Icons.inventory_2_outlined, color: Colors.white),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => InventoryScreen(usuarioLogueado: widget.usuarioLogueado!),
-                              ),
-                            );
-                          },
-                          splashRadius: 24,
-                          padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                        child: Text(
+                          '$lowStockCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
-                      if (lowStockCount > 0)
-                        Positioned(
-                          right: -2,
-                          top: -2,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.redAccent,
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                            child: Text(
-                              '$lowStockCount',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 4),
+
+          // 3. BOTÓN DE TASA BCV
+          Tooltip(
+            message: 'Tasa oficial BCV (Haz clic para actualizar)',
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: AnimatedScale(
+                scale: cargandoBcv ? 0.95 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                child: InkWell(
+                  onTap: () => ref.read(bcvProvider).actualizarTasa(),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    margin: const EdgeInsets.only(left: 4, right: 8),
+                    decoration: BoxDecoration(
+                      color: cargandoBcv
+                          ? Colors.white.withValues(alpha: 0.25)
+                          : Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.currency_exchange, size: 16, color: Color(0xFF38BDF8)),
+                        const SizedBox(width: 6),
+                        AnimatedOpacity(
+                          opacity: cargandoBcv ? 1.0 : 0.0,
+                          duration: const Duration(milliseconds: 300),
+                          child: SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                          ),
+                        ),
+                        AnimatedOpacity(
+                          opacity: cargandoBcv ? 0.0 : 1.0,
+                          duration: const Duration(milliseconds: 300),
+                          child: Text(
+                            'BCV: Bs. ${tasaBcv.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Colors.white,
+                              letterSpacing: 0.3,
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: 4),
-
-              // 3. BOTÓN DE TASA BCV (Refinado, funcional y con cursor mano)
-              Tooltip(
-                message: 'Tasa oficial BCV (Haz clic para actualizar)',
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: AnimatedScale(
-                    scale: cargandoBcv ? 0.95 : 1.0,
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    child: InkWell(
-                      onTap: () => ref.read(bcvProvider).actualizarTasa(),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        margin: const EdgeInsets.only(left: 4, right: 8),
-                        decoration: BoxDecoration(
-                          color: cargandoBcv
-                              ? Colors.white.withValues(alpha: 0.25)
-                              : Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.currency_exchange, size: 16, color: Color(0xFF38BDF8)),
-                            const SizedBox(width: 6),
-                            AnimatedOpacity(
-                              opacity: cargandoBcv ? 1.0 : 0.0,
-                              duration: const Duration(milliseconds: 300),
-                              child: SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
-                              ),
-                            ),
-                            AnimatedOpacity(
-                              opacity: cargandoBcv ? 0.0 : 1.0,
-                              duration: const Duration(milliseconds: 300),
-                              child: Text(
-                                'BCV: Bs. ${tasaBcv.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: Colors.white,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      ],
                     ),
                   ),
                 ),
               ),
+            ),
+          ),
 
-              const SizedBox(width: 8),
-            ],
+          const SizedBox(width: 8),
+        ],
       ),
       body: _isLoading
           ? GridView.builder(
@@ -1638,8 +1671,9 @@ class _InventoryCatalogScreenState
       },
     );
   }
-    // ============================================================
-  // SEARCH BAR
+
+  // ============================================================
+  // SEARCH BAR (CORREGIDA)  <--- CAMBIO AQUÍ
   // ============================================================
   Widget _buildSearchBar(bool isMobile) {
     final isTablet = ResponsiveHelper.isTablet(context);
@@ -1667,12 +1701,7 @@ class _InventoryCatalogScreenState
                   padding: EdgeInsets.zero,
                   onPressed: () {
                     HapticFeedback.lightImpact();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('📷 Escáner de código de barras próximo a implementar...'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
+                    _scanBarcode(); // <--- CAMBIO AQUÍ (antes era SnackBar)
                   },
                 ),
               ),
@@ -2110,6 +2139,169 @@ class _ProductCardSkeleton extends StatelessWidget {
                     ],
                   ),
                 ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// DIÁLOGO DEL ESCÁNER DE CÓDIGO DE BARRAS  <--- CAMBIO AQUÍ (NUEVO WIDGET)
+// ============================================================
+class _BarcodeScannerDialog extends StatefulWidget {
+  const _BarcodeScannerDialog();
+
+  @override
+  State<_BarcodeScannerDialog> createState() => _BarcodeScannerDialogState();
+}
+
+class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
+  final MobileScannerController _controller = MobileScannerController(
+    facing: CameraFacing.back,
+    torchEnabled: false,
+  );
+  bool _isTorchOn = false;
+  bool _isProcessing = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // ignore: unused_local_variable
+    final isTablet = ResponsiveHelper.isTablet(context);
+    // ignore: unused_local_variable
+    final isMobile = ResponsiveHelper.isMobile(context);
+
+    return Dialog(
+      insetPadding: EdgeInsets.zero,
+      backgroundColor: Colors.black,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Cámara
+          MobileScanner(
+            controller: _controller,
+            onDetect: (capture) async {
+              if (_isProcessing) return;
+              final List<Barcode> barcodes = capture.barcodes;
+              for (final barcode in barcodes) {
+                final rawValue = barcode.rawValue;
+                if (rawValue != null && rawValue.isNotEmpty) {
+                  _isProcessing = true;
+                  Navigator.of(context).pop(rawValue);
+                  break;
+                }
+              }
+              Future.delayed(const Duration(milliseconds: 500), () {
+                _isProcessing = false;
+              });
+            },
+          ),
+
+          // Marco de escaneo
+          Center(
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.7,
+              height: MediaQuery.of(context).size.width * 0.7,
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFF10B981), width: 4),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                    blurRadius: 30,
+                    spreadRadius: 10,
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Text(
+                  '🔍 Centra el código',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(color: Colors.black45, blurRadius: 10),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Botones superior (Linterna y Cerrar)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 16,
+            left: 16,
+            right: 16,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.black45,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                    onPressed: () => Navigator.of(context).pop(),
+                    splashRadius: 28,
+                    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                  ),
+                ),
+                Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.black45,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      _isTorchOn ? Icons.flash_on : Icons.flash_off,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _isTorchOn = !_isTorchOn;
+                      });
+                      _controller.toggleTorch();
+                    },
+                    splashRadius: 28,
+                    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Instrucción inferior
+          Positioned(
+            bottom: MediaQuery.of(context).padding.bottom + 40,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              margin: const EdgeInsets.symmetric(horizontal: 40),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Apunta la cámara al código de barras',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ),

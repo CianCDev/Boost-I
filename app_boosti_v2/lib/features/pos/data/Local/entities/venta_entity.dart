@@ -18,6 +18,11 @@ class VentaEntity {
   late String metodoPago;
   late String documento;
   late String empleado;
+  // ... campos existentes ...
+  String? referencia; // para pago móvil
+  String? nombreCliente; // para pago móvil o punto
+  bool sincronizado = false;
+  
 
   @Ignore()
   List<DetalleVentaEntity> items = [];
@@ -25,5 +30,5 @@ class VentaEntity {
   // ✅ Campo syncStatus
   String syncStatus = 'pending';
 
-  set sincronizado(bool sincronizado) {}
+
 }

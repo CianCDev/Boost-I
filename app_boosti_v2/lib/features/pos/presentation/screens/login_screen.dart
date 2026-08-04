@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/auth_provider.dart';
+import '../providers/usuario_provider.dart'; // ← Asegurar import
 import '../utils/responsive_helper.dart';
 import 'inventory_catalog_screen.dart';
 
@@ -58,6 +59,73 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _passwordController.dispose();
     super.dispose();
   }
+
+  // ============================================================
+  // MÉTODOS DE AUTENTICACIÓN (CORREGIDOS)
+  // ============================================================
+
+  void _loginWithPin() async {
+    final authState = ref.read(authProvider);
+    if (authState.usuarios.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay usuarios disponibles')),
+      );
+      return;
+    }
+    final usuarioSeleccionado = authState.usuarios.first;
+    final pin = _pinController.text.trim();
+    if (pin.isEmpty) {
+      ref.read(authProvider.notifier).setError('Por favor ingresa tu PIN.');
+      return;
+    }
+
+    final success = await ref.read(authProvider.notifier).loginWithPin(
+          usuarioSeleccionado,
+          pin,
+        );
+    if (success && mounted) {
+      final user = ref.read(authProvider).currentUser;
+      if (user != null) {
+        // ✅ SETEAR EL USUARIO EN EL PROVIDER GLOBAL
+        ref.read(usuarioActualProvider.notifier).setUsuario(user);
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
+          ),
+        );
+      }
+    }
+  }
+
+  void _loginWithEmail() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    if (email.isEmpty || password.isEmpty) {
+      ref.read(authProvider.notifier).setError('Por favor ingresa correo y contraseña.');
+      return;
+    }
+
+    final success = await ref.read(authProvider.notifier).loginWithEmail(
+          email,
+          password,
+        );
+    if (success && mounted) {
+      final user = ref.read(authProvider).currentUser;
+      if (user != null) {
+        // ✅ SETEAR EL USUARIO EN EL PROVIDER GLOBAL
+        ref.read(usuarioActualProvider.notifier).setUsuario(user);
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
+          ),
+        );
+      }
+    }
+  }
+
+  // ============================================================
+  // CONSTRUCTOR DE UI (sin cambios)
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -201,7 +269,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // COMPONENTES UI
+  // COMPONENTES UI (sin cambios)
   // ============================================================
 
   Widget _buildLogo(double size, bool isMobile) {
@@ -276,7 +344,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               onTap: () {
                 setState(() {
                   _isEmailMode = false;
-                  // ✅ Usar método clearError
                   ref.read(authProvider.notifier).clearError();
                 });
               },
@@ -291,7 +358,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               onTap: () {
                 setState(() {
                   _isEmailMode = true;
-                  // ✅ Usar método clearError
                   ref.read(authProvider.notifier).clearError();
                 });
               },
@@ -596,66 +662,5 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
       ),
     );
-  }
-
-  // ============================================================
-  // MÉTODOS DE AUTENTICACIÓN (LLAMAN AL PROVIDER)
-  // ============================================================
-
-  void _loginWithPin() async {
-    final authState = ref.read(authProvider);
-    if (authState.usuarios.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay usuarios disponibles')),
-      );
-      return;
-    }
-    final usuarioSeleccionado = authState.usuarios.first;
-    final pin = _pinController.text.trim();
-    if (pin.isEmpty) {
-      // ✅ Usar setError
-      ref.read(authProvider.notifier).setError('Por favor ingresa tu PIN.');
-      return;
-    }
-
-    final success = await ref.read(authProvider.notifier).loginWithPin(
-          usuarioSeleccionado,
-          pin,
-        );
-    if (success && mounted) {
-      final user = ref.read(authProvider).currentUser;
-      if (user != null) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
-          ),
-        );
-      }
-    }
-  }
-
-  void _loginWithEmail() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-    if (email.isEmpty || password.isEmpty) {
-      // ✅ Usar setError
-      ref.read(authProvider.notifier).setError('Por favor ingresa correo y contraseña.');
-      return;
-    }
-
-    final success = await ref.read(authProvider.notifier).loginWithEmail(
-          email,
-          password,
-        );
-    if (success && mounted) {
-      final user = ref.read(authProvider).currentUser;
-      if (user != null) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
-          ),
-        );
-      }
-    }
   }
 }
