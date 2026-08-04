@@ -614,7 +614,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       child: Row(
         mainAxisSize: isMobile ? MainAxisSize.min : MainAxisSize.max,
         children: [
-          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Icon(icono, color: color, size: size)),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: Icon(icono, color: color, size: size)),
           const SizedBox(width: 10),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(titulo, style: TextStyle(fontSize: isTablet ? 13 : 11, color: Color(0xFF64748B))),

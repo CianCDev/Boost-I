@@ -83,7 +83,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(24),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 8))],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 8))],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -196,7 +196,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(28),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 8))],
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 8))],
                 ),
                 child: SingleChildScrollView(
                   child: Column(
@@ -207,7 +207,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                         children: [
                           Container(
                             padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.1), shape: BoxShape.circle),
+                            decoration: BoxDecoration(color: const Color(0xFF10B981).withValues(alpha: 0.1), shape: BoxShape.circle),
                             child: Icon(isEditing ? Icons.edit_outlined : Icons.add_shopping_cart_outlined, color: const Color(0xFF10B981), size: 24),
                           ),
                           const SizedBox(width: 12),
@@ -365,7 +365,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
                                   padding: const EdgeInsets.only(top: 8),
                                   child: ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF10B981).withOpacity(0.1),
+                                      backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.1),
                                       foregroundColor: const Color(0xFF10B981),
                                       elevation: 0,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -552,7 +552,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> with SingleTi
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(24),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 8))],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20, offset: const Offset(0, 8))],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -944,7 +944,7 @@ class _ProductCardState extends State<_ProductCard> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(widget.isTablet ? 0.08 : 0.05),
+                    color: Colors.black.withValues(alpha: widget.isTablet ? 0.08 : 0.05),
                     blurRadius: widget.isTablet ? 16 : 12,
                     offset: const Offset(0, 4),
                   ),
@@ -1073,7 +1073,7 @@ class _ProductCardSkeleton extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Padding(
         padding: const EdgeInsets.all(12.0),

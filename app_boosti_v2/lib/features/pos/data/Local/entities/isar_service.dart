@@ -2,6 +2,7 @@ import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
 // Entidades
+import '../entities/log_entity.dart';
 import '../entities/venta_entity.dart';
 import '../entities/producto_entity.dart';
 import '../entities/usuario_entity.dart';
@@ -170,6 +171,38 @@ class IsarService {
         return true;
       }
       return false;
+    });
+  }
+
+
+
+  Future<void> guardarLog(LogEntity log) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.logEntitys.put(log);
+    });
+  }
+
+  Future<List<LogEntity>> obtenerLogs() async {
+    final isar = await db;
+    return await isar.logEntitys.where().sortByFechaDesc().findAll();
+  }
+
+  Future<List<LogEntity>> obtenerLogsPendientesSync() async {
+    final isar = await db;
+    return await isar.logEntitys.filter().sincronizadoEqualTo(false).findAll();
+  }
+
+  Future<void> marcarLogsComoSincronizados(List<int> ids) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      for (var id in ids) {
+        final log = await isar.logEntitys.get(id);
+        if (log != null) {
+          log.sincronizado = true;
+          await isar.logEntitys.put(log);
+        }
+      }
     });
   }
 

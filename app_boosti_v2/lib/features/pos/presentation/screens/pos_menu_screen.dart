@@ -259,7 +259,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
                     final nuevoModo = isDark ? ThemeMode.light : ThemeMode.dark;
                     ref.read(themeModeProvider.notifier).state = nuevoModo;
                   },
-                  activeColor: Colors.amber,
+                  activeThumbColor: Colors.amber,
                 ),
                 Text(
                   isDark ? 'Activado' : 'Desactivado',
@@ -289,7 +289,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(icon, size: isMobile ? 32 : 48, color: color),
@@ -313,7 +313,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
                       subtitle,
                       style: TextStyle(
                         fontSize: isMobile ? 12 : 14,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7), // ← Dinámico
+                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7), // ← Dinámico
                       ),
                     ),
                   ],

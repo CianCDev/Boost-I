@@ -101,14 +101,14 @@ class _RestScreenState extends ConsumerState<RestScreen> {
               width: cardWidth,
               padding: EdgeInsets.all(isMobile ? 24.0 : 40.0),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.98),
+                color: Colors.white.withValues(alpha: 0.98),
                 borderRadius: BorderRadius.circular(24),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 40, offset: const Offset(0, 20))],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.25), blurRadius: 40, offset: const Offset(0, 20))],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.15), shape: BoxShape.circle), child: const Icon(Icons.coffee_rounded, size: 48, color: Color(0xFF10B981))),
+                  Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF10B981).withValues(alpha: 0.15), shape: BoxShape.circle), child: const Icon(Icons.coffee_rounded, size: 48, color: Color(0xFF10B981))),
                   const SizedBox(height: 24),
                   const Text("CAJA EN DESCANSO", style: TextStyle(color: Color(0xFF0F172A), fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                   const SizedBox(height: 8),

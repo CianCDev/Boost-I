@@ -380,7 +380,7 @@ Stream<List<UsuarioEntity>> streamUsuariosEnTiempoReal() {
 
 Future<bool> actualizarEstadoUsuarioEnSupabase(int userId, String nuevoEstado) async {
   try {
-    print('🔍 Intentando actualizar userId: $userId a estado: $nuevoEstado');
+    debugPrint('🔍 Intentando actualizar userId: $userId a estado: $nuevoEstado');
     
     final response = await _supabase
         .from('usuarios')
@@ -388,13 +388,13 @@ Future<bool> actualizarEstadoUsuarioEnSupabase(int userId, String nuevoEstado) a
         .eq('id_isar', userId)
         .select(); // ← .select() devuelve las filas afectadas
 
-    print('✅ Filas afectadas: ${response.length}');
+    debugPrint('✅ Filas afectadas: ${response.length}');
     if (response.isNotEmpty) {
-      print('✅ Usuario actualizado: ${response.first}');
+      debugPrint('✅ Usuario actualizado: ${response.first}');
     }
     return response.isNotEmpty;
   } catch (e) {
-    print('❌ Error en actualizarEstadoUsuarioEnSupabase: $e');
+    debugPrint('❌ Error en actualizarEstadoUsuarioEnSupabase: $e');
     return false;
   }
 }

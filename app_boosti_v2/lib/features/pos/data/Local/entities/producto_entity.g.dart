@@ -189,7 +189,6 @@ void _productoEntityAttach(
 
 extension ProductoEntityByIndex on IsarCollection<ProductoEntity> {
   Future<ProductoEntity?> getByCodigoBarras(String codigoBarras) {
-    // ignore: experimental_member_use
     return getByIndex(r'codigoBarras', [codigoBarras]);
   }
 
@@ -241,7 +240,6 @@ extension ProductoEntityByIndex on IsarCollection<ProductoEntity> {
 
   List<Id> putAllByCodigoBarrasSync(List<ProductoEntity> objects,
       {bool saveLinks = true}) {
-    // ignore: experimental_member_use
     return putAllByIndexSync(r'codigoBarras', objects, saveLinks: saveLinks);
   }
 }
