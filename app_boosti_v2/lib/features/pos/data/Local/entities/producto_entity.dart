@@ -18,5 +18,5 @@ class ProductoEntity {
   String proveedorTelefono = '';
   double stockMinimo = 5.0;
   late String imagenUrl = ''; // Cambiado a String? para permitir null
-   
+  
 }

@@ -17,53 +17,68 @@ const TurnoEntitySchema = CollectionSchema(
   name: r'TurnoEntity',
   id: -1837668074078403129,
   properties: {
-    r'estado': PropertySchema(
+    r'cajaId': PropertySchema(
       id: 0,
+      name: r'cajaId',
+      type: IsarType.string,
+    ),
+    r'cajaNombre': PropertySchema(
+      id: 1,
+      name: r'cajaNombre',
+      type: IsarType.string,
+    ),
+    r'estado': PropertySchema(
+      id: 2,
       name: r'estado',
       type: IsarType.string,
     ),
     r'fechaApertura': PropertySchema(
-      id: 1,
+      id: 3,
       name: r'fechaApertura',
       type: IsarType.dateTime,
     ),
     r'fechaCierre': PropertySchema(
-      id: 2,
+      id: 4,
       name: r'fechaCierre',
       type: IsarType.dateTime,
     ),
     r'montoFinal': PropertySchema(
-      id: 3,
+      id: 5,
       name: r'montoFinal',
       type: IsarType.double,
     ),
     r'montoInicial': PropertySchema(
-      id: 4,
+      id: 6,
       name: r'montoInicial',
       type: IsarType.double,
     ),
     r'syncStatus': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'syncStatus',
       type: IsarType.string,
     ),
     r'totalVentas': PropertySchema(
-      id: 6,
+      id: 8,
       name: r'totalVentas',
       type: IsarType.double,
     ),
+    r'turnoId': PropertySchema(
+      id: 9,
+      name: r'turnoId',
+      type: IsarType.string,
+    ),
     r'usuarioId': PropertySchema(
-      id: 7,
+      id: 10,
       name: r'usuarioId',
       type: IsarType.long,
     ),
     r'usuarioNombre': PropertySchema(
-      id: 8,
+      id: 11,
       name: r'usuarioNombre',
       type: IsarType.string,
     ),
     r'ventasCount': PropertySchema(
-      id: 9,
+      id: 12,
       name: r'ventasCount',
       type: IsarType.long,
     )
@@ -88,8 +103,11 @@ int _turnoEntityEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  bytesCount += 3 + object.cajaId.length * 3;
+  bytesCount += 3 + object.cajaNombre.length * 3;
   bytesCount += 3 + object.estado.length * 3;
   bytesCount += 3 + object.syncStatus.length * 3;
+  bytesCount += 3 + object.turnoId.length * 3;
   bytesCount += 3 + object.usuarioNombre.length * 3;
   return bytesCount;
 }
@@ -100,16 +118,19 @@ void _turnoEntitySerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeString(offsets[0], object.estado);
-  writer.writeDateTime(offsets[1], object.fechaApertura);
-  writer.writeDateTime(offsets[2], object.fechaCierre);
-  writer.writeDouble(offsets[3], object.montoFinal);
-  writer.writeDouble(offsets[4], object.montoInicial);
-  writer.writeString(offsets[5], object.syncStatus);
-  writer.writeDouble(offsets[6], object.totalVentas);
-  writer.writeLong(offsets[7], object.usuarioId);
-  writer.writeString(offsets[8], object.usuarioNombre);
-  writer.writeLong(offsets[9], object.ventasCount);
+  writer.writeString(offsets[0], object.cajaId);
+  writer.writeString(offsets[1], object.cajaNombre);
+  writer.writeString(offsets[2], object.estado);
+  writer.writeDateTime(offsets[3], object.fechaApertura);
+  writer.writeDateTime(offsets[4], object.fechaCierre);
+  writer.writeDouble(offsets[5], object.montoFinal);
+  writer.writeDouble(offsets[6], object.montoInicial);
+  writer.writeString(offsets[7], object.syncStatus);
+  writer.writeDouble(offsets[8], object.totalVentas);
+  writer.writeString(offsets[9], object.turnoId);
+  writer.writeLong(offsets[10], object.usuarioId);
+  writer.writeString(offsets[11], object.usuarioNombre);
+  writer.writeLong(offsets[12], object.ventasCount);
 }
 
 TurnoEntity _turnoEntityDeserialize(
@@ -119,17 +140,20 @@ TurnoEntity _turnoEntityDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = TurnoEntity();
-  object.estado = reader.readString(offsets[0]);
-  object.fechaApertura = reader.readDateTime(offsets[1]);
-  object.fechaCierre = reader.readDateTimeOrNull(offsets[2]);
+  object.cajaId = reader.readString(offsets[0]);
+  object.cajaNombre = reader.readString(offsets[1]);
+  object.estado = reader.readString(offsets[2]);
+  object.fechaApertura = reader.readDateTime(offsets[3]);
+  object.fechaCierre = reader.readDateTimeOrNull(offsets[4]);
   object.id = id;
-  object.montoFinal = reader.readDoubleOrNull(offsets[3]);
-  object.montoInicial = reader.readDouble(offsets[4]);
-  object.syncStatus = reader.readString(offsets[5]);
-  object.totalVentas = reader.readDoubleOrNull(offsets[6]);
-  object.usuarioId = reader.readLong(offsets[7]);
-  object.usuarioNombre = reader.readString(offsets[8]);
-  object.ventasCount = reader.readLongOrNull(offsets[9]);
+  object.montoFinal = reader.readDoubleOrNull(offsets[5]);
+  object.montoInicial = reader.readDouble(offsets[6]);
+  object.syncStatus = reader.readString(offsets[7]);
+  object.totalVentas = reader.readDoubleOrNull(offsets[8]);
+  object.turnoId = reader.readString(offsets[9]);
+  object.usuarioId = reader.readLong(offsets[10]);
+  object.usuarioNombre = reader.readString(offsets[11]);
+  object.ventasCount = reader.readLongOrNull(offsets[12]);
   return object;
 }
 
@@ -143,22 +167,28 @@ P _turnoEntityDeserializeProp<P>(
     case 0:
       return (reader.readString(offset)) as P;
     case 1:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 2:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 3:
-      return (reader.readDoubleOrNull(offset)) as P;
+      return (reader.readDateTime(offset)) as P;
     case 4:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 5:
-      return (reader.readString(offset)) as P;
-    case 6:
       return (reader.readDoubleOrNull(offset)) as P;
+    case 6:
+      return (reader.readDouble(offset)) as P;
     case 7:
-      return (reader.readLong(offset)) as P;
-    case 8:
       return (reader.readString(offset)) as P;
+    case 8:
+      return (reader.readDoubleOrNull(offset)) as P;
     case 9:
+      return (reader.readString(offset)) as P;
+    case 10:
+      return (reader.readLong(offset)) as P;
+    case 11:
+      return (reader.readString(offset)) as P;
+    case 12:
       return (reader.readLongOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -258,6 +288,276 @@ extension TurnoEntityQueryWhere
 
 extension TurnoEntityQueryFilter
     on QueryBuilder<TurnoEntity, TurnoEntity, QFilterCondition> {
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> cajaIdEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cajaId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaIdGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cajaId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> cajaIdLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cajaId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> cajaIdBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cajaId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'cajaId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> cajaIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'cajaId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> cajaIdContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'cajaId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> cajaIdMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'cajaId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cajaId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'cajaId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaNombreEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cajaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaNombreGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cajaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaNombreLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cajaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaNombreBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cajaNombre',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaNombreStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'cajaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaNombreEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'cajaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaNombreContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'cajaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaNombreMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'cajaNombre',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaNombreIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cajaNombre',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      cajaNombreIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'cajaNombre',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> estadoEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -945,6 +1245,140 @@ extension TurnoEntityQueryFilter
     });
   }
 
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> turnoIdEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'turnoId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      turnoIdGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'turnoId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> turnoIdLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'turnoId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> turnoIdBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'turnoId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      turnoIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'turnoId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> turnoIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'turnoId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> turnoIdContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'turnoId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition> turnoIdMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'turnoId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      turnoIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'turnoId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
+      turnoIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'turnoId',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<TurnoEntity, TurnoEntity, QAfterFilterCondition>
       usuarioIdEqualTo(int value) {
     return QueryBuilder.apply(this, (query) {
@@ -1220,6 +1654,30 @@ extension TurnoEntityQueryLinks
 
 extension TurnoEntityQuerySortBy
     on QueryBuilder<TurnoEntity, TurnoEntity, QSortBy> {
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> sortByCajaId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cajaId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> sortByCajaIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cajaId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> sortByCajaNombre() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cajaNombre', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> sortByCajaNombreDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cajaNombre', Sort.desc);
+    });
+  }
+
   QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> sortByEstado() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'estado', Sort.asc);
@@ -1306,6 +1764,18 @@ extension TurnoEntityQuerySortBy
     });
   }
 
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> sortByTurnoId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'turnoId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> sortByTurnoIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'turnoId', Sort.desc);
+    });
+  }
+
   QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> sortByUsuarioId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'usuarioId', Sort.asc);
@@ -1346,6 +1816,30 @@ extension TurnoEntityQuerySortBy
 
 extension TurnoEntityQuerySortThenBy
     on QueryBuilder<TurnoEntity, TurnoEntity, QSortThenBy> {
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> thenByCajaId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cajaId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> thenByCajaIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cajaId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> thenByCajaNombre() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cajaNombre', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> thenByCajaNombreDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cajaNombre', Sort.desc);
+    });
+  }
+
   QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> thenByEstado() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'estado', Sort.asc);
@@ -1444,6 +1938,18 @@ extension TurnoEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> thenByTurnoId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'turnoId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> thenByTurnoIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'turnoId', Sort.desc);
+    });
+  }
+
   QueryBuilder<TurnoEntity, TurnoEntity, QAfterSortBy> thenByUsuarioId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'usuarioId', Sort.asc);
@@ -1484,6 +1990,20 @@ extension TurnoEntityQuerySortThenBy
 
 extension TurnoEntityQueryWhereDistinct
     on QueryBuilder<TurnoEntity, TurnoEntity, QDistinct> {
+  QueryBuilder<TurnoEntity, TurnoEntity, QDistinct> distinctByCajaId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cajaId', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<TurnoEntity, TurnoEntity, QDistinct> distinctByCajaNombre(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cajaNombre', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<TurnoEntity, TurnoEntity, QDistinct> distinctByEstado(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1528,6 +2048,13 @@ extension TurnoEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<TurnoEntity, TurnoEntity, QDistinct> distinctByTurnoId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'turnoId', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<TurnoEntity, TurnoEntity, QDistinct> distinctByUsuarioId() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'usuarioId');
@@ -1554,6 +2081,18 @@ extension TurnoEntityQueryProperty
   QueryBuilder<TurnoEntity, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<TurnoEntity, String, QQueryOperations> cajaIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cajaId');
+    });
+  }
+
+  QueryBuilder<TurnoEntity, String, QQueryOperations> cajaNombreProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cajaNombre');
     });
   }
 
@@ -1597,6 +2136,12 @@ extension TurnoEntityQueryProperty
   QueryBuilder<TurnoEntity, double?, QQueryOperations> totalVentasProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'totalVentas');
+    });
+  }
+
+  QueryBuilder<TurnoEntity, String, QQueryOperations> turnoIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'turnoId');
     });
   }
 

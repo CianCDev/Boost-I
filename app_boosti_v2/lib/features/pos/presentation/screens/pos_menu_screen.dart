@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
-import '../services/sync_service.dart'; // ✅ única importación de SyncService
+import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../widgets/admin_validation_dialog.dart';
@@ -15,8 +15,9 @@ import '../widgets/cambiar_pin_dialog.dart';
 import '../../presentation/providers/usuario_provider.dart';
 import '../../presentation/providers/theme_provider.dart';
 import '../services/backup_service.dart';
-import 'login_screen.dart';      // ✅ solo para LoginScreen
+import 'login_screen.dart';
 import 'gastos_screen.dart';
+import '../../data/Local/entities/turno_entity.dart';
 
 class PosMenuScreen extends ConsumerStatefulWidget {
   const PosMenuScreen({super.key});
@@ -30,11 +31,13 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
   final SyncService _syncService = SyncService();
   int _ventasPendientesSync = 0;
   bool _sincronizando = false;
+  TurnoEntity? _turnoAbierto;
 
   @override
   void initState() {
     super.initState();
     _cargarEstadoSync();
+    _cargarEstadoTurno();
   }
 
   Future<void> _cargarEstadoSync() async {
@@ -44,17 +47,31 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     }
   }
 
-  Future<void> _sincronizarVentas() async {
-    if (_ventasPendientesSync == 0 || _sincronizando) return;
+  Future<void> _cargarEstadoTurno() async {
+    final usuario = ref.read(usuarioActualProvider);
+    if (usuario != null) {
+      final turno = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
+      if (mounted) {
+        setState(() => _turnoAbierto = turno);
+      }
+    }
+  }
+
+  Future<void> _sincronizarTodo() async {
+    if (_sincronizando) return;
     setState(() => _sincronizando = true);
+
     try {
-      final sincronizadas = await _syncService.sincronizarVentasPendientes();
+      await _syncService.sincronizarTodo();
+
       await _cargarEstadoSync();
+      await _cargarEstadoTurno();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('¡$sincronizadas ventas sincronizadas! 🎉'),
-            backgroundColor: const Color(0xFF10B981),
+          const SnackBar(
+            content: Text('✅ Datos sincronizados correctamente'),
+            backgroundColor: Color(0xFF10B981),
           ),
         );
       }
@@ -62,7 +79,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al sincronizar: $e'),
+            content: Text('❌ Error al sincronizar: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -72,9 +89,176 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     }
   }
 
-  /// Cierra sesión y navega al LoginScreen
+  Future<void> _abrirTurno() async {
+    final usuario = ref.read(usuarioActualProvider);
+    if (usuario == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay usuario autenticado.')),
+      );
+      return;
+    }
+
+    final turnoExistente = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
+    if (turnoExistente != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ya tienes un turno abierto.')),
+      );
+      return;
+    }
+
+    final nuevoTurno = TurnoEntity()
+      ..usuarioId = usuario.id
+      ..usuarioNombre = usuario.nombre
+      ..cajaId = ''
+      ..cajaNombre = usuario.cajaAsignada
+      ..montoInicial = 0.0
+      ..fechaApertura = DateTime.now()
+      ..estado = 'abierto'
+      ..syncStatus = 'pending';
+
+    await _isarService.guardarTurno(nuevoTurno);
+    await _isarService.actualizarEstadoUsuario(usuario.id, 'activo');
+    await _syncService.actualizarEstadoUsuarioEnSupabase(usuario.id, 'activo');
+
+    await _cargarEstadoTurno();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Turno abierto correctamente'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+    }
+  }
+
+  Future<void> _cerrarTurno() async {
+    final usuario = ref.read(usuarioActualProvider);
+    if (usuario == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay usuario autenticado.')),
+      );
+      return;
+    }
+
+    final turnoAbierto = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
+    if (turnoAbierto == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay turno abierto para este usuario.')),
+      );
+      return;
+    }
+
+    final montoController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cerrar Turno'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Monto inicial: \$${turnoAbierto.montoInicial.toStringAsFixed(2)}'),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: montoController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Monto final (USD)',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Requerido';
+                  if (double.tryParse(value) == null) return 'Número válido';
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context, true);
+              }
+            },
+            child: const Text('Cerrar Turno'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final montoFinal = double.parse(montoController.text);
+      turnoAbierto.montoFinal = montoFinal;
+      turnoAbierto.fechaCierre = DateTime.now();
+      turnoAbierto.estado = 'cerrado';
+      turnoAbierto.syncStatus = 'pending';
+
+      await _isarService.guardarTurno(turnoAbierto);
+      await _isarService.actualizarEstadoUsuario(usuario.id, 'inactivo');
+      await _syncService.sincronizarTurnos();
+
+      await _cargarEstadoTurno();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Turno cerrado correctamente'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _logout() async {
-    // Mostrar diálogo de confirmación
+    final usuario = ref.read(usuarioActualProvider);
+    TurnoEntity? turnoAbierto;
+    if (usuario != null) {
+      turnoAbierto = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
+    }
+
+    if (turnoAbierto != null) {
+      final cerrarTurno = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Turno abierto'),
+          content: Text(
+            'Tienes un turno abierto (iniciado a las ${_formatearHora(turnoAbierto!.fechaApertura)}).\n'
+            '¿Quieres cerrarlo antes de salir?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Salir sin cerrar'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Cerrar turno'),
+            ),
+          ],
+        ),
+      );
+
+      if (cerrarTurno == true) {
+        await _cerrarTurno();
+      }
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -99,14 +283,10 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
 
     if (confirm != true) return;
 
-    // Cerrar sesión en el provider
     await ref.read(authProvider.notifier).logout();
-
-    // Limpiar el usuario actual
     ref.read(usuarioActualProvider.notifier).clearUsuario();
 
     if (mounted) {
-      // Navegar al LoginScreen y eliminar todo el stack
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,
@@ -114,16 +294,20 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     }
   }
 
-  /// Ejecuta el backup y muestra feedback
+  String _formatearHora(DateTime fecha) {
+    final local = fecha.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _crearBackup() async {
     final backupService = BackupService();
     final exito = await backupService.crearBackupYCompartir();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(exito 
-            ? '✅ Backup creado y compartido' 
-            : '❌ Error al crear el backup'),
+          content: Text(exito
+              ? '✅ Backup creado y compartido'
+              : '❌ Error al crear el backup'),
           backgroundColor: exito ? const Color(0xFF10B981) : Colors.red,
         ),
       );
@@ -137,12 +321,13 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     final theme = Theme.of(context);
     final usuarioLogueado = ref.read(usuarioActualProvider);
     final bool esAdmin = usuarioLogueado?.rol == 'admin';
+    final bool tieneTurno = _turnoAbierto != null;
 
     // ==========================================
-    // LISTA DE OPCIONES DEL MENÚ (ORDENADA)
+    // LISTA DE OPCIONES DEL MENÚ
     // ==========================================
     final List<Map<String, dynamic>> menuOptions = [
-      // 1. Siempre visible
+      // 1. Siempre visibles
       {
         'title': 'Volver al Catálogo',
         'subtitle': 'Pantalla de ventas y cobro',
@@ -159,10 +344,19 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
         'color': _ventasPendientesSync > 0
             ? const Color(0xFFF59E0B)
             : const Color(0xFF10B981),
-        'onTap': _sincronizarVentas,
+        'onTap': _sincronizarTodo,
       },
 
-      // 2. Opciones solo para Administradores
+      // ✅ 2. ÚNICO BOTÓN DINÁMICO PARA TURNOS
+      {
+        'title': tieneTurno ? 'Cerrar Turno' : 'Abrir Turno',
+        'subtitle': tieneTurno ? 'Finalizar jornada' : 'Iniciar jornada laboral',
+        'icon': tieneTurno ? Icons.stop_rounded : Icons.play_arrow_rounded,
+        'color': tieneTurno ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+        'onTap': tieneTurno ? _cerrarTurno : _abrirTurno,
+      },
+
+      // 3. Opciones solo para Administradores
       if (esAdmin) ...[
         {
           'title': 'Monitor de Empleados',
@@ -184,7 +378,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
             builder: (context) => const PersonnelManagementDialog(),
           ),
         },
-
         {
           'title': 'Cambiar de Empresa',
           'subtitle': 'Seleccionar otra organización',
@@ -214,16 +407,13 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
             );
             if (confirm != true) return;
 
-            // Cerrar sesión
             await ref.read(authProvider.notifier).logout();
-            // Limpiar preferencias
             final prefs = await SharedPreferences.getInstance();
             await prefs.remove('supabase_url');
             await prefs.remove('supabase_anon_key');
             await prefs.remove('empresa_id');
 
             if (context.mounted) {
-              // Reiniciar navegación a la pantalla de configuración
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (_) => const ConfiguracionEmpresaScreen()),
@@ -231,17 +421,16 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
             }
           },
         },
-
         {
-        'title': 'Registrar Gasto',
-        'subtitle': 'Agregar egresos del día',
-        'icon': Icons.money_off_rounded,
-        'color': const Color(0xFFEF4444),
-        'onTap': () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const GastosScreen()),
-        ),
-      },
+          'title': 'Registrar Gasto',
+          'subtitle': 'Agregar egresos del día',
+          'icon': Icons.money_off_rounded,
+          'color': const Color(0xFFEF4444),
+          'onTap': () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const GastosScreen()),
+          ),
+        },
         {
           'title': 'Cambiar mi Clave',
           'subtitle': 'Actualizar PIN de acceso',
@@ -289,7 +478,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
           ),
         },
         {
-          'title': 'Backup de Datos', // 🔥 NUEVO
+          'title': 'Backup de Datos',
           'subtitle': 'Crear y compartir copia de seguridad',
           'icon': Icons.backup_rounded,
           'color': const Color(0xFFF59E0B),
@@ -307,21 +496,13 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
         },
       ],
 
-      // 3. Opciones para ambos roles (siempre visibles)
+      // 4. Opciones para ambos roles (siempre visibles)
       {
         'title': 'Salir del POS',
         'subtitle': 'Cerrar sesión y volver al login',
         'icon': Icons.logout_rounded,
         'color': const Color(0xFFEF4444),
-        'onTap': _logout, // 🔥 Ahora usa el método que cierra sesión
-      },
-      {
-        'title': 'Modo Oscuro',
-        'subtitle': 'Activar o desactivar tema oscuro',
-        'icon': Icons.dark_mode,
-        'color': Colors.amber,
-        'onTap': null,
-        'isSwitch': true,
+        'onTap': _logout,
       },
     ];
 
@@ -348,92 +529,91 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
         elevation: 2,
         foregroundColor: Colors.white,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: GridView.builder(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: isMobile ? 1 : (isTablet ? 2 : 3),
-            childAspectRatio: isMobile ? 1.6 : 1.8,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+      body: Column(
+        children: [
+          // ==========================================
+          // BANNER DE ESTADO DE TURNO
+          // ==========================================
+          if (!tieneTurno)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: Colors.orange.shade100,
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '⚠️ No tienes un turno abierto. Abre un turno para comenzar a vender.',
+                      style: TextStyle(color: Colors.orange.shade900),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: _abrirTurno,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade700,
+                    ),
+                    child: const Text('Abrir Turno'),
+                  ),
+                ],
+              ),
+            ),
+          if (tieneTurno)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.green.shade100,
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '✅ Turno abierto (iniciado: ${_formatearHora(_turnoAbierto!.fechaApertura)})',
+                      style: TextStyle(color: Colors.green.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // ==========================================
+          // GRID DE OPCIONES
+          // ==========================================
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: GridView.builder(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: isMobile ? 1 : (isTablet ? 2 : 3),
+                  childAspectRatio: isMobile ? 1.6 : 1.8,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                ),
+                itemCount: menuOptions.length,
+                itemBuilder: (context, index) {
+                  final option = menuOptions[index];
+                  return _buildMenuCard(
+                    context,
+                    title: option['title'],
+                    subtitle: option['subtitle'],
+                    icon: option['icon'],
+                    color: option['color'],
+                    onTap: option['onTap'],
+                    isMobile: isMobile,
+                  );
+                },
+              ),
+            ),
           ),
-          itemCount: menuOptions.length,
-          itemBuilder: (context, index) {
-            final option = menuOptions[index];
-            if (option['isSwitch'] == true) {
-              return _buildThemeSwitch(context);
-            }
-            return _buildMenuCard(
-              context,
-              title: option['title'],
-              subtitle: option['subtitle'],
-              icon: option['icon'],
-              color: option['color'],
-              onTap: option['onTap'],
-              isMobile: isMobile,
-            );
-          },
-        ),
+        ],
       ),
     );
   }
 
   // ==========================================
-  // WIDGET DE SWITCH DE TEMA (mejorado)
-  // ==========================================
-  Widget _buildThemeSwitch(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, child) {
-        final themeMode = ref.watch(themeModeProvider);
-        final isDark = themeMode == ThemeMode.dark ||
-            (themeMode == ThemeMode.system &&
-                MediaQuery.of(context).platformBrightness == Brightness.dark);
-        final theme = Theme.of(context);
-
-        return Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          color: theme.cardColor,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  isDark ? Icons.dark_mode : Icons.light_mode,
-                  size: 48,
-                  color: isDark ? Colors.amber : Colors.orange,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  isDark ? 'Modo Oscuro' : 'Modo Claro',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Switch(
-                  value: isDark,
-                  onChanged: (_) {
-                    final nuevoModo = isDark ? ThemeMode.light : ThemeMode.dark;
-                    ref.read(themeModeProvider.notifier).state = nuevoModo;
-                  },
-                  activeThumbColor: Colors.amber,
-                ),
-                Text(
-                  isDark ? 'Activado' : 'Desactivado',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ==========================================
-  // TARJETA DE MENÚ (con tema oscuro)
+  // TARJETA DE MENÚ
   // ==========================================
   Widget _buildMenuCard(
     BuildContext context, {
