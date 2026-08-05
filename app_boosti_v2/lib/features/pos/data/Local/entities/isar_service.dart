@@ -5,12 +5,11 @@ import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 // Entidades
 import '../entities/turno_entity.dart';
 import '../entities/log_entity.dart';
 import '../entities/venta_entity.dart';
-import '../entities/detalle_venta_entity.dart'; // ⚠️ Asegúrate de que exista
+import '../entities/detalle_venta_entity.dart';
 import '../entities/producto_entity.dart';
 import '../entities/usuario_entity.dart';
 import '../entities/movimiento_inventario_entity.dart';
@@ -31,6 +30,7 @@ class IsarService {
     return _isarInstance!;
   }
 
+  // ==================== INICIALIZACIÓN ====================
   Future<Isar> _initIsar() async {
     if (_isarInstance != null && _isarInstance!.isOpen) {
       return _isarInstance!;
@@ -54,7 +54,7 @@ class IsarService {
           MovimientoInventarioEntitySchema,
           GastoEntitySchema,
           LogEntitySchema,
-          TurnoEntitySchema
+          TurnoEntitySchema, // ✅ Incluido
         ],
         directory: dbPath,
         inspector: true,
@@ -82,6 +82,7 @@ class IsarService {
           MovimientoInventarioEntitySchema,
           GastoEntitySchema,
           LogEntitySchema,
+          TurnoEntitySchema,
         ],
         directory: fallbackPath,
         inspector: true,
@@ -99,6 +100,8 @@ class IsarService {
     _isarInstance = isar;
     return isar;
   }
+
+  // ==================== DEMO DATA ====================
   Future<void> _inicializarProductosDemo(Isar isar) async {
     final count = await isar.productoEntitys.count();
     if (count == 0) {
@@ -123,7 +126,8 @@ class IsarService {
           ..categoria = 'Abarrotes'
           ..proveedorNombre = 'Distribuidora Alimentos S.A.'
           ..proveedorTelefono = '0414-9876543'
-          ..stockMinimo = 15.0,
+          ..stockMinimo = 15.0
+          ..imagenUrl = '',
         ProductoEntity()
           ..codigoBarras = '75010003'
           ..nombre = 'Queso Blanco Duro'
@@ -141,46 +145,6 @@ class IsarService {
       });
     }
   }
-
-Future<void> guardarTurno(TurnoEntity turno) async {
-  final isar = await db;
-  await isar.writeTxn(() async {
-    await isar.turnoEntitys.put(turno);
-  });
-}
-
-Future<List<TurnoEntity>> obtenerTurnos() async {
-  final isar = await db;
-  return await isar.turnoEntitys.where().sortByFechaAperturaDesc().findAll();
-}
-
-Future<TurnoEntity?> obtenerTurnoAbiertoPorUsuario(int usuarioId) async {
-  final isar = await db;
-  return await isar.turnoEntitys
-      .filter()
-      .usuarioIdEqualTo(usuarioId)
-      .and()
-      .estadoEqualTo('abierto')
-      .findFirst();
-}
-
-Future<void> cerrarTurno(int turnoId, double montoFinal) async {
-  final isar = await db;
-  await isar.writeTxn(() async {
-    final turno = await isar.turnoEntitys.get(turnoId);
-    if (turno != null) {
-      turno.fechaCierre = DateTime.now();
-      turno.montoFinal = montoFinal;
-      turno.estado = 'cerrado';
-      turno.syncStatus = 'pending';
-      await isar.turnoEntitys.put(turno);
-    }
-  });
-}
-
-
-
-
 
   Future<void> _inicializarUsuariosDemo(Isar isar) async {
     final count = await isar.usuarioEntitys.count();
@@ -213,11 +177,10 @@ Future<void> cerrarTurno(int turnoId, double montoFinal) async {
     await _inicializarUsuariosDemo(isar);
   }
 
-
-Future<UsuarioEntity?> obtenerUsuarioPorId(int id) async {
-  final isar = await db;
-  return await isar.usuarioEntitys.get(id);
-}
+  Future<UsuarioEntity?> obtenerUsuarioPorId(int id) async {
+    final isar = await db;
+    return await isar.usuarioEntitys.get(id);
+  }
 
   Future<List<UsuarioEntity>> obtenerUsuarios() async {
     final isar = await db;
@@ -316,45 +279,40 @@ Future<UsuarioEntity?> obtenerUsuarioPorId(int id) async {
     }
   }
 
-// ==================== GESTIÓN DE GASTOS ====================
-
-Future<void> guardarGasto(GastoEntity gasto) async {
-  final isar = await db;
-  gasto.syncStatus = gasto.syncStatus.isEmpty ? 'pending' : gasto.syncStatus;
-  await isar.writeTxn(() async {
-    await isar.gastoEntitys.put(gasto);
-  });
-}
-
-Future<List<GastoEntity>> obtenerGastos() async {
-  final isar = await db;
-  return await isar.gastoEntitys.where().sortByFechaDesc().findAll();
-}
-
-Future<List<GastoEntity>> obtenerGastosPendientesSync() async {
-  final isar = await db;
-  return await isar.gastoEntitys
-      .filter()
-      .syncStatusEqualTo('pending')
-      .or()
-      .syncStatusEqualTo('failed')
-      .findAll();
-}
-
-Future<void> actualizarSyncStatusGasto(int id, String nuevoEstado) async {
-  final isar = await db;
-  await isar.writeTxn(() async {
-    final gasto = await isar.gastoEntitys.get(id);
-    if (gasto != null) {
-      gasto.syncStatus = nuevoEstado;
+  // ==================== GESTIÓN DE GASTOS ====================
+  Future<void> guardarGasto(GastoEntity gasto) async {
+    final isar = await db;
+    gasto.syncStatus = gasto.syncStatus.isEmpty ? 'pending' : gasto.syncStatus;
+    await isar.writeTxn(() async {
       await isar.gastoEntitys.put(gasto);
-    }
-  });
-}
+    });
+  }
 
+  Future<List<GastoEntity>> obtenerGastos() async {
+    final isar = await db;
+    return await isar.gastoEntitys.where().sortByFechaDesc().findAll();
+  }
 
+  Future<List<GastoEntity>> obtenerGastosPendientesSync() async {
+    final isar = await db;
+    return await isar.gastoEntitys
+        .filter()
+        .syncStatusEqualTo('pending')
+        .or()
+        .syncStatusEqualTo('failed')
+        .findAll();
+  }
 
-
+  Future<void> actualizarSyncStatusGasto(int id, String nuevoEstado) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final gasto = await isar.gastoEntitys.get(id);
+      if (gasto != null) {
+        gasto.syncStatus = nuevoEstado;
+        await isar.gastoEntitys.put(gasto);
+      }
+    });
+  }
 
   // ==================== LOGS ====================
   Future<void> guardarLog(LogEntity log) async {
@@ -388,24 +346,17 @@ Future<void> actualizarSyncStatusGasto(int id, String nuevoEstado) async {
   }
 
   // ==================== GESTIÓN DE VENTAS ====================
-
-  /// Guarda una venta y sus detalles, actualizando el stock
   Future<void> guardarVenta(VentaEntity venta) async {
     final isar = await db;
     await isar.writeTxn(() async {
-      // 1. Asegurar syncStatus
       venta.syncStatus = venta.syncStatus.isEmpty ? 'pending' : venta.syncStatus;
-
-      // 2. Guardar la venta (se genera su ID)
       await isar.ventaEntitys.put(venta);
 
-      // 3. Asignar el ID de la venta a cada detalle y guardarlos
       for (var item in venta.items) {
-        item.ventaId = venta.id; // ← vincular con la venta
+        item.ventaId = venta.id;
         await isar.detalleVentaEntitys.put(item);
       }
 
-      // 4. Actualizar stock de productos
       for (var item in venta.items) {
         ProductoEntity? producto;
         if (item.productoId != null) {
@@ -463,9 +414,18 @@ Future<void> actualizarSyncStatusGasto(int id, String nuevoEstado) async {
         .findAll();
   }
 
-  // ==================== MÉTODOS DE SINCRONIZACIÓN CON syncStatus ====================
+  // ==================== GESTIÓN DE DETALLES DE VENTA ====================
 
-  /// Obtiene todas las ventas con syncStatus 'pending' o 'failed'
+/// Obtiene todos los detalles de una venta por su ID
+Future<List<DetalleVentaEntity>> obtenerDetallesPorVenta(int ventaId) async {
+  final isar = await db;
+  return await isar.detalleVentaEntitys
+      .filter()
+      .ventaIdEqualTo(ventaId)
+      .findAll();
+}
+
+  // ==================== MÉTODOS DE SINCRONIZACIÓN ====================
   Future<List<VentaEntity>> obtenerVentasPendientesSync() async {
     final isar = await db;
     return await isar.ventaEntitys
@@ -476,7 +436,6 @@ Future<void> actualizarSyncStatusGasto(int id, String nuevoEstado) async {
         .findAll();
   }
 
-  /// Obtiene todos los movimientos con syncStatus 'pending' o 'failed'
   Future<List<MovimientoInventarioEntity>> obtenerMovimientosPendientesSync() async {
     final isar = await db;
     return await isar.movimientoInventarioEntitys
@@ -487,7 +446,6 @@ Future<void> actualizarSyncStatusGasto(int id, String nuevoEstado) async {
         .findAll();
   }
 
-  /// Actualiza el syncStatus de una venta
   Future<void> actualizarSyncStatusVenta(int id, String nuevoEstado) async {
     final isar = await db;
     await isar.writeTxn(() async {
@@ -499,7 +457,6 @@ Future<void> actualizarSyncStatusGasto(int id, String nuevoEstado) async {
     });
   }
 
-  /// Actualiza el syncStatus de un movimiento
   Future<void> actualizarSyncStatusMovimiento(int id, String nuevoEstado) async {
     final isar = await db;
     await isar.writeTxn(() async {
@@ -512,18 +469,15 @@ Future<void> actualizarSyncStatusGasto(int id, String nuevoEstado) async {
   }
 
   // ==================== GESTIÓN DE MOVIMIENTOS ====================
-
   Future<void> guardarMovimientoInventario(MovimientoInventarioEntity movimiento) async {
     final isar = await db;
     await isar.writeTxn(() async {
-      // Asegurar syncStatus
       movimiento.syncStatus = movimiento.syncStatus.isEmpty ? 'pending' : movimiento.syncStatus;
       await isar.movimientoInventarioEntitys.put(movimiento);
     });
   }
 
   // ==================== GESTIÓN DE INVENTARIO ====================
-
   Future<List<ProductoEntity>> obtenerProductos() async {
     final isar = await db;
     return await isar.productoEntitys.where().findAll();
@@ -568,6 +522,65 @@ Future<void> actualizarSyncStatusGasto(int id, String nuevoEstado) async {
       if (producto != null) {
         producto.stock = nuevoStock < 0 ? 0.0 : nuevoStock;
         await isar.productoEntitys.put(producto);
+      }
+    });
+  }
+
+  // ==================== GESTIÓN DE TURNOS (COMPLETA) ====================
+
+  Future<void> guardarTurno(TurnoEntity turno) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.turnoEntitys.put(turno);
+    });
+  }
+
+  Future<List<TurnoEntity>> obtenerTurnos() async {
+    final isar = await db;
+    return await isar.turnoEntitys.where().sortByFechaAperturaDesc().findAll();
+  }
+
+  Future<TurnoEntity?> obtenerTurnoAbiertoPorUsuario(int usuarioId) async {
+    final isar = await db;
+    return await isar.turnoEntitys
+        .filter()
+        .usuarioIdEqualTo(usuarioId)
+        .and()
+        .estadoEqualTo('abierto')
+        .findFirst();
+  }
+
+  Future<void> cerrarTurno(int turnoId, double montoFinal) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final turno = await isar.turnoEntitys.get(turnoId);
+      if (turno != null) {
+        turno.fechaCierre = DateTime.now();
+        turno.montoFinal = montoFinal;
+        turno.estado = 'cerrado';
+        turno.syncStatus = 'pending';
+        await isar.turnoEntitys.put(turno);
+      }
+    });
+  }
+
+  // ✅ Método necesario para sincronización
+  Future<List<TurnoEntity>> obtenerTurnosPendientes() async {
+    final isar = await db;
+    return await isar.turnoEntitys
+        .filter()
+        .syncStatusEqualTo('pending')
+        .findAll();
+  }
+
+  // ✅ Método para marcar turno como sincronizado
+  Future<void> marcarTurnoComoSincronizado(int turnoId) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final turno = await isar.turnoEntitys.get(turnoId);
+      if (turno != null) {
+        turno.syncStatus = 'synced';
+        await isar.turnoEntitys.put(turno);
       }
     });
   }

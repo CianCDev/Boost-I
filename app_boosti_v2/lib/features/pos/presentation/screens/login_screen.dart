@@ -81,7 +81,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // MÉTODOS DE AUTENTICACIÓN
+  // MÉTODOS DE AUTENTICACIÓN (SIN NINGUNA LÓGICA DE TURNOS)
   // ============================================================
   void _loginWithPin() async {
     final authState = ref.read(authProvider);
@@ -106,6 +106,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       final user = ref.read(authProvider).currentUser;
       if (user != null) {
         ref.read(usuarioActualProvider.notifier).setUsuario(user);
+        // ✅ Navega AL CATÁLOGO (flujo original)
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
@@ -131,6 +132,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       final user = ref.read(authProvider).currentUser;
       if (user != null) {
         ref.read(usuarioActualProvider.notifier).setUsuario(user);
+        // ✅ Navega AL CATÁLOGO (flujo original)
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
@@ -141,7 +143,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // BUILD
+  // BUILD (sin cambios)
   // ============================================================
   @override
   Widget build(BuildContext context) {
@@ -215,7 +217,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             const SizedBox(height: 16),
                             Center(
                               child: Text(
-                                'Inicia sesión para abrir tu turno',
+                                'Inicia sesión para acceder al POS',
                                 style: TextStyle(
                                   color: Colors.grey.shade600,
                                   fontSize: isMobile ? 13 : 15,
@@ -285,7 +287,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // COMPONENTES UI
+  // COMPONENTES UI (sin cambios)
   // ============================================================
 
   Widget _buildLogo(double size, bool isMobile) {
