@@ -1,7 +1,13 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 // Entidades
+import '../entities/turno_entity.dart';
 import '../entities/log_entity.dart';
 import '../entities/venta_entity.dart';
 import '../entities/detalle_venta_entity.dart'; // ⚠️ Asegúrate de que exista
@@ -25,34 +31,74 @@ class IsarService {
     return _isarInstance!;
   }
 
-  // ==================== INICIALIZACIÓN DE BASE DE DATOS ====================
   Future<Isar> _initIsar() async {
-    if (Isar.instanceNames.isNotEmpty) {
-      final existingInstance = Isar.getInstance();
-      if (existingInstance != null && existingInstance.isOpen) {
-        await existingInstance.close();
-      }
+    if (_isarInstance != null && _isarInstance!.isOpen) {
+      return _isarInstance!;
     }
-    final dir = await getApplicationDocumentsDirectory();
-    final isar = await Isar.open(
-      [
-        VentaEntitySchema,
-        DetalleVentaEntitySchema, // ← AGREGADO
-        ProductoEntitySchema,
-        UsuarioEntitySchema,
-        MovimientoInventarioEntitySchema,
-        GastoEntitySchema,
-        // LogEntitySchema, // Si existe, también agregar
-      ],
-      directory: dir.path,
-      inspector: true,
-    );
 
-    await _inicializarProductosDemo(isar);
-    await _inicializarUsuariosDemo(isar);
+    final dir = await getApplicationDocumentsDirectory();
+    final prefs = await SharedPreferences.getInstance();
+    final empresaId = prefs.getString('empresa_id') ?? 'default';
+    final dbPath = '${dir.path}/isar_$empresaId';
+
+    await Directory(dbPath).create(recursive: true);
+    late Isar isar;
+
+    try {
+      isar = await Isar.open(
+        [
+          VentaEntitySchema,
+          DetalleVentaEntitySchema,
+          ProductoEntitySchema,
+          UsuarioEntitySchema,
+          MovimientoInventarioEntitySchema,
+          GastoEntitySchema,
+          LogEntitySchema,
+          TurnoEntitySchema
+        ],
+        directory: dbPath,
+        inspector: true,
+      );
+      debugPrint('✅ Isar abierto en: $dbPath');
+    } catch (e) {
+      debugPrint('⚠️ Error abriendo Isar en $dbPath: $e');
+      final fallbackPath = '${dir.path}/isar_default';
+      await Directory(fallbackPath).create(recursive: true);
+
+      for (final name in Isar.instanceNames) {
+        final existing = Isar.getInstance(name);
+        if (existing != null && existing.isOpen) {
+          await existing.close();
+          debugPrint('🔄 Instancia anterior cerrada: $name');
+        }
+      }
+
+      isar = await Isar.open(
+        [
+          VentaEntitySchema,
+          DetalleVentaEntitySchema,
+          ProductoEntitySchema,
+          UsuarioEntitySchema,
+          MovimientoInventarioEntitySchema,
+          GastoEntitySchema,
+          LogEntitySchema,
+        ],
+        directory: fallbackPath,
+        inspector: true,
+      );
+      debugPrint('✅ Isar abierto en ruta por defecto: $fallbackPath');
+    }
+
+    try {
+      await _inicializarProductosDemo(isar);
+      await _inicializarUsuariosDemo(isar);
+    } catch (e) {
+      debugPrint('⚠️ Error inicializando datos demo: $e');
+    }
+
+    _isarInstance = isar;
     return isar;
   }
-
   Future<void> _inicializarProductosDemo(Isar isar) async {
     final count = await isar.productoEntitys.count();
     if (count == 0) {
@@ -66,7 +112,8 @@ class IsarService {
           ..categoria = 'Frutas'
           ..proveedorNombre = 'Frutas del Campo C.A.'
           ..proveedorTelefono = '0412-1234567'
-          ..stockMinimo = 10.0,
+          ..stockMinimo = 10.0
+          ..imagenUrl = '',
         ProductoEntity()
           ..codigoBarras = '75010002'
           ..nombre = 'Arroz Premium 1kg'
@@ -86,13 +133,54 @@ class IsarService {
           ..categoria = 'Lácteos'
           ..proveedorNombre = 'Quesera La Llanerita'
           ..proveedorTelefono = '0424-5558899'
-          ..stockMinimo = 5.0,
+          ..stockMinimo = 5.0
+          ..imagenUrl = '',
       ];
       await isar.writeTxn(() async {
         await isar.productoEntitys.putAll(productosIniciales);
       });
     }
   }
+
+Future<void> guardarTurno(TurnoEntity turno) async {
+  final isar = await db;
+  await isar.writeTxn(() async {
+    await isar.turnoEntitys.put(turno);
+  });
+}
+
+Future<List<TurnoEntity>> obtenerTurnos() async {
+  final isar = await db;
+  return await isar.turnoEntitys.where().sortByFechaAperturaDesc().findAll();
+}
+
+Future<TurnoEntity?> obtenerTurnoAbiertoPorUsuario(int usuarioId) async {
+  final isar = await db;
+  return await isar.turnoEntitys
+      .filter()
+      .usuarioIdEqualTo(usuarioId)
+      .and()
+      .estadoEqualTo('abierto')
+      .findFirst();
+}
+
+Future<void> cerrarTurno(int turnoId, double montoFinal) async {
+  final isar = await db;
+  await isar.writeTxn(() async {
+    final turno = await isar.turnoEntitys.get(turnoId);
+    if (turno != null) {
+      turno.fechaCierre = DateTime.now();
+      turno.montoFinal = montoFinal;
+      turno.estado = 'cerrado';
+      turno.syncStatus = 'pending';
+      await isar.turnoEntitys.put(turno);
+    }
+  });
+}
+
+
+
+
 
   Future<void> _inicializarUsuariosDemo(Isar isar) async {
     final count = await isar.usuarioEntitys.count();
@@ -107,7 +195,7 @@ class IsarService {
 
       final cajeroDefault = UsuarioEntity()
         ..nombre = 'Cajero 01'
-        ..pin = '0000'
+        ..pin = '1111'
         ..rol = 'cajero'
         ..activo = true
         ..estado = 'activo'

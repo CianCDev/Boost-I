@@ -22,6 +22,7 @@ class VentaEntity {
   String? referencia; // para pago móvil
   String? nombreCliente; // para pago móvil o punto
   bool sincronizado = false;
+  int? turnoId;
   
 
   @Ignore()

@@ -9,6 +9,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/detalle_venta_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
+import '../../data/Local/entities/turno_entity.dart';
 import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../domain/models/product_item.dart';
@@ -16,7 +17,6 @@ import '../controllers/cart_controller.dart';
 import '../providers/bcv_provider.dart';
 import '../services/sync_service.dart';
 import '../services/ticket_service.dart';
-import '../widgets/admin_validation_dialog.dart';
 import '../widgets/cobrar_dialog.dart';
 import '../utils/responsive_helper.dart';
 import '../services/scale_service.dart';
@@ -44,6 +44,9 @@ class _InventoryCatalogScreenState
   final SyncService syncService = SyncService();
   final ScaleService _scaleService = ScaleService();
 
+  // ============================
+  // VARIABLES DE INSTANCIA
+  // ============================
   String _categoriaSeleccionada = 'Todas';
   List<String> _categorias = ['Todas', 'Stock Bajo'];
 
@@ -60,6 +63,13 @@ class _InventoryCatalogScreenState
 
   StreamSubscription<double>? _weightSubscription;
 
+  // TURNO – variables de instancia (corregido)
+  TurnoEntity? _turnoActual;
+  bool _turnoAbierto = false;
+
+  // ============================
+  // INIT
+  // ============================
   @override
   void initState() {
     super.initState();
@@ -80,6 +90,10 @@ class _InventoryCatalogScreenState
 
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
     _inicializarPantalla();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _cargarTurnoActual();
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(bcvProvider).actualizarTasa();
@@ -284,7 +298,10 @@ class _InventoryCatalogScreenState
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar inventario: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(
+            content: Text('Error al cargar inventario: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     }
@@ -315,7 +332,10 @@ class _InventoryCatalogScreenState
   void _agregarAlCarrito(ProductoEntity producto, double cantidad) {
     if (producto.stock < cantidad && !producto.esPesado) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Stock insuficiente'), backgroundColor: Colors.redAccent),
+        const SnackBar(
+          content: Text('Stock insuficiente'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
       return;
     }
@@ -398,6 +418,7 @@ class _InventoryCatalogScreenState
         ..empleado =
             widget.usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
         ..items = itemsIsar.cast<DetalleVentaEntity>()
+        ..turnoId = _turnoActual?.id   // <--- asociar turno
         ..syncStatus = 'pending';
 
       await _isarService.guardarVenta(nuevaVenta);
@@ -437,7 +458,10 @@ class _InventoryCatalogScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al registrar la venta: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error al registrar la venta: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -857,6 +881,19 @@ class _InventoryCatalogScreenState
     });
   }
 
+  // ============================
+  // ESCÁNER
+  // ============================
+  Future<void> _scanBarcode() async { /* ... sin cambios ... */ }
+
+  // ============================
+  // MODAL DE CANTIDAD CON BALANZA
+  // ============================
+  void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) { /* ... sin cambios ... */ }
+
+  // ============================================================
+  // BUILD (continúa en la Parte 2)
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
@@ -918,6 +955,7 @@ class _InventoryCatalogScreenState
         elevation: 2,
         foregroundColor: Colors.white,
         actions: [
+          // 1. PANEL DE CONTROL
           Tooltip(
             message: 'Panel de Control POS',
             child: MouseRegion(
@@ -976,7 +1014,8 @@ class _InventoryCatalogScreenState
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => InventoryScreen(usuarioLogueado: widget.usuarioLogueado!),
+                            builder: (context) => InventoryScreen(
+                                usuarioLogueado: widget.usuarioLogueado!),
                           ),
                         );
                       },
@@ -1017,9 +1056,9 @@ class _InventoryCatalogScreenState
               ),
             ),
           ),
-
           const SizedBox(width: 4),
 
+          // 4. BOTÓN BCV
           Tooltip(
             message: 'Tasa oficial BCV (Haz clic para actualizar)',
             child: MouseRegion(
@@ -1058,7 +1097,10 @@ class _InventoryCatalogScreenState
                           child: SizedBox(
                             width: 14,
                             height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: const Color(0xFF10B981),
+                            ),
                           ),
                         ),
                         AnimatedOpacity(
@@ -1081,7 +1123,6 @@ class _InventoryCatalogScreenState
               ),
             ),
           ),
-
           const SizedBox(width: 8),
         ],
       ),
@@ -1123,6 +1164,10 @@ class _InventoryCatalogScreenState
     );
   }
 
+    // ============================================================
+  // LAYOUTS (continuación)
+  // ============================================================
+
   Widget _buildCatalogPanel(dynamic cartState, int crossAxisCount, double childAspectRatio) {
     final isTablet = ResponsiveHelper.isTablet(context);
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -1132,7 +1177,7 @@ class _InventoryCatalogScreenState
         children: [
           _buildSearchBar(isMobile),
           const SizedBox(height: 16),
-          _buildCategoryChips(),
+          _buildCategoryChips(), // <--- fondo mejorado
           const SizedBox(height: 16),
           Expanded(
             child: RefreshIndicator(
@@ -1148,8 +1193,10 @@ class _InventoryCatalogScreenState
                             children: [
                               Icon(Icons.inventory_2_outlined, size: 48, color: Color(0xFFCBD5E1)),
                               SizedBox(height: 12),
-                              Text('No se encontraron productos.',
-                                  style: TextStyle(color: Color(0xFF64748B), fontSize: 14)),
+                              Text(
+                                'No se encontraron productos.',
+                                style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
+                              ),
                             ],
                           ),
                         ),
@@ -1196,51 +1243,53 @@ class _InventoryCatalogScreenState
               children: [
                 _buildSearchBar(isMobile),
                 const SizedBox(height: 12),
-                _buildCategoryChips(),
+                _buildCategoryChips(), // <--- fondo mejorado
                 const SizedBox(height: 12),
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: _cargarProductosDesdeIsar,
                     child: _productosFiltrados.isEmpty
-                      ? SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          child: SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.5,
-                            child: const Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.inventory_2_outlined, size: 48, color: Color(0xFFCBD5E1)),
-                                  SizedBox(height: 12),
-                                  Text('No se encontraron productos.',
-                                      style: TextStyle(color: Color(0xFF64748B), fontSize: 14)),
-                                ],
+                        ? SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.5,
+                              child: const Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.inventory_2_outlined, size: 48, color: Color(0xFFCBD5E1)),
+                                    SizedBox(height: 12),
+                                    Text(
+                                      'No se encontraron productos.',
+                                      style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
+                          )
+                        : GridView.builder(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossAxisCount,
+                              childAspectRatio: childAspectRatio,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                            ),
+                            itemCount: _productosFiltrados.length,
+                            itemBuilder: (context, index) {
+                              final producto = _productosFiltrados[index];
+                              final bool stockBajo = producto.stock <= producto.stockMinimo;
+                              return _ProductCard(
+                                producto: producto,
+                                stockBajo: stockBajo,
+                                onTap: () => _mostrarModalCantidad(context, producto),
+                                isMobile: true,
+                                index: index,
+                                animationController: _animationController,
+                              );
+                            },
                           ),
-                        )
-                      : GridView.builder(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: crossAxisCount,
-                            childAspectRatio: childAspectRatio,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
-                          itemCount: _productosFiltrados.length,
-                          itemBuilder: (context, index) {
-                            final producto = _productosFiltrados[index];
-                            final bool stockBajo = producto.stock <= producto.stockMinimo;
-                            return _ProductCard(
-                              producto: producto,
-                              stockBajo: stockBajo,
-                              onTap: () => _mostrarModalCantidad(context, producto),
-                              isMobile: true,
-                              index: index,
-                              animationController: _animationController,
-                            );
-                          },
-                        ),
                   ),
                 ),
               ],
@@ -1271,9 +1320,14 @@ class _InventoryCatalogScreenState
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(12)),
-                      child: Text('${cartState.items.length} ítems',
-                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${cartState.items.length} ítems',
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
                 ],
@@ -1293,11 +1347,14 @@ class _InventoryCatalogScreenState
         Expanded(
           child: cartState.items.isEmpty
               ? const Center(
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.shopping_cart_outlined, size: 48, color: Color(0xFFCBD5E1)),
-                    SizedBox(height: 8),
-                    Text('Carrito vacío', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
-                  ]),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.shopping_cart_outlined, size: 48, color: Color(0xFFCBD5E1)),
+                      SizedBox(height: 8),
+                      Text('Carrito vacío', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+                    ],
+                  ),
                 )
               : ListView.separated(
                   padding: const EdgeInsets.all(12),
@@ -1313,7 +1370,13 @@ class _InventoryCatalogScreenState
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
-                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: Offset(0, 2))],
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Row(
                         children: [
@@ -1326,13 +1389,17 @@ class _InventoryCatalogScreenState
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis),
                                 const SizedBox(height: 4),
-                                Text('${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}',
-                                    style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                                Text(
+                                  '${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}',
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                ),
                               ],
                             ),
                           ),
-                          Text('\$${subtotal.toStringAsFixed(2)}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF059669))),
+                          Text(
+                            '\$${subtotal.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF059669)),
+                          ),
                           const SizedBox(width: 10),
                           Container(
                             decoration: const BoxDecoration(color: Color(0xFFFEE2E2), shape: BoxShape.circle),
@@ -1363,8 +1430,10 @@ class _InventoryCatalogScreenState
                 children: [
                   const Text('TOTAL USD',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF64748B))),
-                  Text('\$${cartState.total.toStringAsFixed(2)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Color(0xFF059669))),
+                  Text(
+                    '\$${cartState.total.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Color(0xFF059669)),
+                  ),
                 ],
               ),
               const SizedBox(height: 4),
@@ -1374,8 +1443,9 @@ class _InventoryCatalogScreenState
                   const Text('TOTAL BOLÍVARES',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF94A3B8))),
                   Text(
-                      'Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF3B82F6))),
+                    'Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF3B82F6)),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -1384,11 +1454,15 @@ class _InventoryCatalogScreenState
                 height: 56,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: cartState.items.isEmpty ? Colors.grey.shade300 : const Color(0xFF10B981),
+                    backgroundColor: cartState.items.isEmpty
+                        ? Colors.grey.shade300
+                        : const Color(0xFF10B981),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     elevation: 4,
-                    side: cartState.items.isEmpty ? null : const BorderSide(color: Color(0xFF059669), width: 1.5),
+                    side: cartState.items.isEmpty
+                        ? null
+                        : const BorderSide(color: Color(0xFF059669), width: 1.5),
                   ),
                   onPressed: cartState.items.isEmpty ? null : () => _mostrarModalCobro(context),
                   child: const Row(
@@ -1436,17 +1510,19 @@ class _InventoryCatalogScreenState
                 Text(
                   'Total: \$${cartState.total.toStringAsFixed(2)}',
                   style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: isTablet ? 28 : 17,
-                      color: const Color(0xFF0F172A)),
+                    fontWeight: FontWeight.bold,
+                    fontSize: isTablet ? 28 : 17,
+                    color: const Color(0xFF0F172A),
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
                   style: TextStyle(
-                      fontSize: isTablet ? 20 : 13,
-                      color: const Color(0xFF3B82F6),
-                      fontWeight: FontWeight.w600),
+                    fontSize: isTablet ? 20 : 13,
+                    color: const Color(0xFF3B82F6),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -1639,6 +1715,16 @@ class _InventoryCatalogScreenState
                             Text(
                                 'Bs. ${(currentCartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
                                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 22 : 14, color: Color(0xFF3B82F6))),
+                            Icon(Icons.payments_outlined, size: isTablet ? 32 : 24),
+                            const SizedBox(width: 16),
+                            Text(
+                              'COBRAR ORDEN',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: isTablet ? 24 : 18,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 20),
@@ -1682,6 +1768,9 @@ class _InventoryCatalogScreenState
     );
   }
 
+  // ============================================================
+  // SEARCH BAR (CORREGIDA)
+  // ============================================================
   Widget _buildSearchBar(bool isMobile) {
     final isTablet = ResponsiveHelper.isTablet(context);
     return SizedBox(
@@ -1692,7 +1781,10 @@ class _InventoryCatalogScreenState
         onChanged: (_) => _filtrarProductos(),
         decoration: InputDecoration(
           hintText: 'Buscar por nombre / código (F2)...',
-          hintStyle: TextStyle(fontSize: isTablet ? 18 : 14, color: const Color(0xFF94A3B8)),
+          hintStyle: TextStyle(
+            fontSize: isTablet ? 18 : 14,
+            color: const Color(0xFF94A3B8),
+          ),
           prefixIcon: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1728,7 +1820,10 @@ class _InventoryCatalogScreenState
           fillColor: Colors.white,
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: const Color(0xFFCBD5E1), width: isTablet ? 2.5 : 1.5),
+            borderSide: BorderSide(
+              color: const Color(0xFFCBD5E1),
+              width: isTablet ? 2.5 : 1.5,
+            ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
@@ -1956,7 +2051,8 @@ class _ProductCardState extends State<_ProductCard> {
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(
         parent: widget.animationController,
-        curve: Interval(start.clamp(0.0, 1.0), end.clamp(0.0, 1.0), curve: Curves.easeOutCubic),
+        curve: Interval(start.clamp(0.0, 1.0), end.clamp(0.0, 1.0),
+            curve: Curves.easeOutCubic),
       ),
     );
   }
@@ -2105,7 +2201,9 @@ class _ProductCardState extends State<_ProductCard> {
                                   style: TextStyle(
                                     fontSize: isMobile ? 8 : (isTablet ? 11 : 10),
                                     fontWeight: FontWeight.w600,
-                                    color: widget.stockBajo ? const Color(0xFFEF4444) : const Color(0xFF475569),
+                                    color: widget.stockBajo
+                                        ? const Color(0xFFEF4444)
+                                        : const Color(0xFF475569),
                                   ),
                                 ),
                               ),
@@ -2181,6 +2279,9 @@ class _ProductCardSkeleton extends StatelessWidget {
   }
 }
 
+// ============================================================
+// DIÁLOGO DEL ESCÁNER DE CÓDIGO DE BARRAS
+// ============================================================
 class _BarcodeScannerDialog extends StatefulWidget {
   const _BarcodeScannerDialog();
 

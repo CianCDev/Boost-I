@@ -68,6 +68,102 @@ class SyncService {
     _connectivitySubscription?.cancel();
   }
 
+
+Future<void> sincronizarUsuariosASupabase() async {
+  try {
+    final usuarios = await _isarService.obtenerUsuarios();
+    if (usuarios.isEmpty) {
+      debugPrint('ℹ️ No hay usuarios locales para sincronizar');
+      return;
+    }
+
+    debugPrint('🔄 Sincronizando ${usuarios.length} usuarios con Supabase...');
+    int sincronizados = 0;
+
+    for (var usuario in usuarios) {
+      try {
+        // Buscar si ya existe en Supabase por id_isar
+        final existing = await _supabase
+            .from('usuarios')
+            .select('id')
+            .eq('id_isar', usuario.id)
+            .maybeSingle();
+
+        final data = {
+          'id_isar': usuario.id,
+          'nombre': usuario.nombre,
+          'pin': usuario.pin,
+          'rol': usuario.rol,
+          'email': usuario.email ?? '',
+          'device_id': usuario.deviceId ?? '',
+          'estado': usuario.estado,
+          'activo': usuario.activo,
+          'caja_asignada': usuario.cajaAsignada,
+        };
+
+        if (existing == null) {
+          await _supabase.from('usuarios').insert(data);
+          debugPrint('✅ Usuario "${usuario.nombre}" creado en Supabase');
+        } else {
+          await _supabase
+              .from('usuarios')
+              .update(data)
+              .eq('id_isar', usuario.id);
+          debugPrint('✅ Usuario "${usuario.nombre}" actualizado en Supabase');
+        }
+        sincronizados++;
+      } catch (e) {
+        debugPrint('⚠️ Error sincronizando usuario "${usuario.nombre}": $e');
+      }
+    }
+
+    debugPrint('✅ $sincronizados usuarios sincronizados con Supabase');
+  } catch (e) {
+    debugPrint('❌ Error general sincronizando usuarios: $e');
+  }
+}
+
+
+/// Descarga usuarios desde Supabase y los guarda localmente
+Future<void> descargarUsuariosDesdeSupabase() async {
+  try {
+    final response = await _supabase
+        .from('usuarios')
+        .select()
+        .order('id_isar');
+
+    if (response.isEmpty) {
+      debugPrint('ℹ️ No hay usuarios en Supabase para descargar');
+      return;
+    }
+
+    debugPrint('🔄 Descargando ${response.length} usuarios desde Supabase...');
+
+    for (var data in response) {
+      final usuario = UsuarioEntity()
+        ..id = data['id_isar'] ?? 0
+        ..nombre = data['nombre'] ?? ''
+        ..pin = data['pin'] ?? '0000'
+        ..rol = data['rol'] ?? 'cajero'
+        ..email = data['email'] ?? ''
+        ..deviceId = data['device_id'] ?? ''
+        ..estado = data['estado'] ?? 'inactivo'
+        ..activo = data['activo'] ?? true
+        ..cajaAsignada = data['caja_asignada'] ?? '';
+
+      if (usuario.id > 0) {
+        await _isarService.guardarUsuario(usuario);
+      } else {
+        // Si el id_isar es 0 o no existe, crear uno nuevo (no debería pasar)
+        debugPrint('⚠️ Usuario sin id_isar válido: ${data['nombre']}');
+      }
+    }
+    debugPrint('✅ ${response.length} usuarios descargados desde Supabase');
+  } catch (e) {
+    debugPrint('❌ Error descargando usuarios: $e');
+  }
+}
+
   // ==========================================
   // SINCRONIZACIÓN DE VENTAS
   // ==========================================
