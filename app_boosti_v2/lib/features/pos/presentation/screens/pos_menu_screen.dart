@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
-import '../services/sync_service.dart';
+import '../services/sync_service.dart'; // ✅ única importación de SyncService
 import '../utils/responsive_helper.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../widgets/admin_validation_dialog.dart';
 import 'cash_closing_screen.dart';
+import 'configuracion_empresa_screen.dart';
 import 'sales_history_screen.dart';
 import '../widgets/monitor_empleado_widget.dart';
 import '../widgets/gestion_personal_dialog.dart';
 import '../widgets/cambiar_pin_dialog.dart';
 import '../../presentation/providers/usuario_provider.dart';
 import '../../presentation/providers/theme_provider.dart';
-import '../services/backup_service.dart'; // Nuevo servicio
-import 'login_screen.dart'; // Para navegar al login
+import '../services/backup_service.dart';
+import 'login_screen.dart';      // ✅ solo para LoginScreen
 import 'gastos_screen.dart';
 
 class PosMenuScreen extends ConsumerStatefulWidget {
@@ -181,6 +183,53 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
             context: context,
             builder: (context) => const PersonnelManagementDialog(),
           ),
+        },
+
+        {
+          'title': 'Cambiar de Empresa',
+          'subtitle': 'Seleccionar otra organización',
+          'icon': Icons.business_center,
+          'color': const Color(0xFF8B5CF6),
+          'onTap': () async {
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Cambiar de Empresa'),
+                content: const Text('Esto cerrará la sesión y reiniciará la aplicación. ¿Continuar?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancelar'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEF4444),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Continuar'),
+                  ),
+                ],
+              ),
+            );
+            if (confirm != true) return;
+
+            // Cerrar sesión
+            await ref.read(authProvider.notifier).logout();
+            // Limpiar preferencias
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.remove('supabase_url');
+            await prefs.remove('supabase_anon_key');
+            await prefs.remove('empresa_id');
+
+            if (context.mounted) {
+              // Reiniciar navegación a la pantalla de configuración
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const ConfiguracionEmpresaScreen()),
+              );
+            }
+          },
         },
 
         {

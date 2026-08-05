@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/auth_provider.dart';
-import '../providers/usuario_provider.dart'; // ← Asegurar import
+import '../providers/usuario_provider.dart';
+import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import 'inventory_catalog_screen.dart';
 
@@ -31,8 +32,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   void initState() {
     super.initState();
+    // Cargar admin por defecto si no existe
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(authProvider.notifier).inicializarAdminPorDefecto();
+      _sincronizarUsuarios();
     });
 
     _animationController = AnimationController(
@@ -61,9 +64,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // MÉTODOS DE AUTENTICACIÓN (CORREGIDOS)
+  // SINCRONIZAR USUARIOS AL INICIAR
   // ============================================================
+  Future<void> _sincronizarUsuarios() async {
+    try {
+      await SyncService().sincronizarUsuariosASupabase();
+      await ref.read(authProvider.notifier).loadUsuarios();
+      debugPrint('✅ Usuarios sincronizados correctamente');
+    } catch (e) {
+      debugPrint('⚠️ Error sincronizando usuarios: $e');
+      // Si falla, al menos cargamos los locales
+      try {
+        await ref.read(authProvider.notifier).loadUsuarios();
+      } catch (_) {}
+    }
+  }
 
+  // ============================================================
+  // MÉTODOS DE AUTENTICACIÓN
+  // ============================================================
   void _loginWithPin() async {
     final authState = ref.read(authProvider);
     if (authState.usuarios.isEmpty) {
@@ -86,7 +105,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (success && mounted) {
       final user = ref.read(authProvider).currentUser;
       if (user != null) {
-        // ✅ SETEAR EL USUARIO EN EL PROVIDER GLOBAL
         ref.read(usuarioActualProvider.notifier).setUsuario(user);
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -112,7 +130,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (success && mounted) {
       final user = ref.read(authProvider).currentUser;
       if (user != null) {
-        // ✅ SETEAR EL USUARIO EN EL PROVIDER GLOBAL
         ref.read(usuarioActualProvider.notifier).setUsuario(user);
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -124,9 +141,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // CONSTRUCTOR DE UI (sin cambios)
+  // BUILD
   // ============================================================
-
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -150,8 +166,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
@@ -269,7 +285,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // COMPONENTES UI (sin cambios)
+  // COMPONENTES UI
   // ============================================================
 
   Widget _buildLogo(double size, bool isMobile) {

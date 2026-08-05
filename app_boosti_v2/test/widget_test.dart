@@ -11,7 +11,7 @@ import 'package:app_boosti_v2/main.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(const AppGestionM());
+    await tester.pumpWidget(const BoostiPOS());
     expect(find.text('0'), findsOneWidget);
     expect(find.text('1'), findsNothing);
 
