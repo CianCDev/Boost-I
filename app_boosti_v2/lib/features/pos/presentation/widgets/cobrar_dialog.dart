@@ -19,19 +19,16 @@ class CobrarDialog extends ConsumerStatefulWidget {
 }
 
 class _CobrarDialogState extends ConsumerState<CobrarDialog> {
-  // Controladores existentes
   final TextEditingController _efectivoUsdController = TextEditingController();
   final TextEditingController _efectivoBsController = TextEditingController();
   final TextEditingController _pagoMovilBsController = TextEditingController();
   final TextEditingController _puntoBsController = TextEditingController();
   final TextEditingController _cedulaController = TextEditingController(text: 'V-00000000');
 
-  // NUEVOS controladores
   final TextEditingController _referenciaController = TextEditingController();
   final TextEditingController _nombreClienteController = TextEditingController();
 
-  // Estado del método de pago seleccionado
-  String _metodoPagoSeleccionado = 'Efectivo'; // 'Efectivo', 'Pago Móvil', 'Punto de Venta'
+  String _metodoPagoSeleccionado = 'Efectivo';
 
   final FocusNode _efectivoUsdFocus = FocusNode();
   final FocusNode _cedulaFocus = FocusNode();
@@ -115,13 +112,10 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   void _confirmarPago(double totalRecibidoUsd, double vueltoUsd, double tasa) {
     if (totalRecibidoUsd < (widget.totalAPagar - 0.01)) return;
 
-    // Recoger datos adicionales según el método
     String metodoPrincipal = _metodoPagoSeleccionado;
     String? referencia = _referenciaController.text.trim().isEmpty ? null : _referenciaController.text.trim();
     String? nombreCliente = _nombreClienteController.text.trim().isEmpty ? null : _nombreClienteController.text.trim();
 
-    // Si el método es Efectivo y hay otros montos, puede ser mixto (pero simplificamos)
-    // En caso de mixto, el método principal se determina por el mayor monto
     final efUsd = double.tryParse(_efectivoUsdController.text) ?? 0.0;
     final pmBs = (double.tryParse(_pagoMovilBsController.text) ?? 0.0) / (tasa > 0 ? tasa : 1.0);
     final ptBs = (double.tryParse(_puntoBsController.text) ?? 0.0) / (tasa > 0 ? tasa : 1.0);
@@ -203,7 +197,6 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
             ),
             padding: EdgeInsets.all(isMobile ? 16 : 24),
             decoration: BoxDecoration(
-              // ignore: deprecated_member_use
               color: theme.dialogBackgroundColor,
               borderRadius: BorderRadius.circular(20),
             ),
@@ -301,17 +294,20 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                     ),
                     const SizedBox(height: 14),
 
-                    // 3. SELECTOR DE MÉTODO DE PAGO (NUEVO)
+                    // 3. SELECTOR DE MÉTODO DE PAGO (CON SCROLL HORIZONTAL)
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          _buildMetodoChip('Efectivo', Icons.payments, _metodoPagoSeleccionado == 'Efectivo', isMobile),
-                          const SizedBox(width: 8),
-                          _buildMetodoChip('Pago Móvil', Icons.phone_android, _metodoPagoSeleccionado == 'Pago Móvil', isMobile),
-                          const SizedBox(width: 8),
-                          _buildMetodoChip('Punto de Venta', Icons.credit_card, _metodoPagoSeleccionado == 'Punto de Venta', isMobile),
-                        ],
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildMetodoChip('Efectivo', Icons.payments, _metodoPagoSeleccionado == 'Efectivo', isMobile),
+                            const SizedBox(width: 8),
+                            _buildMetodoChip('Pago Móvil', Icons.phone_android, _metodoPagoSeleccionado == 'Pago Móvil', isMobile),
+                            const SizedBox(width: 8),
+                            _buildMetodoChip('Punto de Venta', Icons.credit_card, _metodoPagoSeleccionado == 'Punto de Venta', isMobile),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -324,7 +320,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                     else
                       _buildPuntoFields(tasaValida, isMobile),
 
-                    // 5. CÉDULA / DOCUMENTO (siempre visible)
+                    // 5. CÉDULA / DOCUMENTO
                     const SizedBox(height: 14),
                     TextField(
                       controller: _cedulaController,
@@ -447,6 +443,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     );
   }
 
+  // ✅ SLIDER ELIMINADO, SOLO CAMPOS DE TEXTO
   Widget _buildEfectivoFields(double tasaValida, bool isMobile) {
     return Column(
       children: [
@@ -494,7 +491,6 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   Widget _buildPagoMovilFields(double tasaValida, bool isMobile) {
     return Column(
       children: [
-        // Monto en Bs (por defecto)
         _campoMonto(
           controller: _pagoMovilBsController,
           label: 'Monto en Bs (Pago Móvil)',
@@ -504,7 +500,6 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
           isMobile: isMobile,
         ),
         const SizedBox(height: 8),
-        // Número de referencia
         TextField(
           controller: _referenciaController,
           style: Theme.of(context).textTheme.bodyMedium,
@@ -518,7 +513,6 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
           ),
         ),
         const SizedBox(height: 8),
-        // Nombre del cliente
         TextField(
           controller: _nombreClienteController,
           style: Theme.of(context).textTheme.bodyMedium,
@@ -592,7 +586,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   }
 
   // ==========================================
-  // COMPONENTES AUXILIARES (existentes)
+  // COMPONENTES AUXILIARES
   // ==========================================
 
   Widget _botonAtajo({required String label, required IconData icon, required Color color, required VoidCallback onPressed, required bool isMobile}) {
@@ -604,9 +598,9 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 14, vertical: isMobile ? 6 : 10),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
+            color: color.withOpacity(0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withValues(alpha: 0.25)),
+            border: Border.all(color: color.withOpacity(0.25)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +23,11 @@ import '../services/scale_service.dart';
 import 'inventory_screen.dart';
 import 'pos_menu_screen.dart';
 
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
+import '../services/telegram/telegram_config.dart';
+import '../services/telegram/telegram_service.dart'; 
+
 class InventoryCatalogScreen extends ConsumerStatefulWidget {
   final UsuarioEntity? usuarioLogueado;
   const InventoryCatalogScreen({super.key, this.usuarioLogueado});
@@ -36,7 +42,7 @@ class _InventoryCatalogScreenState
     with SingleTickerProviderStateMixin {
   final IsarService _isarService = IsarService();
   final SyncService syncService = SyncService();
-  final ScaleService _scaleService = ScaleService(); // Balanza
+  final ScaleService _scaleService = ScaleService();
 
   // ============================
   // VARIABLES DE INSTANCIA
@@ -52,11 +58,9 @@ class _InventoryCatalogScreenState
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  // Realtime
   RealtimeChannel? _productosChannel;
   bool _realtimeSuscrito = false;
 
-  // Balanza - suscripción global para debug
   StreamSubscription<double>? _weightSubscription;
 
   // TURNO – variables de instancia (corregido)
@@ -109,118 +113,42 @@ class _InventoryCatalogScreenState
     super.dispose();
   }
 
-  // ============================
-  // MÉTODOS AUXILIARES
-  // ============================
   Future<void> _inicializarPantalla() async {
     await _cargarProductosDesdeIsar();
+    _verificarStockBajoYAlertar();
   }
 
-  // --- CARGAR TURNO ACTUAL (corregido) ---
-  Future<void> _cargarTurnoActual() async {
-    final usuario = widget.usuarioLogueado;
-    if (usuario == null) return;
-    final turno = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
-    if (turno != null) {
-      setState(() {
-        _turnoActual = turno;
-        _turnoAbierto = true;
-      });
-    }
+  Future<void> _verificarStockBajoYAlertar() async {
+  try {
+    // Obtener productos con stock bajo
+    final productosBajos = _productosCatalog
+        .where((p) => p.stock <= p.stockMinimo)
+        .map((p) => {
+          'nombre': p.nombre,
+          'stock': p.stock,
+          'stockMinimo': p.stockMinimo,
+        })
+        .toList();
+
+    if (productosBajos.isEmpty) return;
+
+    // Cargar configuración de Telegram
+    final configJson = await rootBundle.loadString('assets/config.json');
+    final configMap = jsonDecode(configJson) as Map<String, dynamic>;
+    final config = TelegramConfig.fromJson(configMap);
+
+    if (!config.isValid) return;
+
+    // Crear servicio y enviar alerta
+    final telegramService = TelegramService(config);
+    await telegramService.alertarStockBajo(productosBajos);
+    
+    debugPrint('📨 Alerta de stock bajo enviada a Telegram');
+  } catch (e) {
+    debugPrint('⚠️ Error al enviar alerta de stock bajo: $e');
   }
+}
 
-  // --- ABRIR TURNO ---
-  Future<void> _abrirTurno() async {
-    final usuario = widget.usuarioLogueado;
-    if (usuario == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Usuario no identificado.')),
-        );
-      }
-      return;
-    }
-
-    final turnoExistente = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
-    if (turnoExistente != null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ya tienes un turno abierto.')),
-        );
-      }
-      return;
-    }
-
-    final turno = TurnoEntity()
-      ..usuarioId = usuario.id
-      ..usuarioNombre = usuario.nombre
-      ..fechaApertura = DateTime.now()
-      ..montoInicial = 0.0
-      ..estado = 'abierto'
-      ..syncStatus = 'pending';
-
-    await _isarService.guardarTurno(turno);
-    setState(() {
-      _turnoActual = turno;
-      _turnoAbierto = true;
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ Turno abierto para ${usuario.nombre}'),
-          backgroundColor: const Color(0xFF10B981),
-        ),
-      );
-    }
-  }
-
-  // --- CERRAR TURNO ---
-  Future<void> _cerrarTurno() async {
-    if (_turnoActual == null) return;
-
-    final montoFinal = _turnoActual?.totalVentas ?? 0.0;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cerrar Turno'),
-        content: Text(
-          'El total de ventas del turno es: \$${montoFinal.toStringAsFixed(2)}\n¿Cerrar turno?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Cerrar Turno'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    await _isarService.cerrarTurno(_turnoActual!.id, montoFinal);
-    setState(() {
-      _turnoActual = null;
-      _turnoAbierto = false;
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Turno cerrado correctamente.'),
-          backgroundColor: Color(0xFFF59E0B),
-        ),
-      );
-    }
-  }
-
-  // --- TECLADO FÍSICO ---
   bool _manejarTecladoFisico(KeyEvent event) {
     if (event is KeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.f2) {
@@ -249,17 +177,103 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================
-  // REALTIME (productos)
-  // ============================
-  void _suscribirseARealtime() { /* ... sin cambios ... */ }
-  void _handleRealtimeProductChange(dynamic payload) { /* ... sin cambios ... */ }
-  Future<void> _actualizarProductoDesdeRecord(Map<String, dynamic> record) async { /* ... sin cambios ... */ }
-  Future<void> _eliminarProductoPorCodigo(String? codigo) async { /* ... sin cambios ... */ }
+  void _suscribirseARealtime() {
+    if (_realtimeSuscrito) return;
+    try {
+      _productosChannel = Supabase.instance.client.channel('productos-realtime');
+      _productosChannel!.onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'productos',
+        callback: (payload) {
+          if (mounted) _handleRealtimeProductChange(payload);
+        },
+      );
+      _productosChannel!.subscribe((status) {
+        if (status == RealtimeSubscribeStatus.subscribed) {
+          _realtimeSuscrito = true;
+          debugPrint('✅ Suscrito a Realtime para productos');
+        } else if (status == RealtimeSubscribeStatus.closed) {
+          _realtimeSuscrito = false;
+          debugPrint('⚠️ Realtime desconectado para productos');
+        } else if (status == RealtimeSubscribeStatus.channelError) {
+          debugPrint('❌ Error en canal Realtime');
+        }
+      } as void Function(RealtimeSubscribeStatus status, Object? error)?);
+    } catch (e) {
+      debugPrint('❌ Error al suscribirse a Realtime: $e');
+    }
+  }
 
-  // ============================
-  // CARGA Y FILTROS DE PRODUCTOS
-  // ============================
+  void _handleRealtimeProductChange(dynamic payload) {
+    if (!mounted) return;
+    try {
+      final eventType = payload['event_type'] as String?;
+      final newRecord = payload['new'] as Map<String, dynamic>?;
+      final oldRecord = payload['old'] as Map<String, dynamic>?;
+      switch (eventType) {
+        case 'INSERT':
+        case 'UPDATE':
+          if (newRecord != null) _actualizarProductoDesdeRecord(newRecord);
+          break;
+        case 'DELETE':
+          if (oldRecord != null) {
+            _eliminarProductoPorCodigo(oldRecord['codigo_barras'] as String?);
+          }
+          break;
+      }
+    } catch (e) {
+      debugPrint('❌ Error procesando evento Realtime: $e');
+    }
+  }
+
+  Future<void> _actualizarProductoDesdeRecord(Map<String, dynamic> record) async {
+    try {
+      final codigo = record['codigo_barras'] as String?;
+      if (codigo == null || codigo.isEmpty) return;
+      final existentes = await _isarService.buscarProductoPorCodigoONombre(codigo);
+      var producto = existentes.firstWhere(
+        (p) => p.codigoBarras == codigo,
+        orElse: () => ProductoEntity(),
+      );
+      producto.codigoBarras = codigo;
+      producto.nombre = record['nombre'] ?? producto.nombre;
+      producto.precioUnidad =
+          (record['precio_unidad'] as num?)?.toDouble() ?? producto.precioUnidad;
+      producto.stock = (record['stock'] as num?)?.toDouble() ?? producto.stock;
+      producto.stockMinimo =
+          (record['stock_minimo'] as num?)?.toDouble() ?? producto.stockMinimo;
+      producto.esPesado = record['es_pesado'] ?? producto.esPesado;
+      producto.categoria = record['categoria'] ?? producto.categoria;
+      producto.proveedorNombre =
+          record['proveedor_nombre'] ?? producto.proveedorNombre;
+      producto.proveedorTelefono =
+          record['proveedor_telefono'] ?? producto.proveedorTelefono;
+      producto.imagenUrl = record['imagen_url'] ?? producto.imagenUrl;
+      await _isarService.guardarProducto(producto);
+      if (mounted) await _cargarProductosDesdeIsar();
+    } catch (e) {
+      debugPrint('❌ Error actualizando producto desde Realtime: $e');
+    }
+  }
+
+  Future<void> _eliminarProductoPorCodigo(String? codigo) async {
+    if (codigo == null || codigo.isEmpty) return;
+    try {
+      final existentes = await _isarService.buscarProductoPorCodigoONombre(codigo);
+      final producto = existentes.firstWhere(
+        (p) => p.codigoBarras == codigo,
+        orElse: () => ProductoEntity(),
+      );
+      if (producto.id != 0) {
+        await _isarService.eliminarProducto(producto.id);
+        if (mounted) await _cargarProductosDesdeIsar();
+      }
+    } catch (e) {
+      debugPrint('❌ Error eliminando producto desde Realtime: $e');
+    }
+  }
+
   Future<void> _cargarProductosDesdeIsar() async {
     try {
       if (mounted) setState(() => _isLoading = true);
@@ -350,9 +364,6 @@ class _InventoryCatalogScreenState
     _filtrarProductos();
   }
 
-  // ============================
-  // COBRO
-  // ============================
   Future<void> _mostrarModalCobro(BuildContext context) async {
     final cartState = ref.read(cartProvider);
     if (cartState.total <= 0) return;
@@ -503,6 +514,373 @@ class _InventoryCatalogScreenState
     );
   }
 
+  Future<void> _scanBarcode() async {
+    final codigoEscaneado = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => const _BarcodeScannerDialog(),
+    );
+
+    if (codigoEscaneado == null || codigoEscaneado.isEmpty) return;
+
+    final productos = await _isarService.buscarProductoPorCodigoONombre(codigoEscaneado);
+    final producto = productos.firstWhere(
+      (p) => p.codigoBarras == codigoEscaneado,
+      orElse: () => ProductoEntity(),
+    );
+
+    if (producto.id == 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Producto con código "$codigoEscaneado" no encontrado.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      _mostrarModalCantidad(context, producto);
+    }
+  }
+
+  void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
+    final TextEditingController cantidadController = TextEditingController(
+      text: producto.esPesado ? '0.000' : '1',
+    );
+    final TextEditingController precioController = TextEditingController(
+      text: producto.precioUnidad.toStringAsFixed(2),
+    );
+
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final isDesktop = !isTablet && !ResponsiveHelper.isMobile(context);
+    bool adminValidoParaEstaVenta = false;
+
+    StreamSubscription<double>? localWeightSubscription;
+    bool usandoPesoAutomatico = producto.esPesado;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            if (producto.esPesado && localWeightSubscription == null) {
+              localWeightSubscription = _scaleService.weightStream.listen((peso) {
+                if (peso > 0 && mounted) {
+                  setStateModal(() {
+                    cantidadController.text = peso.toStringAsFixed(3);
+                  });
+                }
+              });
+            }
+
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              elevation: 8,
+              insetPadding: EdgeInsets.symmetric(
+                horizontal: isTablet || isDesktop ? 40.0 : 16.0,
+                vertical: 24.0,
+              ),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: isTablet || isDesktop ? 550.0 : double.infinity,
+                ),
+                padding: EdgeInsets.all(isTablet ? 32.0 : 20.0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              producto.esPesado ? Icons.monitor_weight : Icons.shopping_cart_outlined,
+                              color: const Color(0xFF10B981),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Agregar ${producto.nombre}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: Color(0xFF0F172A),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (producto.esPesado && localWeightSubscription != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.wifi_tethering_rounded,
+                                      size: 14, color: const Color(0xFF10B981)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Balanza',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF10B981),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        producto.esPesado
+                            ? 'El peso se actualiza automáticamente desde la balanza:'
+                            : 'Ingresa la cantidad deseada (unidades):',
+                        style: TextStyle(
+                          fontSize: isTablet || isDesktop ? 16 : 14,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: cantidadController,
+                        autofocus: true,
+                        keyboardType: TextInputType.numberWithOptions(decimal: producto.esPesado),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            producto.esPesado
+                                ? RegExp(r'^\d*\.?\d{0,3}')
+                                : RegExp(r'^\d*'),
+                          ),
+                        ],
+                        onTap: () {
+                          if (producto.esPesado && usandoPesoAutomatico) {
+                            usandoPesoAutomatico = false;
+                            localWeightSubscription?.cancel();
+                            localWeightSubscription = null;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('✏️ Edición manual activada'),
+                                duration: Duration(seconds: 1),
+                              ),
+                            );
+                          }
+                          cantidadController.selection = TextSelection(
+                            baseOffset: 0,
+                            extentOffset: cantidadController.text.length,
+                          );
+                        },
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Cantidad',
+                          labelStyle: TextStyle(
+                            fontSize: isTablet || isDesktop ? 16 : 14,
+                            color: Colors.grey.shade600,
+                          ),
+                          suffixText: producto.esPesado ? 'kg' : 'unid',
+                          suffixStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color.fromRGBO(97, 97, 97, 1),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: isTablet || isDesktop ? 20 : 14,
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
+                          ),
+                          prefixIcon: producto.esPesado
+                              ? Icon(
+                                  usandoPesoAutomatico ? Icons.wifi_tethering : Icons.edit,
+                                  color: usandoPesoAutomatico
+                                      ? const Color(0xFF10B981)
+                                      : Colors.grey.shade500,
+                                  size: 20,
+                                )
+                              : null,
+                        ),
+                        onSubmitted: (val) {
+                          final double? cantidad = double.tryParse(val);
+                          if (cantidad != null && cantidad > 0) {
+                            _agregarAlCarrito(producto, cantidad);
+                            Navigator.of(dialogContext).pop();
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: precioController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A),
+                        ),
+                        decoration: InputDecoration(
+                          labelText: 'Precio por unidad (\$)',
+                          prefixText: '\$ ',
+                          labelStyle: TextStyle(
+                            fontSize: isTablet || isDesktop ? 16 : 14,
+                            color: Colors.grey.shade600,
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: isTablet || isDesktop ? 20 : 14,
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                              foregroundColor: Colors.grey.shade700,
+                              backgroundColor: const Color(0xFFF1F5F9),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () {
+                              localWeightSubscription?.cancel();
+                              Navigator.of(dialogContext).pop();
+                              cantidadController.dispose();
+                              precioController.dispose();
+                            },
+                            child: const Text(
+                              'Cancelar',
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            ),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 4,
+                            ),
+                            onPressed: () async {
+                              final double? cantidad = double.tryParse(cantidadController.text);
+                              if (cantidad == null || cantidad <= 0) return;
+
+                              final double precioIngresado =
+                                  double.tryParse(precioController.text) ??
+                                      producto.precioUnidad;
+                              final double precioOriginal = producto.precioUnidad;
+                              final double topeDescuento = precioOriginal * 0.80;
+
+                              if (!adminValidoParaEstaVenta && precioIngresado < topeDescuento) {
+                                await showDialog(
+                                  context: dialogContext,
+                                  builder: (context) => AdminValidationDialog(
+                                    onSuccess: () {
+                                      setStateModal(() => adminValidoParaEstaVenta = true);
+                                    },
+                                    onCancel: () {
+                                      precioController.text =
+                                          producto.precioUnidad.toStringAsFixed(2);
+                                    },
+                                  ),
+                                );
+                                if (!adminValidoParaEstaVenta) return;
+                              }
+
+                              localWeightSubscription?.cancel();
+                              // ignore: use_build_context_synchronously
+                              Navigator.of(dialogContext).pop();
+                              cantidadController.dispose();
+                              precioController.dispose();
+
+                              final productoConPrecioModificado = ProductoEntity()
+                                ..id = producto.id
+                                ..codigoBarras = producto.codigoBarras
+                                ..nombre = producto.nombre
+                                ..precioUnidad = precioIngresado
+                                ..esPesado = producto.esPesado
+                                ..categoria = producto.categoria
+                                ..stock = producto.stock
+                                ..stockMinimo = producto.stockMinimo
+                                ..proveedorNombre = producto.proveedorNombre
+                                ..proveedorTelefono = producto.proveedorTelefono;
+
+                              _agregarAlCarrito(productoConPrecioModificado, cantidad);
+                            },
+                            child: const Text(
+                              'Agregar al Carrito',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) {
+      localWeightSubscription?.cancel();
+    });
+  }
+
   // ============================
   // ESCÁNER
   // ============================
@@ -605,33 +983,6 @@ class _InventoryCatalogScreenState
           ),
           const SizedBox(width: 6),
 
-          // 2. BOTÓN DE TURNO
-          Tooltip(
-            message: _turnoAbierto ? 'Cerrar Turno' : 'Abrir Turno',
-            child: Container(
-              width: isTablet ? 44 : 36,
-              height: isTablet ? 44 : 36,
-              decoration: BoxDecoration(
-                color: _turnoAbierto
-                    ? const Color(0xFFF59E0B).withValues(alpha: 0.2)
-                    : const Color(0xFF10B981).withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: IconButton(
-                icon: Icon(
-                  _turnoAbierto ? Icons.lock_open : Icons.lock_outline,
-                  color: _turnoAbierto ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
-                  size: 22,
-                ),
-                onPressed: _turnoAbierto ? _cerrarTurno : _abrirTurno,
-                splashRadius: 24,
-                padding: EdgeInsets.zero,
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-
-          // 3. BOTÓN DE INVENTARIO
           Tooltip(
             message: 'Ir a Gestión de Inventario',
             child: MouseRegion(
@@ -793,9 +1144,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================================================
-  // LAYOUTS (continúa en Parte 2)
-  // ============================================================
   Widget _buildDesktopTabletLayout(dynamic cartState, int crossAxisCount, double childAspectRatio) {
     return Row(
       children: [
@@ -953,9 +1301,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================================================
-  // CARRITO – SIDEBAR (ESCRITORIO)
-  // ============================================================
   Widget _buildCartSidebarDesktop(dynamic cartState) {
     return Column(
       children: [
@@ -1137,9 +1482,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================================================
-  // CARRITO – RESUMEN FIJO (MÓVIL)
-  // ============================================================
   Widget _buildFixedCartSummary(dynamic cartState) {
     final isTablet = ResponsiveHelper.isTablet(context);
     final double barHeight = isTablet ? 140.0 : 120.0;
@@ -1232,9 +1574,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-  // ============================================================
-  // BOTTOM SHEET DEL CARRITO (MÓVIL)
-  // ============================================================
   void _openCartBottomSheet(BuildContext context, dynamic cartState) {
     final isTablet = ResponsiveHelper.isTablet(context);
 
@@ -1254,195 +1593,128 @@ class _InventoryCatalogScreenState
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Mi Carrito',
-                      style: TextStyle(
-                        fontSize: isTablet ? 28 : 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        if (cartState.items.isNotEmpty)
-                          IconButton(
-                            icon: const Icon(Icons.refresh_outlined, color: Color(0xFFEF4444), size: 28),
-                            tooltip: 'Reiniciar Venta',
-                            splashRadius: 28,
-                            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              _limpiarCarritoConConfirmacion();
-                            },
-                          ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 28),
-                          splashRadius: 28,
-                          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const Divider(thickness: 2),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: cartState.items.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'El carrito está vacío',
-                            style: TextStyle(fontSize: 18, color: Color(0xFF94A3B8)),
-                          ),
-                        )
-                      : ListView.separated(
-                          itemCount: cartState.items.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final cartItem = cartState.items[index];
-                            final double subtotal =
-                                cartItem.producto.precioUnidad * cartItem.cantidad.toDouble();
-                            return Container(
-                              padding: EdgeInsets.all(isTablet ? 20 : 16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: const Color(0xFFCBD5E1),
-                                  width: isTablet ? 2 : 1.5,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          cartItem.producto.nombre,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: isTablet ? 20 : 16,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          '${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}',
-                                          style: TextStyle(
-                                            color: Color(0xFF64748B),
-                                            fontSize: isTablet ? 16 : 14,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                    '\$${subtotal.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: isTablet ? 20 : 17,
-                                      color: Color(0xFF059669),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  InkWell(
-                                    onTap: () => ref.read(cartProvider.notifier).eliminarItem(index),
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Container(
-                                      padding: EdgeInsets.all(isTablet ? 12 : 10),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFEE2E2),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: Colors.red.shade200),
-                                      ),
-                                      child: Icon(
-                                        Icons.close_rounded,
-                                        color: Colors.redAccent,
-                                        size: isTablet ? 28 : 22,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                ),
-                const Divider(thickness: 2),
-                const SizedBox(height: 12),
-                Column(
+            child: Consumer(
+              builder: (context, ref, child) {
+                final currentCartState = ref.watch(cartProvider);
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'TOTAL USD',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: isTablet ? 20 : 14,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
-                        Text(
-                          '\$${cartState.total.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: isTablet ? 30 : 20,
-                            color: Color(0xFF059669),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'TOTAL BOLÍVARES',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: isTablet ? 18 : 12,
-                            color: Color(0xFF94A3B8),
-                          ),
-                        ),
-                        Text(
-                          'Bs. ${(cartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: isTablet ? 22 : 14,
-                            color: Color(0xFF3B82F6),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: isTablet ? 76 : 56,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          elevation: 6,
-                          side: const BorderSide(color: Color(0xFF059669), width: 1.5),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          _mostrarModalCobro(context);
-                        },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        Text('Mi Carrito',
+                            style: TextStyle(
+                                fontSize: isTablet ? 28 : 22,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A))),
+                        Row(
                           children: [
+                            if (currentCartState.items.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.refresh_outlined, color: Color(0xFFEF4444), size: 28),
+                                tooltip: 'Reiniciar Venta',
+                                splashRadius: 28,
+                                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                  _limpiarCarritoConConfirmacion();
+                                },
+                              ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 28),
+                              splashRadius: 28,
+                              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const Divider(thickness: 2),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: currentCartState.items.isEmpty
+                          ? const Center(child: Text('El carrito está vacío',
+                              style: TextStyle(fontSize: 18, color: Color(0xFF94A3B8))))
+                          : ListView.separated(
+                              itemCount: currentCartState.items.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final cartItem = currentCartState.items[index];
+                                final double subtotal =
+                                    cartItem.producto.precioUnidad * cartItem.cantidad.toDouble();
+                                return Container(
+                                  padding: EdgeInsets.all(isTablet ? 20 : 16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: const Color(0xFFCBD5E1), width: isTablet ? 2 : 1.5),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(cartItem.producto.nombre,
+                                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 16),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                                '${cartItem.cantidad.toStringAsFixed(cartItem.producto.esPesado ? 3 : 0)} x \$${cartItem.producto.precioUnidad.toStringAsFixed(2)}',
+                                                style: TextStyle(color: Color(0xFF64748B), fontSize: isTablet ? 16 : 14)),
+                                          ],
+                                        ),
+                                      ),
+                                      Text('\$${subtotal.toStringAsFixed(2)}',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 17, color: Color(0xFF059669))),
+                                      const SizedBox(width: 12),
+                                      InkWell(
+                                        onTap: () {
+                                          ref.read(cartProvider.notifier).eliminarItem(index);
+                                        },
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Container(
+                                          padding: EdgeInsets.all(isTablet ? 12 : 10),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFEE2E2),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: Colors.red.shade200),
+                                          ),
+                                          child: Icon(Icons.close_rounded, color: Colors.redAccent, size: isTablet ? 28 : 22),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    const Divider(thickness: 2),
+                    const SizedBox(height: 12),
+                    Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('TOTAL USD',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 14, color: Color(0xFF64748B))),
+                            Text('\$${currentCartState.total.toStringAsFixed(2)}',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 30 : 20, color: Color(0xFF059669))),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('TOTAL BOLÍVARES',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 18 : 12, color: Color(0xFF94A3B8))),
+                            Text(
+                                'Bs. ${(currentCartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 22 : 14, color: Color(0xFF3B82F6))),
                             Icon(Icons.payments_outlined, size: isTablet ? 32 : 24),
                             const SizedBox(width: 16),
                             Text(
@@ -1455,11 +1727,40 @@ class _InventoryCatalogScreenState
                             ),
                           ],
                         ),
-                      ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          height: isTablet ? 76 : 56,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              elevation: 6,
+                              side: const BorderSide(color: Color(0xFF059669), width: 1.5),
+                            ),
+                            onPressed: currentCartState.items.isEmpty
+                                ? null
+                                : () {
+                                    Navigator.of(context).pop();
+                                    _mostrarModalCobro(context);
+                                  },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.payments_outlined, size: isTablet ? 32 : 24),
+                                const SizedBox(width: 16),
+                                Text('COBRAR ORDEN',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 24 : 18, letterSpacing: 1.0)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                ),
-              ],
+                );
+              },
             ),
           ),
         );
@@ -1539,56 +1840,47 @@ class _InventoryCatalogScreenState
   }
 
   // ============================================================
-  // CATEGORY CHIPS – CON FONDO MEJORADO  <--- CAMBIO AQUÍ
+  // 🎯 CATEGORY CHIPS CON BLUR MEJORADO (CORREGIDO)
   // ============================================================
-  Widget _buildCategoryChips() {
-    final isTablet = ResponsiveHelper.isTablet(context);
-    final double height = isTablet ? 60 : 48;
+  // ============================================================
+// 🎯 CATEGORY CHIPS CON BLUR PROFESIONAL
+// ============================================================
+Widget _buildCategoryChips() {
+  final isTablet = ResponsiveHelper.isTablet(context);
+  final double height = isTablet ? 60 : 48;
 
-    return Container(
-      height: height + 16,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.85), // <--- fondo semitransparente
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  return ClipRect(
+    child: BackdropFilter(
+      // 🔥 BLUR SUAVE Y NATURAL
+      filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          // 🔥 FONDO MÁS SÓLIDO (75% opaco)
+          color: Colors.white.withOpacity(0.75),
+          // 🔥 SOMBRA MÁS NOTORIA
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+          // 🔥 BORDE SUTIL PARA DAR DEFINICIÓN
+          border: Border(
+            bottom: BorderSide(
+              color: Colors.grey.shade200.withOpacity(0.5),
+              width: 1,
+            ),
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          height: height,
-          child: isTablet
-              ? Scrollbar(
-                  thickness: 6,
-                  radius: const Radius.circular(10),
-                  scrollbarOrientation: ScrollbarOrientation.bottom,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _categorias.length,
-                    separatorBuilder: (context, index) => const SizedBox(width: 10),
-                    itemBuilder: (context, index) {
-                      final cat = _categorias[index];
-                      return _CategoryButton(
-                        categoria: cat,
-                        esSeleccionada: _categoriaSeleccionada == cat,
-                        onTap: () {
-                          setState(() {
-                            _categoriaSeleccionada = cat;
-                          });
-                          _filtrarProductos();
-                        },
-                      );
-                    },
-                  ),
-                )
-              : ListView.separated(
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: isTablet
+            ? Scrollbar(
+                thickness: 6,
+                radius: const Radius.circular(10),
+                scrollbarOrientation: ScrollbarOrientation.bottom,
+                child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: _categorias.length,
@@ -1607,15 +1899,32 @@ class _InventoryCatalogScreenState
                     );
                   },
                 ),
-        ),
+              )
+            : ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _categorias.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final cat = _categorias[index];
+                  return _CategoryButton(
+                    categoria: cat,
+                    esSeleccionada: _categoriaSeleccionada == cat,
+                    onTap: () {
+                      setState(() {
+                        _categoriaSeleccionada = cat;
+                      });
+                      _filtrarProductos();
+                    },
+                  );
+                },
+              ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
-// ============================================================
-// WIDGETS AUXILIARES
-// ============================================================
 class _CategoryButton extends StatefulWidget {
   final String categoria;
   final bool esSeleccionada;
@@ -1709,9 +2018,6 @@ class _CategoryButtonState extends State<_CategoryButton> {
   }
 }
 
-// ============================================================
-// PRODUCT CARD
-// ============================================================
 class _ProductCard extends StatefulWidget {
   final ProductoEntity producto;
   final bool stockBajo;
@@ -1754,6 +2060,7 @@ class _ProductCardState extends State<_ProductCard> {
   @override
   Widget build(BuildContext context) {
     final bool isTablet = ResponsiveHelper.isTablet(context);
+    final bool isMobile = ResponsiveHelper.isMobile(context);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -1778,17 +2085,20 @@ class _ProductCardState extends State<_ProductCard> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isTablet ? 0.08 : 0.04),
+                    color: Colors.black.withOpacity(isTablet ? 0.08 : 0.04),
                     blurRadius: isTablet ? 16 : 12,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ✅ IMAGEN (flex 5 en lugar de 6)
                   Expanded(
-                    flex: 6,
+                    flex: 5,
                     child: Container(
+                      width: double.infinity,
                       decoration: const BoxDecoration(
                         color: Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -1802,7 +2112,7 @@ class _ProductCardState extends State<_ProductCard> {
                                     fit: BoxFit.cover,
                                     width: double.infinity,
                                     height: double.infinity,
-                                    errorBuilder: (_, _, _) =>
+                                    errorBuilder: (_, __, ___) =>
                                         const Icon(Icons.inventory_2, size: 40, color: Color(0xFF3B82F6)),
                                   )
                                 : const Icon(Icons.inventory_2, size: 40, color: Color(0xFF3B82F6)),
@@ -1829,7 +2139,7 @@ class _ProductCardState extends State<_ProductCard> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.9),
+                                color: Colors.white.withOpacity(0.9),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -1842,12 +2152,13 @@ class _ProductCardState extends State<_ProductCard> {
                       ),
                     ),
                   ),
+                  // ✅ INFORMACIÓN (flex 4 en lugar de 5)
                   Expanded(
                     flex: 4,
                     child: Padding(
-                      padding: const EdgeInsets.all(12.0),
+                      padding: EdgeInsets.all(isMobile ? 8.0 : 12.0),
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
@@ -1856,14 +2167,14 @@ class _ProductCardState extends State<_ProductCard> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: widget.isMobile ? 13 : (isTablet ? 18 : 14),
+                              fontSize: isMobile ? 12 : (isTablet ? 16 : 14),
                               color: const Color(0xFF0F172A),
                             ),
                           ),
                           Text(
                             'Cód: ${widget.producto.codigoBarras}',
                             style: TextStyle(
-                              fontSize: widget.isMobile ? 9 : (isTablet ? 12 : 10),
+                              fontSize: isMobile ? 8 : (isTablet ? 11 : 10),
                               color: const Color(0xFF94A3B8),
                             ),
                           ),
@@ -1873,24 +2184,22 @@ class _ProductCardState extends State<_ProductCard> {
                               Text(
                                 '\$${widget.producto.precioUnidad.toStringAsFixed(2)}',
                                 style: TextStyle(
-                                  fontSize: widget.isMobile ? 15 : (isTablet ? 20 : 16),
+                                  fontSize: isMobile ? 14 : (isTablet ? 18 : 16),
                                   fontWeight: FontWeight.bold,
                                   color: const Color(0xFF059669),
                                 ),
                               ),
                               Container(
-                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: widget.stockBajo
-                                      ? const Color(0xFFFEE2E2)
-                                      : const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(6),
+                                  color: widget.stockBajo ? const Color(0xFFFEE2E2) : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(4),
                                   border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
                                 ),
                                 child: Text(
                                   'Stock: ${widget.producto.stock}',
                                   style: TextStyle(
-                                    fontSize: widget.isMobile ? 9 : (isTablet ? 12 : 10),
+                                    fontSize: isMobile ? 8 : (isTablet ? 11 : 10),
                                     fontWeight: FontWeight.w600,
                                     color: widget.stockBajo
                                         ? const Color(0xFFEF4444)
@@ -1914,9 +2223,6 @@ class _ProductCardState extends State<_ProductCard> {
   }
 }
 
-// ============================================================
-// SKELETON LOADER
-// ============================================================
 class _ProductCardSkeleton extends StatelessWidget {
   const _ProductCardSkeleton();
 
@@ -2005,7 +2311,6 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Cámara
           MobileScanner(
             controller: _controller,
             onDetect: (capture) async {
@@ -2024,8 +2329,6 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
               });
             },
           ),
-
-          // Marco de escaneo
           Center(
             child: Container(
               width: MediaQuery.of(context).size.width * 0.7,
@@ -2056,8 +2359,6 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
               ),
             ),
           ),
-
-          // Botones superior (Linterna y Cerrar)
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,
@@ -2101,8 +2402,6 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
               ],
             ),
           ),
-
-          // Instrucción inferior
           Positioned(
             bottom: MediaQuery.of(context).padding.bottom + 40,
             left: 0,

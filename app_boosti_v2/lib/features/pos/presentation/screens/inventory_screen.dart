@@ -128,7 +128,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: Colors.black.withOpacity(0.05),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 )
@@ -219,7 +219,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // MODAL DE PRODUCTO (CREAR/EDITAR) – RESPONSIVO
+  // MODAL DE PRODUCTO (CREAR/EDITAR)
   // ==========================================
   void _mostrarFormularioProducto({ProductoEntity? productoAEditar}) {
     if (!_esAdmin) return;
@@ -285,7 +285,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: Colors.black.withOpacity(0.05),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     )
@@ -301,9 +301,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
+                                color: const Color(0xFF10B981).withOpacity(0.1),
+                                shape: BoxShape.circle),
                             child: Icon(
                               isEditing
                                   ? Icons.edit_outlined
@@ -527,25 +526,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                      const SizedBox(height: 14),
-
-                      // === Stock Mínimo y Categoría (Row) – en móvil se apilan ===
-                      isMobile
-                          ? Column(
-                              children: [
-                                TextField(
-                                  controller: stockMinController,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                                  decoration: InputDecoration(
-                                    labelText: 'Stock Mínimo *',
-                                    labelStyle: const TextStyle(fontSize: 16),
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF10B981)
+                                          .withOpacity(0.1),
+                                      foregroundColor: const Color(0xFF10B981),
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10)),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 12),
                                     ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
@@ -908,20 +900,27 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // MODAL DE DETALLES DEL PRODUCTO (RESPONSIVO)
+  // MODAL DE DETALLES DEL PRODUCTO (CORREGIDO)
   // ==========================================
-  void _mostrarDetalleProducto(ProductoEntity producto) {
+ void _mostrarDetalleProducto(ProductoEntity producto) {
   final isMobile = ResponsiveHelper.isMobile(context);
   final isTablet = ResponsiveHelper.isTablet(context);
-  final theme = Theme.of(context);
 
   final bool isLargeScreen = !isMobile;
   final double maxWidth = isLargeScreen ? 850.0 : 600.0;
-  final double padding = isLargeScreen ? 32.0 : 24.0;
-  final double imageHeight = isLargeScreen ? 280 : 200;
+  final double padding = isMobile ? 12.0 : (isTablet ? 24.0 : 32.0);
+  final double imageHeight = isMobile ? 120 : (isTablet ? 200 : 280);
   final double imageMaxWidth = isLargeScreen ? 500 : 400;
-  final double insetHorizontal = isLargeScreen ? 60.0 : 16.0;
-  final double buttonHeight = isMobile ? 48 : 56;
+  
+  // ✅ MÁRGENES LATERALES MEJORADOS
+  final double horizontalInset = isMobile ? 16.0 : (isTablet ? 40.0 : 60.0);
+  final double verticalInset = isMobile ? 16.0 : 24.0;
+
+  final double titleSize = isMobile ? 16 : (isTablet ? 20 : 24);
+  final double nameSize = isMobile ? 18 : (isTablet ? 24 : 28);
+  final double detailSize = isMobile ? 11 : (isTablet ? 14 : 16);
+  final double priceSize = isMobile ? 14 : (isTablet ? 18 : 20);
+  final double stockSize = isMobile ? 12 : (isTablet ? 16 : 18);
 
   showDialog(
     context: context,
@@ -929,246 +928,312 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       return Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         elevation: 8,
-        insetPadding: EdgeInsets.symmetric(horizontal: insetHorizontal, vertical: 24),
-        child: Container(
-          constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: MediaQuery.of(context).size.height * 0.9),
-          padding: EdgeInsets.all(padding),
-          decoration: BoxDecoration(
-            color: theme.dialogBackgroundColor,
-            borderRadius: BorderRadius.circular(24),
+        insetPadding: EdgeInsets.symmetric(
+          horizontal: horizontalInset, // ✅ MÁRGENES LATERALES
+          vertical: verticalInset,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: maxWidth,
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
           ),
-          child: SingleChildScrollView(   // <--- Envuelve todo el contenido
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // HEADER
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
+          child: Container(
+            padding: EdgeInsets.all(padding),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                )
+              ],
+            ),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // HEADER
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
                         'Detalles del Producto',
-                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: titleSize,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 28),
+                        onPressed: () => Navigator.pop(dialogContext),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // IMAGEN
+                  Center(
+                    child: Container(
+                      height: imageHeight,
+                      width: double.infinity,
+                      constraints: BoxConstraints(maxWidth: imageMaxWidth),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: producto.imagenUrl.isNotEmpty
+                            ? Image.network(
+                                producto.imagenUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.inventory_2,
+                                  size: 64,
+                                  color: Colors.blueGrey,
+                                ),
+                              )
+                            : const Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 28),
-                      onPressed: () => Navigator.pop(dialogContext),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                  ),
+                  const SizedBox(height: 12),
 
-                // IMAGEN
-                Center(
-                  child: Container(
-                    height: imageHeight,
-                    width: double.infinity,
-                    constraints: BoxConstraints(maxWidth: imageMaxWidth),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                  // DIVIDER
+                  const Divider(),
+                  const SizedBox(height: 8),
+
+                  // NOMBRE
+                  Text(
+                    producto.nombre,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: nameSize,
+                      color: const Color(0xFF0F172A),
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: producto.imagenUrl.isNotEmpty
-                          ? Image.network(
-                              producto.imagenUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => const Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
-                            )
-                          : const Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+
+                  // CÓDIGO
+                  Text(
+                    'Cód: ${producto.codigoBarras}',
+                    style: TextStyle(
+                      fontSize: detailSize,
+                      color: const Color(0xFF94A3B8),
                     ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 8),
 
-                // NOMBRE y CÓDIGO
-                Text(
-                  producto.nombre,
-                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Cód: ${producto.codigoBarras}',
-                  style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF94A3B8)),
-                ),
-                const SizedBox(height: 16),
-
-                // PRECIO y CATEGORÍA
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
+                  // PRECIO Y CATEGORÍA
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
                         'Precio: \$${producto.precioUnidad.toStringAsFixed(2)}',
-                        style: theme.textTheme.titleMedium?.copyWith(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
+                          fontSize: priceSize,
                           color: const Color(0xFF10B981),
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    Flexible(
-                      child: Text(
+                      Text(
                         'Categoría: ${producto.categoria}',
-                        style: theme.textTheme.bodyMedium,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // STOCK
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        'Stock Actual: ${producto.stock % 1 == 0 ? producto.stock.toInt() : producto.stock}',
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Flexible(
-                      child: Text(
-                        'Stock Mínimo: ${producto.stockMinimo.isFinite ? (producto.stockMinimo % 1 == 0 ? producto.stockMinimo.toInt() : producto.stockMinimo) : 0}',
-                        style: theme.textTheme.bodyMedium,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // PROVEEDOR
-                if (producto.proveedorNombre.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEEF2FF),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFC7D2FE), width: 1),
-                    ),
-                    child: Text(
-                      'Proveedor: ${producto.proveedorNombre} (${producto.proveedorTelefono.isNotEmpty ? producto.proveedorTelefono : "Sin teléfono"})',
-                      style: const TextStyle(
-                        fontStyle: FontStyle.italic,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF4F46E5),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-
-                // BOTONES (responsivos)
-                if (_esAdmin) ...[
-                  isMobile
-                      ? Column(
-                          children: [
-                            SizedBox(
-                              width: double.infinity,
-                              height: buttonHeight,
-                              child: TextButton(
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.grey.shade700,
-                                  backgroundColor: const Color(0xFFF1F5F9),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                                onPressed: () => Navigator.pop(dialogContext),
-                                child: const Text('Cerrar', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              height: buttonHeight,
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF10B981),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                                onPressed: () {
-                                  Navigator.pop(dialogContext);
-                                  _mostrarFormularioProducto(productoAEditar: producto);
-                                },
-                                icon: const Icon(Icons.edit_outlined, size: 20),
-                                label: const Text('Editar Producto', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            SizedBox(
-                              width: double.infinity,
-                              height: buttonHeight,
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFEF4444),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                                onPressed: () async {
-                                  // ... lógica de eliminar ...
-                                },
-                                icon: const Icon(Icons.delete_outline, size: 20),
-                                label: const Text('Eliminar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                              ),
-                            ),
-                          ],
-                        )
-                      : Wrap(
-                          alignment: WrapAlignment.end,
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: [
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.symmetric(horizontal: isLargeScreen ? 28 : 20, vertical: isLargeScreen ? 18 : 14),
-                                foregroundColor: Colors.grey.shade700,
-                                backgroundColor: const Color(0xFFF1F5F9),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onPressed: () => Navigator.pop(dialogContext),
-                              child: Text('Cerrar', style: TextStyle(fontWeight: FontWeight.w600, fontSize: isLargeScreen ? 16 : 15)),
-                            ),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF10B981),
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(horizontal: isLargeScreen ? 32 : 24, vertical: isLargeScreen ? 18 : 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onPressed: () {
-                                Navigator.pop(dialogContext);
-                                _mostrarFormularioProducto(productoAEditar: producto);
-                              },
-                              icon: const Icon(Icons.edit_outlined, size: 20),
-                              label: Text('Editar Producto', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 16 : 15)),
-                            ),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFEF4444),
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(horizontal: isLargeScreen ? 32 : 24, vertical: isLargeScreen ? 18 : 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onPressed: () async {
-                                // ... lógica de eliminar ...
-                              },
-                              icon: const Icon(Icons.delete_outline, size: 20),
-                              label: Text('Eliminar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isLargeScreen ? 16 : 15)),
-                            ),
-                          ],
+                        style: TextStyle(
+                          fontSize: detailSize,
+                          color: const Color(0xFF64748B),
                         ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+
+                  // STOCK
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Stock Actual: ${producto.stock % 1 == 0 ? producto.stock.toInt() : producto.stock}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: stockSize,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        'Stock Mínimo: ${producto.stockMinimo.isFinite ? (producto.stockMinimo % 1 == 0 ? producto.stockMinimo.toInt() : producto.stockMinimo) : 0}',
+                        style: TextStyle(
+                          fontSize: detailSize,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // PROVEEDOR
+                  if (producto.proveedorNombre.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF2FF),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFC7D2FE), width: 1),
+                      ),
+                      child: Text(
+                        'Proveedor: ${producto.proveedorNombre} (${producto.proveedorTelefono.isNotEmpty ? producto.proveedorTelefono : "Sin teléfono"})',
+                        style: TextStyle(
+                          fontSize: detailSize,
+                          fontStyle: FontStyle.italic,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF4F46E5),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // BOTONES
+                  if (_esAdmin) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 12 : 28,
+                              vertical: isMobile ? 8 : 18,
+                            ),
+                            foregroundColor: Colors.grey.shade700,
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: Text(
+                            'Cerrar',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: isMobile ? 12 : 16,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 16 : 32,
+                              vertical: isMobile ? 8 : 18,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 2,
+                          ),
+                          onPressed: () {
+                            Navigator.pop(dialogContext);
+                            _mostrarFormularioProducto(productoAEditar: producto);
+                          },
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          label: Text(
+                            'Editar',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isMobile ? 12 : 16,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEF4444),
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 16 : 32,
+                              vertical: isMobile ? 8 : 18,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 2,
+                          ),
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: dialogContext,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Eliminar Producto'),
+                                content: Text(
+                                  '¿Estás seguro de que quieres eliminar el producto "${producto.nombre}"? Esta acción no se puede deshacer.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('Cancelar'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFEF4444),
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('Eliminar'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm != true) return;
+
+                            try {
+                              await _isarService.eliminarProducto(producto.id);
+                              if (mounted) {
+                                // ignore: use_build_context_synchronously
+                                Navigator.pop(dialogContext);
+                                _cargarInventario();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Producto eliminado correctamente.'),
+                                    backgroundColor: Color(0xFF10B981),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error al eliminar: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.delete_outline, size: 20),
+                          label: Text(
+                            'Eliminar',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isMobile ? 12 : 16,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -1176,8 +1241,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     },
   );
 }
+
   // ==========================================
-  // BARRA DE BÚSQUEDA CON ESCÁNER (MEJORADA)
+  // BARRA DE BÚSQUEDA CON ESCÁNER
   // ==========================================
   Widget _buildSearchBar(bool isMobile) {
     final theme = Theme.of(context);
@@ -1268,7 +1334,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // BUILD (con modo oscuro)
+  // BUILD
   // ==========================================
   @override
   Widget build(BuildContext context) {
@@ -1440,7 +1506,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 }
 
 // ==========================================
-// WIDGET DE TARJETA DE PRODUCTO (RESPONSIVO)
+// WIDGET DE TARJETA DE PRODUCTO
 // ==========================================
 class _ProductCard extends StatefulWidget {
   final ProductoEntity producto;
@@ -1521,9 +1587,8 @@ class _ProductCardState extends State<_ProductCard> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(
-                      alpha: widget.isTablet ? 0.08 : 0.05,
-                    ),
+                    color: Colors.black.withOpacity(
+                        widget.isTablet ? 0.08 : 0.05),
                     blurRadius: widget.isTablet ? 16 : 12,
                     offset: const Offset(0, 4),
                   ),
@@ -1733,7 +1798,7 @@ class _ProductCardSkeleton extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           )
@@ -1785,7 +1850,7 @@ class _ProductCardSkeleton extends StatelessWidget {
 }
 
 // ==========================================
-// DIÁLOGO DEL ESCÁNER (COMPARTIDO)
+// DIÁLOGO DEL ESCÁNER
 // ==========================================
 class _BarcodeScannerDialog extends StatefulWidget {
   const _BarcodeScannerDialog();
@@ -1843,7 +1908,7 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                    color: const Color(0xFF10B981).withOpacity(0.3),
                     blurRadius: 30,
                     spreadRadius: 10,
                   ),
