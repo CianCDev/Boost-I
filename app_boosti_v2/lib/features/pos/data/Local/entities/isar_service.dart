@@ -171,6 +171,23 @@ class IsarService {
     }
   }
 
+
+
+  Future<double> obtenerTotalVentasPorEmpleadoYRango(String empleado, DateTime inicio, DateTime fin) async {
+  final isar = await db;
+  final ventas = await isar.ventaEntitys
+      .filter()
+      .empleadoEqualTo(empleado)
+      .and()
+      .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
+      .findAll();
+  double total = 0;
+  for (var v in ventas) {
+    total += v.total;
+  }
+  return total;
+}
+
   // ==================== GESTIÓN DE USUARIOS ====================
   Future<void> inicializarUsuarioAdminPorDefecto() async {
     final isar = await db;
@@ -181,6 +198,11 @@ class IsarService {
     final isar = await db;
     return await isar.usuarioEntitys.get(id);
   }
+
+  Future<ProductoEntity?> obtenerProductoPorId(int id) async {
+  final isar = await db;
+  return await isar.productoEntitys.get(id);
+}
 
   Future<List<UsuarioEntity>> obtenerUsuarios() async {
     final isar = await db;

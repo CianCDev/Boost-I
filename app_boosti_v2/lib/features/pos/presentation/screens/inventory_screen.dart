@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
@@ -124,7 +128,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
             padding: const EdgeInsets.all(24.0),
             constraints: const BoxConstraints(maxWidth: 450),
             decoration: BoxDecoration(
-              color: Theme.of(context).dialogBackgroundColor,
+              color: Theme.of(context).dialogTheme.backgroundColor ?? Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
@@ -219,7 +223,78 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // MODAL DE PRODUCTO (CREAR/EDITAR)
+  // SELECCIÓN Y SUBIDA DE IMAGEN
+  // ==========================================
+  Future<void> _seleccionarImagen(StateSetter setStateModal, Function(XFile) onImageSelected) async {
+    final currentContext = context;
+    // Solicitar permiso de almacenamiento
+    final status = await Permission.storage.request();
+    if (!status.isGranted) {
+      if (!currentContext.mounted) return;
+      ScaffoldMessenger.of(currentContext).showSnackBar(
+        const SnackBar(content: Text('Permiso de almacenamiento denegado')),
+      );
+      return;
+    }
+
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 80,
+    );
+    if (image != null) {
+      onImageSelected(image);
+    }
+  }
+
+  Future<void> _tomarFoto(StateSetter setStateModal, Function(XFile) onImageSelected) async {
+    final currentContext = context;
+    // Solicitar permiso de cámara
+    final status = await Permission.camera.request();
+    if (!status.isGranted) {
+      if (!currentContext.mounted) return;
+      ScaffoldMessenger.of(currentContext).showSnackBar(
+        const SnackBar(content: Text('Permiso de cámara denegado')),
+      );
+      return;
+    }
+
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 80,
+    );
+    if (image != null) {
+      onImageSelected(image);
+    }
+  }
+
+  Future<String?> _subirImagenASupabase(File imagen, String codigoBarras) async {
+    try {
+      final extension = imagen.path.split('.').last;
+      final fileName = '${codigoBarras}_${DateTime.now().millisecondsSinceEpoch}.$extension';
+
+      // Subir a Supabase Storage (bucket 'productos')
+      await Supabase.instance.client.storage
+          .from('productos')
+          .upload(fileName, imagen);
+
+      final publicUrl = Supabase.instance.client.storage
+          .from('productos')
+          .getPublicUrl(fileName);
+      return publicUrl;
+    } catch (e) {
+      debugPrint('❌ Error subiendo imagen: $e');
+      return null;
+    }
+  }
+
+  // ==========================================
+  // MODAL DE PRODUCTO (CREAR/EDITAR) con IMAGEN
   // ==========================================
   void _mostrarFormularioProducto({ProductoEntity? productoAEditar}) {
     if (!_esAdmin) return;
@@ -248,6 +323,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
     bool esPesado = productoAEditar?.esPesado ?? false;
     String imagenUrlPreview = productoAEditar?.imagenUrl ?? '';
+
+    // Estado local para la imagen seleccionada
+    XFile? imagenSeleccionada;
+    bool subiendoImagen = false;
 
     final setCategorias =
         _productos.map((p) => p.categoria.trim()).where((c) => c.isNotEmpty).toSet();
@@ -281,7 +360,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 ),
                 padding: EdgeInsets.all(isTablet ? 40.0 : 24.0),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).dialogBackgroundColor,
+                  color: Theme.of(context).dialogTheme.backgroundColor ?? Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
@@ -296,6 +375,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // HEADER
                       Row(
                         children: [
                           Container(
@@ -371,66 +451,139 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                       ),
                       const SizedBox(height: 14),
 
-                      // URL Imagen
-                      TextField(
-                        controller: imagenUrlController,
-                        style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                        onChanged: (val) => setStateModal(() => imagenUrlPreview = val),
-                        decoration: InputDecoration(
-                          labelText: 'URL de la Imagen',
-                          labelStyle: const TextStyle(fontSize: 16),
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                          ),
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+                      // ==========================================
+                      // 🖼️ SECCIÓN DE IMAGEN (NUEVO)
+                      // ==========================================
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ),
-                      if (imagenUrlPreview.isNotEmpty) ...[
-                        const SizedBox(height: 14),
-                        Container(
-                          height: 160,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              imagenUrlPreview,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.image_not_supported_outlined,
-                                      color: Colors.grey.shade400,
-                                      size: 32,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Imagen no válida',
-                                      style: TextStyle(
-                                        color: Colors.grey.shade500,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.image_outlined,
+                                    color: Color(0xFF10B981), size: 24),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Imagen del Producto',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (imagenSeleccionada != null || imagenUrlPreview.isNotEmpty)
+                                  IconButton(
+                                    icon: const Icon(Icons.clear, color: Colors.red, size: 20),
+                                    onPressed: () {
+                                      setStateModal(() {
+                                        imagenSeleccionada = null;
+                                        imagenUrlPreview = '';
+                                        imagenUrlController.text = '';
+                                      });
+                                    },
+                                    tooltip: 'Eliminar imagen',
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            // Previsualización
+                            if (imagenSeleccionada != null || imagenUrlPreview.isNotEmpty)
+                              Container(
+                                height: 180,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: imagenSeleccionada != null
+                                      ? Image.file(
+                                          File(imagenSeleccionada!.path),
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                        )
+                                      : (imagenUrlPreview.isNotEmpty
+                                          ? Image.network(
+                                              imagenUrlPreview,
+                                              fit: BoxFit.cover,
+                                              width: double.infinity,
+                                              errorBuilder: (context, error, stackTrace) => const Icon(
+                                                Icons.broken_image,
+                                                size: 48,
+                                                color: Colors.grey,
+                                              ),
+                                            )
+                                          : const SizedBox.shrink()),
+                                ),
+                              )
+                            else
+                              Container(
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    'Sin imagen',
+                                    style: TextStyle(color: Colors.grey, fontSize: 14),
+                                  ),
                                 ),
                               ),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF10B981),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: subiendoImagen ? null : () => _seleccionarImagen(setStateModal, (file) {
+                                    setStateModal(() {
+                                      imagenSeleccionada = file;
+                                      imagenUrlPreview = file.path;
+                                      imagenUrlController.text = ''; // Se actualizará al guardar
+                                    });
+                                  }),
+                                  icon: const Icon(Icons.photo_library, size: 18),
+                                  label: const Text('Galería'),
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF3B82F6),
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: subiendoImagen ? null : () => _tomarFoto(setStateModal, (file) {
+                                    setStateModal(() {
+                                      imagenSeleccionada = file;
+                                      imagenUrlPreview = file.path;
+                                      imagenUrlController.text = '';
+                                    });
+                                  }),
+                                  icon: const Icon(Icons.camera_alt, size: 18),
+                                  label: const Text('Cámara'),
+                                ),
+                              ],
                             ),
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
                       const SizedBox(height: 14),
 
                       // Precio y Stock (en móvil se apilan)
@@ -749,14 +902,40 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
                                     setStateModal(() => guardando = true);
 
+                                    // Subir imagen si se seleccionó una nueva
+                                    String imagenUrlFinal = imagenUrlPreview;
+                                    if (imagenSeleccionada != null) {
+                                      setStateModal(() => subiendoImagen = true);
+                                      try {
+                                        final String? urlImagen = await _subirImagenASupabase(
+                                          File(imagenSeleccionada!.path),
+                                          codigoController.text.trim(),
+                                        );
+                                        if (urlImagen != null && urlImagen.isNotEmpty) {
+                                          imagenUrlFinal = urlImagen;
+                                        } else {
+                                          // Si falla, mostrar error pero continuar
+                                          if (!context.mounted) return;
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('⚠️ Error al subir imagen, se guardará sin imagen.'),
+                                              backgroundColor: Colors.orange,
+                                            ),
+                                          );
+                                          imagenUrlFinal = '';
+                                        }
+                                      } catch (e) {
+                                        debugPrint('Error subiendo imagen: $e');
+                                        imagenUrlFinal = '';
+                                      } finally {
+                                        setStateModal(() => subiendoImagen = false);
+                                      }
+                                    }
+
                                     final producto = productoAEditar ?? ProductoEntity();
-                                    producto.codigoBarras =
-                                        codigoController.text.trim();
+                                    producto.codigoBarras = codigoController.text.trim();
                                     producto.nombre = nombre;
-                                    producto.imagenUrl =
-                                        imagenUrlController.text.trim().isNotEmpty
-                                            ? imagenUrlController.text.trim()
-                                            : '';
+                                    producto.imagenUrl = imagenUrlFinal;
                                     producto.precioUnidad = pPrecio;
                                     producto.stock = pStock;
                                     final pStockMin = double.tryParse(stockMinController
@@ -822,7 +1001,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     );
   }
 
-  // Widget auxiliar para el dropdown de categoría
+  // ==========================================
+  // DROPDOWN DE CATEGORÍAS
+  // ==========================================
   Widget _buildCategoriaDropdown(
     List<String> listaCategorias,
     String valorActual,
@@ -908,7 +1089,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // MODAL DE DETALLES DEL PRODUCTO (CORREGIDO)
+  // MODAL DE DETALLES DEL PRODUCTO
   // ==========================================
   void _mostrarDetalleProducto(ProductoEntity producto) {
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -947,7 +1128,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
             child: Container(
               padding: EdgeInsets.all(padding),
               decoration: BoxDecoration(
-                color: theme.dialogBackgroundColor,
+                color: theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
@@ -1000,13 +1181,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                               ? Image.network(
                                   producto.imagenUrl,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Icon(
+                                  errorBuilder: (_, _, _) => Icon(
                                     Icons.inventory_2,
                                     size: 64,
                                     color: Colors.blueGrey,
                                   ),
                                 )
-                              : const Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
+                              : Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
                         ),
                       ),
                     ),
@@ -1270,6 +1451,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
             child: SizedBox(
               height: 46,
               child: TextField(
+                textAlignVertical: TextAlignVertical.center,
                 onChanged: (val) => setState(() => _filtroBusqueda = val),
                 decoration: InputDecoration(
                   hintText: isMobile
@@ -1279,39 +1461,47 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                     fontSize: isMobile ? 13 : 14,
                     color: Colors.grey.shade500,
                   ),
-                  prefixIcon: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.qr_code_scanner_rounded,
-                            size: 28,
-                            color: Color(0xFF475569),
+                  isDense: true,
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.only(left: 8, right: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          tooltip: 'Escanear código de barras',
-                          constraints: const BoxConstraints(
-                            minWidth: 44,
-                            minHeight: 44,
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.qr_code_scanner_rounded,
+                              size: 28,
+                              color: Color(0xFF475569),
+                            ),
+                            tooltip: 'Escanear código de barras',
+                            constraints: const BoxConstraints(
+                              minWidth: 44,
+                              minHeight: 44,
+                            ),
+                            padding: EdgeInsets.zero,
+                            onPressed: () {
+                              HapticFeedback.lightImpact();
+                              _scanBarcode();
+                            },
                           ),
-                          padding: EdgeInsets.zero,
-                          onPressed: () {
-                            HapticFeedback.lightImpact();
-                            _scanBarcode();
-                          },
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.search,
-                        size: 20,
-                        color: theme.textTheme.bodySmall?.color,
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.search,
+                          size: 20,
+                          color: theme.textTheme.bodySmall?.color,
+                        ),
+                      ],
+                    ),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: 0,
+                    minHeight: 0,
                   ),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
@@ -1348,6 +1538,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     final theme = Theme.of(context);
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
+    final isDesktop = !isMobile && !isTablet;
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    int crossAxisCount;
+    double childAspectRatio;
+
+    if (screenWidth < 600) {
+      crossAxisCount = 2;
+      childAspectRatio = 0.60;
+    } else if (screenWidth < 900) {
+      crossAxisCount = 2;
+      childAspectRatio = 0.55;
+    } else if (screenWidth < 1200) {
+      crossAxisCount = 3;
+      childAspectRatio = 0.62;
+    } else {
+      crossAxisCount = 4;
+      childAspectRatio = 0.68;
+    }
+
+    if (isMobile && MediaQuery.of(context).orientation == Orientation.landscape) {
+      crossAxisCount = 3;
+      childAspectRatio = 0.60;
+    }
 
     final productosFiltrados = _productos.where((p) {
       final coincideTexto = p.nombre
@@ -1388,7 +1602,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 'assets/logo.png',
                 width: 30,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) =>
+                errorBuilder: (_, _, _) =>
                     const Icon(Icons.storefront, color: Colors.white, size: 24),
               ),
             ),
@@ -1400,13 +1614,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         ),
         centerTitle: isMobile ? true : false,
         flexibleSpace: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                theme.primaryColor,
-                theme.primaryColorDark ?? Colors.indigo.shade700,
+                Color.fromRGBO(68, 109, 241, 1),
+                Color.fromARGB(255, 85, 59, 235),
               ],
             ),
           ),
@@ -1443,9 +1657,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       body: _isLoading
           ? GridView.builder(
               padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 1.5,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: isMobile ? 2 : 4,
+                childAspectRatio: 0.8,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
@@ -1476,10 +1690,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                               padding: const EdgeInsets.only(bottom: 100),
                               gridDelegate:
                                   SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount:
-                                    isMobile ? 1 : (isTablet ? 2 : 3),
-                                childAspectRatio:
-                                    isMobile ? 1.4 : (isTablet ? 1.6 : 1.5),
+                                crossAxisCount: crossAxisCount,
+                                childAspectRatio: childAspectRatio,
                                 crossAxisSpacing: 12,
                                 mainAxisSpacing: 12,
                               ),
@@ -1498,6 +1710,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                                   onTap: () => _mostrarDetalleProducto(p),
                                   isMobile: isMobile,
                                   isTablet: isTablet,
+                                  isDesktop: isDesktop,
                                   index: index,
                                   animationController: controller,
                                 );
@@ -1513,7 +1726,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 }
 
 // ==========================================
-// WIDGET DE TARJETA DE PRODUCTO
+// WIDGET DE TARJETA DE PRODUCTO (COMPACTA)
 // ==========================================
 class _ProductCard extends StatefulWidget {
   final ProductoEntity producto;
@@ -1521,6 +1734,7 @@ class _ProductCard extends StatefulWidget {
   final VoidCallback onTap;
   final bool isMobile;
   final bool isTablet;
+  final bool isDesktop;
   final int index;
   final AnimationController animationController;
 
@@ -1530,6 +1744,7 @@ class _ProductCard extends StatefulWidget {
     required this.onTap,
     required this.isMobile,
     required this.isTablet,
+    required this.isDesktop,
     required this.index,
     required this.animationController,
   });
@@ -1580,7 +1795,7 @@ class _ProductCardState extends State<_ProductCard> {
           child: InkWell(
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(16),
-            child: Ink(
+            child: Container(
               decoration: BoxDecoration(
                 color: theme.cardColor,
                 borderRadius: BorderRadius.circular(16),
@@ -1602,187 +1817,219 @@ class _ProductCardState extends State<_ProductCard> {
                   ),
                 ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: widget.isMobile
-                          ? 70
-                          : (widget.isTablet ? 100 : 90),
-                      height: widget.isMobile
-                          ? 70
-                          : (widget.isTablet ? 100 : 90),
-                      constraints: const BoxConstraints(
-                        minWidth: 60,
-                        minHeight: 60,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFFE2E8F0),
-                          width: 1,
-                        ),
-                      ),
-                      child: Center(
-                        child: widget.producto.imagenUrl.isNotEmpty
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  widget.producto.imagenUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.inventory_2,
-                                    size: 36,
-                                    color: Color(0xFF3B82F6),
-                                  ),
-                                ),
-                              )
-                            : const Icon(
-                                Icons.inventory_2,
-                                size: 36,
-                                color: Color(0xFF3B82F6),
-                              ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  widget.producto.nombre,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: widget.isTablet
-                                        ? 18
-                                        : (widget.isMobile ? 16 : 15),
-                                  ),
-                                ),
-                              ),
-                              if (widget.stockBajo) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFEE2E2),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: const Color(0xFFFECACA),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    '⚠️ BAJO',
-                                    style: TextStyle(
-                                      fontSize: widget.isTablet ? 11 : 9,
-                                      color: const Color(0xFFEF4444),
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Cód: ${widget.producto.codigoBarras}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontSize: widget.isTablet
-                                      ? 15
-                                      : (widget.isMobile ? 14 : 13),
-                                ),
-                              ),
-                              Text(
-                                '\$${widget.producto.precioUnidad.toStringAsFixed(2)}',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: widget.isTablet
-                                      ? 18
-                                      : (widget.isMobile ? 16 : 15),
-                                  color: const Color(0xFF10B981),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Cat: ${widget.producto.categoria}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontSize: widget.isTablet
-                                      ? 15
-                                      : (widget.isMobile ? 14 : 13),
-                                ),
-                              ),
-                              Text(
-                                'Stock: ${widget.producto.stock % 1 == 0 ? widget.producto.stock.toInt() : widget.producto.stock} / Mín: $stockMinStr',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontSize: widget.isTablet
-                                      ? 15
-                                      : (widget.isMobile ? 14 : 13),
-                                  fontWeight: FontWeight.w500,
-                                  color: widget.stockBajo
-                                      ? const Color(0xFFEF4444)
-                                      : const Color(0xFF475569),
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (widget.producto.proveedorNombre.isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEEF2FF),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: const Color(0xFFC7D2FE),
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Text(
-                                '📞 ${widget.producto.proveedorNombre}${widget.producto.proveedorTelefono.isNotEmpty ? " (${widget.producto.proveedorTelefono})" : ''}',
-                                style: TextStyle(
-                                  fontSize: widget.isTablet
-                                      ? 14
-                                      : (widget.isMobile ? 12 : 12),
-                                  fontStyle: FontStyle.italic,
-                                  color: const Color(0xFF4F46E5),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: _buildVerticalLayout(theme, stockMinStr),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  // ==========================================
+  // DISEÑO VERTICAL – COMPACTO Y RESPONSIVE
+  // ==========================================
+  Widget _buildVerticalLayout(ThemeData theme, String stockMinStr) {
+    final bool isMobile = widget.isMobile;
+    final bool isTablet = widget.isTablet;
+
+    final double imageHeight = isMobile ? 100 : (isTablet ? 140 : 190);
+    final double fontSizeNombre = isMobile ? 13 : (isTablet ? 16 : 20);
+    final double fontSizePrecio = isMobile ? 14 : (isTablet ? 18 : 22);
+    final double fontSizeDetalle = isMobile ? 10 : (isTablet ? 13 : 16);
+    final double fontSizeIcono = isMobile ? 16 : (isTablet ? 22 : 28);
+    final double paddingInterior = isMobile ? 6 : (isTablet ? 10 : 16);
+    final double spacingSmall = isMobile ? 1 : (isTablet ? 2 : 4);
+    final double spacingMedium = isMobile ? 2 : (isTablet ? 4 : 8);
+    final int nombreMaxLines = (isMobile) ? 1 : 2;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Imagen
+        Container(
+          height: imageHeight,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: widget.producto.imagenUrl.isNotEmpty
+                    ? Image.network(
+                        widget.producto.imagenUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: double.infinity,
+                        errorBuilder: (_, _, _) => Icon(
+                          Icons.inventory_2,
+                          size: isMobile ? 40 : (isTablet ? 50 : 64),
+                          color: const Color(0xFF3B82F6),
+                        ),
+                      )
+                    : Icon(
+                        Icons.inventory_2,
+                        size: isMobile ? 40 : (isTablet ? 50 : 64),
+                        color: const Color(0xFF3B82F6),
+                      ),
+              ),
+              if (widget.stockBajo)
+                Positioned(
+                  top: 4,
+                  left: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDC2626),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '¡STOCK BAJO!',
+                      style: TextStyle(
+                        fontSize: isMobile ? 8 : (isTablet ? 10 : 12),
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Icon(
+                    widget.producto.esPesado
+                        ? Icons.scale_outlined
+                        : Icons.inventory_outlined,
+                    size: fontSizeIcono * 0.75,
+                    color: const Color(0xFF334155),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Información compacta
+        Padding(
+          padding: EdgeInsets.all(paddingInterior),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.producto.nombre,
+                maxLines: nombreMaxLines,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: fontSizeNombre,
+                ),
+              ),
+              SizedBox(height: spacingSmall),
+              Text(
+                'Cód: ${widget.producto.codigoBarras}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: fontSizeDetalle,
+                  color: const Color(0xFF94A3B8),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              SizedBox(height: spacingMedium),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '\$${widget.producto.precioUnidad.toStringAsFixed(2)}',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: fontSizePrecio,
+                      color: const Color(0xFF10B981),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: widget.stockBajo
+                          ? const Color(0xFFFEE2E2)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: widget.stockBajo
+                            ? const Color(0xFFFECACA)
+                            : const Color(0xFFE2E8F0),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Text(
+                      'Stock: ${widget.producto.stock}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: fontSizeDetalle - 1,
+                        fontWeight: FontWeight.w600,
+                        color: widget.stockBajo
+                            ? const Color(0xFFEF4444)
+                            : const Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: spacingSmall),
+              if (widget.producto.categoria.isNotEmpty)
+                Text(
+                  'Cat: ${widget.producto.categoria}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: fontSizeDetalle,
+                    color: const Color(0xFF64748B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              if (widget.producto.proveedorNombre.isNotEmpty) ...[
+                SizedBox(height: spacingSmall),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: const Color(0xFFC7D2FE),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.phone,
+                        size: isMobile ? 8 : (isTablet ? 12 : 16),
+                        color: const Color(0xFF4F46E5),
+                      ),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: Text(
+                          widget.producto.proveedorNombre,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: fontSizeDetalle - 1,
+                            fontStyle: FontStyle.italic,
+                            color: const Color(0xFF4F46E5),
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1812,46 +2059,35 @@ class _ProductCardSkeleton extends StatelessWidget {
           )
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Row(
-          children: [
-            Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(12),
-              ),
+      child: Column(
+        children: [
+          Container(
+            height: 100,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    height: 18,
-                    width: double.infinity,
-                    color: const Color(0xFFF1F5F9),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 12,
-                    width: 60,
-                    color: const Color(0xFFF1F5F9),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 12,
-                    width: 80,
-                    color: const Color(0xFFF1F5F9),
-                  ),
-                ],
-              ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(6.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(height: 12, width: double.infinity, color: const Color(0xFFF1F5F9)),
+                const SizedBox(height: 4),
+                Container(height: 10, width: 60, color: const Color(0xFFF1F5F9)),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(height: 12, width: 40, color: const Color(0xFFF1F5F9)),
+                    Container(height: 10, width: 50, color: const Color(0xFFF1F5F9)),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

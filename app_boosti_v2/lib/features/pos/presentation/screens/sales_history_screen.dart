@@ -7,7 +7,6 @@ import 'package:path_provider/path_provider.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/detalle_venta_entity.dart'; // ✅ IMPORTANTE
-import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 
 
@@ -973,7 +972,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                           )
                         : ListView.separated(
                             itemCount: _ventasFiltradas.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
                             itemBuilder: (context, index) {
                               final venta = _ventasFiltradas[index];
                               final fechaLocal = venta.fecha.toLocal();

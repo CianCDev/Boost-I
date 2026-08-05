@@ -25,6 +25,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   bool _obscurePin = true;
   bool _obscurePassword = true;
 
+  // ✅ Usamos el ID del usuario para el dropdown
+  int? _selectedUserId;
+
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -32,7 +35,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   void initState() {
     super.initState();
-    // Cargar admin por defecto si no existe
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(authProvider.notifier).inicializarAdminPorDefecto();
       _sincronizarUsuarios();
@@ -73,7 +75,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       debugPrint('✅ Usuarios sincronizados correctamente');
     } catch (e) {
       debugPrint('⚠️ Error sincronizando usuarios: $e');
-      // Si falla, al menos cargamos los locales
       try {
         await ref.read(authProvider.notifier).loadUsuarios();
       } catch (_) {}
@@ -81,7 +82,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // MÉTODOS DE AUTENTICACIÓN (SIN NINGUNA LÓGICA DE TURNOS)
+  // MÉTODOS DE AUTENTICACIÓN
   // ============================================================
   void _loginWithPin() async {
     final authState = ref.read(authProvider);
@@ -91,7 +92,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       );
       return;
     }
-    final usuarioSeleccionado = authState.usuarios.first;
+
+    // ✅ Obtener el usuario seleccionado por ID
+    UsuarioEntity? usuarioSeleccionado;
+    if (_selectedUserId != null) {
+      try {
+        usuarioSeleccionado = authState.usuarios.firstWhere(
+          (u) => u.id == _selectedUserId,
+        );
+      } catch (_) {
+        usuarioSeleccionado = null;
+      }
+    }
+    // Si no se encontró o no hay selección, usar el primero
+    usuarioSeleccionado ??= authState.usuarios.first;
+
     final pin = _pinController.text.trim();
     if (pin.isEmpty) {
       ref.read(authProvider.notifier).setError('Por favor ingresa tu PIN.');
@@ -102,11 +117,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           usuarioSeleccionado,
           pin,
         );
+
     if (success && mounted) {
       final user = ref.read(authProvider).currentUser;
       if (user != null) {
         ref.read(usuarioActualProvider.notifier).setUsuario(user);
-        // ✅ Navega AL CATÁLOGO (flujo original)
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
@@ -132,7 +147,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       final user = ref.read(authProvider).currentUser;
       if (user != null) {
         ref.read(usuarioActualProvider.notifier).setUsuario(user);
-        // ✅ Navega AL CATÁLOGO (flujo original)
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
@@ -287,7 +301,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // COMPONENTES UI (sin cambios)
+  // COMPONENTES UI
   // ============================================================
 
   Widget _buildLogo(double size, bool isMobile) {
@@ -445,6 +459,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final fontSizeLabel = isMobile ? 13.0 : 15.0;
     final paddingVerticalInput = isTablet ? 22.0 : 18.0;
 
+    // ✅ Si no hay usuario seleccionado y la lista no está vacía, seleccionar el primero
+    if (_selectedUserId == null && authState.usuarios.isNotEmpty) {
+      _selectedUserId = authState.usuarios.first.id;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -462,16 +481,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.grey.shade300),
           ),
-          child: DropdownButtonFormField<UsuarioEntity>(
-            initialValue: authState.usuarios.isNotEmpty ? authState.usuarios.first : null,
+          child: DropdownButtonFormField<int>(
+            initialValue: _selectedUserId,
             decoration: InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(
-                  horizontal: 16, vertical: isTablet ? 18.0 : 12.0),
+                horizontal: 16,
+                vertical: isTablet ? 18.0 : 12.0,
+              ),
             ),
             items: authState.usuarios.map((u) {
-              return DropdownMenuItem(
-                value: u,
+              return DropdownMenuItem<int>(
+                value: u.id,
                 child: Text(
                   '${u.nombre} (${u.rol.toUpperCase()})',
                   style: TextStyle(fontSize: isMobile ? 14 : 16),
@@ -479,7 +500,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               );
             }).toList(),
             onChanged: (val) {
-              // No necesitamos hacer nada aquí, se usará en el login
+              setState(() {
+                _selectedUserId = val;
+              });
             },
             icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
           ),

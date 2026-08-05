@@ -9,15 +9,36 @@ class ConfiguracionEmpresaScreen extends StatefulWidget {
   const ConfiguracionEmpresaScreen({super.key});
 
   @override
-  State<ConfiguracionEmpresaScreen> createState() => _ConfiguracionEmpresaScreenState();
+  State<ConfiguracionEmpresaScreen> createState() =>
+      _ConfiguracionEmpresaScreenState();
 }
 
-class _ConfiguracionEmpresaScreenState extends State<ConfiguracionEmpresaScreen> {
+class _ConfiguracionEmpresaScreenState
+    extends State<ConfiguracionEmpresaScreen> {
   final TextEditingController _urlController = TextEditingController();
   final TextEditingController _anonKeyController = TextEditingController();
   final TextEditingController _empresaIdController = TextEditingController();
   bool _isLoading = false;
   bool _obscureKey = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Cargar valores existentes para prellenar
+    _cargarConfiguracion();
+  }
+
+  Future<void> _cargarConfiguracion() async {
+    final prefs = await SharedPreferences.getInstance();
+    final url = prefs.getString('supabase_url') ?? '';
+    final anonKey = prefs.getString('supabase_anon_key') ?? '';
+    final empresaId = prefs.getString('empresa_id') ?? '';
+    setState(() {
+      _urlController.text = url;
+      _anonKeyController.text = anonKey;
+      _empresaIdController.text = empresaId;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +56,10 @@ class _ConfiguracionEmpresaScreenState extends State<ConfiguracionEmpresaScreen>
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color.fromRGBO(68, 109, 241, 1), Color.fromARGB(255, 85, 59, 235)],
+              colors: [
+                Color.fromRGBO(68, 109, 241, 1),
+                Color.fromARGB(255, 85, 59, 235)
+              ],
             ),
           ),
         ),
@@ -103,9 +127,11 @@ class _ConfiguracionEmpresaScreenState extends State<ConfiguracionEmpresaScreen>
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF10B981), width: 2),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -116,7 +142,7 @@ class _ConfiguracionEmpresaScreenState extends State<ConfiguracionEmpresaScreen>
                     style: const TextStyle(fontSize: 16),
                     decoration: InputDecoration(
                       labelText: 'Anon Key de Supabase',
-                      hintText: 'eyJhbGciOiJIUzI1NiIs...',
+                      hintText: 'sb_publishable_... o eyJhbGci...',
                       prefixIcon: const Icon(Icons.key, color: Color(0xFF64748B)),
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -131,9 +157,11 @@ class _ConfiguracionEmpresaScreenState extends State<ConfiguracionEmpresaScreen>
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF10B981), width: 2),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -151,9 +179,11 @@ class _ConfiguracionEmpresaScreenState extends State<ConfiguracionEmpresaScreen>
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF10B981), width: 2),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
                     ),
                   ),
                   const SizedBox(height: 32),
@@ -205,7 +235,8 @@ class _ConfiguracionEmpresaScreenState extends State<ConfiguracionEmpresaScreen>
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline, color: const Color(0xFF0284C7), size: 20),
+                        Icon(Icons.info_outline,
+                            color: const Color(0xFF0284C7), size: 20),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -230,8 +261,26 @@ class _ConfiguracionEmpresaScreenState extends State<ConfiguracionEmpresaScreen>
   }
 
   Future<void> _guardarConfiguracion() async {
-    final url = _urlController.text.trim();
+    String url = _urlController.text.trim();
     final anonKey = _anonKeyController.text.trim();
+
+    // ✅ Limpiar URL: eliminar cualquier ruta extra
+    if (url.endsWith('/')) url = url.substring(0, url.length - 1);
+    // Si contiene "/rest/v1", eliminarlo
+    if (url.contains('/rest/v1')) {
+      url = url.replaceFirst(RegExp(r'/rest/v1.*'), '');
+    }
+    // Asegurar que termina con .supabase.co
+    if (!url.contains('supabase.co')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('La URL debe ser un dominio de Supabase válido'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (url.isEmpty || anonKey.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -260,11 +309,11 @@ class _ConfiguracionEmpresaScreenState extends State<ConfiguracionEmpresaScreen>
       }
       await prefs.setString('empresa_id', empresaId);
 
-      // Inicializar Supabase
-          try {
+      // ✅ Inicializar Supabase con la URL limpia
+      try {
         await Supabase.initialize(
           url: url,
-          publishableKey: anonKey, // ✅ nombre correcto
+          publishableKey: anonKey,
         );
         debugPrint('✅ Supabase inicializado desde configuración');
       } catch (e) {
@@ -272,6 +321,7 @@ class _ConfiguracionEmpresaScreenState extends State<ConfiguracionEmpresaScreen>
         debugPrint('⚠️ Supabase ya inicializado o error al inicializar: $e');
       }
 
+      // ✅ Mostrar SnackBar antes de navegar
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -279,7 +329,8 @@ class _ConfiguracionEmpresaScreenState extends State<ConfiguracionEmpresaScreen>
             backgroundColor: Color(0xFF10B981),
           ),
         );
-        await Future.delayed(const Duration(milliseconds: 600));
+        // Esperar un momento para que se muestre el SnackBar y luego navegar
+        await Future.delayed(const Duration(milliseconds: 800));
         if (mounted) {
           // Navegar al Splash para que recargue la configuración
           Navigator.pushReplacement(

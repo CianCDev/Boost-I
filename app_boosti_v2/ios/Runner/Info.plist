@@ -29,6 +29,8 @@
 	<key>UIApplicationSceneManifest</key>
 	<key>NSCameraUsageDescription</key>
 	<string>Se necesita acceso a la cámara para escanear códigos de barras de productos</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Necesitamos acceso a la galería para seleccionar imágenes de productos</string>
 
 	<dict>
 		<key>UISupportsDocumentBrowser</key>

@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../../data/Local/entities/isar_service.dart';
+
 import '../widgets/admin_validation_dialog.dart';
 import 'cash_closing_screen.dart';
 import 'configuracion_empresa_screen.dart';
@@ -13,7 +16,6 @@ import '../widgets/monitor_empleado_widget.dart';
 import '../widgets/gestion_personal_dialog.dart';
 import '../widgets/cambiar_pin_dialog.dart';
 import '../../presentation/providers/usuario_provider.dart';
-import '../../presentation/providers/theme_provider.dart';
 import '../services/backup_service.dart';
 import 'login_screen.dart';
 import 'gastos_screen.dart';
@@ -63,7 +65,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
 
     try {
       await _syncService.sincronizarTodo();
-
+      // Recargar contador de pendientes
       await _cargarEstadoSync();
       await _cargarEstadoTurno();
 
@@ -149,36 +151,28 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
       return;
     }
 
-    final montoController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
+    // 🔥 Calcular el monto final automáticamente (total de ventas del turno)
+    final double montoFinal = await _isarService.obtenerTotalVentasPorEmpleadoYRango(
+      usuario.nombre,
+      turnoAbierto.fechaApertura,
+      DateTime.now(),
+    );
 
+    // Mostrar resumen y confirmar
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cerrar Turno'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Monto inicial: \$${turnoAbierto.montoInicial.toStringAsFixed(2)}'),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: montoController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Monto final (USD)',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) return 'Requerido';
-                  if (double.tryParse(value) == null) return 'Número válido';
-                  return null;
-                },
-              ),
-            ],
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Monto inicial: \$${turnoAbierto.montoInicial.toStringAsFixed(2)}'),
+            const SizedBox(height: 8),
+            Text('Total de ventas del turno: \$${montoFinal.toStringAsFixed(2)}'),
+            const SizedBox(height: 8),
+            const Text('¿Deseas cerrar el turno con este monto?'),
+          ],
         ),
         actions: [
           TextButton(
@@ -186,11 +180,11 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context, true);
-              }
-            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Cerrar Turno'),
           ),
         ],
@@ -198,7 +192,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     );
 
     if (confirm == true) {
-      final montoFinal = double.parse(montoController.text);
       turnoAbierto.montoFinal = montoFinal;
       turnoAbierto.fechaCierre = DateTime.now();
       turnoAbierto.estado = 'cerrado';

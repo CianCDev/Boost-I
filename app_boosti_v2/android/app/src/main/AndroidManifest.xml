@@ -18,8 +18,10 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
         android:maxSdkVersion="28" />
 
-     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    
+    
+    
+
     
     <!-- Para Android 11+ (API 30+) se necesita MANAGE_EXTERNAL_STORAGE si queremos acceso a toda la memoria, 
          pero no es necesario; mejor usar scoped storage. Lo dejamos fuera. -->

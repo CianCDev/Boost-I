@@ -4,13 +4,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/detalle_venta_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
-import '../../data/Local/entities/turno_entity.dart';
 import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../domain/models/product_item.dart';
@@ -57,14 +55,11 @@ class _InventoryCatalogScreenState
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
-  RealtimeChannel? _productosChannel;
-  bool _realtimeSuscrito = false;
+  // Polling
+  Timer? _pollingTimer;
+  static const Duration _pollingInterval = Duration(seconds: 10);
 
   StreamSubscription<double>? _weightSubscription;
-
-  // TURNO – variables de instancia
-  TurnoEntity? _turnoActual;
-  bool _turnoAbierto = false;
 
   // ============================
   // INIT
@@ -85,14 +80,11 @@ class _InventoryCatalogScreenState
       debugPrint('⚖️ Peso en tiempo real: $peso kg');
     });
 
-    _suscribirseARealtime();
+    // 🔄 Iniciar polling para actualizar productos periódicamente
+    _iniciarPolling();
 
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
     _inicializarPantalla();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _cargarTurnoActual();
-    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(bcvProvider).actualizarTasa();
@@ -101,15 +93,39 @@ class _InventoryCatalogScreenState
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _scaleService.dispose();
     _weightSubscription?.cancel();
-    _productosChannel?.unsubscribe();
-    _productosChannel = null;
-    _realtimeSuscrito = false;
     _searchController.dispose();
     _searchFocusNode.dispose();
     _animationController.dispose();
     super.dispose();
+  }
+
+  // ============================
+  // POLLING
+  // ============================
+  void _iniciarPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(_pollingInterval, (timer) async {
+      // Solo si la pantalla está montada y hay conexión (lo maneja SyncService)
+      if (mounted) {
+        await _actualizarProductosDesdeSupabase();
+      }
+    });
+  }
+
+  Future<void> _actualizarProductosDesdeSupabase() async {
+    try {
+      // Descargar productos desde Supabase y guardarlos localmente
+      await syncService.descargarProductosDesdeSupabase();
+      // Recargar la lista desde Isar
+      if (mounted) {
+        await _cargarProductosDesdeIsar();
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error en polling de productos: $e');
+    }
   }
 
   // ============================
@@ -133,8 +149,7 @@ class _InventoryCatalogScreenState
 
       if (productosBajos.isEmpty) return;
 
-      final configJson =
-          await rootBundle.loadString('assets/config.json');
+      final configJson = await rootBundle.loadString('assets/config.json');
       final configMap = jsonDecode(configJson) as Map<String, dynamic>;
       final config = TelegramConfig.fromJson(configMap);
 
@@ -146,108 +161,6 @@ class _InventoryCatalogScreenState
       debugPrint('📨 Alerta de stock bajo enviada a Telegram');
     } catch (e) {
       debugPrint('⚠️ Error al enviar alerta de stock bajo: $e');
-    }
-  }
-
-  Future<void> _cargarTurnoActual() async {
-    final usuario = widget.usuarioLogueado;
-    if (usuario == null) return;
-    final turno = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
-    if (turno != null) {
-      setState(() {
-        _turnoActual = turno;
-        _turnoAbierto = true;
-      });
-    }
-  }
-
-  Future<void> _abrirTurno() async {
-    final usuario = widget.usuarioLogueado;
-    if (usuario == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Usuario no identificado.')),
-        );
-      }
-      return;
-    }
-
-    final turnoExistente =
-        await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
-    if (turnoExistente != null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ya tienes un turno abierto.')),
-        );
-      }
-      return;
-    }
-
-    final turno = TurnoEntity()
-      ..usuarioId = usuario.id
-      ..usuarioNombre = usuario.nombre
-      ..fechaApertura = DateTime.now()
-      ..montoInicial = 0.0
-      ..estado = 'abierto'
-      ..syncStatus = 'pending';
-
-    await _isarService.guardarTurno(turno);
-    setState(() {
-      _turnoActual = turno;
-      _turnoAbierto = true;
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ Turno abierto para ${usuario.nombre}'),
-          backgroundColor: const Color(0xFF10B981),
-        ),
-      );
-    }
-  }
-
-  Future<void> _cerrarTurno() async {
-    if (_turnoActual == null) return;
-
-    final montoFinal = _turnoActual?.totalVentas ?? 0.0;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cerrar Turno'),
-        content: Text(
-          'El total de ventas del turno es: \$${montoFinal.toStringAsFixed(2)}\n¿Cerrar turno?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Cerrar Turno'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    await _isarService.cerrarTurno(_turnoActual!.id, montoFinal);
-    setState(() {
-      _turnoActual = null;
-      _turnoAbierto = false;
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Turno cerrado correctamente.'),
-          backgroundColor: Color(0xFFF59E0B),
-        ),
-      );
     }
   }
 
@@ -278,106 +191,6 @@ class _InventoryCatalogScreenState
       baseOffset: 0,
       extentOffset: _searchController.text.length,
     );
-  }
-
-  // ============================
-  // REALTIME (productos)
-  // ============================
-  void _suscribirseARealtime() {
-    if (_realtimeSuscrito) return;
-    try {
-      _productosChannel = Supabase.instance.client.channel('productos-realtime');
-      _productosChannel!.onPostgresChanges(
-        event: PostgresChangeEvent.all,
-        schema: 'public',
-        table: 'productos',
-        callback: (payload) {
-          if (mounted) _handleRealtimeProductChange(payload);
-        },
-      );
-      _productosChannel!.subscribe((status) {
-        if (status == RealtimeSubscribeStatus.subscribed) {
-          _realtimeSuscrito = true;
-          debugPrint('✅ Suscrito a Realtime para productos');
-        } else if (status == RealtimeSubscribeStatus.closed) {
-          _realtimeSuscrito = false;
-          debugPrint('⚠️ Realtime desconectado para productos');
-        } else if (status == RealtimeSubscribeStatus.channelError) {
-          debugPrint('❌ Error en canal Realtime');
-        }
-      } as void Function(RealtimeSubscribeStatus status, Object? error)?);
-    } catch (e) {
-      debugPrint('❌ Error al suscribirse a Realtime: $e');
-    }
-  }
-
-  void _handleRealtimeProductChange(dynamic payload) {
-    if (!mounted) return;
-    try {
-      final eventType = payload['event_type'] as String?;
-      final newRecord = payload['new'] as Map<String, dynamic>?;
-      final oldRecord = payload['old'] as Map<String, dynamic>?;
-      switch (eventType) {
-        case 'INSERT':
-        case 'UPDATE':
-          if (newRecord != null) _actualizarProductoDesdeRecord(newRecord);
-          break;
-        case 'DELETE':
-          if (oldRecord != null) {
-            _eliminarProductoPorCodigo(oldRecord['codigo_barras'] as String?);
-          }
-          break;
-      }
-    } catch (e) {
-      debugPrint('❌ Error procesando evento Realtime: $e');
-    }
-  }
-
-  Future<void> _actualizarProductoDesdeRecord(Map<String, dynamic> record) async {
-    try {
-      final codigo = record['codigo_barras'] as String?;
-      if (codigo == null || codigo.isEmpty) return;
-      final existentes = await _isarService.buscarProductoPorCodigoONombre(codigo);
-      var producto = existentes.firstWhere(
-        (p) => p.codigoBarras == codigo,
-        orElse: () => ProductoEntity(),
-      );
-      producto.codigoBarras = codigo;
-      producto.nombre = record['nombre'] ?? producto.nombre;
-      producto.precioUnidad =
-          (record['precio_unidad'] as num?)?.toDouble() ?? producto.precioUnidad;
-      producto.stock = (record['stock'] as num?)?.toDouble() ?? producto.stock;
-      producto.stockMinimo =
-          (record['stock_minimo'] as num?)?.toDouble() ?? producto.stockMinimo;
-      producto.esPesado = record['es_pesado'] ?? producto.esPesado;
-      producto.categoria = record['categoria'] ?? producto.categoria;
-      producto.proveedorNombre =
-          record['proveedor_nombre'] ?? producto.proveedorNombre;
-      producto.proveedorTelefono =
-          record['proveedor_telefono'] ?? producto.proveedorTelefono;
-      producto.imagenUrl = record['imagen_url'] ?? producto.imagenUrl;
-      await _isarService.guardarProducto(producto);
-      if (mounted) await _cargarProductosDesdeIsar();
-    } catch (e) {
-      debugPrint('❌ Error actualizando producto desde Realtime: $e');
-    }
-  }
-
-  Future<void> _eliminarProductoPorCodigo(String? codigo) async {
-    if (codigo == null || codigo.isEmpty) return;
-    try {
-      final existentes = await _isarService.buscarProductoPorCodigoONombre(codigo);
-      final producto = existentes.firstWhere(
-        (p) => p.codigoBarras == codigo,
-        orElse: () => ProductoEntity(),
-      );
-      if (producto.id != 0) {
-        await _isarService.eliminarProducto(producto.id);
-        if (mounted) await _cargarProductosDesdeIsar();
-      }
-    } catch (e) {
-      debugPrint('❌ Error eliminando producto desde Realtime: $e');
-    }
   }
 
   // ============================
@@ -513,8 +326,7 @@ class _InventoryCatalogScreenState
           ..nombreProducto = cartItem.producto.nombre
           ..precioUnidad = cartItem.producto.precioUnidad
           ..cantidad = cartItem.cantidad.toDouble()
-          ..subtotal =
-              cartItem.cantidad.toDouble() * cartItem.producto.precioUnidad;
+          ..subtotal = cartItem.cantidad.toDouble() * cartItem.producto.precioUnidad;
       }).toList();
 
       final nuevaVenta = VentaEntity()
@@ -527,10 +339,8 @@ class _InventoryCatalogScreenState
         ..totalBolivares = totalBsCalculado
         ..metodoPago = metodoPago
         ..documento = 'V-00000000'
-        ..empleado =
-            widget.usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
+        ..empleado = widget.usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
         ..items = itemsIsar.cast<DetalleVentaEntity>()
-        ..turnoId = _turnoActual?.id
         ..syncStatus = 'pending';
 
       await _isarService.guardarVenta(nuevaVenta);
@@ -1090,32 +900,6 @@ class _InventoryCatalogScreenState
             ),
           ),
           const SizedBox(width: 6),
-
-          // 2. BOTÓN DE TURNO
-          Tooltip(
-            message: _turnoAbierto ? 'Cerrar Turno' : 'Abrir Turno',
-            child: Container(
-              width: isTablet ? 44 : 36,
-              height: isTablet ? 44 : 36,
-              decoration: BoxDecoration(
-                color: _turnoAbierto
-                    ? const Color(0xFFF59E0B).withValues(alpha: 0.2)
-                    : const Color(0xFF10B981).withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: IconButton(
-                icon: Icon(
-                  _turnoAbierto ? Icons.lock_open : Icons.lock_outline,
-                  color: _turnoAbierto ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
-                  size: 22,
-                ),
-                onPressed: _turnoAbierto ? _cerrarTurno : _abrirTurno,
-                splashRadius: 24,
-                padding: EdgeInsets.zero,
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
 
           // 3. BOTÓN DE INVENTARIO
           Tooltip(
@@ -1783,7 +1567,7 @@ class _InventoryCatalogScreenState
                               style: TextStyle(fontSize: 18, color: Color(0xFF94A3B8))))
                           : ListView.separated(
                               itemCount: currentCartState.items.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 12),
+                              separatorBuilder: (_, _) => const SizedBox(height: 12),
                               itemBuilder: (context, index) {
                                 final cartItem = currentCartState.items[index];
                                 final double subtotal =
@@ -1973,7 +1757,7 @@ class _InventoryCatalogScreenState
   }
 
   // ============================================================
-  // CATEGORY CHIPS CON BLUR PROFESIONAL (CORREGIDO)
+  // CATEGORY CHIPS CON BLUR PROFESIONAL
   // ============================================================
   Widget _buildCategoryChips() {
     final isTablet = ResponsiveHelper.isTablet(context);
@@ -2052,7 +1836,7 @@ class _InventoryCatalogScreenState
 }
 
 // ============================================================
-// WIDGETS AUXILIARES (sin cambios excepto withValues)
+// WIDGETS AUXILIARES (sin cambios)
 // ============================================================
 class _CategoryButton extends StatefulWidget {
   final String categoria;
@@ -2241,7 +2025,7 @@ class _ProductCardState extends State<_ProductCard> {
                                     fit: BoxFit.cover,
                                     width: double.infinity,
                                     height: double.infinity,
-                                    errorBuilder: (_, __, ___) =>
+                                    errorBuilder: (_, _, _) =>
                                         const Icon(Icons.inventory_2, size: 40, color: Color(0xFF3B82F6)),
                                   )
                                 : const Icon(Icons.inventory_2, size: 40, color: Color(0xFF3B82F6)),
@@ -2409,7 +2193,7 @@ class _ProductCardSkeleton extends StatelessWidget {
 }
 
 // ============================================================
-// DIÁLOGO DEL ESCÁNER
+// DIÁLOGO DEL ESCÁNER (sin cambios)
 // ============================================================
 class _BarcodeScannerDialog extends StatefulWidget {
   const _BarcodeScannerDialog();

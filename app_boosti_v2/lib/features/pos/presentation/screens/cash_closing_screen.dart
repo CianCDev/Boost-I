@@ -15,6 +15,20 @@ class _CashClosingScreenState extends State<CashClosingScreen> {
   bool _isLoading = true;
   ResumenCorteCaja? _resumen;
 
+  // Colores por método de pago (igual que en CobrarDialog)
+  static const Map<String, Color> _coloresMetodo = {
+    'Efectivo': Color(0xFF10B981),
+    'Tarjeta': Color(0xFF3B82F6),
+    'Pago Móvil': Color(0xFF8B5CF6),
+    'Divisas': Color(0xFFF59E0B),
+    'Pago Mixto': Color(0xFFEC4899),
+    'Otros': Color(0xFF64748B),
+  };
+
+  Color _getColorMetodo(String metodo) {
+    return _coloresMetodo[metodo] ?? _coloresMetodo['Otros']!;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -34,7 +48,12 @@ class _CashClosingScreenState extends State<CashClosingScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al calcular el corte: $e'), backgroundColor: Colors.redAccent));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al calcular el corte: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
     }
   }
@@ -42,7 +61,14 @@ class _CashClosingScreenState extends State<CashClosingScreen> {
   Future<void> _ejecutarCierreYGuardarPdf() async {
     if (_resumen == null) return;
     try {
-      final List<TicketItem> itemsArqueo = [TicketItem(nombre: 'Cierre de Caja / Arqueo Diario', precio: _resumen!.totalVentas, cantidad: 1.0, esPesado: false)];
+      final List<TicketItem> itemsArqueo = [
+        TicketItem(
+          nombre: 'Cierre de Caja / Arqueo Diario',
+          precio: _resumen!.totalVentas,
+          cantidad: 1.0,
+          esPesado: false,
+        )
+      ];
       await TicketService.generarYProcesarPdf(
         items: itemsArqueo,
         subtotal: _resumen!.totalVentas,
@@ -53,115 +79,330 @@ class _CashClosingScreenState extends State<CashClosingScreen> {
         vuelto: 0.0,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Cierre de caja procesado y PDF guardado con éxito! 📄'), backgroundColor: Color(0xFF10B981)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('¡Cierre de caja procesado y PDF guardado con éxito! 📄'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al generar el PDF del arqueo: $e'), backgroundColor: Colors.redAccent));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al generar el PDF del arqueo: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
+    // Ajustes de tamaño
+    final double paddingHorizontal = isMobile ? 16 : (isTablet ? 24 : 32);
+    final double paddingVertical = isMobile ? 12 : 20;
+    final double fontSizeTotal = isMobile ? 28 : (isTablet ? 36 : 42);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Corte de Caja Diario', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18)),
+        title: const Text(
+          'Corte de Caja Diario',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        ),
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color.fromRGBO(122, 153, 255, 1), Color.fromARGB(255, 85, 59, 235)],
+              colors: [
+                theme.primaryColor,
+                theme.primaryColorDark,
+              ],
             ),
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 2,
         foregroundColor: Colors.white,
-        actions: [IconButton(icon: const Icon(Icons.refresh, color: Colors.white), tooltip: 'Actualizar Corte', onPressed: _cargarCorte)],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Actualizar Corte',
+            onPressed: _cargarCorte,
+          ),
+        ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
+          ? Center(
+              child: CircularProgressIndicator.adaptive(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  theme.primaryColor,
+                ),
+              ),
+            )
           : _resumen == null
-              ? const Center(child: Text('No hay datos disponibles'))
+              ? Center(
+                  child: Text(
+                    'No hay datos disponibles',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                )
               : SingleChildScrollView(
-                  padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: paddingHorizontal,
+                    vertical: paddingVertical,
+                  ),
+                  physics: const BouncingScrollPhysics(),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Tarjeta principal del total
+                      // TARJETA PRINCIPAL (TOTAL)
                       Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(16)),
+                        padding: EdgeInsets.all(isMobile ? 20 : 28),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF0F172A),
+                              Color(0xFF1E293B),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              const Text('TOTAL RECAUDADO HOY', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
-                              const SizedBox(height: 8),
-                              Text('\$${_resumen!.totalVentas.toStringAsFixed(2)}', style: TextStyle(color: Colors.white, fontSize: isTablet ? 36 : 28, fontWeight: FontWeight.bold)),
-                            ]),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'TOTAL RECAUDADO HOY',
+                                    style: TextStyle(
+                                      color: Color(0xFF94A3B8),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '\$${_resumen!.totalVentas.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      color: const Color(0xFF34D399),
+                                      fontSize: fontSizeTotal,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                              decoration: BoxDecoration(color: const Color(0xFF10B981).withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFF10B981))),
-                              child: Column(children: [const Text('Transacciones', style: TextStyle(color: Color(0xFF10B981), fontSize: 11)), const SizedBox(height: 2), Text('${_resumen!.cantidadTransacciones}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))]),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 14 : 20,
+                                vertical: isMobile ? 8 : 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFF10B981),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  const Text(
+                                    'Transacciones',
+                                    style: TextStyle(
+                                      color: Color(0xFF10B981),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${_resumen!.cantidadTransacciones}',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: isMobile ? 18 : 24,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 24),
-                      const Text('Desglose por Método de Pago', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                      const SizedBox(height: 12),
-                      // Grid de métodos de pago (MÁS GRANDE EN TABLET)
+
+                      // TÍTULO DESGLOSE
+                      Text(
+                        'Desglose por Método de Pago',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isMobile ? 16 : (isTablet ? 18 : 20),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // GRID DE MÉTODOS (COMPACTO EN MÓVIL)
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: isMobile ? 2 : (isTablet ? 3 : 4),
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                          childAspectRatio: isMobile ? 2.2 : 1.8,
+                          crossAxisSpacing: isMobile ? 10 : 14,
+                          mainAxisSpacing: isMobile ? 10 : 14,
+                          childAspectRatio: isMobile ? 2.0 : 1.8,
                         ),
                         itemCount: _resumen!.totalesPorMetodo.keys.length,
                         itemBuilder: (context, index) {
-                          String metodo = _resumen!.totalesPorMetodo.keys.elementAt(index);
-                          double monto = _resumen!.totalesPorMetodo[metodo]!;
-                          int cantidad = _resumen!.conteoPorMetodo[metodo]!;
+                          final String metodo =
+                              _resumen!.totalesPorMetodo.keys.elementAt(index);
+                          final double monto =
+                              _resumen!.totalesPorMetodo[metodo]!;
+                          final int cantidad =
+                              _resumen!.conteoPorMetodo[metodo]!;
+                          final Color color = _getColorMetodo(metodo);
+
+                          // Tamaños adaptados
+                          final double fontSizeNombre =
+                              isMobile ? 12 : (isTablet ? 14 : 16);
+                          final double fontSizeMonto =
+                              isMobile ? 16 : (isTablet ? 20 : 24);
+                          final double paddingInterno =
+                              isMobile ? 10 : (isTablet ? 14 : 18);
 
                           return Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
+                            padding: EdgeInsets.all(paddingInterno),
+                            decoration: BoxDecoration(
+                              color: theme.cardColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: color.withValues(alpha: 0.25),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.03),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(metodo, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B), fontSize: 13)), Text('$cantidad ops', style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)))]),
+                                // Fila superior: círculo + nombre + badge
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: isMobile ? 8 : 10,
+                                      height: isMobile ? 8 : 10,
+                                      decoration: BoxDecoration(
+                                        color: color,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        metodo,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: fontSizeNombre,
+                                          color: theme
+                                              .textTheme.bodyMedium?.color,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    // Badge "ops"
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: isMobile ? 4 : 8,
+                                        vertical: isMobile ? 1 : 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme.dividerColor
+                                            .withValues(alpha: 0.3),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '$cantidad',
+                                        style: TextStyle(
+                                          fontSize: isMobile ? 9 : 11,
+                                          fontWeight: FontWeight.w500,
+                                          color: theme.textTheme.bodySmall
+                                              ?.color,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                                 const Spacer(),
-                                Text('\$${monto.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                                // Monto
+                                Text(
+                                  '\$${monto.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: fontSizeMonto,
+                                    fontWeight: FontWeight.bold,
+                                    color: color,
+                                  ),
+                                ),
                               ],
                             ),
                           );
                         },
                       ),
-                      const SizedBox(height: 24),
-                      // Botón de Cierre
+                      const SizedBox(height: 28),
+
+                      // BOTÓN DE CIERRE
                       SizedBox(
-                        height: isMobile ? 52 : 56,
+                        height: isMobile ? 52 : 60,
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF10B981),
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                             elevation: 4,
+                            shadowColor: const Color(0xFF10B981)
+                                .withValues(alpha: 0.3),
                           ),
                           onPressed: _ejecutarCierreYGuardarPdf,
-                          icon: const Icon(Icons.print, size: 20),
-                          label: Text('Realizar Cierre y Guardar PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isMobile ? 14 : 16)),
+                          icon: Icon(
+                            Icons.print,
+                            size: isMobile ? 20 : 24,
+                          ),
+                          label: Text(
+                            'Realizar Cierre y Guardar PDF',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isMobile ? 14 : 16,
+                            ),
+                          ),
                         ),
                       ),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
