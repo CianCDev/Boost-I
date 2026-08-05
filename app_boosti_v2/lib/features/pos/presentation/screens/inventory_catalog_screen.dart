@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter;
+import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,16 +18,14 @@ import '../controllers/cart_controller.dart';
 import '../providers/bcv_provider.dart';
 import '../services/sync_service.dart';
 import '../services/ticket_service.dart';
+import '../widgets/admin_validation_dialog.dart';
 import '../widgets/cobrar_dialog.dart';
 import '../utils/responsive_helper.dart';
 import '../services/scale_service.dart';
+import '../services/telegram/telegram_service.dart';
+import '../services/telegram/telegram_config.dart';
 import 'inventory_screen.dart';
 import 'pos_menu_screen.dart';
-
-import 'dart:convert';
-import 'package:flutter/services.dart' show rootBundle;
-import '../services/telegram/telegram_config.dart';
-import '../services/telegram/telegram_service.dart'; 
 
 class InventoryCatalogScreen extends ConsumerStatefulWidget {
   final UsuarioEntity? usuarioLogueado;
@@ -63,7 +62,7 @@ class _InventoryCatalogScreenState
 
   StreamSubscription<double>? _weightSubscription;
 
-  // TURNO – variables de instancia (corregido)
+  // TURNO – variables de instancia
   TurnoEntity? _turnoActual;
   bool _turnoAbierto = false;
 
@@ -113,42 +112,146 @@ class _InventoryCatalogScreenState
     super.dispose();
   }
 
+  // ============================
+  // MÉTODOS AUXILIARES
+  // ============================
   Future<void> _inicializarPantalla() async {
     await _cargarProductosDesdeIsar();
     _verificarStockBajoYAlertar();
   }
 
   Future<void> _verificarStockBajoYAlertar() async {
-  try {
-    // Obtener productos con stock bajo
-    final productosBajos = _productosCatalog
-        .where((p) => p.stock <= p.stockMinimo)
-        .map((p) => {
-          'nombre': p.nombre,
-          'stock': p.stock,
-          'stockMinimo': p.stockMinimo,
-        })
-        .toList();
+    try {
+      final productosBajos = _productosCatalog
+          .where((p) => p.stock <= p.stockMinimo)
+          .map((p) => {
+                'nombre': p.nombre,
+                'stock': p.stock,
+                'stockMinimo': p.stockMinimo,
+              })
+          .toList();
 
-    if (productosBajos.isEmpty) return;
+      if (productosBajos.isEmpty) return;
 
-    // Cargar configuración de Telegram
-    final configJson = await rootBundle.loadString('assets/config.json');
-    final configMap = jsonDecode(configJson) as Map<String, dynamic>;
-    final config = TelegramConfig.fromJson(configMap);
+      final configJson =
+          await rootBundle.loadString('assets/config.json');
+      final configMap = jsonDecode(configJson) as Map<String, dynamic>;
+      final config = TelegramConfig.fromJson(configMap);
 
-    if (!config.isValid) return;
+      if (!config.isValid) return;
 
-    // Crear servicio y enviar alerta
-    final telegramService = TelegramService(config);
-    await telegramService.alertarStockBajo(productosBajos);
-    
-    debugPrint('📨 Alerta de stock bajo enviada a Telegram');
-  } catch (e) {
-    debugPrint('⚠️ Error al enviar alerta de stock bajo: $e');
+      final telegramService = TelegramService(config);
+      await telegramService.alertarStockBajo(productosBajos);
+
+      debugPrint('📨 Alerta de stock bajo enviada a Telegram');
+    } catch (e) {
+      debugPrint('⚠️ Error al enviar alerta de stock bajo: $e');
+    }
   }
-}
 
+  Future<void> _cargarTurnoActual() async {
+    final usuario = widget.usuarioLogueado;
+    if (usuario == null) return;
+    final turno = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
+    if (turno != null) {
+      setState(() {
+        _turnoActual = turno;
+        _turnoAbierto = true;
+      });
+    }
+  }
+
+  Future<void> _abrirTurno() async {
+    final usuario = widget.usuarioLogueado;
+    if (usuario == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Usuario no identificado.')),
+        );
+      }
+      return;
+    }
+
+    final turnoExistente =
+        await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
+    if (turnoExistente != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ya tienes un turno abierto.')),
+        );
+      }
+      return;
+    }
+
+    final turno = TurnoEntity()
+      ..usuarioId = usuario.id
+      ..usuarioNombre = usuario.nombre
+      ..fechaApertura = DateTime.now()
+      ..montoInicial = 0.0
+      ..estado = 'abierto'
+      ..syncStatus = 'pending';
+
+    await _isarService.guardarTurno(turno);
+    setState(() {
+      _turnoActual = turno;
+      _turnoAbierto = true;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Turno abierto para ${usuario.nombre}'),
+          backgroundColor: const Color(0xFF10B981),
+        ),
+      );
+    }
+  }
+
+  Future<void> _cerrarTurno() async {
+    if (_turnoActual == null) return;
+
+    final montoFinal = _turnoActual?.totalVentas ?? 0.0;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cerrar Turno'),
+        content: Text(
+          'El total de ventas del turno es: \$${montoFinal.toStringAsFixed(2)}\n¿Cerrar turno?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cerrar Turno'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await _isarService.cerrarTurno(_turnoActual!.id, montoFinal);
+    setState(() {
+      _turnoActual = null;
+      _turnoAbierto = false;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Turno cerrado correctamente.'),
+          backgroundColor: Color(0xFFF59E0B),
+        ),
+      );
+    }
+  }
+
+  // --- TECLADO FÍSICO ---
   bool _manejarTecladoFisico(KeyEvent event) {
     if (event is KeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.f2) {
@@ -177,6 +280,9 @@ class _InventoryCatalogScreenState
     );
   }
 
+  // ============================
+  // REALTIME (productos)
+  // ============================
   void _suscribirseARealtime() {
     if (_realtimeSuscrito) return;
     try {
@@ -274,6 +380,9 @@ class _InventoryCatalogScreenState
     }
   }
 
+  // ============================
+  // CARGA Y FILTROS DE PRODUCTOS
+  // ============================
   Future<void> _cargarProductosDesdeIsar() async {
     try {
       if (mounted) setState(() => _isLoading = true);
@@ -364,6 +473,9 @@ class _InventoryCatalogScreenState
     _filtrarProductos();
   }
 
+  // ============================
+  // COBRO
+  // ============================
   Future<void> _mostrarModalCobro(BuildContext context) async {
     final cartState = ref.read(cartProvider);
     if (cartState.total <= 0) return;
@@ -418,7 +530,7 @@ class _InventoryCatalogScreenState
         ..empleado =
             widget.usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
         ..items = itemsIsar.cast<DetalleVentaEntity>()
-        ..turnoId = _turnoActual?.id   // <--- asociar turno
+        ..turnoId = _turnoActual?.id
         ..syncStatus = 'pending';
 
       await _isarService.guardarVenta(nuevaVenta);
@@ -514,6 +626,9 @@ class _InventoryCatalogScreenState
     );
   }
 
+  // ============================
+  // ESCÁNER
+  // ============================
   Future<void> _scanBarcode() async {
     final codigoEscaneado = await showDialog<String>(
       context: context,
@@ -546,6 +661,9 @@ class _InventoryCatalogScreenState
     }
   }
 
+  // ============================
+  // MODAL DE CANTIDAD CON BALANZA
+  // ============================
   void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) {
     final TextEditingController cantidadController = TextEditingController(
       text: producto.esPesado ? '0.000' : '1',
@@ -881,18 +999,8 @@ class _InventoryCatalogScreenState
     });
   }
 
-  // ============================
-  // ESCÁNER
-  // ============================
-  Future<void> _scanBarcode() async { /* ... sin cambios ... */ }
-
-  // ============================
-  // MODAL DE CANTIDAD CON BALANZA
-  // ============================
-  void _mostrarModalCantidad(BuildContext context, ProductoEntity producto) { /* ... sin cambios ... */ }
-
   // ============================================================
-  // BUILD (continúa en la Parte 2)
+  // BUILD
   // ============================================================
   @override
   Widget build(BuildContext context) {
@@ -983,6 +1091,33 @@ class _InventoryCatalogScreenState
           ),
           const SizedBox(width: 6),
 
+          // 2. BOTÓN DE TURNO
+          Tooltip(
+            message: _turnoAbierto ? 'Cerrar Turno' : 'Abrir Turno',
+            child: Container(
+              width: isTablet ? 44 : 36,
+              height: isTablet ? 44 : 36,
+              decoration: BoxDecoration(
+                color: _turnoAbierto
+                    ? const Color(0xFFF59E0B).withValues(alpha: 0.2)
+                    : const Color(0xFF10B981).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: IconButton(
+                icon: Icon(
+                  _turnoAbierto ? Icons.lock_open : Icons.lock_outline,
+                  color: _turnoAbierto ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                  size: 22,
+                ),
+                onPressed: _turnoAbierto ? _cerrarTurno : _abrirTurno,
+                splashRadius: 24,
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+
+          // 3. BOTÓN DE INVENTARIO
           Tooltip(
             message: 'Ir a Gestión de Inventario',
             child: MouseRegion(
@@ -1144,6 +1279,9 @@ class _InventoryCatalogScreenState
     );
   }
 
+  // ============================================================
+  // LAYOUTS
+  // ============================================================
   Widget _buildDesktopTabletLayout(dynamic cartState, int crossAxisCount, double childAspectRatio) {
     return Row(
       children: [
@@ -1164,10 +1302,6 @@ class _InventoryCatalogScreenState
     );
   }
 
-    // ============================================================
-  // LAYOUTS (continuación)
-  // ============================================================
-
   Widget _buildCatalogPanel(dynamic cartState, int crossAxisCount, double childAspectRatio) {
     final isTablet = ResponsiveHelper.isTablet(context);
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -1177,7 +1311,7 @@ class _InventoryCatalogScreenState
         children: [
           _buildSearchBar(isMobile),
           const SizedBox(height: 16),
-          _buildCategoryChips(), // <--- fondo mejorado
+          _buildCategoryChips(),
           const SizedBox(height: 16),
           Expanded(
             child: RefreshIndicator(
@@ -1243,7 +1377,7 @@ class _InventoryCatalogScreenState
               children: [
                 _buildSearchBar(isMobile),
                 const SizedBox(height: 12),
-                _buildCategoryChips(), // <--- fondo mejorado
+                _buildCategoryChips(),
                 const SizedBox(height: 12),
                 Expanded(
                   child: RefreshIndicator(
@@ -1301,6 +1435,9 @@ class _InventoryCatalogScreenState
     );
   }
 
+  // ============================================================
+  // CARRITO – SIDEBAR (ESCRITORIO)
+  // ============================================================
   Widget _buildCartSidebarDesktop(dynamic cartState) {
     return Column(
       children: [
@@ -1482,6 +1619,9 @@ class _InventoryCatalogScreenState
     );
   }
 
+  // ============================================================
+  // CARRITO – RESUMEN FIJO (MÓVIL)
+  // ============================================================
   Widget _buildFixedCartSummary(dynamic cartState) {
     final isTablet = ResponsiveHelper.isTablet(context);
     final double barHeight = isTablet ? 140.0 : 120.0;
@@ -1574,6 +1714,9 @@ class _InventoryCatalogScreenState
     );
   }
 
+  // ============================================================
+  // BOTTOM SHEET DEL CARRITO (MÓVIL)
+  // ============================================================
   void _openCartBottomSheet(BuildContext context, dynamic cartState) {
     final isTablet = ResponsiveHelper.isTablet(context);
 
@@ -1596,7 +1739,7 @@ class _InventoryCatalogScreenState
             child: Consumer(
               builder: (context, ref, child) {
                 final currentCartState = ref.watch(cartProvider);
-                
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1715,16 +1858,6 @@ class _InventoryCatalogScreenState
                             Text(
                                 'Bs. ${(currentCartState.total * (ref.read(bcvProvider).tasa > 0 ? ref.read(bcvProvider).tasa : 1)).toStringAsFixed(2)}',
                                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 22 : 14, color: Color(0xFF3B82F6))),
-                            Icon(Icons.payments_outlined, size: isTablet ? 32 : 24),
-                            const SizedBox(width: 16),
-                            Text(
-                              'COBRAR ORDEN',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: isTablet ? 24 : 18,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
                           ],
                         ),
                         const SizedBox(height: 20),
@@ -1769,7 +1902,7 @@ class _InventoryCatalogScreenState
   }
 
   // ============================================================
-  // SEARCH BAR (CORREGIDA)
+  // SEARCH BAR
   // ============================================================
   Widget _buildSearchBar(bool isMobile) {
     final isTablet = ResponsiveHelper.isTablet(context);
@@ -1840,47 +1973,60 @@ class _InventoryCatalogScreenState
   }
 
   // ============================================================
-  // 🎯 CATEGORY CHIPS CON BLUR MEJORADO (CORREGIDO)
+  // CATEGORY CHIPS CON BLUR PROFESIONAL (CORREGIDO)
   // ============================================================
-  // ============================================================
-// 🎯 CATEGORY CHIPS CON BLUR PROFESIONAL
-// ============================================================
-Widget _buildCategoryChips() {
-  final isTablet = ResponsiveHelper.isTablet(context);
-  final double height = isTablet ? 60 : 48;
+  Widget _buildCategoryChips() {
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final double height = isTablet ? 60 : 48;
 
-  return ClipRect(
-    child: BackdropFilter(
-      // 🔥 BLUR SUAVE Y NATURAL
-      filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
-      child: Container(
-        height: height,
-        decoration: BoxDecoration(
-          // 🔥 FONDO MÁS SÓLIDO (75% opaco)
-          color: Colors.white.withOpacity(0.75),
-          // 🔥 SOMBRA MÁS NOTORIA
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-          // 🔥 BORDE SUTIL PARA DAR DEFINICIÓN
-          border: Border(
-            bottom: BorderSide(
-              color: Colors.grey.shade200.withOpacity(0.5),
-              width: 1,
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+        child: Container(
+          height: height,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.75),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.grey.shade200.withValues(alpha: 0.5),
+                width: 1,
+              ),
             ),
           ),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: isTablet
-            ? Scrollbar(
-                thickness: 6,
-                radius: const Radius.circular(10),
-                scrollbarOrientation: ScrollbarOrientation.bottom,
-                child: ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: isTablet
+              ? Scrollbar(
+                  thickness: 6,
+                  radius: const Radius.circular(10),
+                  scrollbarOrientation: ScrollbarOrientation.bottom,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: _categorias.length,
+                    separatorBuilder: (context, index) => const SizedBox(width: 10),
+                    itemBuilder: (context, index) {
+                      final cat = _categorias[index];
+                      return _CategoryButton(
+                        categoria: cat,
+                        esSeleccionada: _categoriaSeleccionada == cat,
+                        onTap: () {
+                          setState(() {
+                            _categoriaSeleccionada = cat;
+                          });
+                          _filtrarProductos();
+                        },
+                      );
+                    },
+                  ),
+                )
+              : ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: _categorias.length,
@@ -1899,32 +2045,15 @@ Widget _buildCategoryChips() {
                     );
                   },
                 ),
-              )
-            : ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _categorias.length,
-                separatorBuilder: (context, index) => const SizedBox(width: 10),
-                itemBuilder: (context, index) {
-                  final cat = _categorias[index];
-                  return _CategoryButton(
-                    categoria: cat,
-                    esSeleccionada: _categoriaSeleccionada == cat,
-                    onTap: () {
-                      setState(() {
-                        _categoriaSeleccionada = cat;
-                      });
-                      _filtrarProductos();
-                    },
-                  );
-                },
-              ),
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
 
+// ============================================================
+// WIDGETS AUXILIARES (sin cambios excepto withValues)
+// ============================================================
 class _CategoryButton extends StatefulWidget {
   final String categoria;
   final bool esSeleccionada;
@@ -2085,7 +2214,7 @@ class _ProductCardState extends State<_ProductCard> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(isTablet ? 0.08 : 0.04),
+                    color: Colors.black.withValues(alpha: isTablet ? 0.08 : 0.04),
                     blurRadius: isTablet ? 16 : 12,
                     offset: const Offset(0, 4),
                   ),
@@ -2094,7 +2223,7 @@ class _ProductCardState extends State<_ProductCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ✅ IMAGEN (flex 5 en lugar de 6)
+                  // IMAGEN (flex 5)
                   Expanded(
                     flex: 5,
                     child: Container(
@@ -2139,7 +2268,7 @@ class _ProductCardState extends State<_ProductCard> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.9),
+                                color: Colors.white.withValues(alpha: 0.9),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -2152,7 +2281,7 @@ class _ProductCardState extends State<_ProductCard> {
                       ),
                     ),
                   ),
-                  // ✅ INFORMACIÓN (flex 4 en lugar de 5)
+                  // INFORMACIÓN (flex 4)
                   Expanded(
                     flex: 4,
                     child: Padding(
@@ -2280,7 +2409,7 @@ class _ProductCardSkeleton extends StatelessWidget {
 }
 
 // ============================================================
-// DIÁLOGO DEL ESCÁNER DE CÓDIGO DE BARRAS
+// DIÁLOGO DEL ESCÁNER
 // ============================================================
 class _BarcodeScannerDialog extends StatefulWidget {
   const _BarcodeScannerDialog();

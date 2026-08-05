@@ -24,7 +24,6 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   final TextEditingController _pagoMovilBsController = TextEditingController();
   final TextEditingController _puntoBsController = TextEditingController();
   final TextEditingController _cedulaController = TextEditingController(text: 'V-00000000');
-
   final TextEditingController _referenciaController = TextEditingController();
   final TextEditingController _nombreClienteController = TextEditingController();
 
@@ -185,222 +184,329 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
       child: Focus(
         autofocus: true,
         child: Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           elevation: 8,
           insetPadding: isMobile
-              ? const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0)
-              : const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+              ? const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0)
+              : const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
           child: Container(
             width: dialogWidth,
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.9,
+              maxHeight: MediaQuery.of(context).size.height * 0.92,
             ),
             padding: EdgeInsets.all(isMobile ? 16 : 24),
             decoration: BoxDecoration(
               color: theme.dialogBackgroundColor,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-            child: Scrollbar(
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 1. CABECERA
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.receipt_long_outlined, color: const Color(0xFF10B981), size: isMobile ? 22 : 28),
-                            const SizedBox(width: 10),
-                            Text(
-                              isMobile ? 'Cobro' : 'Procesar Cobro',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontSize: isMobile ? 18 : 24,
-                                fontWeight: FontWeight.bold,
-                              ),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ---- CABECERA ----
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
                             ),
-                          ],
+                            child: Icon(
+                              Icons.receipt_long_outlined,
+                              color: const Color(0xFF10B981),
+                              size: isMobile ? 22 : 28,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            isMobile ? 'Cobro' : 'Procesar Cobro',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isMobile ? 18 : 24,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F9FF),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFBAE6FD)),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0F9FF),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFFBAE6FD)),
+                        child: Text(
+                          'BCV: Bs. ${tasaValida.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF0284C7),
+                            fontWeight: FontWeight.w700,
+                            fontSize: isMobile ? 10 : 12,
                           ),
-                          child: Text(
-                            'BCV: Bs. ${tasaValida.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              color: const Color(0xFF0284C7),
-                              fontWeight: FontWeight.w700,
-                              fontSize: isMobile ? 10 : 12,
-                            ),
-                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ---- BANNER DE TOTALES (MODERNO) ----
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: isMobile ? 16 : 20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF0F172A),
+                          Color(0xFF1E293B),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    child: isMobile
+                        ? Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'TOTAL A PAGAR (\$)',
+                                    style: TextStyle(
+                                      color: Color(0xFF94A3B8),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  Text(
+                                    '\$${widget.totalAPagar.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF34D399),
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'TOTAL EN BS',
+                                    style: TextStyle(
+                                      color: Color(0xFF94A3B8),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Bs. ${totalBs.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF38BDF8),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'TOTAL A PAGAR (\$)',
+                                    style: TextStyle(
+                                      color: Color(0xFF94A3B8),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '\$${widget.totalAPagar.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF34D399),
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  const Text(
+                                    'TOTAL EN BOLÍVARES',
+                                    style: TextStyle(
+                                      color: Color(0xFF94A3B8),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Bs. ${totalBs.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF38BDF8),
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                  ),
+                  const SizedBox(height: 16),
 
-                    // 2. BANNER DE TOTALES
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 24, vertical: isMobile ? 12 : 20),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(14),
+                  // ---- SELECTOR DE MÉTODO (CHIPS) ----
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildMetodoChip('Efectivo', Icons.payments, _metodoPagoSeleccionado == 'Efectivo', isMobile),
+                          const SizedBox(width: 8),
+                          _buildMetodoChip('Pago Móvil', Icons.phone_android, _metodoPagoSeleccionado == 'Pago Móvil', isMobile),
+                          const SizedBox(width: 8),
+                          _buildMetodoChip('Punto de Venta', Icons.credit_card, _metodoPagoSeleccionado == 'Punto de Venta', isMobile),
+                        ],
                       ),
-                      child: isMobile
-                          ? Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text('TOTAL A PAGAR (\$)', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                                    Text('\$${widget.totalAPagar.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF34D399), fontSize: 24, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text('TOTAL EN BS', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                                    Text('Bs. ${totalBs.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 18, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ],
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('TOTAL A PAGAR (\$)', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                                    const SizedBox(height: 4),
-                                    Text('\$${widget.totalAPagar.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF34D399), fontSize: 32, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    const Text('TOTAL EN BOLÍVARES', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                                    const SizedBox(height: 4),
-                                    Text('Bs. ${totalBs.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 26, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ],
-                            ),
                     ),
-                    const SizedBox(height: 14),
+                  ),
+                  const SizedBox(height: 14),
 
-                    // 3. SELECTOR DE MÉTODO DE PAGO (CON SCROLL HORIZONTAL)
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _buildMetodoChip('Efectivo', Icons.payments, _metodoPagoSeleccionado == 'Efectivo', isMobile),
-                            const SizedBox(width: 8),
-                            _buildMetodoChip('Pago Móvil', Icons.phone_android, _metodoPagoSeleccionado == 'Pago Móvil', isMobile),
-                            const SizedBox(width: 8),
-                            _buildMetodoChip('Punto de Venta', Icons.credit_card, _metodoPagoSeleccionado == 'Punto de Venta', isMobile),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
+                  // ---- CAMPOS DE PAGO SEGÚN MÉTODO ----
+                  if (_metodoPagoSeleccionado == 'Efectivo')
+                    _buildEfectivoFields(tasaValida, isMobile)
+                  else if (_metodoPagoSeleccionado == 'Pago Móvil')
+                    _buildPagoMovilFields(tasaValida, isMobile)
+                  else
+                    _buildPuntoFields(tasaValida, isMobile),
 
-                    // 4. CAMPOS DE PAGO según método seleccionado
-                    if (_metodoPagoSeleccionado == 'Efectivo')
-                      _buildEfectivoFields(tasaValida, isMobile)
-                    else if (_metodoPagoSeleccionado == 'Pago Móvil')
-                      _buildPagoMovilFields(tasaValida, isMobile)
-                    else
-                      _buildPuntoFields(tasaValida, isMobile),
+                  const SizedBox(height: 14),
 
-                    // 5. CÉDULA / DOCUMENTO
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _cedulaController,
-                      focusNode: _cedulaFocus,
-                      style: theme.textTheme.bodyMedium,
-                      decoration: InputDecoration(
-                        labelText: 'Cédula / RIF del Cliente',
-                        prefixIcon: const Icon(Icons.badge_outlined, size: 22, color: Color(0xFF64748B)),
-                        filled: true,
-                        fillColor: theme.inputDecorationTheme.fillColor,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFF0284C7), width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      ),
-                    ),
-
-                    // 6. PANEL DINÁMICO VUELTO / FALTANTE
-                    const SizedBox(height: 14),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 24, vertical: isMobile ? 12 : 16),
-                      decoration: BoxDecoration(
-                        color: pagoCompleto ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                  // ---- CÉDULA / RIF ----
+                  TextField(
+                    controller: _cedulaController,
+                    focusNode: _cedulaFocus,
+                    style: theme.textTheme.bodyMedium,
+                    decoration: InputDecoration(
+                      labelText: 'Cédula / RIF del Cliente',
+                      prefixIcon: const Icon(Icons.badge_outlined, size: 22, color: Color(0xFF64748B)),
+                      filled: true,
+                      fillColor: theme.inputDecorationTheme.fillColor,
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: pagoCompleto ? const Color(0xFFA7F3D0) : const Color(0xFFFECACA),
-                          width: 1.5,
-                        ),
+                        borderSide: BorderSide.none,
                       ),
-                      child: pagoCompleto
-                          ? Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('Vuelto (\$):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isMobile ? 14 : 16, color: const Color(0xFF047857))),
-                                    Text('\$${vueltoUsd.toStringAsFixed(2)}', style: TextStyle(fontSize: isMobile ? 16 : 18, fontWeight: FontWeight.bold, color: const Color(0xFF047857))),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('Vuelto (Bs):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isMobile ? 14 : 16, color: const Color(0xFF047857))),
-                                    Text('Bs. ${vueltoBs.toStringAsFixed(2)}', style: TextStyle(fontSize: isMobile ? 16 : 18, fontWeight: FontWeight.bold, color: const Color(0xFF047857))),
-                                  ],
-                                ),
-                              ],
-                            )
-                          : Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('Faltante (\$):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isMobile ? 14 : 16, color: const Color(0xFFB91C1C))),
-                                    Text('\$${faltanteUsd.toStringAsFixed(2)}', style: TextStyle(fontSize: isMobile ? 16 : 18, fontWeight: FontWeight.bold, color: const Color(0xFFB91C1C))),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('Faltante (Bs):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: isMobile ? 14 : 16, color: const Color(0xFFB91C1C))),
-                                    Text('Bs. ${faltanteBs.toStringAsFixed(2)}', style: TextStyle(fontSize: isMobile ? 16 : 18, fontWeight: FontWeight.bold, color: const Color(0xFFB91C1C))),
-                                  ],
-                                ),
-                              ],
-                            ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     ),
-                    const SizedBox(height: 20),
+                  ),
+                  const SizedBox(height: 14),
 
-                    // 7. BOTONES INFERIORES
-                    isMobile
-                        ? _buildMobileButtons(pagoCompleto, totalRecibidoUsd, vueltoUsd, tasaValida)
-                        : _buildDesktopButtons(pagoCompleto, totalRecibidoUsd, vueltoUsd, tasaValida),
-                  ],
-                ),
+                  // ---- PANEL DE VUELTO / FALTANTE ----
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 20, vertical: isMobile ? 12 : 16),
+                    decoration: BoxDecoration(
+                      color: pagoCompleto ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: pagoCompleto ? const Color(0xFFA7F3D0) : const Color(0xFFFECACA),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: pagoCompleto
+                        ? Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Vuelto (\$):', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF047857))),
+                                  Text(
+                                    '\$${vueltoUsd.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Vuelto (Bs):', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF047857))),
+                                  Text(
+                                    'Bs. ${vueltoBs.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          )
+                        : Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Faltante (\$):', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFB91C1C))),
+                                  Text(
+                                    '\$${faltanteUsd.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFB91C1C)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Faltante (Bs):', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFB91C1C))),
+                                  Text(
+                                    'Bs. ${faltanteBs.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFB91C1C)),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ---- BOTONES DE ACCIÓN ----
+                  isMobile
+                      ? _buildMobileButtons(pagoCompleto, totalRecibidoUsd, vueltoUsd, tasaValida)
+                      : _buildDesktopButtons(pagoCompleto, totalRecibidoUsd, vueltoUsd, tasaValida),
+                ],
               ),
             ),
           ),
@@ -414,27 +520,40 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   // ==========================================
 
   Widget _buildMetodoChip(String label, IconData icon, bool selected, bool isMobile) {
+    final theme = Theme.of(context);
     return InkWell(
       onTap: () => setState(() => _metodoPagoSeleccionado = label),
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16, vertical: isMobile ? 8 : 10),
+        padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 18, vertical: isMobile ? 8 : 10),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF0F172A) : Colors.transparent,
+          color: selected ? const Color(0xFF10B981) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? const Color(0xFF0F172A) : Colors.grey.shade300),
+          border: Border.all(
+            color: selected ? const Color(0xFF10B981) : theme.dividerColor,
+            width: 1.5,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: selected ? Colors.white : Colors.grey.shade700),
+            Icon(icon, size: 16, color: selected ? Colors.white : theme.iconTheme.color),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                fontSize: isMobile ? 12 : 14,
+                fontSize: isMobile ? 13 : 15,
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                color: selected ? Colors.white : Colors.grey.shade700,
+                color: selected ? Colors.white : theme.textTheme.bodyMedium?.color,
               ),
             ),
           ],
@@ -443,7 +562,6 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     );
   }
 
-  // ✅ SLIDER ELIMINADO, SOLO CAMPOS DE TEXTO
   Widget _buildEfectivoFields(double tasaValida, bool isMobile) {
     return Column(
       children: [
@@ -473,10 +591,10 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 8,
+          runSpacing: 8,
           children: [
             _botonAtajo(label: '\$ Exacto', icon: Icons.attach_money_rounded, color: const Color(0xFF10B981), onPressed: _pagarExactoUsd, isMobile: isMobile),
             _botonAtajo(label: '\$10', icon: Icons.payments_outlined, color: const Color(0xFF475569), onPressed: () => _pagarConBilleteUsd(10), isMobile: isMobile),
@@ -499,7 +617,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
           onChanged: (_) => setState(() {}),
           isMobile: isMobile,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         TextField(
           controller: _referenciaController,
           style: Theme.of(context).textTheme.bodyMedium,
@@ -508,11 +626,18 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
             prefixIcon: const Icon(Icons.numbers, color: Color(0xFF64748B)),
             filled: true,
             fillColor: Theme.of(context).inputDecorationTheme.fillColor,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+            ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         TextField(
           controller: _nombreClienteController,
           style: Theme.of(context).textTheme.bodyMedium,
@@ -521,14 +646,21 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
             prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF64748B)),
             filled: true,
             fillColor: Theme.of(context).inputDecorationTheme.fillColor,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+            ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 8,
+          runSpacing: 8,
           children: [
             _botonAtajo(
               label: 'Pago Móvil Exacto',
@@ -554,7 +686,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
           onChanged: (_) => setState(() {}),
           isMobile: isMobile,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         TextField(
           controller: _nombreClienteController,
           style: Theme.of(context).textTheme.bodyMedium,
@@ -563,14 +695,21 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
             prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF64748B)),
             filled: true,
             fillColor: Theme.of(context).inputDecorationTheme.fillColor,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
+            ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 8,
+          runSpacing: 8,
           children: [
             _botonAtajo(
               label: 'Punto Exacto',
@@ -589,35 +728,31 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   // COMPONENTES AUXILIARES
   // ==========================================
 
-  Widget _botonAtajo({required String label, required IconData icon, required Color color, required VoidCallback onPressed, required bool isMobile}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 14, vertical: isMobile ? 6 : 10),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withOpacity(0.25)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: isMobile ? 11 : 13,
-                ),
-              ),
-            ],
-          ),
+  Widget _botonAtajo({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+    required bool isMobile,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16, color: color),
+      label: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w600,
+          fontSize: isMobile ? 11 : 13,
         ),
+      ),
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(color: color.withValues(alpha: 0.3), width: 1.2),
+        backgroundColor: color.withValues(alpha: 0.05),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 14, vertical: isMobile ? 6 : 10),
+        minimumSize: const Size(0, 0),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
   }
@@ -643,9 +778,12 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
         prefixIcon: Icon(prefixIcon, color: colorIcon, size: 22),
         filled: true,
         fillColor: Theme.of(context).inputDecorationTheme.fillColor,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: colorIcon, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -658,9 +796,13 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         TextButton(
-          style: TextButton.styleFrom(foregroundColor: const Color(0xFF64748B), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16)),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.grey.shade700,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
           onPressed: () => Navigator.of(context).pop(null),
-          child: const Text('CANCELAR', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.3)),
+          child: const Text('CANCELAR', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
         ),
         const SizedBox(width: 12),
         ElevatedButton(
@@ -690,12 +832,12 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
       children: [
         SizedBox(
           width: double.infinity,
-          height: 56,
+          height: 52,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: pagoCompleto ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               elevation: pagoCompleto ? 4 : 0,
             ),
             onPressed: pagoCompleto ? () => _confirmarPago(totalRecibidoUsd, vueltoUsd, tasaValida) : null,
@@ -704,14 +846,18 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
               children: [
                 Icon(Icons.check_rounded, size: 22),
                 SizedBox(width: 10),
-                Text('CONFIRMAR PAGO', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.3)),
+                Text('CONFIRMAR PAGO', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.3)),
               ],
             ),
           ),
         ),
         const SizedBox(height: 10),
         TextButton(
-          style: TextButton.styleFrom(foregroundColor: const Color(0xFF64748B), padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10)),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.grey.shade700,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
           onPressed: () => Navigator.of(context).pop(null),
           child: const Text('CANCELAR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 0.3)),
         ),
