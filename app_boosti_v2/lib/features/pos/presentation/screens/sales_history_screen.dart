@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/venta_entity.dart';
-import '../../data/Local/entities/detalle_venta_entity.dart'; // ✅ IMPORTANTE
+import '../../data/Local/entities/detalle_venta_entity.dart';
+import '../services/sync_service.dart'; // ✅ Añadido para descargar ventas
 import '../utils/responsive_helper.dart';
-
 
 class SalesHistoryScreen extends StatefulWidget {
   const SalesHistoryScreen({super.key});
@@ -49,14 +49,19 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   // ============================================================
-  // CARGA DE VENTAS (SOLO LOCALES)
+  // CARGA DE VENTAS (CON DESCARGA DESDE SUPABASE)
   // ============================================================
   Future<void> _cargarVentas() async {
     setState(() => _isLoading = true);
     try {
-      // 🔥 Si quieres descargar desde Supabase, implementa el método y descomenta
-      // await SyncService().descargarVentasDesdeSupabase();
+      // 🔥 DESCARGA DE VENTAS DESDE SUPABASE (SIN DUPLICADOS)
+      try {
+        await SyncService().descargarVentasDesdeSupabase();
+      } catch (e) {
+        debugPrint('⚠️ Error descargando ventas: $e');
+      }
 
+      // Obtener ventas locales (Isar)
       final ventas = await _isarService.obtenerVentas();
       ventas.sort((a, b) => b.fecha.compareTo(a.fecha));
 

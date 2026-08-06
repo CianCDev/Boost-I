@@ -81,7 +81,7 @@ class _InventoryCatalogScreenState
     });
 
     // 🔄 Iniciar polling para actualizar productos periódicamente
-    _iniciarPolling();
+     //_iniciarPolling();
 
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
     _inicializarPantalla();
