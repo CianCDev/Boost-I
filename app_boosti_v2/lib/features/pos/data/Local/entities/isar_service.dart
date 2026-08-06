@@ -447,6 +447,14 @@ Future<List<DetalleVentaEntity>> obtenerDetallesPorVenta(int ventaId) async {
       .findAll();
 }
 
+Future<VentaEntity?> obtenerVentaPorIdString(String ventaIdString) async {
+  final isar = await db;
+  return await isar.ventaEntitys
+      .filter()
+      .ventaIdStringEqualTo(ventaIdString)
+      .findFirst();
+}
+
   // ==================== MÉTODOS DE SINCRONIZACIÓN ====================
   Future<List<VentaEntity>> obtenerVentasPendientesSync() async {
     final isar = await db;
@@ -489,6 +497,18 @@ Future<List<DetalleVentaEntity>> obtenerDetallesPorVenta(int ventaId) async {
       }
     });
   }
+
+  Future<void> guardarDetallesVenta(int ventaId, List<DetalleVentaEntity> detalles) async {
+  final isar = await db;
+  await isar.writeTxn(() async {
+    // Eliminar detalles antiguos para evitar duplicados
+    await isar.detalleVentaEntitys.filter().ventaIdEqualTo(ventaId).deleteAll();
+    for (var item in detalles) {
+      item.ventaId = ventaId;
+      await isar.detalleVentaEntitys.put(item);
+    }
+  });
+}
 
   // ==================== GESTIÓN DE MOVIMIENTOS ====================
   Future<void> guardarMovimientoInventario(MovimientoInventarioEntity movimiento) async {

@@ -13,6 +13,7 @@ import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/movimiento_inventario_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../data/Local/entities/turno_entity.dart';
+import '../../data/Local/entities/detalle_venta_entity.dart';
 
 class SyncService {
   final IsarService _isarService = IsarService();
@@ -356,34 +357,91 @@ Future<double> obtenerTotalVentasPorEmpleadoYRango(
   }
 
   Future<bool> sincronizarProductosASupabase() async {
-    try {
-      final productosLocales = await _isarService.obtenerProductos();
-      if (productosLocales.isEmpty) return true;
+  try {
+    final productosLocales = await _isarService.obtenerProductos();
+    if (productosLocales.isEmpty) return true;
 
-      final List<Map<String, dynamic>> payloadList = productosLocales.map((p) {
-        return {
-          'codigo_barras': p.codigoBarras,
-          'nombre': p.nombre,
-          'precio_unidad': _limpiarNumero(p.precioUnidad, 0.0),
-          'stock': _limpiarNumero(p.stock, 0.0),
-          'stock_minimo': _limpiarNumero(p.stockMinimo, 5.0),
-          'es_pesado': p.esPesado,
-          'categoria': p.categoria,
-          'proveedor_nombre': p.proveedorNombre,
-          'proveedor_telefono': p.proveedorTelefono,
-          'imagen_url': '',
-        };
-      }).toList();
+    final List<Map<String, dynamic>> payloadList = productosLocales.map((p) {
+      return {
+        'codigo_barras': p.codigoBarras,
+        'nombre': p.nombre,
+        'precio_unidad': _limpiarNumero(p.precioUnidad, 0.0),
+        'stock': _limpiarNumero(p.stock, 0.0),
+        'stock_minimo': _limpiarNumero(p.stockMinimo, 5.0),
+        'es_pesado': p.esPesado,
+        'categoria': p.categoria,
+        'proveedor_nombre': p.proveedorNombre,
+        'proveedor_telefono': p.proveedorTelefono,
+        'imagen_url': p.imagenUrl ?? '', // ✅ Enviar la URL guardada
+      };
+    }).toList();
 
-      await _supabase.from('productos').upsert(payloadList, onConflict: 'codigo_barras');
-      debugPrint('✅ ${productosLocales.length} productos sincronizados');
-      return true;
-    } catch (e) {
-      debugPrint('🚫 Error sincronizando productos: $e');
+    await _supabase.from('productos').upsert(payloadList, onConflict: 'codigo_barras');
+    debugPrint('✅ ${productosLocales.length} productos sincronizados');
+    return true;
+  } catch (e) {
+    debugPrint('🚫 Error sincronizando productos: $e');
+    return false;
+  }
+}
+
+ /// Elimina un producto de Supabase por su código de barras.
+/// Retorna `true` si se eliminó al menos una fila, `false` en caso contrario.
+Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
+  try {
+    final codigoLimpio = codigoBarras.trim();
+    if (codigoLimpio.isEmpty) {
+      debugPrint('⚠️ Código de barras vacío, no se puede eliminar.');
       return false;
     }
-  }
 
+    // Primero, verificar si el producto existe (con eq exacto)
+    var existing = await _supabase
+        .from('productos')
+        .select('id')
+        .eq('codigo_barras', codigoLimpio)
+        .maybeSingle();
+
+    // Si no existe con exacto, intentar con ilike (insensible a mayúsculas)
+    if (existing == null) {
+      debugPrint('ℹ️ Producto con código exacto "$codigoLimpio" no encontrado, intentando búsqueda flexible...');
+      final resultados = await _supabase
+          .from('productos')
+          .select('id')
+          .ilike('codigo_barras', codigoLimpio)
+          .limit(1);
+      if (resultados.isNotEmpty) {
+        existing = resultados.first;
+        debugPrint('🔍 Producto encontrado con búsqueda flexible: ${existing['id']}');
+      }
+    }
+
+    if (existing == null) {
+      debugPrint('ℹ️ Producto con código "$codigoLimpio" no existe en Supabase.');
+      return false;
+    }
+
+    // Ejecutar DELETE (usando el id para mayor precisión)
+    final response = await _supabase
+        .from('productos')
+        .delete()
+        .eq('id', existing['id']);
+
+    final int affected = response != null ? response.length : 0;
+    debugPrint('📦 Filas afectadas en Supabase: $affected');
+
+    if (affected > 0) {
+      debugPrint('✅ Producto eliminado de Supabase (id: ${existing['id']})');
+      return true;
+    } else {
+      debugPrint('⚠️ No se eliminó ninguna fila (código: $codigoLimpio)');
+      return false;
+    }
+  } catch (e) {
+    debugPrint('❌ Error eliminando producto de Supabase: $e');
+    rethrow;
+  }
+}
   // ==========================================
   // SINCRONIZACIÓN DE GASTOS
   // ==========================================
@@ -608,45 +666,77 @@ Future<double> obtenerTotalVentasPorEmpleadoYRango(
   // DESCARGA DE VENTAS DESDE SUPABASE
   // ==========================================
 
-  Future<void> descargarVentasDesdeSupabase() async {
-    try {
-      final response = await _supabase
-          .from('ventas')
-          .select()
-          .order('fecha', ascending: false);
+ Future<void> descargarVentasDesdeSupabase() async {
+  try {
+    final response = await _supabase
+        .from('ventas')
+        .select()
+        .order('fecha', ascending: false);
 
-      if (response.isEmpty) {
-        debugPrint('ℹ️ No hay ventas en Supabase para descargar');
-        return;
-      }
-
-      debugPrint('🔄 Descargando ${response.length} ventas desde Supabase...');
-
-      for (var data in response) {
-        final venta = VentaEntity()
-          ..ventaIdString = data['venta_id'] ?? ''
-          ..fecha = DateTime.parse(data['fecha']).toLocal()
-          ..subtotal = (data['subtotal'] as num).toDouble()
-          ..impuesto = (data['impuesto'] as num).toDouble()
-          ..total = (data['total'] as num).toDouble()
-          ..tasaBcv = (data['tasa_bcv'] as num?)?.toDouble() ?? 0.0
-          ..totalBolivares = (data['total_bolivares'] as num?)?.toDouble() ?? 0.0
-          ..metodoPago = data['metodo_pago'] ?? ''
-          ..documento = data['documento'] ?? ''
-          ..empleado = data['empleado'] ?? ''
-          ..syncStatus = 'synced';
-
-        await _isarService.guardarVenta(venta);
-      }
-
-      debugPrint('✅ ${response.length} ventas descargadas y guardadas localmente');
-    } catch (e) {
-      debugPrint('❌ Error descargando ventas: $e');
+    if (response.isEmpty) {
+      debugPrint('ℹ️ No hay ventas en Supabase para descargar');
+      return;
     }
+
+    debugPrint('🔄 Descargando ${response.length} ventas desde Supabase...');
+    int insertadas = 0;
+    int actualizadas = 0;
+
+    for (var data in response) {
+      final ventaId = data['venta_id'] as String? ?? '';
+      if (ventaId.isEmpty) continue;
+
+      // 🔥 Descargar detalles de esta venta
+      final detallesResponse = await _supabase
+          .from('detalle_ventas')
+          .select()
+          .eq('venta_id_fk', ventaId);
+
+      final detalles = detallesResponse.map<DetalleVentaEntity>((d) {
+        return DetalleVentaEntity()
+          ..nombreProducto = d['nombre_producto'] ?? ''
+          ..precioUnidad = (d['precio_unidad'] as num?)?.toDouble() ?? 0.0
+          ..cantidad = (d['cantidad'] as num?)?.toDouble() ?? 0.0
+          ..subtotal = (d['subtotal'] as num?)?.toDouble() ?? 0.0;
+      }).toList();
+
+      // Buscar si ya existe localmente
+      final existing = await _isarService.obtenerVentaPorIdString(ventaId);
+
+      final venta = VentaEntity()
+        ..ventaIdString = ventaId
+        ..fecha = DateTime.parse(data['fecha']).toLocal()
+        ..subtotal = (data['subtotal'] as num).toDouble()
+        ..impuesto = (data['impuesto'] as num).toDouble()
+        ..total = (data['total'] as num).toDouble()
+        ..tasaBcv = (data['tasa_bcv'] as num?)?.toDouble() ?? 0.0
+        ..totalBolivares = (data['total_bolivares'] as num?)?.toDouble() ?? 0.0
+        ..metodoPago = data['metodo_pago'] ?? ''
+        ..documento = data['documento'] ?? ''
+        ..empleado = data['empleado'] ?? ''
+        ..syncStatus = 'synced';
+
+      if (existing != null) {
+        venta.id = existing.id;
+        await _isarService.guardarVenta(venta);
+        actualizadas++;
+      } else {
+        await _isarService.guardarVenta(venta);
+        insertadas++;
+      }
+
+      // Guardar detalles (usando el ID local de la venta)
+      if (detalles.isNotEmpty) {
+        await _isarService.guardarDetallesVenta(venta.id, detalles);
+        debugPrint('📦 ${detalles.length} detalles guardados para venta $ventaId');
+      }
+    }
+
+    debugPrint('✅ $insertadas ventas insertadas, $actualizadas actualizadas');
+  } catch (e) {
+    debugPrint('❌ Error descargando ventas: $e');
   }
-
-
-
+}
 
 
 

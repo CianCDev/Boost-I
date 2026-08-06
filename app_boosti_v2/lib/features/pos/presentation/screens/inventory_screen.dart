@@ -25,6 +25,7 @@ class InventoryScreen extends ConsumerStatefulWidget {
 class _InventoryScreenState extends ConsumerState<InventoryScreen>
     with SingleTickerProviderStateMixin {
   final IsarService _isarService = IsarService();
+  final SyncService _syncService = SyncService();
 
   List<ProductoEntity> _productos = [];
   bool _isLoading = true;
@@ -223,12 +224,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // SELECCIÓN Y SUBIDA DE IMAGEN
+  // SELECCIÓN Y SUBIDA DE IMAGEN (CON PERMISOS CORRECTOS)
   // ==========================================
+  Future<bool> _isAndroid13OrHigher() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final version = await SystemChannels.platform.invokeMethod('System.getVersion');
+      final sdkInt = int.tryParse(version.toString()) ?? 0;
+      return sdkInt >= 33;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _seleccionarImagen(StateSetter setStateModal, Function(XFile) onImageSelected) async {
     final currentContext = context;
-    // Solicitar permiso de almacenamiento
-    final status = await Permission.storage.request();
+    
+    Permission permission;
+    if (await _isAndroid13OrHigher()) {
+      permission = Permission.photos;
+    } else {
+      permission = Permission.storage;
+    }
+
+    final status = await permission.request();
     if (!status.isGranted) {
       if (!currentContext.mounted) return;
       ScaffoldMessenger.of(currentContext).showSnackBar(
@@ -251,7 +270,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
   Future<void> _tomarFoto(StateSetter setStateModal, Function(XFile) onImageSelected) async {
     final currentContext = context;
-    // Solicitar permiso de cámara
     final status = await Permission.camera.request();
     if (!status.isGranted) {
       if (!currentContext.mounted) return;
@@ -278,7 +296,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       final extension = imagen.path.split('.').last;
       final fileName = '${codigoBarras}_${DateTime.now().millisecondsSinceEpoch}.$extension';
 
-      // Subir a Supabase Storage (bucket 'productos')
+      debugPrint('📤 Subiendo imagen: $fileName (${imagen.lengthSync()} bytes)');
+
       await Supabase.instance.client.storage
           .from('productos')
           .upload(fileName, imagen);
@@ -286,6 +305,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       final publicUrl = Supabase.instance.client.storage
           .from('productos')
           .getPublicUrl(fileName);
+
+      debugPrint('✅ Imagen subida: $publicUrl');
       return publicUrl;
     } catch (e) {
       debugPrint('❌ Error subiendo imagen: $e');
@@ -324,7 +345,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     bool esPesado = productoAEditar?.esPesado ?? false;
     String imagenUrlPreview = productoAEditar?.imagenUrl ?? '';
 
-    // Estado local para la imagen seleccionada
     XFile? imagenSeleccionada;
     bool subiendoImagen = false;
 
@@ -452,7 +472,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                       const SizedBox(height: 14),
 
                       // ==========================================
-                      // 🖼️ SECCIÓN DE IMAGEN (NUEVO)
+                      // 🖼️ SECCIÓN DE IMAGEN
                       // ==========================================
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -554,7 +574,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                                     setStateModal(() {
                                       imagenSeleccionada = file;
                                       imagenUrlPreview = file.path;
-                                      imagenUrlController.text = ''; // Se actualizará al guardar
+                                      imagenUrlController.text = '';
                                     });
                                   }),
                                   icon: const Icon(Icons.photo_library, size: 18),
@@ -586,7 +606,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                       ),
                       const SizedBox(height: 14),
 
-                      // Precio y Stock (en móvil se apilan)
+                      // Precio y Stock
                       isMobile
                           ? Column(
                               children: [
@@ -684,7 +704,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                             ),
                       const SizedBox(height: 14),
 
-                      // Stock Mínimo y Categoría (en móvil se apilan)
+                      // Stock Mínimo y Categoría
                       isMobile
                           ? Column(
                               children: [
@@ -914,7 +934,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                                         if (urlImagen != null && urlImagen.isNotEmpty) {
                                           imagenUrlFinal = urlImagen;
                                         } else {
-                                          // Si falla, mostrar error pero continuar
                                           if (!context.mounted) return;
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             const SnackBar(
@@ -955,8 +974,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                                     HapticFeedback.lightImpact();
 
                                     await _isarService.guardarProducto(producto);
-                                    await SyncService().sincronizarCategoriasASupabase();
-                                    await SyncService().sincronizarProductosASupabase();
+                                    await _syncService.sincronizarCategoriasASupabase();
+                                    await _syncService.sincronizarProductosASupabase();
 
                                     if (context.mounted) {
                                       Navigator.pop(context);
@@ -1089,7 +1108,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // MODAL DE DETALLES DEL PRODUCTO
+  // MODAL DE DETALLES DEL PRODUCTO (CON ELIMINACIÓN MEJORADA)
   // ==========================================
   void _mostrarDetalleProducto(ProductoEntity producto) {
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -1344,6 +1363,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                             ),
                           ),
                           const SizedBox(width: 8),
+                          // ==========================================
+                          // 🗑️ BOTÓN ELIMINAR (MEJORADO)
+                          // ==========================================
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFEF4444),
@@ -1358,6 +1380,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                               elevation: 2,
                             ),
                             onPressed: () async {
+                              // Confirmación
                               final confirm = await showDialog<bool>(
                                 context: dialogContext,
                                 builder: (context) => AlertDialog(
@@ -1385,11 +1408,43 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                               if (confirm != true) return;
 
                               try {
+                                // 1. Eliminar localmente de Isar
                                 await _isarService.eliminarProducto(producto.id);
+                                debugPrint('✅ Producto eliminado de Isar (ID: ${producto.id})');
+
+                                // 2. Eliminar en Supabase
+                                try {
+                                  final eliminado = await _syncService.eliminarProductoEnSupabase(
+                                    producto.codigoBarras.trim(),
+                                  );
+                                  if (eliminado) {
+                                    debugPrint('✅ Producto eliminado de Supabase (código: ${producto.codigoBarras})');
+                                  } else {
+                                    debugPrint('⚠️ El producto no existía en Supabase o ya fue eliminado.');
+                                  }
+                                } catch (e) {
+                                  debugPrint('❌ Error eliminando de Supabase: $e');
+                                  // No lanzamos excepción, solo mostramos mensaje
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Producto eliminado localmente, pero falló en la nube: $e'),
+                                        backgroundColor: Colors.orange,
+                                      ),
+                                    );
+                                  }
+                                }
+
+                                // 3. Recargar la lista local
+                                await _cargarInventario();
+
+                                // 4. Forzar descarga de productos desde Supabase para sincronizar la lista
+                                await _syncService.descargarProductosDesdeSupabase();
+                                await _cargarInventario();
+
+                                // 5. Cerrar el diálogo
                                 if (mounted) {
-                                  // ignore: use_build_context_synchronously
                                   Navigator.pop(dialogContext);
-                                  _cargarInventario();
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text('Producto eliminado correctamente.'),
@@ -1398,10 +1453,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                                   );
                                 }
                               } catch (e) {
+                                debugPrint('❌ Error general al eliminar producto: $e');
                                 if (mounted) {
+                                  // Recargar la lista para reflejar el estado
+                                  await _cargarInventario();
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('Error al eliminar: $e'),
+                                      content: Text('Error al eliminar producto: $e'),
                                       backgroundColor: Colors.red,
                                     ),
                                   );
