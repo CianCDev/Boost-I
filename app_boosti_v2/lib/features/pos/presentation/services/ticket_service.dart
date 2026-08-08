@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:developer' as developer;
+import 'dart:typed_data'; 
 import '../../presentation/providers/esc_pos_provider.dart';
 import '../../domain/models/printer_models.dart';
 import 'package:flutter/widgets.dart';
@@ -340,4 +341,79 @@ class TicketService {
       );
     }
   }
+
+  /// Imprime una etiqueta con un código de barras
+/// Imprime una etiqueta con un código de barras (SIEMPRE CON DIÁLOGO DEL SISTEMA)
+static Future<void> imprimirCodigoBarras({
+  required String codigo,
+  required Uint8List imageBytes,
+  SelectedPrinter? impresoraSeleccionada,
+}) async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  debugPrint('📄 Generando PDF para código: $codigo');
+
+  try {
+    // 1. Generar documento PDF con el código y la imagen
+    final pdf = pw.Document();
+    pw.Font fontRegular;
+    try {
+      fontRegular = await PdfGoogleFonts.robotoRegular();
+    } catch (_) {
+      fontRegular = pw.Font.helvetica();
+    }
+
+    final pageFormat = PdfPageFormat.roll80.copyWith(
+      marginLeft: 10,
+      marginRight: 10,
+      marginTop: 10,
+      marginBottom: 10,
+    );
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: pageFormat,
+        theme: pw.ThemeData.withFont(base: fontRegular),
+        build: (pw.Context context) {
+          return pw.Center(
+            child: pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Text(
+                  'Código de Barras',
+                  style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.SizedBox(height: 10),
+                pw.Image(pw.MemoryImage(imageBytes), width: 200, height: 80),
+                pw.SizedBox(height: 10),
+                pw.Text(
+                  codigo,
+                  style: pw.TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    final bytes = await pdf.save();
+    debugPrint('✅ PDF generado, tamaño: ${bytes.length} bytes');
+
+    // 2. Guardar copia en disco (opcional)
+    _guardarEnDiscoSilencioso(bytes);
+
+    // 3. Siempre usar el diálogo del sistema (más fiable)
+    debugPrint('📤 Abriendo diálogo de impresión del sistema...');
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => bytes,
+      name: 'Codigo_Barras_$codigo',
+    );
+    debugPrint('✅ Diálogo de impresión cerrado');
+    
+  } catch (e) {
+    debugPrint('❌ Error en imprimirCodigoBarras: $e');
+    rethrow; // Para que el llamador maneje el error
+  }
+}
 }

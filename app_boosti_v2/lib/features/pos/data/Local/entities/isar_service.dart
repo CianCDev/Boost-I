@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:isar/isar.dart';
@@ -567,6 +568,56 @@ Future<VentaEntity?> obtenerVentaPorIdString(String ventaIdString) async {
       }
     });
   }
+
+  Future<ProductoEntity?> obtenerProductoPorCodigoBarrasExacto(String codigo) async {
+  final isar = await db;
+  return await isar.productoEntitys
+      .filter()
+      .codigoBarrasEqualTo(codigo)
+      .findFirst();
+}
+
+// ==================== GENERACIÓN DE CÓDIGO DE BARRAS ÚNICO ====================
+/// Genera un código de barras único que no exista en la base de datos.
+/// El formato es: B + timestamp (últimos 10 dígitos) + 3 dígitos aleatorios.
+/// Ejemplo: B1735123456789
+Future<String> generarCodigoBarrasUnico() async {
+  final isar = await db;
+  final random = Random();
+  String codigo;
+  int intentos = 0;
+
+  do {
+    // Tomamos los últimos 10 dígitos del timestamp para que sea más corto
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final timestampPart = timestamp.length > 10 
+        ? timestamp.substring(timestamp.length - 10) 
+        : timestamp;
+    final randomNum = (100 + random.nextInt(899)).toString();
+    codigo = 'B$timestampPart$randomNum';
+    intentos++;
+
+    // Verificar que no exista en la base de datos
+    final existente = await isar.productoEntitys
+        .filter()
+        .codigoBarrasEqualTo(codigo)
+        .findFirst();
+    
+    if (existente == null) {
+      debugPrint('✅ Código de barras generado: $codigo');
+      return codigo;
+    }
+    
+    // Si existe, esperar un milisegundo para cambiar el timestamp
+    await Future.delayed(const Duration(milliseconds: 1));
+    
+  } while (intentos < 10);
+
+  // Fallback: usar microsegundos para garantizar unicidad
+  codigo = 'B${DateTime.now().microsecondsSinceEpoch}';
+  debugPrint('⚠️ Código de barras generado por fallback: $codigo');
+  return codigo;
+}
 
   // ==================== GESTIÓN DE TURNOS (COMPLETA) ====================
 

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,11 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:barcode_widget/barcode_widget.dart' as barcode; // ✅ PREFIJO
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:ui' as ui;                      // Para ImageByteFormat
+import 'package:flutter/rendering.dart';   
 
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
@@ -16,7 +22,13 @@ import 'inventory_catalog_screen.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   final UsuarioEntity usuarioLogueado;
-  const InventoryScreen({super.key, required this.usuarioLogueado});
+  final String? codigoBarrasInicial;
+
+  const InventoryScreen({
+    super.key,
+    required this.usuarioLogueado,
+    this.codigoBarrasInicial,
+  });
 
   @override
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
@@ -44,6 +56,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       duration: const Duration(milliseconds: 400),
     )..forward();
     _cargarInventario();
+
+    if (widget.codigoBarrasInicial != null && widget.codigoBarrasInicial!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _mostrarFormularioProducto(codigoBarrasPrecargado: widget.codigoBarrasInicial);
+      });
+    }
   }
 
   @override
@@ -97,20 +115,37 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       orElse: () => ProductoEntity(),
     );
 
-    if (producto.id == 0) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Producto con código "$codigoEscaneado" no encontrado.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
+    if (producto.id != 0) {
+      if (mounted) _mostrarDetalleProducto(producto);
       return;
     }
 
-    if (mounted) {
-      _mostrarDetalleProducto(producto);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Producto no encontrado'),
+        content: Text(
+          'El código "$codigoEscaneado" no está registrado.\n¿Deseas crear un nuevo producto con este código?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Crear Producto'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      _mostrarFormularioProducto(codigoBarrasPrecargado: codigoEscaneado);
     }
   }
 
@@ -224,7 +259,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // SELECCIÓN Y SUBIDA DE IMAGEN (CON PERMISOS CORRECTOS)
+  // SELECCIÓN Y SUBIDA DE IMAGEN
   // ==========================================
   Future<bool> _isAndroid13OrHigher() async {
     if (!Platform.isAndroid) return false;
@@ -315,9 +350,93 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // MODAL DE PRODUCTO (CREAR/EDITAR) con IMAGEN
+  // GENERADOR DE CÓDIGO DE BARRAS
   // ==========================================
-  void _mostrarFormularioProducto({ProductoEntity? productoAEditar}) {
+  void _generarCodigoBarras() {
+    final TextEditingController codigoController = TextEditingController();
+    final GlobalKey _previewKey = GlobalKey();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final codigo = codigoController.text.trim();
+            return AlertDialog(
+              title: const Text('Generar Código de Barras'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: codigoController,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: 'Ingresa el número o texto',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (codigo.isNotEmpty)
+                    Container(
+                      key: _previewKey,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: barcode.BarcodeWidget(
+                        barcode: barcode.Barcode.code128(),
+                        data: codigo,
+                        width: 200,
+                        height: 80,
+                        drawText: false,
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cerrar'),
+                ),
+                if (codigo.isNotEmpty)
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      try {
+                        final RenderRepaintBoundary boundary = _previewKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+                        final image = await boundary.toImage();
+                        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+                        final bytes = byteData!.buffer.asUint8List();
+
+                        final tempDir = await getTemporaryDirectory();
+                        final file = File('${tempDir.path}/codigo_barras.png');
+                        await file.writeAsBytes(bytes);
+
+                        await Share.shareXFiles(
+                          [XFile(file.path)],
+                          text: 'Código de barras: $codigo',
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error al compartir: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.share),
+                    label: const Text('Compartir'),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // MODAL DE PRODUCTO (CREAR/EDITAR)
+  // ==========================================
+  void _mostrarFormularioProducto({ProductoEntity? productoAEditar, String? codigoBarrasPrecargado}) {
     if (!_esAdmin) return;
 
     final isEditing = productoAEditar != null;
@@ -325,8 +444,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     final isTablet = ResponsiveHelper.isTablet(context);
     final isDesktop = !isTablet && !isMobile;
 
-    final codigoController =
-        TextEditingController(text: productoAEditar?.codigoBarras ?? '');
+    final codigoController = TextEditingController(
+      text: productoAEditar?.codigoBarras ?? codigoBarrasPrecargado ?? '',
+    );
     final nombreController =
         TextEditingController(text: productoAEditar?.nombre ?? '');
     final imagenUrlController =
@@ -1108,7 +1228,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ==========================================
-  // MODAL DE DETALLES DEL PRODUCTO (CON ELIMINACIÓN MEJORADA)
+  // MODAL DE DETALLES DEL PRODUCTO
   // ==========================================
   void _mostrarDetalleProducto(ProductoEntity producto) {
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -1309,7 +1429,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                       const SizedBox(height: 12),
                     ],
 
-                    // BOTONES (responsivos)
+                    // BOTONES
                     if (_esAdmin) ...[
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
@@ -1363,9 +1483,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // ==========================================
-                          // 🗑️ BOTÓN ELIMINAR (MEJORADO)
-                          // ==========================================
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFEF4444),
@@ -1686,8 +1803,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         backgroundColor: Colors.transparent,
         elevation: 2,
         foregroundColor: Colors.white,
-        actions: const [
-          SizedBox(width: 8),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code, color: Colors.white),
+            tooltip: 'Generar Código de Barras',
+            onPressed: _generarCodigoBarras,
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       floatingActionButton: _esAdmin
