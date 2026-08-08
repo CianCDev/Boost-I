@@ -2,25 +2,43 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.example.app_boosti_v2"> <!-- Cambia por tu package real -->
 
-    <!-- Permisos de red -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    
-    <!-- Permisos para balanza USB/serie -->
-    <uses-permission android:name="android.permission.USB_PERMISSION" />
-    
-    <!-- Permisos para cámara (escáner de códigos de barras) -->
-    <uses-permission android:name="android.permission.CAMERA" />
-    
-    <!-- Permisos para almacenamiento (guardar PDF, CSV, backups) -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="28" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="28" />
 
-    
-    
-    
+<!-- Permisos para balanza USB/serie -->
+<uses-permission android:name="android.permission.USB_PERMISSION" />
+
+<!-- Permisos para cámara (escáner de códigos de barras) -->
+<uses-permission android:name="android.permission.CAMERA" />
+
+<!-- Permisos para almacenamiento (guardar PDF, CSV, backups) -->
+<!-- Para Android 9 y menores -->
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+    android:maxSdkVersion="28" />
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+    android:maxSdkVersion="32" />
+
+    <!-- ========== PERMISOS BLUETOOTH (VERSIÓN ANTIGUA - Android 11 y menores) ========== -->
+<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+<!-- ========== PERMISOS BLUETOOTH (ANDROID 12+ - API 31+) ========== -->
+<!-- Son 3 permisos independientes para Android 12 en adelante -->
+
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+<uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" /> <!-- Opcional: solo si tu app emite señal Bluetooth -->
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN" 
+                 android:usesPermissionFlags="neverForLocation" />
+
+<!-- Para ver redes WiFi (impresoras WiFi) -->
+<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+<uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /> <!-- CLAVE -->
+<uses-permission android:name="android.permission.INTERNET" />
+
+<!-- Para Android 13+ (nuevos permisos para fotos y archivos) -->
+<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+<uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+<!-- Si solo necesitas fotos, puedes omitir READ_MEDIA_VIDEO -->
+
 
     
     <!-- Para Android 11+ (API 30+) se necesita MANAGE_EXTERNAL_STORAGE si queremos acceso a toda la memoria, 

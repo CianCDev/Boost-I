@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../presentation/services/ticket_generator.dart'; // Para TicketItem
+import '../../presentation/services/ticket_service.dart';   // Para TicketService
+import '../providers/esc_pos_provider.dart';   
 
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/detalle_venta_entity.dart';
@@ -15,7 +18,6 @@ import '../../domain/models/product_item.dart';
 import '../controllers/cart_controller.dart';
 import '../providers/bcv_provider.dart';
 import '../services/sync_service.dart';
-import '../services/ticket_service.dart';
 import '../widgets/admin_validation_dialog.dart';
 import '../widgets/cobrar_dialog.dart';
 import '../utils/responsive_helper.dart';
@@ -338,7 +340,7 @@ class _InventoryCatalogScreenState
         ..tasaBcv = tasaActual
         ..totalBolivares = totalBsCalculado
         ..metodoPago = metodoPago
-        ..documento = 'V-00000000'
+        ..documento = '...'
         ..empleado = widget.usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
         ..items = itemsIsar.cast<DetalleVentaEntity>()
         ..syncStatus = 'pending';
@@ -357,17 +359,24 @@ class _InventoryCatalogScreenState
           );
         }).toList();
 
-        await TicketService.generarYProcesarPdf(
+        // Obtener la impresora seleccionada desde el provider
+        final selectedPrinter = ref.read(printerProvider);
+
+        await TicketService.imprimirTicketVenta(
+          // ignore: use_build_context_synchronously
+          context: context, // <--- IMPORTANTE: pasar el contexto
           items: ticketItems,
           subtotal: cartState.subtotal,
           impuesto: cartState.impuesto,
           total: cartState.total,
           metodoPago: metodoPago,
           montoRecibido: recibido,
-          vuelto: cambio,
+          cambio: cambio,
+          fechaVenta: DateTime.now(),
+          impresoraSeleccionada: selectedPrinter?.device, // o null si no hay
         );
       } catch (e) {
-        debugPrint('Error al procesar ticket PDF: $e');
+        debugPrint('Error al imprimir ticket: $e');
       }
 
       if (!mounted) return;

@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/cash_register_service.dart';
 import '../services/ticket_service.dart';
+import '../services/ticket_generator.dart';
+import '../providers/esc_pos_provider.dart';
 import '../utils/responsive_helper.dart';
 
-class CashClosingScreen extends StatefulWidget {
+class CashClosingScreen extends ConsumerStatefulWidget {
   const CashClosingScreen({super.key});
 
   @override
-  State<CashClosingScreen> createState() => _CashClosingScreenState();
+  ConsumerState<CashClosingScreen> createState() => _CashClosingScreenState();
 }
 
-class _CashClosingScreenState extends State<CashClosingScreen> {
+class _CashClosingScreenState extends ConsumerState<CashClosingScreen> {
   final CashRegisterService _cashService = CashRegisterService();
   bool _isLoading = true;
   ResumenCorteCaja? _resumen;
@@ -58,30 +61,42 @@ class _CashClosingScreenState extends State<CashClosingScreen> {
     }
   }
 
+  // ✅ CORREGIDO: ahora usa ref para la impresora y los parámetros correctos
   Future<void> _ejecutarCierreYGuardarPdf() async {
     if (_resumen == null) return;
+
     try {
-      final List<TicketItem> itemsArqueo = [
+      // 1. Obtener la impresora seleccionada desde Riverpod
+      final selectedPrinter = ref.read(printerProvider);
+
+      // 2. Construir el ticket de resumen (con un solo ítem que muestre el total)
+      final List<TicketItem> items = [
         TicketItem(
-          nombre: 'Cierre de Caja / Arqueo Diario',
+          nombre: 'CIERRE DE CAJA - ${DateTime.now().toLocal().toString().substring(0, 16)}',
           precio: _resumen!.totalVentas,
           cantidad: 1.0,
           esPesado: false,
-        )
+        ),
       ];
-      await TicketService.generarYProcesarPdf(
-        items: itemsArqueo,
-        subtotal: _resumen!.totalVentas,
-        impuesto: 0.0,
+
+      // 3. Llamar al servicio de impresión con los parámetros correctos
+      await TicketService.imprimirTicketVenta(
+        context: context, // ← OBLIGATORIO
+        items: items,      // ← Usamos la lista items, no itemsArqueo
         total: _resumen!.totalVentas,
-        metodoPago: 'ARQUEO DE CAJA',
-        montoRecibido: _resumen!.totalVentas,
-        vuelto: 0.0,
+        metodoPago: 'Cierre de Caja',
+        montoRecibido: _resumen!.totalVentas, // Para el ticket
+        cambio: 0.0,
+        impuesto: 0.0,
+        subtotal: _resumen!.totalVentas,
+        fechaVenta: DateTime.now(),
+        impresoraSeleccionada: selectedPrinter?.device,
       );
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('¡Cierre de caja procesado y PDF guardado con éxito! 📄'),
+          content: Text('¡Cierre de caja procesado y ticket impreso con éxito! 📄'),
           backgroundColor: Color(0xFF10B981),
         ),
       );
@@ -89,7 +104,7 @@ class _CashClosingScreenState extends State<CashClosingScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al generar el PDF del arqueo: $e'),
+          content: Text('Error al imprimir el cierre: $e'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -102,7 +117,7 @@ class _CashClosingScreenState extends State<CashClosingScreen> {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
-    // Ajustes de tamaño
+    // Ajustes de tamaño (sin cambios)
     final double paddingHorizontal = isMobile ? 16 : (isTablet ? 24 : 32);
     final double paddingVertical = isMobile ? 12 : 20;
     final double fontSizeTotal = isMobile ? 28 : (isTablet ? 36 : 42);

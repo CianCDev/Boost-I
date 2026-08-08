@@ -190,19 +190,22 @@ Future<double> obtenerTotalVentasPorEmpleadoYRango(
         'sync_status': 'synced',
       };
 
-      // Microservicio (opcional)
-      try {
-        final response = await http.post(
-          Uri.parse('$_syncServerUrl/api/ventas/sync'),
-          headers: _authHeaders(),
-          body: jsonEncode(payload),
-        ).timeout(const Duration(seconds: 10));
-        if (response.statusCode == 200 || response.statusCode == 201) {
-          debugPrint('✅ Venta ${venta.ventaIdString} sincronizada vía microservicio');
-          return true;
+      if (_hasValidSyncConfig()) {
+        try {
+          final response = await http.post(
+            Uri.parse('$_syncServerUrl/api/ventas/sync'),
+            headers: _authHeaders(),
+            body: jsonEncode(payload),
+          ).timeout(const Duration(seconds: 10));
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            debugPrint('✅ Venta ${venta.ventaIdString} sincronizada vía microservicio');
+            return true;
+          }
+        } catch (e) {
+          debugPrint('⚠️ Microservicio falló, intentando con Supabase directo: $e');
         }
-      } catch (e) {
-        debugPrint('⚠️ Microservicio falló, intentando con Supabase directo: $e');
+      } else {
+        debugPrint('ℹ️ No hay configuración válida de syncServerUrl/syncApiKey; se usa Supabase directo.');
       }
 
       // Fallback: Supabase directo
@@ -512,6 +515,11 @@ Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
 
   Future<Map<String, dynamic>?> crearUsuarioEnServidor(UsuarioEntity usuario, {String? email, String? password}) async {
     await _loadConfig();
+    if (!_hasValidSyncConfig()) {
+      debugPrint('ℹ️ No hay configuración válida de syncServerUrl/syncApiKey; se omite crearUsuarioEnServidor.');
+      return null;
+    }
+
     try {
       final payload = jsonEncode({
         'nombre': usuario.nombre,
