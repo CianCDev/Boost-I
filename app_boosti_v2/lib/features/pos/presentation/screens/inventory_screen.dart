@@ -1,3 +1,6 @@
+// ============================================================
+// inventory_screen.dart (CON SELECCIÓN MÚLTIPLE Y ETIQUETAS)
+// ============================================================
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -19,7 +22,13 @@ import '../utils/responsive_helper.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../services/sync_service.dart';
 import 'inventory_catalog_screen.dart';
+import '../services/printer_service.dart';
+import '../services/label_generator.dart';
+import '../providers/esc_pos_provider.dart';
 
+// ============================================================
+// WIDGET PRINCIPAL
+// ============================================================
 class InventoryScreen extends ConsumerStatefulWidget {
   final UsuarioEntity usuarioLogueado;
   final String? codigoBarrasInicial;
@@ -34,8 +43,7 @@ class InventoryScreen extends ConsumerStatefulWidget {
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends ConsumerState<InventoryScreen>
-    with SingleTickerProviderStateMixin {
+class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final IsarService _isarService = IsarService();
   final SyncService _syncService = SyncService();
 
@@ -44,17 +52,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   String _filtroBusqueda = '';
   bool _soloStockBajo = false;
 
-  AnimationController? _animationController;
+  // ==========================================================
+  // 🆕 VARIABLES DE SELECCIÓN MÚLTIPLE
+  // ==========================================================
+  bool _seleccionMultiple = false;
+  Set<int> _productosSeleccionados = {};
 
   bool get _esAdmin => widget.usuarioLogueado.rol == 'admin';
+  int get _cantidadSeleccionados => _productosSeleccionados.length;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    )..forward();
     _cargarInventario();
 
     if (widget.codigoBarrasInicial != null && widget.codigoBarrasInicial!.isNotEmpty) {
@@ -64,15 +73,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     }
   }
 
-  @override
-  void dispose() {
-    _animationController?.dispose();
-    super.dispose();
-  }
-
-  // ==========================================
+  // ==========================================================
   // CARGA DE INVENTARIO
-  // ==========================================
+  // ==========================================================
   Future<void> _cargarInventario() async {
     setState(() => _isLoading = true);
     try {
@@ -83,30 +86,32 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
           _isLoading = false;
         });
       }
-    } catch (e, stackTrace) {
-      debugPrint('Error al cargar inventario: $e\n$stackTrace');
+    } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al cargar el inventario. Intenta de nuevo.'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
+        _mostrarSnackbar('Error al cargar el inventario', isError: true);
       }
     }
   }
 
-  // ==========================================
-  // ESCÁNER DE CÓDIGO DE BARRAS
-  // ==========================================
+  void _mostrarSnackbar(String mensaje, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: isError ? Colors.redAccent : const Color(0xFF10B981),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // ESCÁNER
+  // ==========================================================
   Future<void> _scanBarcode() async {
     final codigoEscaneado = await showDialog<String>(
       context: context,
       barrierDismissible: true,
       builder: (context) => const _BarcodeScannerDialog(),
     );
-
     if (codigoEscaneado == null || codigoEscaneado.isEmpty) return;
 
     final productos = await _isarService.buscarProductoPorCodigoONombre(codigoEscaneado);
@@ -261,6 +266,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   // ==========================================
   // SELECCIÓN Y SUBIDA DE IMAGEN
   // ==========================================
+    if (producto.id == 0) {
+      _mostrarSnackbar('Producto con código "$codigoEscaneado" no encontrado.', isError: true);
+      return;
+    }
+    if (mounted) {
+      _mostrarDetalleProducto(producto);
+    }
+  }
+
+  // ==========================================================
+  // MANEJO DE IMÁGENES (PERMISOS Y SUBIDA)
+  // ==========================================================
   Future<bool> _isAndroid13OrHigher() async {
     if (!Platform.isAndroid) return false;
     try {
@@ -272,82 +289,114 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     }
   }
 
-  Future<void> _seleccionarImagen(StateSetter setStateModal, Function(XFile) onImageSelected) async {
-    final currentContext = context;
-    
+  Future<bool> _getImagePermission() async {
     Permission permission;
     if (await _isAndroid13OrHigher()) {
       permission = Permission.photos;
     } else {
       permission = Permission.storage;
     }
-
     final status = await permission.request();
-    if (!status.isGranted) {
-      if (!currentContext.mounted) return;
-      ScaffoldMessenger.of(currentContext).showSnackBar(
-        const SnackBar(content: Text('Permiso de almacenamiento denegado')),
-      );
+    return status.isGranted;
+  }
+
+  // ==========================================================
+  // FORMULARIO DE PRODUCTO (CREAR/EDITAR)
+  // ==========================================================
+  void _mostrarFormularioProducto({ProductoEntity? productoAEditar}) {
+    if (!_esAdmin) return;
+    final isEditing = productoAEditar != null;
+
+    showDialog(
+      context: context,
+      builder: (context) => _ProductFormDialog(
+        producto: productoAEditar,
+        categoriasExistentes: _productos
+            .map((p) => p.categoria.trim())
+            .where((c) => c.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort(),
+        onGuardar: (producto) async {
+          await _isarService.guardarProducto(producto);
+          await _syncService.sincronizarProductosASupabase();
+          await _cargarInventario();
+          if (mounted) {
+            _mostrarSnackbar('Producto ${isEditing ? 'actualizado' : 'creado'} exitosamente');
+          }
+        },
+      ),
+    );
+  }
+
+  // ==========================================================
+  // DETALLE DEL PRODUCTO
+  // ==========================================================
+  void _mostrarDetalleProducto(ProductoEntity producto) {
+    showDialog(
+      context: context,
+      builder: (context) => _ProductDetailDialog(
+        producto: producto,
+        esAdmin: _esAdmin,
+        onEditar: () {
+          Navigator.pop(context);
+          _mostrarFormularioProducto(productoAEditar: producto);
+        },
+        onEliminar: () async {
+          try {
+            await _isarService.eliminarProducto(producto.id);
+            try {
+              await _syncService.eliminarProductoEnSupabase(producto.codigoBarras.trim());
+            } catch (e) {
+              debugPrint('Error eliminando de Supabase: $e');
+            }
+            await _cargarInventario();
+            if (mounted) {
+              _mostrarSnackbar('Producto eliminado correctamente');
+            }
+          } catch (e) {
+            _mostrarSnackbar('Error al eliminar producto: $e', isError: true);
+          }
+        },
+      ),
+    );
+  }
+
+  // ==========================================================
+  // 🆕 MÉTODOS DE SELECCIÓN MÚLTIPLE
+  // ==========================================================
+  void _toggleSeleccionProducto(int productoId) {
+    setState(() {
+      if (_productosSeleccionados.contains(productoId)) {
+        _productosSeleccionados.remove(productoId);
+      } else {
+        _productosSeleccionados.add(productoId);
+      }
+      if (_productosSeleccionados.isEmpty) {
+        _seleccionMultiple = false;
+      }
+    });
+  }
+
+  void _limpiarSeleccion() {
+    setState(() {
+      _productosSeleccionados.clear();
+      _seleccionMultiple = false;
+    });
+  }
+
+  // ==========================================================
+  // 🆕 DIÁLOGO DE CANTIDAD POR PRODUCTO
+  // ==========================================================
+  Future<void> _mostrarDialogoCantidadEtiquetas() async {
+    final productosSeleccionados = _productos
+        .where((p) => _productosSeleccionados.contains(p.id))
+        .toList();
+
+    if (productosSeleccionados.isEmpty) {
+      _mostrarSnackbar('No hay productos seleccionados', isError: true);
       return;
     }
-
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 80,
-    );
-    if (image != null) {
-      onImageSelected(image);
-    }
-  }
-
-  Future<void> _tomarFoto(StateSetter setStateModal, Function(XFile) onImageSelected) async {
-    final currentContext = context;
-    final status = await Permission.camera.request();
-    if (!status.isGranted) {
-      if (!currentContext.mounted) return;
-      ScaffoldMessenger.of(currentContext).showSnackBar(
-        const SnackBar(content: Text('Permiso de cámara denegado')),
-      );
-      return;
-    }
-
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.camera,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 80,
-    );
-    if (image != null) {
-      onImageSelected(image);
-    }
-  }
-
-  Future<String?> _subirImagenASupabase(File imagen, String codigoBarras) async {
-    try {
-      final extension = imagen.path.split('.').last;
-      final fileName = '${codigoBarras}_${DateTime.now().millisecondsSinceEpoch}.$extension';
-
-      debugPrint('📤 Subiendo imagen: $fileName (${imagen.lengthSync()} bytes)');
-
-      await Supabase.instance.client.storage
-          .from('productos')
-          .upload(fileName, imagen);
-
-      final publicUrl = Supabase.instance.client.storage
-          .from('productos')
-          .getPublicUrl(fileName);
-
-      debugPrint('✅ Imagen subida: $publicUrl');
-      return publicUrl;
-    } catch (e) {
-      debugPrint('❌ Error subiendo imagen: $e');
-      return null;
-    }
-  }
 
   // ==========================================
   // GENERADOR DE CÓDIGO DE BARRAS
@@ -439,7 +488,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   void _mostrarFormularioProducto({ProductoEntity? productoAEditar, String? codigoBarrasPrecargado}) {
     if (!_esAdmin) return;
 
-    final isEditing = productoAEditar != null;
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final isDesktop = !isTablet && !isMobile;
@@ -482,748 +530,128 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     }
     bool guardando = false;
 
-    showDialog(
+    final result = await showDialog<Map<int, int>>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
-          builder: (context, setStateModal) {
-            return Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-              elevation: 8,
-              insetPadding: EdgeInsets.symmetric(
-                horizontal: isTablet || isDesktop ? 40.0 : 16.0,
-                vertical: 24.0,
-              ),
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: isTablet || isDesktop ? 800.0 : double.infinity,
-                ),
-                padding: EdgeInsets.all(isTablet ? 40.0 : 24.0),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).dialogTheme.backgroundColor ?? Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    )
-                  ],
-                ),
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Cantidad de etiquetas'),
+              content: SizedBox(
+                width: isMobile ? 300 : 500,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // HEADER
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              isEditing
-                                  ? Icons.edit_outlined
-                                  : Icons.add_shopping_cart_outlined,
-                              color: const Color(0xFF10B981),
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              isEditing ? 'Editar Producto' : 'Nuevo Producto',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: isTablet ? 26 : 22,
-                                color: Theme.of(context).textTheme.titleLarge?.color,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Código de barras
-                      TextField(
-                        controller: codigoController,
-                        style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                        decoration: InputDecoration(
-                          labelText: 'Código de Barras',
-                          labelStyle: const TextStyle(fontSize: 16),
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                          ),
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Nombre
-                      TextField(
-                        controller: nombreController,
-                        style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                        decoration: InputDecoration(
-                          labelText: 'Nombre del Producto *',
-                          labelStyle: const TextStyle(fontSize: 16),
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                          ),
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // ==========================================
-                      // 🖼️ SECCIÓN DE IMAGEN
-                      // ==========================================
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: productosSeleccionados.map((p) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
                           children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.image_outlined,
-                                    color: Color(0xFF10B981), size: 24),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'Imagen del Producto',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                ),
-                                const Spacer(),
-                                if (imagenSeleccionada != null || imagenUrlPreview.isNotEmpty)
-                                  IconButton(
-                                    icon: const Icon(Icons.clear, color: Colors.red, size: 20),
-                                    onPressed: () {
-                                      setStateModal(() {
-                                        imagenSeleccionada = null;
-                                        imagenUrlPreview = '';
-                                        imagenUrlController.text = '';
-                                      });
-                                    },
-                                    tooltip: 'Eliminar imagen',
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            // Previsualización
-                            if (imagenSeleccionada != null || imagenUrlPreview.isNotEmpty)
-                              Container(
-                                height: 180,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.grey.shade300),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: imagenSeleccionada != null
-                                      ? Image.file(
-                                          File(imagenSeleccionada!.path),
-                                          fit: BoxFit.cover,
-                                          width: double.infinity,
-                                        )
-                                      : (imagenUrlPreview.isNotEmpty
-                                          ? Image.network(
-                                              imagenUrlPreview,
-                                              fit: BoxFit.cover,
-                                              width: double.infinity,
-                                              errorBuilder: (context, error, stackTrace) => const Icon(
-                                                Icons.broken_image,
-                                                size: 48,
-                                                color: Colors.grey,
-                                              ),
-                                            )
-                                          : const SizedBox.shrink()),
-                                ),
-                              )
-                            else
-                              Container(
-                                height: 120,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade50,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.grey.shade300),
-                                ),
-                                child: const Center(
-                                  child: Text(
-                                    'Sin imagen',
-                                    style: TextStyle(color: Colors.grey, fontSize: 14),
-                                  ),
-                                ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                p.nombre,
+                                style: const TextStyle(fontWeight: FontWeight.w500),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF10B981),
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  onPressed: subiendoImagen ? null : () => _seleccionarImagen(setStateModal, (file) {
-                                    setStateModal(() {
-                                      imagenSeleccionada = file;
-                                      imagenUrlPreview = file.path;
-                                      imagenUrlController.text = '';
-                                    });
-                                  }),
-                                  icon: const Icon(Icons.photo_library, size: 18),
-                                  label: const Text('Galería'),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 1,
+                              child: TextFormField(
+                                initialValue: '1',
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                decoration: const InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(vertical: 4),
                                 ),
-                                const SizedBox(width: 12),
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF3B82F6),
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  onPressed: subiendoImagen ? null : () => _tomarFoto(setStateModal, (file) {
-                                    setStateModal(() {
-                                      imagenSeleccionada = file;
-                                      imagenUrlPreview = file.path;
-                                      imagenUrlController.text = '';
+                                onChanged: (val) {
+                                  final int? cantidad = int.tryParse(val);
+                                  if (cantidad != null && cantidad > 0) {
+                                    setStateDialog(() {
+                                      cantidades[p.id] = cantidad;
                                     });
-                                  }),
-                                  icon: const Icon(Icons.camera_alt, size: 18),
-                                  label: const Text('Cámara'),
-                                ),
-                              ],
+                                  }
+                                },
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Precio y Stock
-                      isMobile
-                          ? Column(
-                              children: [
-                                TextField(
-                                  controller: precioController,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                                  decoration: InputDecoration(
-                                    labelText: 'Precio Unidad (\$) *',
-                                    labelStyle: const TextStyle(fontSize: 16),
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                                    ),
-                                    contentPadding:
-                                        const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                TextField(
-                                  controller: stockController,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                                  decoration: InputDecoration(
-                                    labelText: 'Stock Inicial *',
-                                    labelStyle: const TextStyle(fontSize: 16),
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                                    ),
-                                    contentPadding:
-                                        const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: precioController,
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                                    decoration: InputDecoration(
-                                      labelText: 'Precio Unidad (\$) *',
-                                      labelStyle: const TextStyle(fontSize: 16),
-                                      filled: true,
-                                      fillColor: const Color(0xFFF8FAFC),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: TextField(
-                                    controller: stockController,
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                                    decoration: InputDecoration(
-                                      labelText: 'Stock Inicial *',
-                                      labelStyle: const TextStyle(fontSize: 16),
-                                      filled: true,
-                                      fillColor: const Color(0xFFF8FAFC),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                      const SizedBox(height: 14),
-
-                      // Stock Mínimo y Categoría
-                      isMobile
-                          ? Column(
-                              children: [
-                                TextField(
-                                  controller: stockMinController,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                                  decoration: InputDecoration(
-                                    labelText: 'Stock Mínimo *',
-                                    labelStyle: const TextStyle(fontSize: 16),
-                                    filled: true,
-                                    fillColor: const Color(0xFFF8FAFC),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                                    ),
-                                    contentPadding:
-                                        const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                _buildCategoriaDropdown(
-                                  listaCategorias,
-                                  categoriaSeleccionada,
-                                  (val) => setStateModal(() => categoriaSeleccionada = val!),
-                                  context,
-                                  isMobile,
-                                ),
-                              ],
-                            )
-                          : Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: stockMinController,
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                                    decoration: InputDecoration(
-                                      labelText: 'Stock Mínimo *',
-                                      labelStyle: const TextStyle(fontSize: 16),
-                                      filled: true,
-                                      fillColor: const Color(0xFFF8FAFC),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: _buildCategoriaDropdown(
-                                    listaCategorias,
-                                    categoriaSeleccionada,
-                                    (val) => setStateModal(() => categoriaSeleccionada = val!),
-                                    context,
-                                    isMobile,
-                                  ),
-                                ),
-                              ],
-                            ),
-                      const SizedBox(height: 8),
-
-                      // Switch: Es pesado
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          '¿Es producto pesado (granel)?',
-                          style: TextStyle(fontSize: 16, color: Color(0xFF0F172A)),
-                        ),
-                        activeThumbColor: const Color(0xFF10B981),
-                        value: esPesado,
-                        onChanged: (val) => setStateModal(() => esPesado = val),
-                      ),
-                      const Divider(height: 32),
-
-                      // Proveedor
-                      const Text(
-                        'Información del Proveedor',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF475569),
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: proveedorNombreController,
-                        style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                        decoration: InputDecoration(
-                          labelText: 'Nombre del Proveedor / Empresa',
-                          labelStyle: const TextStyle(fontSize: 16),
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                          ),
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: proveedorTelController,
-                        keyboardType: TextInputType.phone,
-                        style: const TextStyle(fontSize: 18, color: Color(0xFF0F172A)),
-                        decoration: InputDecoration(
-                          labelText: 'Teléfono del Proveedor',
-                          labelStyle: const TextStyle(fontSize: 16),
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                          ),
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Botones Guardar/Cancelar
-                      Wrap(
-                        alignment: WrapAlignment.end,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          if (!guardando)
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 28,
-                                  vertical: 16,
-                                ),
-                                foregroundColor: Colors.grey.shade700,
-                                backgroundColor: const Color(0xFFF1F5F9),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text(
-                                'Cancelar',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: guardando
-                                  ? Colors.grey.shade300
-                                  : const Color(0xFF10B981),
-                              foregroundColor: guardando ? Colors.grey : Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 32,
-                                vertical: 16,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 4,
-                            ),
-                            onPressed: guardando
-                                ? null
-                                : () async {
-                                    final nombre = nombreController.text.trim();
-                                    final precioStr =
-                                        precioController.text.trim().replaceAll(',', '.');
-                                    final stockStr =
-                                        stockController.text.trim().replaceAll(',', '.');
-
-                                    if (nombre.isEmpty) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'El nombre del producto es obligatorio.',
-                                          ),
-                                          backgroundColor: Colors.redAccent,
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    final pPrecio = double.tryParse(precioStr) ?? -1.0;
-                                    final pStock = double.tryParse(stockStr) ?? -1.0;
-                                    if (pPrecio < 0 || pStock < 0) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'El precio y el stock deben ser números válidos y mayores o iguales a 0.',
-                                          ),
-                                          backgroundColor: Colors.redAccent,
-                                        ),
-                                      );
-                                      return;
-                                    }
-
-                                    setStateModal(() => guardando = true);
-
-                                    // Subir imagen si se seleccionó una nueva
-                                    String imagenUrlFinal = imagenUrlPreview;
-                                    if (imagenSeleccionada != null) {
-                                      setStateModal(() => subiendoImagen = true);
-                                      try {
-                                        final String? urlImagen = await _subirImagenASupabase(
-                                          File(imagenSeleccionada!.path),
-                                          codigoController.text.trim(),
-                                        );
-                                        if (urlImagen != null && urlImagen.isNotEmpty) {
-                                          imagenUrlFinal = urlImagen;
-                                        } else {
-                                          if (!context.mounted) return;
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text('⚠️ Error al subir imagen, se guardará sin imagen.'),
-                                              backgroundColor: Colors.orange,
-                                            ),
-                                          );
-                                          imagenUrlFinal = '';
-                                        }
-                                      } catch (e) {
-                                        debugPrint('Error subiendo imagen: $e');
-                                        imagenUrlFinal = '';
-                                      } finally {
-                                        setStateModal(() => subiendoImagen = false);
-                                      }
-                                    }
-
-                                    final producto = productoAEditar ?? ProductoEntity();
-                                    producto.codigoBarras = codigoController.text.trim();
-                                    producto.nombre = nombre;
-                                    producto.imagenUrl = imagenUrlFinal;
-                                    producto.precioUnidad = pPrecio;
-                                    producto.stock = pStock;
-                                    final pStockMin = double.tryParse(stockMinController
-                                        .text
-                                        .trim()
-                                        .replaceAll(',', '.')) ?? 5.0;
-                                    producto.stockMinimo = (pStockMin.isNaN ||
-                                        pStockMin.isInfinite)
-                                        ? 5.0
-                                        : pStockMin;
-                                    producto.categoria = categoriaSeleccionada;
-                                    producto.esPesado = esPesado;
-                                    producto.proveedorNombre =
-                                        proveedorNombreController.text.trim();
-                                    producto.proveedorTelefono =
-                                        proveedorTelController.text.trim();
-                                    HapticFeedback.lightImpact();
-
-                                    await _isarService.guardarProducto(producto);
-                                    await _syncService.sincronizarCategoriasASupabase();
-                                    await _syncService.sincronizarProductosASupabase();
-
-                                    if (context.mounted) {
-                                      Navigator.pop(context);
-                                      _cargarInventario();
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Producto guardado y sincronizado exitosamente',
-                                          ),
-                                          backgroundColor: Color(0xFF10B981),
-                                        ),
-                                      );
-                                    }
-                                  },
-                            child: guardando
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Guardar Producto',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                          ),
-                        ],
-                      ),
-                    ],
+                      );
+                    }).toList(),
                   ),
                 ),
               ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    // Filtrar cantidades válidas
+                    final validCantidades = Map<int, int>.from(cantidades)
+                      ..removeWhere((key, value) => value < 1);
+                    if (validCantidades.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Ingresa al menos 1 etiqueta por producto')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(context, validCantidades);
+                  },
+                  child: const Text('Imprimir'),
+                ),
+              ],
             );
           },
         );
       },
     );
+
+    if (result != null) {
+      await _imprimirEtiquetasSeleccionadas(result);
+    }
   }
 
-  // ==========================================
-  // DROPDOWN DE CATEGORÍAS
-  // ==========================================
-  Widget _buildCategoriaDropdown(
-    List<String> listaCategorias,
-    String valorActual,
-    ValueChanged<String?> onChanged,
-    BuildContext context,
-    bool isMobile,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        DropdownButtonFormField<String>(
-          initialValue: valorActual,
-          decoration: InputDecoration(
-            labelText: 'Categoría',
-            labelStyle: const TextStyle(fontSize: 16),
-            filled: true,
-            fillColor: const Color(0xFFF8FAFC),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 22,
-            ),
+  // ==========================================================
+  // 🆕 IMPRESIÓN DE ETIQUETAS EN LOTE
+  // ==========================================================
+  Future<void> _imprimirEtiquetasSeleccionadas(Map<int, int> cantidades) async {
+    // Obtener la impresora seleccionada
+    final selectedPrinter = ref.read(printerProvider);
+    if (selectedPrinter == null) {
+      _mostrarSnackbar('No hay impresora seleccionada', isError: true);
+      return;
+    }
+
+    // Generar la lista de LabelItem
+    final labels = <LabelItem>[];
+    for (final entry in cantidades.entries) {
+      final producto = _productos.firstWhere((p) => p.id == entry.key);
+      labels.add(LabelItem(
+        nombre: producto.nombre,
+        precio: producto.precioUnidad,
+        codigoBarras: producto.codigoBarras,
+        cantidad: entry.value,
+      ));
+    }
+
+    // Mostrar indicador de carga
+    final snackBar = SnackBar(
+      content: Row(
+        children: const [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          isExpanded: true,
-          items: listaCategorias.map((cat) {
-            return DropdownMenuItem<String>(
-              value: cat,
-              child: Text(
-                cat,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 16),
-              ),
-            );
-          }).toList(),
-          onChanged: onChanged,
-          icon: const Icon(Icons.keyboard_arrow_down),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.1),
-              foregroundColor: const Color(0xFF10B981),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-            ),
-            onPressed: () async {
-              final nuevaCat = await _mostrarDialogoNuevaCategoria(context);
-              if (nuevaCat != null && nuevaCat.isNotEmpty) {
-                setState(() {
-                  if (!listaCategorias.contains(nuevaCat)) {
-                    listaCategorias.add(nuevaCat);
-                    listaCategorias.sort();
-                  }
-                });
-                onChanged(nuevaCat);
-              }
-            },
-            icon: const Icon(Icons.add_circle, size: 20),
-            label: const Text(
-              'Nueva Categoría',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
-            ),
-          ),
-        ),
-      ],
+          SizedBox(width: 12),
+          Text('Imprimiendo etiquetas...'),
+        ],
+      ),
+      duration: const Duration(seconds: 10),
     );
   }
 
@@ -1234,20 +662,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final theme = Theme.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
 
-    final bool isLargeScreen = !isMobile;
-    final double maxWidth = isLargeScreen ? 850.0 : 600.0;
-    final double padding = isMobile ? 12.0 : (isTablet ? 24.0 : 32.0);
-    final double imageHeight = isMobile ? 120 : (isTablet ? 200 : 280);
-    final double imageMaxWidth = isLargeScreen ? 500 : 400;
-    final double horizontalInset = isMobile ? 16.0 : (isTablet ? 40.0 : 60.0);
-    final double verticalInset = isMobile ? 16.0 : 24.0;
+    // Imprimir
+    final result = await PrinterService().printLabel(
+      printer: selectedPrinter.device,
+      labels: labels,
+    );
 
-    final double titleSize = isMobile ? 16 : (isTablet ? 20 : 24);
-    final double nameSize = isMobile ? 18 : (isTablet ? 24 : 28);
-    final double detailSize = isMobile ? 11 : (isTablet ? 14 : 16);
-    final double priceSize = isMobile ? 14 : (isTablet ? 18 : 20);
-    final double stockSize = isMobile ? 12 : (isTablet ? 16 : 18);
+    ScaffoldMessenger.of(context).clearSnackBars();
 
     showDialog(
       context: context,
@@ -1603,22 +1026,24 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         );
       },
     );
+    if (result.success) {
+      _mostrarSnackbar('✅ ${labels.length} etiquetas impresas correctamente');
+      _limpiarSeleccion();
+    } else {
+      _mostrarSnackbar('❌ Error al imprimir: ${result.message}', isError: true);
+    }
   }
 
-  // ==========================================
-  // BARRA DE BÚSQUEDA CON ESCÁNER
-  // ==========================================
+  // ==========================================================
+  // BARRA DE BÚSQUEDA
+  // ==========================================================
   Widget _buildSearchBar(bool isMobile) {
-    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.dividerColor.withValues(alpha: 0.3),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
       ),
       child: Row(
         children: [
@@ -1629,60 +1054,35 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 textAlignVertical: TextAlignVertical.center,
                 onChanged: (val) => setState(() => _filtroBusqueda = val),
                 decoration: InputDecoration(
-                  hintText: isMobile
-                      ? 'Buscar...'
-                      : 'Buscar por nombre o código de barras...',
-                  hintStyle: TextStyle(
-                    fontSize: isMobile ? 13 : 14,
-                    color: Colors.grey.shade500,
-                  ),
+                  hintText: isMobile ? 'Buscar...' : 'Buscar por nombre o código...',
+                  hintStyle: TextStyle(fontSize: isMobile ? 13 : 14, color: Colors.grey.shade500),
                   isDense: true,
-                  prefixIcon: Padding(
-                    padding: const EdgeInsets.only(left: 8, right: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: IconButton(
-                            icon: const Icon(
-                              Icons.qr_code_scanner_rounded,
-                              size: 28,
-                              color: Color(0xFF475569),
-                            ),
-                            tooltip: 'Escanear código de barras',
-                            constraints: const BoxConstraints(
-                              minWidth: 44,
-                              minHeight: 44,
-                            ),
-                            padding: EdgeInsets.zero,
-                            onPressed: () {
-                              HapticFeedback.lightImpact();
-                              _scanBarcode();
-                            },
-                          ),
+                  prefixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.search,
-                          size: 20,
-                          color: theme.textTheme.bodySmall?.color,
+                        child: IconButton(
+                          icon: const Icon(Icons.qr_code_scanner_rounded, size: 28, color: Color(0xFF475569)),
+                          tooltip: 'Escanear código',
+                          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                          padding: EdgeInsets.zero,
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            _scanBarcode();
+                          },
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
+                    ],
                   ),
-                  prefixIconConstraints: const BoxConstraints(
-                    minWidth: 0,
-                    minHeight: 0,
-                  ),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: 0,
-                    horizontal: 8,
-                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
                 ),
               ),
             ),
@@ -1694,31 +1094,25 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
             onSelected: (val) => setState(() => _soloStockBajo = val),
             selectedColor: const Color(0xFFFEE2E2),
             checkmarkColor: Colors.red,
-            labelStyle: TextStyle(
-              fontSize: isMobile ? 10 : 13,
-              fontWeight: FontWeight.bold,
-            ),
+            labelStyle: TextStyle(fontSize: isMobile ? 10 : 13, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(width: 8),
         ],
       ),
     );
   }
 
-  // ==========================================
+  // ==========================================================
   // BUILD
-  // ==========================================
+  // ==========================================================
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
-    final isDesktop = !isMobile && !isTablet;
-
     final screenWidth = MediaQuery.of(context).size.width;
+
     int crossAxisCount;
     double childAspectRatio;
-
     if (screenWidth < 600) {
       crossAxisCount = 2;
       childAspectRatio = 0.60;
@@ -1732,71 +1126,48 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       crossAxisCount = 4;
       childAspectRatio = 0.68;
     }
-
     if (isMobile && MediaQuery.of(context).orientation == Orientation.landscape) {
       crossAxisCount = 3;
       childAspectRatio = 0.60;
     }
 
     final productosFiltrados = _productos.where((p) {
-      final coincideTexto = p.nombre
-          .toLowerCase()
-          .contains(_filtroBusqueda.toLowerCase()) ||
+      final coincideTexto = p.nombre.toLowerCase().contains(_filtroBusqueda.toLowerCase()) ||
           p.codigoBarras.contains(_filtroBusqueda);
       final coincideStockBajo = !_soloStockBajo || (p.stock <= p.stockMinimo);
       return coincideTexto && coincideStockBajo;
     }).toList();
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        leadingWidth: 90,
-        leading: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-              onPressed: () {
-                if (Navigator.canPop(context)) {
-                  Navigator.pop(context);
-                } else {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const InventoryCatalogScreen(),
-                    ),
-                  );
-                }
-              },
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 4.0),
-              child: Image.asset(
-                'assets/logo.png',
-                width: 30,
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) =>
-                    const Icon(Icons.storefront, color: Colors.white, size: 24),
-              ),
-            ),
-          ],
-        ),
-        title: Text(
-          isMobile ? 'Inventario' : 'Gestión de Inventario y Proveedores',
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
-        ),
-        centerTitle: isMobile ? true : false,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color.fromRGBO(68, 109, 241, 1),
-                Color.fromARGB(255, 85, 59, 235),
-              ],
+    // ==========================================================
+    // APP BAR CON CONTADOR DE SELECCIÓN
+    // ==========================================================
+    final appBar = AppBar(
+      leadingWidth: 90,
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const InventoryCatalogScreen()),
+                );
+              }
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0),
+            child: Image.asset(
+              'assets/logo.png',
+              width: 30,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.storefront, color: Colors.white, size: 24),
             ),
           ),
         ),
@@ -1812,28 +1183,74 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
           const SizedBox(width: 8),
         ],
       ),
-      floatingActionButton: _esAdmin
-          ? SizedBox(
-              height: isMobile ? 56 : 72,
-              child: FloatingActionButton.extended(
-                backgroundColor: const Color(0xFF10B981),
-                foregroundColor: Colors.white,
-                elevation: 8,
-                heroTag: 'fab_add_product',
-                onPressed: () => _mostrarFormularioProducto(),
-                icon: const Icon(Icons.add, size: 24),
-                label: Text(
-                  isMobile ? 'Nuevo' : 'Nuevo Producto',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: isMobile ? 15 : 18,
-                  ),
-                ),
-                extendedPadding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      title: Text(
+        isMobile ? 'Inventario' : 'Gestión de Inventario',
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+      ),
+      centerTitle: isMobile,
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color.fromRGBO(68, 109, 241, 1), Color.fromARGB(255, 85, 59, 235)],
+          ),
+        ),
+      ),
+      foregroundColor: Colors.white,
+      actions: [
+        if (_seleccionMultiple) ...[
+          Row(
+            children: [
+              Text(
+                '$_cantidadSeleccionados seleccionados',
+                style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
-            )
-          : null,
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: _limpiarSeleccion,
+              ),
+            ],
+          ),
+        ] else ...[
+          const SizedBox(width: 8),
+        ],
+      ],
+    );
+
+    // ==========================================================
+    // FLOATING ACTION BUTTON CONDICIONAL
+    // ==========================================================
+    Widget? fab;
+    if (_esAdmin) {
+      if (_seleccionMultiple && _productosSeleccionados.isNotEmpty) {
+        fab = FloatingActionButton.extended(
+          backgroundColor: const Color(0xFF8B5CF6),
+          foregroundColor: Colors.white,
+          elevation: 8,
+          onPressed: _mostrarDialogoCantidadEtiquetas,
+          icon: const Icon(Icons.local_offer_outlined, size: 24),
+          label: Text(
+            'Imprimir etiquetas ($_cantidadSeleccionados)',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        );
+      } else {
+        fab = FloatingActionButton.extended(
+          backgroundColor: const Color(0xFF10B981),
+          foregroundColor: Colors.white,
+          elevation: 8,
+          onPressed: () => _mostrarFormularioProducto(),
+          icon: const Icon(Icons.add, size: 24),
+          label: Text(isMobile ? 'Nuevo' : 'Nuevo Producto'),
+        );
+      }
+    }
+
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: appBar,
+      floatingActionButton: fab,
       body: _isLoading
           ? GridView.builder(
               padding: const EdgeInsets.all(16),
@@ -1844,7 +1261,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 mainAxisSpacing: 12,
               ),
               itemCount: 6,
-              itemBuilder: (_, index) => const _ProductCardSkeleton(),
+              itemBuilder: (_, __) => const _ProductCardSkeleton(),
             )
           : Padding(
               padding: const EdgeInsets.all(12.0),
@@ -1860,16 +1277,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                           ? Center(
                               child: Text(
                                 'No se encontraron productos.',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: Colors.grey,
-                                  fontSize: 14,
-                                ),
+                                style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey, fontSize: 14),
                               ),
                             )
                           : GridView.builder(
+                              key: const PageStorageKey('inventory_grid'),
+                              addAutomaticKeepAlives: true,
                               padding: const EdgeInsets.only(bottom: 100),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: crossAxisCount,
                                 childAspectRatio: childAspectRatio,
                                 crossAxisSpacing: 12,
@@ -1878,21 +1293,36 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                               itemCount: productosFiltrados.length,
                               itemBuilder: (context, index) {
                                 final p = productosFiltrados[index];
-                                final esStockBajo = p.stock <= p.stockMinimo;
-                                final controller = _animationController ??=
-                                    AnimationController(
-                                      vsync: this,
-                                      duration: const Duration(milliseconds: 400),
-                                    )..forward();
+                                final bool isSelected = _seleccionMultiple &&
+                                    _productosSeleccionados.contains(p.id);
+
                                 return _ProductCard(
+                                  key: ValueKey(p.id),
                                   producto: p,
-                                  stockBajo: esStockBajo,
-                                  onTap: () => _mostrarDetalleProducto(p),
+                                  stockBajo: p.stock <= p.stockMinimo,
+                                  onTap: () {
+                                    if (_seleccionMultiple) {
+                                      _toggleSeleccionProducto(p.id);
+                                    } else {
+                                      _mostrarDetalleProducto(p);
+                                    }
+                                  },
+                                  onLongPress: () {
+                                    // Si no está en modo selección, activarlo y seleccionar este producto
+                                    if (!_seleccionMultiple) {
+                                      setState(() {
+                                        _seleccionMultiple = true;
+                                        _productosSeleccionados.add(p.id);
+                                      });
+                                    } else {
+                                      // Si ya está en modo selección, toggle
+                                      _toggleSeleccionProducto(p.id);
+                                    }
+                                  },
+                                  isSelected: isSelected,
                                   isMobile: isMobile,
                                   isTablet: isTablet,
-                                  isDesktop: isDesktop,
                                   index: index,
-                                  animationController: controller,
                                 );
                               },
                             ),
@@ -1905,318 +1335,316 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 }
 
-// ==========================================
-// WIDGET DE TARJETA DE PRODUCTO (COMPACTA)
-// ==========================================
-class _ProductCard extends StatefulWidget {
+// ============================================================
+// TARJETA DE PRODUCTO (CON SELECCIÓN Y LONG PRESS)
+// ============================================================
+class _ProductCard extends StatelessWidget {
   final ProductoEntity producto;
   final bool stockBajo;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final bool isSelected;
   final bool isMobile;
   final bool isTablet;
-  final bool isDesktop;
   final int index;
-  final AnimationController animationController;
 
   const _ProductCard({
+    super.key,
     required this.producto,
     required this.stockBajo,
     required this.onTap,
+    required this.onLongPress,
+    this.isSelected = false,
     required this.isMobile,
     required this.isTablet,
-    required this.isDesktop,
     required this.index,
-    required this.animationController,
   });
-
-  @override
-  State<_ProductCard> createState() => _ProductCardState();
-}
-
-class _ProductCardState extends State<_ProductCard> {
-  late Animation<double> _scaleAnimation;
-  bool _isHovered = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final start = 0.05 * widget.index;
-    final end = start + 0.1;
-    _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(
-        parent: widget.animationController,
-        curve: Interval(
-          start.clamp(0.0, 1.0),
-          end.clamp(0.0, 1.0),
-          curve: Curves.easeOutCubic,
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final double safeStockMin = widget.producto.stockMinimo.isFinite
-        ? widget.producto.stockMinimo
-        : 0.0;
-    final String stockMinStr = safeStockMin % 1 == 0
-        ? safeStockMin.toInt().toString()
-        : safeStockMin.toStringAsFixed(1);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedScale(
-        scale: _isHovered ? 1.02 : 1.0,
-        duration: const Duration(milliseconds: 200),
-        child: ScaleTransition(
-          scale: _scaleAnimation,
-          child: InkWell(
-            onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: widget.stockBajo
-                      ? const Color(0xFFFCA5A5)
-                      : (widget.isTablet
-                          ? const Color(0xFFCBD5E1)
-                          : const Color(0xFFE2E8F0)),
-                  width: widget.stockBajo ? 2 : (widget.isTablet ? 2.5 : 1.5),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(
-                      alpha: widget.isTablet ? 0.08 : 0.05,
-                    ),
-                    blurRadius: widget.isTablet ? 16 : 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: _buildVerticalLayout(theme, stockMinStr),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ==========================================
-  // DISEÑO VERTICAL – COMPACTO Y RESPONSIVE
-  // ==========================================
-  Widget _buildVerticalLayout(ThemeData theme, String stockMinStr) {
-    final bool isMobile = widget.isMobile;
-    final bool isTablet = widget.isTablet;
-
-    final double imageHeight = isMobile ? 100 : (isTablet ? 140 : 190);
     final double fontSizeNombre = isMobile ? 13 : (isTablet ? 16 : 20);
     final double fontSizePrecio = isMobile ? 14 : (isTablet ? 18 : 22);
     final double fontSizeDetalle = isMobile ? 10 : (isTablet ? 13 : 16);
-    final double fontSizeIcono = isMobile ? 16 : (isTablet ? 22 : 28);
-    final double paddingInterior = isMobile ? 6 : (isTablet ? 10 : 16);
-    final double spacingSmall = isMobile ? 1 : (isTablet ? 2 : 4);
-    final double spacingMedium = isMobile ? 2 : (isTablet ? 4 : 8);
-    final int nombreMaxLines = (isMobile) ? 1 : 2;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Imagen
-        Container(
-          height: imageHeight,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.85, end: 1.0),
+      duration: Duration(milliseconds: 400 + (index * 30)),
+      curve: Curves.easeOutCubic,
+      child: _ProductCardContent(
+        producto: producto,
+        stockBajo: stockBajo,
+        onTap: onTap,
+        onLongPress: onLongPress,
+        isSelected: isSelected,
+        isMobile: isMobile,
+        isTablet: isTablet,
+        fontSizeNombre: fontSizeNombre,
+        fontSizePrecio: fontSizePrecio,
+        fontSizeDetalle: fontSizeDetalle,
+      ),
+      builder: (context, scale, child) => Transform.scale(scale: scale, child: child!),
+    );
+  }
+}
+
+class _ProductCardContent extends StatelessWidget {
+  final ProductoEntity producto;
+  final bool stockBajo;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final bool isSelected;
+  final bool isMobile;
+  final bool isTablet;
+  final double fontSizeNombre;
+  final double fontSizePrecio;
+  final double fontSizeDetalle;
+
+  const _ProductCardContent({
+    required this.producto,
+    required this.stockBajo,
+    required this.onTap,
+    required this.onLongPress,
+    this.isSelected = false,
+    required this.isMobile,
+    required this.isTablet,
+    required this.fontSizeNombre,
+    required this.fontSizePrecio,
+    required this.fontSizeDetalle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final double imageHeight = isMobile ? 100.0 : (isTablet ? 140.0 : 190.0);
+    final double paddingInterior = isMobile ? 6.0 : (isTablet ? 10.0 : 16.0);
+
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF8B5CF6)
+                : (stockBajo
+                    ? const Color(0xFFFCA5A5)
+                    : (isTablet ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0))),
+            width: isSelected ? 3 : (stockBajo ? 2 : (isTablet ? 2.5 : 1.5)),
           ),
-          child: Stack(
-            children: [
-              Center(
-                child: widget.producto.imagenUrl.isNotEmpty
-                    ? Image.network(
-                        widget.producto.imagenUrl,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                        errorBuilder: (_, _, _) => Icon(
-                          Icons.inventory_2,
-                          size: isMobile ? 40 : (isTablet ? 50 : 64),
-                          color: const Color(0xFF3B82F6),
-                        ),
-                      )
-                    : Icon(
-                        Icons.inventory_2,
-                        size: isMobile ? 40 : (isTablet ? 50 : 64),
-                        color: const Color(0xFF3B82F6),
-                      ),
-              ),
-              if (widget.stockBajo)
-                Positioned(
-                  top: 4,
-                  left: 4,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFDC2626),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '¡STOCK BAJO!',
-                      style: TextStyle(
-                        fontSize: isMobile ? 8 : (isTablet ? 10 : 12),
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              Positioned(
-                top: 4,
-                right: 4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Icon(
-                    widget.producto.esPesado
-                        ? Icons.scale_outlined
-                        : Icons.inventory_outlined,
-                    size: fontSizeIcono * 0.75,
-                    color: const Color(0xFF334155),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          boxShadow: [
+            BoxShadow(
+              color: isSelected
+                  ? const Color(0xFF8B5CF6).withValues(alpha: 0.3)
+                  : Colors.black.withValues(alpha: isTablet ? 0.08 : 0.05),
+              blurRadius: isSelected ? 20 : (isTablet ? 16 : 12),
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        // Información compacta
-        Padding(
-          padding: EdgeInsets.all(paddingInterior),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                widget.producto.nombre,
-                maxLines: nombreMaxLines,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: fontSizeNombre,
-                ),
-              ),
-              SizedBox(height: spacingSmall),
-              Text(
-                'Cód: ${widget.producto.codigoBarras}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontSize: fontSizeDetalle,
-                  color: const Color(0xFF94A3B8),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              SizedBox(height: spacingMedium),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '\$${widget.producto.precioUnidad.toStringAsFixed(2)}',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: fontSizePrecio,
-                      color: const Color(0xFF10B981),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: widget.stockBajo
-                          ? const Color(0xFFFEE2E2)
-                          : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: widget.stockBajo
-                            ? const Color(0xFFFECACA)
-                            : const Color(0xFFE2E8F0),
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Text(
-                      'Stock: ${widget.producto.stock}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontSize: fontSizeDetalle - 1,
-                        fontWeight: FontWeight.w600,
-                        color: widget.stockBajo
-                            ? const Color(0xFFEF4444)
-                            : const Color(0xFF475569),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: spacingSmall),
-              if (widget.producto.categoria.isNotEmpty)
-                Text(
-                  'Cat: ${widget.producto.categoria}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontSize: fontSizeDetalle,
-                    color: const Color(0xFF64748B),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              if (widget.producto.proveedorNombre.isNotEmpty) ...[
-                SizedBox(height: spacingSmall),
+        child: Stack(
+          children: [
+            // Contenido normal
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Imagen
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  height: imageHeight,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEEF2FF),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: const Color(0xFFC7D2FE),
-                      width: 0.5,
-                    ),
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                   ),
-                  child: Row(
+                  child: Stack(
                     children: [
-                      Icon(
-                        Icons.phone,
-                        size: isMobile ? 8 : (isTablet ? 12 : 16),
-                        color: const Color(0xFF4F46E5),
+                      Center(
+                        child: producto.imagenUrl.isNotEmpty
+                            ? Image.network(
+                                producto.imagenUrl,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  Icons.inventory_2,
+                                  size: isMobile ? 40 : (isTablet ? 50 : 64),
+                                  color: const Color(0xFF3B82F6),
+                                ),
+                              )
+                            : Icon(Icons.inventory_2,
+                                size: isMobile ? 40 : (isTablet ? 50 : 64),
+                                color: const Color(0xFF3B82F6)),
                       ),
-                      const SizedBox(width: 2),
-                      Expanded(
-                        child: Text(
-                          widget.producto.proveedorNombre,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontSize: fontSizeDetalle - 1,
-                            fontStyle: FontStyle.italic,
-                            color: const Color(0xFF4F46E5),
+                      if (stockBajo)
+                        Positioned(
+                          top: 4,
+                          left: 4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDC2626),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '¡STOCK BAJO!',
+                              style: TextStyle(
+                                fontSize: isMobile ? 8 : (isTablet ? 10 : 12),
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
+                        ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Icon(
+                            producto.esPesado ? Icons.scale_outlined : Icons.inventory_outlined,
+                            size: isMobile ? 14 : (isTablet ? 18 : 24),
+                            color: const Color(0xFF334155),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
+                // Información
+                Padding(
+                  padding: EdgeInsets.all(paddingInterior),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        producto.nombre,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: fontSizeNombre,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Cód: ${producto.codigoBarras}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: fontSizeDetalle, color: const Color(0xFF94A3B8)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '\$${producto.precioUnidad.toStringAsFixed(2)}',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: fontSizePrecio,
+                              color: const Color(0xFF10B981),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: stockBajo ? const Color(0xFFFEE2E2) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: stockBajo ? const Color(0xFFFECACA) : const Color(0xFFE2E8F0),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Text(
+                              'Stock: ${producto.stock}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontSize: fontSizeDetalle - 1,
+                                fontWeight: FontWeight.w600,
+                                color: stockBajo ? const Color(0xFFEF4444) : const Color(0xFF475569),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (producto.categoria.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Cat: ${producto.categoria}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: fontSizeDetalle, color: const Color(0xFF64748B)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      if (producto.proveedorNombre.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF2FF),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFFC7D2FE), width: 0.5),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.phone,
+                                  size: isMobile ? 8 : (isTablet ? 12 : 16),
+                                  color: const Color(0xFF4F46E5)),
+                              const SizedBox(width: 2),
+                              Expanded(
+                                child: Text(
+                                  producto.proveedorNombre,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontSize: fontSizeDetalle - 1,
+                                    fontStyle: FontStyle.italic,
+                                    color: const Color(0xFF4F46E5),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ],
-            ],
-          ),
+            ),
+            // Indicador de selección (check en la esquina superior derecha)
+            if (isSelected)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF8B5CF6),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
-// ==========================================
+// ============================================================
 // SKELETON LOADER
-// ==========================================
+// ============================================================
 class _ProductCardSkeleton extends StatelessWidget {
   const _ProductCardSkeleton();
 
@@ -2227,17 +1655,8 @@ class _ProductCardSkeleton extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.dividerColor.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          )
-        ],
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3), width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Column(
         children: [
@@ -2273,9 +1692,9 @@ class _ProductCardSkeleton extends StatelessWidget {
   }
 }
 
-// ==========================================
-// DIÁLOGO DEL ESCÁNER
-// ==========================================
+// ============================================================
+// DIÁLOGO DEL ESCÁNER (sin cambios)
+// ============================================================
 class _BarcodeScannerDialog extends StatefulWidget {
   const _BarcodeScannerDialog();
 
@@ -2309,7 +1728,7 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
             controller: _controller,
             onDetect: (capture) async {
               if (_isProcessing) return;
-              final List<Barcode> barcodes = capture.barcodes;
+              final barcodes = capture.barcodes;
               for (final barcode in barcodes) {
                 final rawValue = barcode.rawValue;
                 if (rawValue != null && rawValue.isNotEmpty) {
@@ -2318,9 +1737,7 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
                   break;
                 }
               }
-              Future.delayed(const Duration(milliseconds: 500), () {
-                _isProcessing = false;
-              });
+              Future.delayed(const Duration(milliseconds: 500), () => _isProcessing = false);
             },
           ),
           Center(
@@ -2330,25 +1747,12 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
               decoration: BoxDecoration(
                 border: Border.all(color: const Color(0xFF10B981), width: 4),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                    blurRadius: 30,
-                    spreadRadius: 10,
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: const Color(0xFF10B981).withValues(alpha: 0.3), blurRadius: 30, spreadRadius: 10)],
               ),
               child: const Center(
                 child: Text(
                   '🔍 Centra el código',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    shadows: [
-                      Shadow(color: Colors.black45, blurRadius: 10),
-                    ],
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, shadows: [Shadow(color: Colors.black45, blurRadius: 10)]),
                 ),
               ),
             ),
@@ -2361,10 +1765,7 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.black45,
-                    shape: BoxShape.circle,
-                  ),
+                  decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
                   child: IconButton(
                     icon: const Icon(Icons.close, color: Colors.white, size: 30),
                     onPressed: () => Navigator.of(context).pop(),
@@ -2373,20 +1774,11 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
                   ),
                 ),
                 Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.black45,
-                    shape: BoxShape.circle,
-                  ),
+                  decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
                   child: IconButton(
-                    icon: Icon(
-                      _isTorchOn ? Icons.flash_on : Icons.flash_off,
-                      color: Colors.white,
-                      size: 30,
-                    ),
+                    icon: Icon(_isTorchOn ? Icons.flash_on : Icons.flash_off, color: Colors.white, size: 30),
                     onPressed: () {
-                      setState(() {
-                        _isTorchOn = !_isTorchOn;
-                      });
+                      setState(() => _isTorchOn = !_isTorchOn);
                       _controller.toggleTorch();
                     },
                     splashRadius: 28,
@@ -2403,23 +1795,649 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               margin: const EdgeInsets.symmetric(horizontal: 40),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(12),
-              ),
+              decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
               child: const Text(
                 'Apunta la cámara al código de barras',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+// ============================================================
+// DIÁLOGO DE DETALLE DEL PRODUCTO (CON ETIQUETA PARA TODOS)
+// ============================================================
+class _ProductDetailDialog extends ConsumerWidget {
+  final ProductoEntity producto;
+  final bool esAdmin;
+  final VoidCallback onEditar;
+  final VoidCallback onEliminar;
+
+  const _ProductDetailDialog({
+    required this.producto,
+    required this.esAdmin,
+    required this.onEditar,
+    required this.onEliminar,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final theme = Theme.of(context);
+
+    final selectedPrinterState = ref.watch(printerProvider);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 8,
+      insetPadding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 40, vertical: 24),
+      child: Container(
+        constraints: BoxConstraints(maxWidth: 850, maxHeight: MediaQuery.of(context).size.height * 0.85),
+        padding: EdgeInsets.all(isMobile ? 12 : (isTablet ? 24 : 32)),
+        decoration: BoxDecoration(
+          color: theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Detalles del Producto',
+                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 28),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Container(
+                  height: isMobile ? 120.0 : (isTablet ? 200.0 : 280.0),
+                  width: double.infinity,
+                  constraints: BoxConstraints(maxWidth: isMobile ? 400 : 500),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: producto.imagenUrl.isNotEmpty
+                        ? Image.network(producto.imagenUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey))
+                        : Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Divider(),
+              Text(
+                producto.nombre,
+                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text('Cód: ${producto.codigoBarras}', style: theme.textTheme.bodySmall?.copyWith(color: const Color(0xFF94A3B8))),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Precio: \$${producto.precioUnidad.toStringAsFixed(2)}',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: const Color(0xFF10B981)),
+                  ),
+                  Text('Categoría: ${producto.categoria}', style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF64748B))),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Stock Actual: ${producto.stock % 1 == 0 ? producto.stock.toInt() : producto.stock}',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    'Stock Mínimo: ${producto.stockMinimo.isFinite ? (producto.stockMinimo % 1 == 0 ? producto.stockMinimo.toInt() : producto.stockMinimo) : 0}',
+                    style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+              if (producto.proveedorNombre.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFC7D2FE), width: 1),
+                  ),
+                  child: Text(
+                    'Proveedor: ${producto.proveedorNombre} (${producto.proveedorTelefono.isNotEmpty ? producto.proveedorTelefono : "Sin teléfono"})',
+                    style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic, fontWeight: FontWeight.w500, color: const Color(0xFF4F46E5)),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                children: [
+                  // Botón "Imprimir Etiqueta" - DISPONIBLE PARA TODOS
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      if (selectedPrinterState == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('❌ No hay impresora seleccionada. Configura una en Ajustes.'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                        return;
+                      }
+
+                      final label = LabelItem(
+                        nombre: producto.nombre,
+                        precio: producto.precioUnidad,
+                        codigoBarras: producto.codigoBarras,
+                        cantidad: 1,
+                      );
+
+                      final snackBar = SnackBar(
+                        content: Row(
+                          children: const [
+                            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                            SizedBox(width: 12),
+                            Text('Imprimiendo etiqueta...'),
+                          ],
+                        ),
+                        duration: const Duration(seconds: 10),
+                      );
+                      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+
+                      final result = await PrinterService().printLabel(
+                        printer: selectedPrinterState.device,
+                        labels: [label],
+                      );
+
+                      ScaffoldMessenger.of(context).clearSnackBars();
+
+                      if (result.success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('✅ Etiqueta impresa correctamente'),
+                            backgroundColor: Color(0xFF10B981),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('❌ Error al imprimir: ${result.message}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.local_offer_outlined, size: 20),
+                    label: const Text('Etiqueta'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF8B5CF6),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cerrar'),
+                  ),
+
+                  if (esAdmin) ...[
+                    ElevatedButton.icon(
+                      onPressed: onEditar,
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      label: const Text('Editar'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Eliminar Producto'),
+                            content: Text('¿Estás seguro de eliminar "${producto.nombre}"? Esta acción no se puede deshacer.'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                child: const Text('Eliminar'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          onEliminar();
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
+                        }
+                      },
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      label: const Text('Eliminar'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEF4444),
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// DIÁLOGO DE FORMULARIO DE PRODUCTO (EXTRAÍDO)
+// ============================================================
+class _ProductFormDialog extends StatefulWidget {
+  final ProductoEntity? producto;
+  final List<String> categoriasExistentes;
+  final Future<void> Function(ProductoEntity) onGuardar;
+
+  const _ProductFormDialog({
+    required this.producto,
+    required this.categoriasExistentes,
+    required this.onGuardar,
+  });
+
+  @override
+  State<_ProductFormDialog> createState() => _ProductFormDialogState();
+}
+
+class _ProductFormDialogState extends State<_ProductFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _codigoController;
+  late TextEditingController _nombreController;
+  late TextEditingController _precioController;
+  late TextEditingController _stockController;
+  late TextEditingController _stockMinController;
+  late TextEditingController _proveedorNombreController;
+  late TextEditingController _proveedorTelController;
+  late String _categoriaSeleccionada;
+  late bool _esPesado;
+  String _imagenUrlPreview = '';
+  XFile? _imagenSeleccionada;
+  bool _subiendoImagen = false;
+  bool _guardando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.producto;
+    _codigoController = TextEditingController(text: p?.codigoBarras ?? '');
+    _nombreController = TextEditingController(text: p?.nombre ?? '');
+    _precioController = TextEditingController(text: p?.precioUnidad.toString() ?? '');
+    _stockController = TextEditingController(text: p?.stock.toString() ?? '');
+    _stockMinController = TextEditingController(text: p?.stockMinimo.toString() ?? '5.0');
+    _proveedorNombreController = TextEditingController(text: p?.proveedorNombre ?? '');
+    _proveedorTelController = TextEditingController(text: p?.proveedorTelefono ?? '');
+    _categoriaSeleccionada = p?.categoria.isNotEmpty == true ? p!.categoria : 'General';
+    _esPesado = p?.esPesado ?? false;
+    _imagenUrlPreview = p?.imagenUrl ?? '';
+  }
+
+  @override
+  void dispose() {
+    _codigoController.dispose();
+    _nombreController.dispose();
+    _precioController.dispose();
+    _stockController.dispose();
+    _stockMinController.dispose();
+    _proveedorNombreController.dispose();
+    _proveedorTelController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _seleccionarImagen(ImageSource source) async {
+    final permission = await _getImagePermission();
+    if (!permission) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Permiso de acceso a imágenes denegado'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: source, maxWidth: 800, maxHeight: 800, imageQuality: 80);
+    if (image != null) {
+      setState(() {
+        _imagenSeleccionada = image;
+        _imagenUrlPreview = image.path;
+      });
+    }
+  }
+
+  Future<bool> _getImagePermission() async {
+    if (!Platform.isAndroid) return true;
+    Permission permission;
+    if (await _isAndroid13OrHigher()) {
+      permission = Permission.photos;
+    } else {
+      permission = Permission.storage;
+    }
+    final status = await permission.request();
+    return status.isGranted;
+  }
+
+  Future<bool> _isAndroid13OrHigher() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final version = await SystemChannels.platform.invokeMethod('System.getVersion');
+      final sdkInt = int.tryParse(version.toString()) ?? 0;
+      return sdkInt >= 33;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String?> _uploadImage(File image, String codigo) async {
+    try {
+      final ext = image.path.split('.').last;
+      final fileName = '${codigo}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      await Supabase.instance.client.storage.from('productos').upload(fileName, image);
+      return Supabase.instance.client.storage.from('productos').getPublicUrl(fileName);
+    } catch (e) {
+      debugPrint('Error subiendo imagen: $e');
+      return null;
+    }
+  }
+
+  Future<void> _guardar() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _guardando = true);
+
+    String imagenUrlFinal = _imagenUrlPreview;
+    if (_imagenSeleccionada != null) {
+      setState(() => _subiendoImagen = true);
+      try {
+        final url = await _uploadImage(File(_imagenSeleccionada!.path), _codigoController.text.trim());
+        if (url != null) imagenUrlFinal = url;
+      } catch (_) {}
+      setState(() => _subiendoImagen = false);
+    }
+
+    final producto = widget.producto ?? ProductoEntity();
+    producto.codigoBarras = _codigoController.text.trim();
+    producto.nombre = _nombreController.text.trim();
+    producto.imagenUrl = imagenUrlFinal;
+    producto.precioUnidad = double.tryParse(_precioController.text) ?? 0.0;
+    producto.stock = double.tryParse(_stockController.text) ?? 0.0;
+    producto.stockMinimo = double.tryParse(_stockMinController.text) ?? 5.0;
+    producto.categoria = _categoriaSeleccionada;
+    producto.esPesado = _esPesado;
+    producto.proveedorNombre = _proveedorNombreController.text.trim();
+    producto.proveedorTelefono = _proveedorTelController.text.trim();
+
+    await widget.onGuardar(producto);
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final theme = Theme.of(context);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      elevation: 8,
+      insetPadding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 40, vertical: 24),
+      child: Container(
+        constraints: BoxConstraints(maxWidth: 800, maxHeight: MediaQuery.of(context).size.height * 0.9),
+        padding: EdgeInsets.all(isMobile ? 16 : 32),
+        decoration: BoxDecoration(color: theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface, borderRadius: BorderRadius.circular(28)),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(color: const Color(0xFF10B981).withValues(alpha: 0.1), shape: BoxShape.circle),
+                      child: Icon(widget.producto == null ? Icons.add_shopping_cart_outlined : Icons.edit_outlined,
+                          color: const Color(0xFF10B981), size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        widget.producto == null ? 'Nuevo Producto' : 'Editar Producto',
+                        style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                TextFormField(
+                  controller: _codigoController,
+                  decoration: const InputDecoration(labelText: 'Código de Barras', border: OutlineInputBorder()),
+                  validator: (v) => v?.trim().isNotEmpty == true ? null : 'Requerido',
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _nombreController,
+                  decoration: const InputDecoration(labelText: 'Nombre del Producto *', border: OutlineInputBorder()),
+                  validator: (v) => v?.trim().isNotEmpty == true ? null : 'Requerido',
+                ),
+                const SizedBox(height: 16),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(12)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.image_outlined, color: Color(0xFF10B981), size: 24),
+                          const SizedBox(width: 8),
+                          const Text('Imagen del Producto', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const Spacer(),
+                          if (_imagenSeleccionada != null || _imagenUrlPreview.isNotEmpty)
+                            IconButton(
+                              icon: const Icon(Icons.clear, color: Colors.red, size: 20),
+                              onPressed: () => setState(() {
+                                _imagenSeleccionada = null;
+                                _imagenUrlPreview = '';
+                              }),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 120,
+                        decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+                        child: _imagenSeleccionada != null
+                            ? Image.file(File(_imagenSeleccionada!.path), fit: BoxFit.cover)
+                            : _imagenUrlPreview.isNotEmpty
+                                ? Image.network(_imagenUrlPreview, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 48, color: Colors.grey))
+                                : const Center(child: Text('Sin imagen', style: TextStyle(color: Colors.grey))),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _subiendoImagen ? null : () => _seleccionarImagen(ImageSource.gallery),
+                            icon: const Icon(Icons.photo_library, size: 18),
+                            label: const Text('Galería'),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed: _subiendoImagen ? null : () => _seleccionarImagen(ImageSource.camera),
+                            icon: const Icon(Icons.camera_alt, size: 18),
+                            label: const Text('Cámara'),
+                          ),
+                        ],
+                      ),
+                      if (_subiendoImagen) const LinearProgressIndicator(),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                isMobile
+                    ? Column(
+                        children: [
+                          TextFormField(
+                            controller: _precioController,
+                            decoration: const InputDecoration(labelText: 'Precio (\$) *', border: OutlineInputBorder()),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            validator: (v) => (double.tryParse(v ?? '') ?? -1) >= 0 ? null : 'Precio válido',
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _stockController,
+                            decoration: const InputDecoration(labelText: 'Stock Inicial *', border: OutlineInputBorder()),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            validator: (v) => (double.tryParse(v ?? '') ?? -1) >= 0 ? null : 'Stock válido',
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _precioController,
+                              decoration: const InputDecoration(labelText: 'Precio (\$) *', border: OutlineInputBorder()),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              validator: (v) => (double.tryParse(v ?? '') ?? -1) >= 0 ? null : 'Precio válido',
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _stockController,
+                              decoration: const InputDecoration(labelText: 'Stock Inicial *', border: OutlineInputBorder()),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              validator: (v) => (double.tryParse(v ?? '') ?? -1) >= 0 ? null : 'Stock válido',
+                            ),
+                          ),
+                        ],
+                      ),
+                const SizedBox(height: 16),
+
+                isMobile
+                    ? Column(
+                        children: [
+                          TextFormField(
+                            controller: _stockMinController,
+                            decoration: const InputDecoration(labelText: 'Stock Mínimo *', border: OutlineInputBorder()),
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            validator: (v) => (double.tryParse(v ?? '') ?? -1) >= 0 ? null : 'Stock mínimo válido',
+                          ),
+                          const SizedBox(height: 16),
+                          _buildCategoriaDropdown(),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _stockMinController,
+                              decoration: const InputDecoration(labelText: 'Stock Mínimo *', border: OutlineInputBorder()),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              validator: (v) => (double.tryParse(v ?? '') ?? -1) >= 0 ? null : 'Stock mínimo válido',
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(child: _buildCategoriaDropdown()),
+                        ],
+                      ),
+                const SizedBox(height: 8),
+
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('¿Es producto pesado (granel)?', style: TextStyle(fontSize: 16)),
+                  value: _esPesado,
+                  onChanged: (val) => setState(() => _esPesado = val),
+                  activeThumbColor: const Color(0xFF10B981),
+                ),
+                const Divider(height: 32),
+
+                const Text('Información del Proveedor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF475569))),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _proveedorNombreController,
+                  decoration: const InputDecoration(labelText: 'Nombre del Proveedor', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _proveedorTelController,
+                  decoration: const InputDecoration(labelText: 'Teléfono del Proveedor', border: OutlineInputBorder()),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 24),
+
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: _guardando ? null : () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
+                    ),
+                    ElevatedButton(
+                      onPressed: _guardando ? null : _guardar,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                      ),
+                      child: _guardando
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('Guardar Producto'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoriaDropdown() {
+    return DropdownButtonFormField<String>(
+      initialValue: _categoriaSeleccionada,
+      decoration: const InputDecoration(labelText: 'Categoría', border: OutlineInputBorder()),
+      items: widget.categoriasExistentes.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
+      onChanged: (val) => setState(() => _categoriaSeleccionada = val!),
+      isExpanded: true,
     );
   }
 }
