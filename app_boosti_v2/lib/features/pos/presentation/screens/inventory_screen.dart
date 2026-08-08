@@ -1,8 +1,11 @@
 // ============================================================
-// inventory_screen.dart (CON SELECCIÓN MÚLTIPLE Y ETIQUETAS)
+// inventory_screen.dart (CON SELECCIÓN MÚLTIPLE, ETIQUETAS Y GENERADOR DE CÓDIGO DE BARRAS AVANZADO)
 // ============================================================
+// ignore_for_file: use_build_context_synchronously, unused_local_variable
+
 import 'dart:io';
-import 'dart:ui';
+import 'dart:ui' as ui;
+import 'package:app_boosti_v2/features/pos/presentation/services/ticket_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,12 +13,11 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:barcode_widget/barcode_widget.dart' as barcode; // ✅ PREFIJO
+
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:ui' as ui;                      // Para ImageByteFormat
-import 'package:flutter/rendering.dart';   
-
+import 'package:flutter/rendering.dart';
+import 'package:barcode_widget/barcode_widget.dart' as barcode;
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../utils/responsive_helper.dart';
@@ -52,11 +54,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   String _filtroBusqueda = '';
   bool _soloStockBajo = false;
 
-  // ==========================================================
-  // 🆕 VARIABLES DE SELECCIÓN MÚLTIPLE
-  // ==========================================================
+  // Variables de selección múltiple
   bool _seleccionMultiple = false;
-  Set<int> _productosSeleccionados = {};
+  final Set<int> _productosSeleccionados = {};
 
   bool get _esAdmin => widget.usuarioLogueado.rol == 'admin';
   int get _cantidadSeleccionados => _productosSeleccionados.length;
@@ -154,158 +154,289 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     }
   }
 
-  // ==========================================
-  // DIÁLOGO DE NUEVA CATEGORÍA
-  // ==========================================
-  Future<String?> _mostrarDialogoNuevaCategoria(BuildContext context) async {
-    final controller = TextEditingController();
-    return showDialog<String>(
+  // ==========================================================
+  // GENERADOR DE CÓDIGO DE BARRAS (AVANZADO)
+  // ==========================================================
+  void _generarCodigoBarras() {
+    final TextEditingController codigoController = TextEditingController();
+    final GlobalKey previewKey = GlobalKey();
+    final ValueNotifier<int> regenerarNotifier = ValueNotifier(0);
+
+    showDialog(
       context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          elevation: 8,
-          child: Container(
-            padding: const EdgeInsets.all(24.0),
-            constraints: const BoxConstraints(maxWidth: 450),
-            decoration: BoxDecoration(
-              color: Theme.of(context).dialogTheme.backgroundColor ?? Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                )
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Nueva Categoría',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  textCapitalization: TextCapitalization.words,
-                  style: const TextStyle(fontSize: 16),
-                  decoration: InputDecoration(
-                    hintText: 'Ej: Bebidas, Limpieza, Víveres...',
-                    filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-                    ),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  children: [
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        backgroundColor: const Color(0xFFF1F5F9),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final isMobile = ResponsiveHelper.isMobile(context);
+            final isTablet = ResponsiveHelper.isTablet(context);
+            final double barcodeWidth = isMobile ? 150 : (isTablet ? 200 : 250);
+            final double barcodeHeight = isMobile ? 60 : (isTablet ? 80 : 100);
+            final double fontSizeTitle = isMobile ? 16 : (isTablet ? 20 : 22);
+            final double fontSizeHint = isMobile ? 12 : (isTablet ? 14 : 16);
+            final double buttonFontSize = isMobile ? 11 : (isTablet ? 13 : 14);
+            final double paddingContent = isMobile ? 12 : (isTablet ? 16 : 20);
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isMobile ? 16 : 24)),
+              titlePadding: EdgeInsets.all(paddingContent),
+              contentPadding: EdgeInsets.all(paddingContent),
+              actionsPadding: EdgeInsets.symmetric(horizontal: paddingContent, vertical: 8),
+              title: Text('Generar Código de Barras', style: TextStyle(fontSize: fontSizeTitle, fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: codigoController,
+                          style: TextStyle(fontSize: isMobile ? 14 : (isTablet ? 16 : 18)),
+                          decoration: InputDecoration(
+                            hintText: 'Código generado automáticamente',
+                            hintStyle: TextStyle(fontSize: fontSizeHint, color: Colors.grey.shade500),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(isMobile ? 8 : 12)),
+                            contentPadding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 16, vertical: isMobile ? 8 : 12),
+                          ),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       ),
-                      onPressed: () => Navigator.pop(dialogContext),
-                      child: const Text(
-                        'Cancelar',
-                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                      ),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        child: IconButton(
+                          icon: Icon(Icons.qr_code, color: const Color(0xFF10B981), size: isMobile ? 24 : (isTablet ? 28 : 32)),
+                          onPressed: () => regenerarNotifier.value++,
+                          tooltip: 'Generar otro código',
+                          padding: EdgeInsets.all(isMobile ? 8 : 12),
+                        ),
                       ),
-                      onPressed: () {
-                        final text = controller.text.trim();
-                        if (text.isNotEmpty) {
-                          Navigator.pop(dialogContext, text);
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ValueListenableBuilder(
+                    valueListenable: regenerarNotifier,
+                    builder: (context, version, child) {
+                      return FutureBuilder<String>(
+                        key: ValueKey(version),
+                        future: _isarService.generarCodigoBarrasUnico(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(isMobile ? 20 : 30),
+                                child: CircularProgressIndicator(color: const Color(0xFF10B981), strokeWidth: isMobile ? 2 : 3),
+                              ),
+                            );
+                          } else if (snapshot.hasError) {
+                            return Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Text('Error: ${snapshot.error}', style: TextStyle(color: Colors.red, fontSize: fontSizeHint)),
+                            );
+                          } else if (snapshot.hasData) {
+                            final codigo = snapshot.data!;
+                            if (codigoController.text != codigo) codigoController.text = codigo;
+                            return RepaintBoundary(
+                              key: previewKey,
+                              child: Container(
+                                padding: EdgeInsets.all(isMobile ? 12 : 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: Center(
+                                  child: barcode.BarcodeWidget(
+                                    barcode: barcode.Barcode.code128(),
+                                    data: codigo,
+                                    width: barcodeWidth,
+                                    height: barcodeHeight,
+                                    drawText: false,
+                                  ),
+                                ),
+                              ),
+                            );
+                          } else {
+                            return const SizedBox.shrink();
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cerrar', style: TextStyle(fontSize: buttonFontSize)),
+                ),
+                ValueListenableBuilder(
+                  valueListenable: regenerarNotifier,
+                  builder: (context, version, child) {
+                    return FutureBuilder<String>(
+                      key: ValueKey(version),
+                      future: _isarService.generarCodigoBarrasUnico(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                          final codigo = snapshot.data!;
+                          final buttonStyle = ElevatedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16, vertical: isMobile ? 8 : 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isMobile ? 8 : 10)),
+                            minimumSize: isMobile ? const Size(70, 34) : const Size(90, 38),
+                          );
+                          final buttonIconSize = isMobile ? 16.0 : 18.0;
+
+                          if (isMobile) {
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ElevatedButton.icon(
+                                  style: buttonStyle.copyWith(
+                                    backgroundColor: WidgetStateProperty.all(Colors.grey.shade200),
+                                    foregroundColor: WidgetStateProperty.all(Colors.grey.shade800),
+                                  ),
+                                  onPressed: () async {
+                                    try {
+                                      final boundary = previewKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+                                      final image = await boundary.toImage();
+                                      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+                                      final bytes = byteData!.buffer.asUint8List();
+                                      final tempDir = await getTemporaryDirectory();
+                                      final file = File('${tempDir.path}/codigo_barras.png');
+                                      await file.writeAsBytes(bytes);
+                                      await Share.shareXFiles([XFile(file.path)], text: 'Código de barras: $codigo');
+                                    } catch (e) {
+                                      // Ignorar
+                                    }
+                                  },
+                                  icon: Icon(Icons.share, size: buttonIconSize),
+                                  label: Text('Compartir', style: TextStyle(fontSize: buttonFontSize)),
+                                ),
+                                const SizedBox(height: 8),
+                                ElevatedButton.icon(
+                                  style: buttonStyle.copyWith(
+                                    backgroundColor: WidgetStateProperty.all(const Color(0xFF10B981)),
+                                    foregroundColor: WidgetStateProperty.all(Colors.white),
+                                  ),
+                                  onPressed: () async {
+                                    try {
+                                      final renderObject = previewKey.currentContext!.findRenderObject();
+                                      if (renderObject is! RenderRepaintBoundary) throw Exception('No es RenderRepaintBoundary');
+                                      final boundary = renderObject;
+                                      final image = await boundary.toImage();
+                                      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+                                      final bytes = byteData!.buffer.asUint8List();
+                                      final impresora = ref.read(printerProvider);
+                                      await TicketService.imprimirCodigoBarras(
+                                        codigo: codigo,
+                                        imageBytes: bytes,
+                                        impresoraSeleccionada: impresora,
+                                      );
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('✅ Código enviado a imprimir'), backgroundColor: Color(0xFF10B981)),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Error: ${e.toString().substring(0, 100)}'), backgroundColor: Colors.red),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  icon: Icon(Icons.print, size: buttonIconSize),
+                                  label: Text('Imprimir', style: TextStyle(fontSize: buttonFontSize)),
+                                ),
+                              ],
+                            );
+                          } else {
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ElevatedButton.icon(
+                                  style: buttonStyle.copyWith(
+                                    backgroundColor: WidgetStateProperty.all(Colors.grey.shade200),
+                                    foregroundColor: WidgetStateProperty.all(Colors.grey.shade800),
+                                  ),
+                                  onPressed: () async {
+                                    try {
+                                      final boundary = previewKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+                                      final image = await boundary.toImage();
+                                      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+                                      final bytes = byteData!.buffer.asUint8List();
+                                      final tempDir = await getTemporaryDirectory();
+                                      final file = File('${tempDir.path}/codigo_barras.png');
+                                      await file.writeAsBytes(bytes);
+                                      await Share.shareXFiles([XFile(file.path)], text: 'Código de barras: $codigo');
+                                    } catch (e) {
+                                      // Ignorar
+                                    }
+                                  },
+                                  icon: Icon(Icons.share, size: buttonIconSize),
+                                  label: Text('Compartir', style: TextStyle(fontSize: buttonFontSize)),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton.icon(
+                                  style: buttonStyle.copyWith(
+                                    backgroundColor: WidgetStateProperty.all(const Color(0xFF10B981)),
+                                    foregroundColor: WidgetStateProperty.all(Colors.white),
+                                  ),
+                                  onPressed: () async {
+                                    try {
+                                      final renderObject = previewKey.currentContext!.findRenderObject();
+                                      if (renderObject is! RenderRepaintBoundary) throw Exception('No es RenderRepaintBoundary');
+                                      final boundary = renderObject;
+                                      final image = await boundary.toImage();
+                                      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+                                      final bytes = byteData!.buffer.asUint8List();
+                                      final impresora = ref.read(printerProvider);
+                                      await TicketService.imprimirCodigoBarras(
+                                        codigo: codigo,
+                                        imageBytes: bytes,
+                                        impresoraSeleccionada: impresora,
+                                      );
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('✅ Código enviado a imprimir'), backgroundColor: Color(0xFF10B981)),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Error: ${e.toString().substring(0, 100)}'), backgroundColor: Colors.red),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  icon: Icon(Icons.print, size: buttonIconSize),
+                                  label: Text('Imprimir', style: TextStyle(fontSize: buttonFontSize)),
+                                ),
+                              ],
+                            );
+                          }
+                        } else {
+                          return const SizedBox.shrink();
                         }
                       },
-                      child: const Text(
-                        'Agregar',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ],
-            ),
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  // ==========================================
-  // SELECCIÓN Y SUBIDA DE IMAGEN
-  // ==========================================
-    if (producto.id == 0) {
-      _mostrarSnackbar('Producto con código "$codigoEscaneado" no encontrado.', isError: true);
-      return;
-    }
-    if (mounted) {
-      _mostrarDetalleProducto(producto);
-    }
-  }
-
-  // ==========================================================
-  // MANEJO DE IMÁGENES (PERMISOS Y SUBIDA)
-  // ==========================================================
-  Future<bool> _isAndroid13OrHigher() async {
-    if (!Platform.isAndroid) return false;
-    try {
-      final version = await SystemChannels.platform.invokeMethod('System.getVersion');
-      final sdkInt = int.tryParse(version.toString()) ?? 0;
-      return sdkInt >= 33;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<bool> _getImagePermission() async {
-    Permission permission;
-    if (await _isAndroid13OrHigher()) {
-      permission = Permission.photos;
-    } else {
-      permission = Permission.storage;
-    }
-    final status = await permission.request();
-    return status.isGranted;
-  }
-
   // ==========================================================
   // FORMULARIO DE PRODUCTO (CREAR/EDITAR)
   // ==========================================================
-  void _mostrarFormularioProducto({ProductoEntity? productoAEditar}) {
+  void _mostrarFormularioProducto({ProductoEntity? productoAEditar, String? codigoBarrasPrecargado}) {
     if (!_esAdmin) return;
-    final isEditing = productoAEditar != null;
 
     showDialog(
       context: context,
@@ -318,13 +449,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             .toList()
           ..sort(),
         onGuardar: (producto) async {
-          await _isarService.guardarProducto(producto);
-          await _syncService.sincronizarProductosASupabase();
-          await _cargarInventario();
-          if (mounted) {
-            _mostrarSnackbar('Producto ${isEditing ? 'actualizado' : 'creado'} exitosamente');
+            await _isarService.guardarProducto(producto);
+            await _syncService.sincronizarProductosASupabase();
+            await _cargarInventario(); // ✅ Recarga la lista local
+            if (mounted) {
+            _mostrarSnackbar('Producto ${productoAEditar != null ? 'actualizado' : 'creado'} exitosamente');
           }
         },
+        codigoBarrasPrecargado: codigoBarrasPrecargado,
       ),
     );
   }
@@ -363,7 +495,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   // ==========================================================
-  // 🆕 MÉTODOS DE SELECCIÓN MÚLTIPLE
+  // MÉTODOS DE SELECCIÓN MÚLTIPLE
   // ==========================================================
   void _toggleSeleccionProducto(int productoId) {
     setState(() {
@@ -386,7 +518,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   // ==========================================================
-  // 🆕 DIÁLOGO DE CANTIDAD POR PRODUCTO
+  // DIÁLOGO DE CANTIDAD POR PRODUCTO
   // ==========================================================
   Future<void> _mostrarDialogoCantidadEtiquetas() async {
     final productosSeleccionados = _productos
@@ -398,137 +530,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       return;
     }
 
-  // ==========================================
-  // GENERADOR DE CÓDIGO DE BARRAS
-  // ==========================================
-  void _generarCodigoBarras() {
-    final TextEditingController codigoController = TextEditingController();
-    final GlobalKey _previewKey = GlobalKey();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            final codigo = codigoController.text.trim();
-            return AlertDialog(
-              title: const Text('Generar Código de Barras'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: codigoController,
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Ingresa el número o texto',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (codigo.isNotEmpty)
-                    Container(
-                      key: _previewKey,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: barcode.BarcodeWidget(
-                        barcode: barcode.Barcode.code128(),
-                        data: codigo,
-                        width: 200,
-                        height: 80,
-                        drawText: false,
-                      ),
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cerrar'),
-                ),
-                if (codigo.isNotEmpty)
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      try {
-                        final RenderRepaintBoundary boundary = _previewKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-                        final image = await boundary.toImage();
-                        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-                        final bytes = byteData!.buffer.asUint8List();
-
-                        final tempDir = await getTemporaryDirectory();
-                        final file = File('${tempDir.path}/codigo_barras.png');
-                        await file.writeAsBytes(bytes);
-
-                        await Share.shareXFiles(
-                          [XFile(file.path)],
-                          text: 'Código de barras: $codigo',
-                        );
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error al compartir: $e'), backgroundColor: Colors.red),
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.share),
-                    label: const Text('Compartir'),
-                  ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // ==========================================
-  // MODAL DE PRODUCTO (CREAR/EDITAR)
-  // ==========================================
-  void _mostrarFormularioProducto({ProductoEntity? productoAEditar, String? codigoBarrasPrecargado}) {
-    if (!_esAdmin) return;
+    // Mapa para guardar la cantidad por producto (ID -> cantidad)
+    final Map<int, int> cantidades = {};
+    for (final p in productosSeleccionados) {
+      cantidades[p.id] = 1; // valor por defecto
+    }
 
     final isMobile = ResponsiveHelper.isMobile(context);
+    // ignore: unused_local_variable
     final isTablet = ResponsiveHelper.isTablet(context);
-    final isDesktop = !isTablet && !isMobile;
-
-    final codigoController = TextEditingController(
-      text: productoAEditar?.codigoBarras ?? codigoBarrasPrecargado ?? '',
-    );
-    final nombreController =
-        TextEditingController(text: productoAEditar?.nombre ?? '');
-    final imagenUrlController =
-        TextEditingController(text: productoAEditar?.imagenUrl ?? '');
-    final precioController =
-        TextEditingController(text: productoAEditar?.precioUnidad.toString() ?? '');
-    final stockController =
-        TextEditingController(text: productoAEditar?.stock.toString() ?? '');
-    final stockMinController =
-        TextEditingController(text: productoAEditar?.stockMinimo.toString() ?? '5.0');
-    final proveedorNombreController =
-        TextEditingController(text: productoAEditar?.proveedorNombre ?? '');
-    final proveedorTelController =
-        TextEditingController(text: productoAEditar?.proveedorTelefono ?? '');
-
-    bool esPesado = productoAEditar?.esPesado ?? false;
-    String imagenUrlPreview = productoAEditar?.imagenUrl ?? '';
-
-    XFile? imagenSeleccionada;
-    bool subiendoImagen = false;
-
-    final setCategorias =
-        _productos.map((p) => p.categoria.trim()).where((c) => c.isNotEmpty).toSet();
-    setCategorias.addAll(['General', 'Frutas', 'Abarrotes', 'Lácteos']);
-    if (productoAEditar != null && productoAEditar.categoria.isNotEmpty) {
-      setCategorias.add(productoAEditar.categoria.trim());
-    }
-
-    final List<String> listaCategorias = setCategorias.toList()..sort();
-    String categoriaSeleccionada = productoAEditar?.categoria ?? 'General';
-    if (!listaCategorias.contains(categoriaSeleccionada)) {
-      listaCategorias.add(categoriaSeleccionada);
-    }
-    bool guardando = false;
 
     final result = await showDialog<Map<int, int>>(
       context: context,
@@ -616,7 +626,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   // ==========================================================
-  // 🆕 IMPRESIÓN DE ETIQUETAS EN LOTE
+  // IMPRESIÓN DE ETIQUETAS EN LOTE
   // ==========================================================
   Future<void> _imprimirEtiquetasSeleccionadas(Map<int, int> cantidades) async {
     // Obtener la impresora seleccionada
@@ -653,15 +663,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       ),
       duration: const Duration(seconds: 10),
     );
-  }
-
-  // ==========================================
-  // MODAL DE DETALLES DEL PRODUCTO
-  // ==========================================
-  void _mostrarDetalleProducto(ProductoEntity producto) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isTablet = ResponsiveHelper.isTablet(context);
-    final theme = Theme.of(context);
     ScaffoldMessenger.of(context).showSnackBar(snackBar);
 
     // Imprimir
@@ -672,360 +673,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
     ScaffoldMessenger.of(context).clearSnackBars();
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          elevation: 8,
-          insetPadding: EdgeInsets.symmetric(
-            horizontal: horizontalInset,
-            vertical: verticalInset,
-          ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: maxWidth,
-              maxHeight: MediaQuery.of(context).size.height * 0.85,
-            ),
-            child: Container(
-              padding: EdgeInsets.all(padding),
-              decoration: BoxDecoration(
-                color: theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  )
-                ],
-              ),
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // HEADER
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Detalles del Producto',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: titleSize,
-                            color: const Color(0xFF0F172A),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 28),
-                          onPressed: () => Navigator.pop(dialogContext),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // IMAGEN
-                    Center(
-                      child: Container(
-                        height: imageHeight,
-                        width: double.infinity,
-                        constraints: BoxConstraints(maxWidth: imageMaxWidth),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: producto.imagenUrl.isNotEmpty
-                              ? Image.network(
-                                  producto.imagenUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Icon(
-                                    Icons.inventory_2,
-                                    size: 64,
-                                    color: Colors.blueGrey,
-                                  ),
-                                )
-                              : Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // DIVIDER
-                    const Divider(),
-                    const SizedBox(height: 8),
-
-                    // NOMBRE
-                    Text(
-                      producto.nombre,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: nameSize,
-                        color: const Color(0xFF0F172A),
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-
-                    // CÓDIGO
-                    Text(
-                      'Cód: ${producto.codigoBarras}',
-                      style: TextStyle(
-                        fontSize: detailSize,
-                        color: const Color(0xFF94A3B8),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // PRECIO Y CATEGORÍA
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Precio: \$${producto.precioUnidad.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: priceSize,
-                            color: const Color(0xFF10B981),
-                          ),
-                        ),
-                        Text(
-                          'Categoría: ${producto.categoria}',
-                          style: TextStyle(
-                            fontSize: detailSize,
-                            color: const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-
-                    // STOCK
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Stock Actual: ${producto.stock % 1 == 0 ? producto.stock.toInt() : producto.stock}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: stockSize,
-                            color: const Color(0xFF0F172A),
-                          ),
-                        ),
-                        Text(
-                          'Stock Mínimo: ${producto.stockMinimo.isFinite ? (producto.stockMinimo % 1 == 0 ? producto.stockMinimo.toInt() : producto.stockMinimo) : 0}',
-                          style: TextStyle(
-                            fontSize: detailSize,
-                            color: const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // PROVEEDOR
-                    if (producto.proveedorNombre.isNotEmpty) ...[
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEEF2FF),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFC7D2FE), width: 1),
-                        ),
-                        child: Text(
-                          'Proveedor: ${producto.proveedorNombre} (${producto.proveedorTelefono.isNotEmpty ? producto.proveedorTelefono : "Sin teléfono"})',
-                          style: TextStyle(
-                            fontSize: detailSize,
-                            fontStyle: FontStyle.italic,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF4F46E5),
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-
-                    // BOTONES
-                    if (_esAdmin) ...[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 12 : 28,
-                                vertical: isMobile ? 8 : 18,
-                              ),
-                              foregroundColor: Colors.grey.shade700,
-                              backgroundColor: const Color(0xFFF1F5F9),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: () => Navigator.pop(dialogContext),
-                            child: Text(
-                              'Cerrar',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: isMobile ? 12 : 16,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF10B981),
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 16 : 32,
-                                vertical: isMobile ? 8 : 18,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 2,
-                            ),
-                            onPressed: () {
-                              Navigator.pop(dialogContext);
-                              _mostrarFormularioProducto(productoAEditar: producto);
-                            },
-                            icon: const Icon(Icons.edit_outlined, size: 20),
-                            label: Text(
-                              'Editar',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: isMobile ? 12 : 16,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFEF4444),
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 16 : 32,
-                                vertical: isMobile ? 8 : 18,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 2,
-                            ),
-                            onPressed: () async {
-                              // Confirmación
-                              final confirm = await showDialog<bool>(
-                                context: dialogContext,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Eliminar Producto'),
-                                  content: Text(
-                                    '¿Estás seguro de que quieres eliminar el producto "${producto.nombre}"? Esta acción no se puede deshacer.',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: const Text('Cancelar'),
-                                    ),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFEF4444),
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: const Text('Eliminar'),
-                                    ),
-                                  ],
-                                ),
-                              );
-
-                              if (confirm != true) return;
-
-                              try {
-                                // 1. Eliminar localmente de Isar
-                                await _isarService.eliminarProducto(producto.id);
-                                debugPrint('✅ Producto eliminado de Isar (ID: ${producto.id})');
-
-                                // 2. Eliminar en Supabase
-                                try {
-                                  final eliminado = await _syncService.eliminarProductoEnSupabase(
-                                    producto.codigoBarras.trim(),
-                                  );
-                                  if (eliminado) {
-                                    debugPrint('✅ Producto eliminado de Supabase (código: ${producto.codigoBarras})');
-                                  } else {
-                                    debugPrint('⚠️ El producto no existía en Supabase o ya fue eliminado.');
-                                  }
-                                } catch (e) {
-                                  debugPrint('❌ Error eliminando de Supabase: $e');
-                                  // No lanzamos excepción, solo mostramos mensaje
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Producto eliminado localmente, pero falló en la nube: $e'),
-                                        backgroundColor: Colors.orange,
-                                      ),
-                                    );
-                                  }
-                                }
-
-                                // 3. Recargar la lista local
-                                await _cargarInventario();
-
-                                // 4. Forzar descarga de productos desde Supabase para sincronizar la lista
-                                await _syncService.descargarProductosDesdeSupabase();
-                                await _cargarInventario();
-
-                                // 5. Cerrar el diálogo
-                                if (mounted) {
-                                  Navigator.pop(dialogContext);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Producto eliminado correctamente.'),
-                                      backgroundColor: Color(0xFF10B981),
-                                    ),
-                                  );
-                                }
-                              } catch (e) {
-                                debugPrint('❌ Error general al eliminar producto: $e');
-                                if (mounted) {
-                                  // Recargar la lista para reflejar el estado
-                                  await _cargarInventario();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Error al eliminar producto: $e'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            icon: const Icon(Icons.delete_outline, size: 20),
-                            label: Text(
-                              'Eliminar',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: isMobile ? 12 : 16,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
     if (result.success) {
       _mostrarSnackbar('✅ ${labels.length} etiquetas impresas correctamente');
       _limpiarSeleccion();
@@ -1138,9 +785,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       return coincideTexto && coincideStockBajo;
     }).toList();
 
-    // ==========================================================
     // APP BAR CON CONTADOR DE SELECCIÓN
-    // ==========================================================
     final appBar = AppBar(
       leadingWidth: 90,
       leading: Row(
@@ -1167,20 +812,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               'assets/logo.png',
               width: 30,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(Icons.storefront, color: Colors.white, size: 24),
+              errorBuilder: (_, _, _) => const Icon(Icons.storefront, color: Colors.white, size: 24),
             ),
           ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 2,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.qr_code, color: Colors.white),
-            tooltip: 'Generar Código de Barras',
-            onPressed: _generarCodigoBarras,
-          ),
-          const SizedBox(width: 8),
         ],
       ),
       title: Text(
@@ -1199,6 +833,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       ),
       foregroundColor: Colors.white,
       actions: [
+        // Botón para generar código de barras
+        IconButton(
+          icon: const Icon(Icons.qr_code, color: Colors.white),
+          tooltip: 'Generar Código de Barras',
+          onPressed: _generarCodigoBarras,
+        ),
+        const SizedBox(width: 8),
         if (_seleccionMultiple) ...[
           Row(
             children: [
@@ -1218,9 +859,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       ],
     );
 
-    // ==========================================================
     // FLOATING ACTION BUTTON CONDICIONAL
-    // ==========================================================
     Widget? fab;
     if (_esAdmin) {
       if (_seleccionMultiple && _productosSeleccionados.isNotEmpty) {
@@ -1261,7 +900,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 mainAxisSpacing: 12,
               ),
               itemCount: 6,
-              itemBuilder: (_, __) => const _ProductCardSkeleton(),
+              itemBuilder: (_, _) => const _ProductCardSkeleton(),
             )
           : Padding(
               padding: const EdgeInsets.all(12.0),
@@ -1308,14 +947,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                     }
                                   },
                                   onLongPress: () {
-                                    // Si no está en modo selección, activarlo y seleccionar este producto
                                     if (!_seleccionMultiple) {
                                       setState(() {
                                         _seleccionMultiple = true;
                                         _productosSeleccionados.add(p.id);
                                       });
                                     } else {
-                                      // Si ya está en modo selección, toggle
                                       _toggleSeleccionProducto(p.id);
                                     }
                                   },
@@ -1336,7 +973,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 }
 
 // ============================================================
-// TARJETA DE PRODUCTO (CON SELECCIÓN Y LONG PRESS)
+// TARJETA DE PRODUCTO (CON SELECCIÓN Y LONG PRESS) - ESTILO CATÁLOGO
 // ============================================================
 class _ProductCard extends StatelessWidget {
   final ProductoEntity producto;
@@ -1362,10 +999,9 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final double fontSizeNombre = isMobile ? 13 : (isTablet ? 16 : 20);
-    final double fontSizePrecio = isMobile ? 14 : (isTablet ? 18 : 22);
-    final double fontSizeDetalle = isMobile ? 10 : (isTablet ? 13 : 16);
+    final double fontSizeNombre = isMobile ? 12 : (isTablet ? 16 : 14);
+    final double fontSizePrecio = isMobile ? 14 : (isTablet ? 18 : 16);
+    final double fontSizeDetalle = isMobile ? 8 : (isTablet ? 11 : 10);
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.85, end: 1.0),
@@ -1416,15 +1052,13 @@ class _ProductCardContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final double imageHeight = isMobile ? 100.0 : (isTablet ? 140.0 : 190.0);
-    final double paddingInterior = isMobile ? 6.0 : (isTablet ? 10.0 : 16.0);
 
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
       child: Container(
         decoration: BoxDecoration(
-          color: theme.cardColor,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
@@ -1446,173 +1080,169 @@ class _ProductCardContent extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Contenido normal
+            // Contenido normal (imagen + info)
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Imagen
-                Container(
-                  height: imageHeight,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  ),
-                  child: Stack(
-                    children: [
-                      Center(
-                        child: producto.imagenUrl.isNotEmpty
-                            ? Image.network(
-                                producto.imagenUrl,
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                height: double.infinity,
-                                errorBuilder: (_, __, ___) => Icon(
-                                  Icons.inventory_2,
-                                  size: isMobile ? 40 : (isTablet ? 50 : 64),
-                                  color: const Color(0xFF3B82F6),
-                                ),
-                              )
-                            : Icon(Icons.inventory_2,
-                                size: isMobile ? 40 : (isTablet ? 50 : 64),
-                                color: const Color(0xFF3B82F6)),
-                      ),
-                      if (stockBajo)
-                        Positioned(
-                          top: 4,
-                          left: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFDC2626),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              '¡STOCK BAJO!',
-                              style: TextStyle(
-                                fontSize: isMobile ? 8 : (isTablet ? 10 : 12),
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                // Imagen (flex 5)
+                Expanded(
+                  flex: 5,
+                  child: Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      children: [
+                        Center(
+                          child: producto.imagenUrl.isNotEmpty
+                              ? Image.network(
+                                  producto.imagenUrl,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  errorBuilder: (_, _, _) =>
+                                      Icon(Icons.inventory_2, size: 40, color: const Color(0xFF3B82F6)),
+                                )
+                              : Icon(Icons.inventory_2, size: 40, color: const Color(0xFF3B82F6)),
+                        ),
+                        if (stockBajo)
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDC2626),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                '¡STOCK BAJO!',
+                                style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white),
                               ),
                             ),
                           ),
-                        ),
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            borderRadius: BorderRadius.circular(4),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.9),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              producto.esPesado ? 'Balanza' : 'Unidad',
+                              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                            ),
                           ),
-                          child: Icon(
-                            producto.esPesado ? Icons.scale_outlined : Icons.inventory_outlined,
-                            size: isMobile ? 14 : (isTablet ? 18 : 24),
-                            color: const Color(0xFF334155),
-                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-                // Información
-                Padding(
-                  padding: EdgeInsets.all(paddingInterior),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        producto.nombre,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          fontSize: fontSizeNombre,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Cód: ${producto.codigoBarras}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            fontSize: fontSizeDetalle, color: const Color(0xFF94A3B8)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '\$${producto.precioUnidad.toStringAsFixed(2)}',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: fontSizePrecio,
-                              color: const Color(0xFF10B981),
-                            ),
+                // Información (flex 4)
+                Expanded(
+                  flex: 4,
+                  child: Padding(
+                    padding: EdgeInsets.all(isMobile ? 8.0 : 12.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          producto.nombre,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: fontSizeNombre,
+                            color: const Color(0xFF0F172A),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: stockBajo ? const Color(0xFFFEE2E2) : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: stockBajo ? const Color(0xFFFECACA) : const Color(0xFFE2E8F0),
-                                width: 0.5,
+                        ),
+                        Text(
+                          'Cód: ${producto.codigoBarras}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: fontSizeDetalle,
+                            color: const Color(0xFF94A3B8),
+                          ),
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '\$${producto.precioUnidad.toStringAsFixed(2)}',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: fontSizePrecio,
+                                color: const Color(0xFF059669),
                               ),
                             ),
-                            child: Text(
-                              'Stock: ${producto.stock}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontSize: fontSizeDetalle - 1,
-                                fontWeight: FontWeight.w600,
-                                color: stockBajo ? const Color(0xFFEF4444) : const Color(0xFF475569),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: stockBajo ? const Color(0xFFFEE2E2) : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
                               ),
+                              child: Text(
+                                'Stock: ${producto.stock}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: fontSizeDetalle,
+                                  fontWeight: FontWeight.w600,
+                                  color: stockBajo ? const Color(0xFFEF4444) : const Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (producto.categoria.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Cat: ${producto.categoria}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: fontSizeDetalle,
+                              color: const Color(0xFF64748B),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                        if (producto.proveedorNombre.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEEF2FF),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: const Color(0xFFC7D2FE), width: 0.5),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.phone,
+                                    size: isMobile ? 8 : (isTablet ? 12 : 16),
+                                    color: const Color(0xFF4F46E5)),
+                                const SizedBox(width: 2),
+                                Expanded(
+                                  child: Text(
+                                    producto.proveedorNombre,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontSize: fontSizeDetalle - 1,
+                                      fontStyle: FontStyle.italic,
+                                      color: const Color(0xFF4F46E5),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
-                      ),
-                      if (producto.categoria.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          'Cat: ${producto.categoria}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                              fontSize: fontSizeDetalle, color: const Color(0xFF64748B)),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
                       ],
-                      if (producto.proveedorNombre.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEEF2FF),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFFC7D2FE), width: 0.5),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.phone,
-                                  size: isMobile ? 8 : (isTablet ? 12 : 16),
-                                  color: const Color(0xFF4F46E5)),
-                              const SizedBox(width: 2),
-                              Expanded(
-                                child: Text(
-                                  producto.proveedorNombre,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    fontSize: fontSizeDetalle - 1,
-                                    fontStyle: FontStyle.italic,
-                                    color: const Color(0xFF4F46E5),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
                 ),
               ],
@@ -1660,30 +1290,34 @@ class _ProductCardSkeleton extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Container(
-            height: 100,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          Expanded(
+            flex: 5,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(6.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(height: 12, width: double.infinity, color: const Color(0xFFF1F5F9)),
-                const SizedBox(height: 4),
-                Container(height: 10, width: 60, color: const Color(0xFFF1F5F9)),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(height: 12, width: 40, color: const Color(0xFFF1F5F9)),
-                    Container(height: 10, width: 50, color: const Color(0xFFF1F5F9)),
-                  ],
-                ),
-              ],
+          Expanded(
+            flex: 4,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(height: 12, width: double.infinity, color: const Color(0xFFF1F5F9)),
+                  Container(height: 10, width: 60, color: const Color(0xFFF1F5F9)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(height: 16, width: 40, color: const Color(0xFFF1F5F9)),
+                      Container(height: 12, width: 50, color: const Color(0xFFF1F5F9)),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -1693,7 +1327,7 @@ class _ProductCardSkeleton extends StatelessWidget {
 }
 
 // ============================================================
-// DIÁLOGO DEL ESCÁNER (sin cambios)
+// DIÁLOGO DEL ESCÁNER
 // ============================================================
 class _BarcodeScannerDialog extends StatefulWidget {
   const _BarcodeScannerDialog();
@@ -1810,7 +1444,7 @@ class _BarcodeScannerDialogState extends State<_BarcodeScannerDialog> {
 }
 
 // ============================================================
-// DIÁLOGO DE DETALLE DEL PRODUCTO (CON ETIQUETA PARA TODOS)
+// DIÁLOGO DE DETALLE DEL PRODUCTO (CON ETIQUETA PARA TODOS Y BOTONES MEJORADOS)
 // ============================================================
 class _ProductDetailDialog extends ConsumerWidget {
   final ProductoEntity producto;
@@ -1849,12 +1483,16 @@ class _ProductDetailDialog extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Header
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Detalles del Producto',
-                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Text(
+                      'Detalles del Producto',
+                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, size: 28),
@@ -1863,6 +1501,7 @@ class _ProductDetailDialog extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 8),
+              // Imagen
               Center(
                 child: Container(
                   height: isMobile ? 120.0 : (isTablet ? 200.0 : 280.0),
@@ -1876,13 +1515,14 @@ class _ProductDetailDialog extends ConsumerWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: producto.imagenUrl.isNotEmpty
-                        ? Image.network(producto.imagenUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey))
+                        ? Image.network(producto.imagenUrl, fit: BoxFit.cover, errorBuilder: (_, _, _) => Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey))
                         : Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
                   ),
                 ),
               ),
               const SizedBox(height: 12),
               const Divider(),
+              // Información del producto
               Text(
                 producto.nombre,
                 style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
@@ -1894,24 +1534,39 @@ class _ProductDetailDialog extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Precio: \$${producto.precioUnidad.toStringAsFixed(2)}',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: const Color(0xFF10B981)),
+                  Expanded(
+                    child: Text(
+                      'Precio: \$${producto.precioUnidad.toStringAsFixed(2)}',
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: const Color(0xFF10B981)),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  Text('Categoría: ${producto.categoria}', style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF64748B))),
+                  Expanded(
+                    child: Text(
+                      'Categoría: ${producto.categoria}',
+                      style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF64748B)),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Stock Actual: ${producto.stock % 1 == 0 ? producto.stock.toInt() : producto.stock}',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Text(
+                      'Stock Actual: ${producto.stock % 1 == 0 ? producto.stock.toInt() : producto.stock}',
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  Text(
-                    'Stock Mínimo: ${producto.stockMinimo.isFinite ? (producto.stockMinimo % 1 == 0 ? producto.stockMinimo.toInt() : producto.stockMinimo) : 0}',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF64748B)),
+                  Expanded(
+                    child: Text(
+                      'Stock Mínimo: ${producto.stockMinimo.isFinite ? (producto.stockMinimo % 1 == 0 ? producto.stockMinimo.toInt() : producto.stockMinimo) : 0}',
+                      style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF64748B)),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -1934,9 +1589,13 @@ class _ProductDetailDialog extends ConsumerWidget {
               ],
               const SizedBox(height: 12),
 
+              // ================================================
+              // BOTONES MEJORADOS (RESPONSIVE)
+              // ================================================
               Wrap(
                 alignment: WrapAlignment.end,
                 spacing: 8,
+                runSpacing: 8,
                 children: [
                   // Botón "Imprimir Etiqueta" - DISPONIBLE PARA TODOS
                   ElevatedButton.icon(
@@ -1985,6 +1644,7 @@ class _ProductDetailDialog extends ConsumerWidget {
                           ),
                         );
                       } else {
+                        // ignore: use_build_context_synchronously
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('❌ Error al imprimir: ${result.message}'),
@@ -1998,12 +1658,17 @@ class _ProductDetailDialog extends ConsumerWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF8B5CF6),
                       foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      textStyle: const TextStyle(fontSize: 12),
                     ),
                   ),
 
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Cerrar'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
                   ),
 
                   if (esAdmin) ...[
@@ -2014,6 +1679,8 @@ class _ProductDetailDialog extends ConsumerWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF10B981),
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        textStyle: const TextStyle(fontSize: 12),
                       ),
                     ),
                     ElevatedButton.icon(
@@ -2044,6 +1711,8 @@ class _ProductDetailDialog extends ConsumerWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFEF4444),
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        textStyle: const TextStyle(fontSize: 12),
                       ),
                     ),
                   ],
@@ -2058,17 +1727,19 @@ class _ProductDetailDialog extends ConsumerWidget {
 }
 
 // ============================================================
-// DIÁLOGO DE FORMULARIO DE PRODUCTO (EXTRAÍDO)
+// DIÁLOGO DE FORMULARIO DE PRODUCTO (EXTRAÍDO CON MEJORAS DE IMAGEN)
 // ============================================================
 class _ProductFormDialog extends StatefulWidget {
   final ProductoEntity? producto;
   final List<String> categoriasExistentes;
   final Future<void> Function(ProductoEntity) onGuardar;
+  final String? codigoBarrasPrecargado;
 
   const _ProductFormDialog({
     required this.producto,
     required this.categoriasExistentes,
     required this.onGuardar,
+    this.codigoBarrasPrecargado,
   });
 
   @override
@@ -2095,7 +1766,9 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   void initState() {
     super.initState();
     final p = widget.producto;
-    _codigoController = TextEditingController(text: p?.codigoBarras ?? '');
+    _codigoController = TextEditingController(
+      text: p?.codigoBarras ?? widget.codigoBarrasPrecargado ?? '',
+    );
     _nombreController = TextEditingController(text: p?.nombre ?? '');
     _precioController = TextEditingController(text: p?.precioUnidad.toString() ?? '');
     _stockController = TextEditingController(text: p?.stock.toString() ?? '');
@@ -2119,25 +1792,9 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     super.dispose();
   }
 
-  Future<void> _seleccionarImagen(ImageSource source) async {
-    final permission = await _getImagePermission();
-    if (!permission) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Permiso de acceso a imágenes denegado'), backgroundColor: Colors.red),
-      );
-      return;
-    }
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: source, maxWidth: 800, maxHeight: 800, imageQuality: 80);
-    if (image != null) {
-      setState(() {
-        _imagenSeleccionada = image;
-        _imagenUrlPreview = image.path;
-      });
-    }
-  }
-
+  // ==========================================================
+  // PERMISOS DE IMAGEN (CORREGIDO PARA ANDROID 13+)
+  // ==========================================================
   Future<bool> _getImagePermission() async {
     if (!Platform.isAndroid) return true;
     Permission permission;
@@ -2161,14 +1818,36 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     }
   }
 
+  Future<void> _seleccionarImagen(ImageSource source) async {
+    final permission = await _getImagePermission();
+    if (!permission) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Permiso de acceso a imágenes denegado'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: source, maxWidth: 800, maxHeight: 800, imageQuality: 80);
+    if (image != null) {
+      setState(() {
+        _imagenSeleccionada = image;
+        _imagenUrlPreview = image.path;
+      });
+    }
+  }
+
   Future<String?> _uploadImage(File image, String codigo) async {
     try {
       final ext = image.path.split('.').last;
       final fileName = '${codigo}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      debugPrint('📤 Subiendo imagen: $fileName (${image.lengthSync()} bytes)');
       await Supabase.instance.client.storage.from('productos').upload(fileName, image);
-      return Supabase.instance.client.storage.from('productos').getPublicUrl(fileName);
+      final publicUrl = Supabase.instance.client.storage.from('productos').getPublicUrl(fileName);
+      debugPrint('✅ Imagen subida: $publicUrl');
+      return publicUrl;
     } catch (e) {
-      debugPrint('Error subiendo imagen: $e');
+      debugPrint('❌ Error subiendo imagen: $e');
       return null;
     }
   }
@@ -2177,14 +1856,41 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _guardando = true);
 
-    String imagenUrlFinal = _imagenUrlPreview;
+    String imagenUrlFinal = _imagenUrlPreview; // Inicialmente la URL existente (vacía o http)
     if (_imagenSeleccionada != null) {
       setState(() => _subiendoImagen = true);
       try {
         final url = await _uploadImage(File(_imagenSeleccionada!.path), _codigoController.text.trim());
-        if (url != null) imagenUrlFinal = url;
-      } catch (_) {}
-      setState(() => _subiendoImagen = false);
+        if (url != null && url.isNotEmpty) {
+          imagenUrlFinal = url;
+          // Mostrar éxito (opcional)
+        } else {
+          // Si la subida falla (url null o vacío), mostrar advertencia y no guardar ruta local
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ No se pudo subir la imagen. El producto se guardará sin imagen.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          // Solo mantener la URL anterior si es una URL de red (http/https)
+          imagenUrlFinal = (_imagenUrlPreview.isNotEmpty && _imagenUrlPreview.startsWith('http')) ? _imagenUrlPreview : '';
+        }
+      } catch (e) {
+        // Excepción: mostrar error y solo mantener URL previa si es válida
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('❌ Error al subir imagen: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        imagenUrlFinal = (_imagenUrlPreview.isNotEmpty && _imagenUrlPreview.startsWith('http')) ? _imagenUrlPreview : '';
+      } finally {
+        setState(() => _subiendoImagen = false);
+      }
     }
 
     final producto = widget.producto ?? ProductoEntity();
@@ -2206,6 +1912,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
+    // ignore: unused_local_variable
     final isTablet = ResponsiveHelper.isTablet(context);
     final theme = Theme.of(context);
 
@@ -2236,6 +1943,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                       child: Text(
                         widget.producto == null ? 'Nuevo Producto' : 'Editar Producto',
                         style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -2284,7 +1992,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                         child: _imagenSeleccionada != null
                             ? Image.file(File(_imagenSeleccionada!.path), fit: BoxFit.cover)
                             : _imagenUrlPreview.isNotEmpty
-                                ? Image.network(_imagenUrlPreview, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 48, color: Colors.grey))
+                                ? Image.network(_imagenUrlPreview, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.broken_image, size: 48, color: Colors.grey))
                                 : const Center(child: Text('Sin imagen', style: TextStyle(color: Colors.grey))),
                       ),
                       const SizedBox(height: 8),
@@ -2406,16 +2114,22 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                 Wrap(
                   alignment: WrapAlignment.end,
                   spacing: 8,
+                  runSpacing: 8,
                   children: [
                     TextButton(
                       onPressed: _guardando ? null : () => Navigator.pop(context),
                       child: const Text('Cancelar'),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
                     ),
                     ElevatedButton(
                       onPressed: _guardando ? null : _guardar,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF10B981),
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        textStyle: const TextStyle(fontSize: 12),
                       ),
                       child: _guardando
                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

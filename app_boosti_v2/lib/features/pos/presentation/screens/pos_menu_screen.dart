@@ -20,6 +20,7 @@ import '../services/backup_service.dart';
 import 'login_screen.dart';
 import 'gastos_screen.dart';
 import '../../data/Local/entities/turno_entity.dart';
+import '../widgets/printer_selection_widget.dart'; // 👈 Importamos el selector de impresoras
 
 class PosMenuScreen extends ConsumerStatefulWidget {
   const PosMenuScreen({super.key});
@@ -65,7 +66,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
 
     try {
       await _syncService.sincronizarTodo();
-      // Recargar contador de pendientes
       await _cargarEstadoSync();
       await _cargarEstadoTurno();
 
@@ -150,15 +150,21 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
       );
       return;
     }
+     // ✅ Descargar ventas de Supabase antes de calcular el total del turno
+  try {
+    await _syncService.descargarVentasDesdeSupabase();
+  } catch (e) {
+    debugPrint('⚠️ Error descargando ventas para el turno: $e');
+    // Continuar de todas formas
+  }
 
-    // 🔥 Calcular el monto final automáticamente (total de ventas del turno)
+
     final double montoFinal = await _isarService.obtenerTotalVentasPorEmpleadoYRango(
       usuario.nombre,
       turnoAbierto.fechaApertura,
       DateTime.now(),
     );
 
-    // Mostrar resumen y confirmar
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -347,6 +353,18 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
         'icon': tieneTurno ? Icons.stop_rounded : Icons.play_arrow_rounded,
         'color': tieneTurno ? const Color(0xFFEF4444) : const Color(0xFF10B981),
         'onTap': tieneTurno ? _cerrarTurno : _abrirTurno,
+      },
+
+      // 👇 NUEVA OPCIÓN: CONFIGURAR IMPRESORA (para todos)
+      {
+        'title': 'Configurar Impresora',
+        'subtitle': 'Seleccionar y probar impresora POS',
+        'icon': Icons.print_rounded,
+        'color': const Color(0xFF8B5CF6),
+        'onTap': () => showDialog(
+          context: context,
+          builder: (context) => const PrinterSelectionDialog(),
+        ),
       },
 
       // 3. Opciones solo para Administradores

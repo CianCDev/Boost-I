@@ -3,15 +3,15 @@ import 'dart:developer' as developer;
 import 'dart:typed_data'; 
 import '../../presentation/providers/esc_pos_provider.dart';
 import '../../domain/models/printer_models.dart';
-import 'package:flutter/widgets.dart';
-import 'package:image/image.dart' as img;
+
+
 import 'package:app_boosti_v2/features/pos/domain/enums/printer_error.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../../domain/models/printer_models.dart';
+
 import 'printer_service.dart';
 import 'ticket_generator.dart' show TicketItem;
 
@@ -69,9 +69,11 @@ class TicketService {
         );
 
         // Cerrar el SnackBar de carga
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).clearSnackBars();
 
         if (result.success) {
+          // ignore: use_build_context_synchronously
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('✅ Ticket impreso correctamente'),
@@ -83,6 +85,7 @@ class TicketService {
         } else {
           // Error específico
           String errorMessage = _getErrorMessage(result.error);
+          // ignore: use_build_context_synchronously
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('❌ Error al imprimir: $errorMessage'),
@@ -93,7 +96,9 @@ class TicketService {
           developer.log('Fallo en impresión ESC/POS: ${result.message}');
         }
       } catch (e) {
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).clearSnackBars();
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ Error inesperado: $e'),

@@ -1,6 +1,7 @@
 // lib/features/pos/presentation/services/label_generator.dart
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 
+
 /// Modelo de una etiqueta de producto
 class LabelItem {
   final String nombre;

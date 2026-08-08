@@ -7,7 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/detalle_venta_entity.dart';
-import '../services/sync_service.dart'; // ✅ Añadido para descargar ventas
+import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
@@ -42,6 +42,19 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
 
   final List<String> _metodos = ['Todos', 'Efectivo', 'Tarjeta', 'Pago Móvil', 'Divisas'];
 
+  // Mapa de colores por método de pago
+  static const Map<String, Color> _coloresMetodo = {
+    'Efectivo': Color(0xFF10B981),
+    'Tarjeta': Color(0xFF3B82F6),
+    'Pago Móvil': Color(0xFF8B5CF6),
+    'Divisas': Color(0xFFF59E0B),
+    'Otros': Color(0xFF64748B),
+  };
+
+  Color _getColorMetodo(String metodo) {
+    return _coloresMetodo[metodo] ?? _coloresMetodo['Otros']!;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -54,14 +67,12 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   Future<void> _cargarVentas() async {
     setState(() => _isLoading = true);
     try {
-      // 🔥 DESCARGA DE VENTAS DESDE SUPABASE (SIN DUPLICADOS)
       try {
         await SyncService().descargarVentasDesdeSupabase();
       } catch (e) {
         debugPrint('⚠️ Error descargando ventas: $e');
       }
 
-      // Obtener ventas locales (Isar)
       final ventas = await _isarService.obtenerVentas();
       ventas.sort((a, b) => b.fecha.compareTo(a.fecha));
 
@@ -154,130 +165,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   // ============================================================
-  // MÉTODOS AUXILIARES PARA EL DETALLE
-  // ============================================================
-  Widget _detalleFila(String label, String valor, {Color? color}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            color: Color(0xFF64748B),
-          ),
-        ),
-        Text(
-          valor,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            color: color ?? const Color(0xFF0F172A),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _totalRow(String label, String valor, bool isLargeScreen,
-      {bool esDestacado = false, bool esTotal = false, bool esTotalBs = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: esDestacado
-                ? const Color(0xFF38BDF8)
-                : (esTotal
-                    ? Colors.white
-                    : (esTotalBs
-                        ? const Color(0xFF94A3B8)
-                        : const Color(0xFF94A3B8))),
-            fontSize: esTotal
-                ? (isLargeScreen ? 16 : 15)
-                : (isLargeScreen ? 13 : 12),
-            fontWeight: esTotal
-                ? FontWeight.bold
-                : (esDestacado ? FontWeight.bold : FontWeight.normal),
-          ),
-        ),
-        Text(
-          valor,
-          style: TextStyle(
-            color: esDestacado
-                ? const Color(0xFF38BDF8)
-                : (esTotal
-                    ? const Color(0xFF34D399)
-                    : (esTotalBs ? const Color(0xFF38BDF8) : Colors.white)),
-            fontSize: esTotal
-                ? (isLargeScreen ? 17 : 16)
-                : (isLargeScreen ? 13 : 12),
-            fontWeight: esTotal ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _columnaDetalle(String titulo, String valor, bool isLargeScreen,
-      {Color? colorValor}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          titulo,
-          style: TextStyle(
-            fontSize: isLargeScreen ? 10 : 12,
-            color: const Color(0xFF64748B),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          valor,
-          style: TextStyle(
-            fontSize: isLargeScreen ? 12 : 14,
-            fontWeight: FontWeight.bold,
-            color: colorValor ?? const Color(0xFF0F172A),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _celdaHeader(String texto, bool isLargeScreen) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Text(
-        texto,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: isLargeScreen ? 11 : 10,
-          fontWeight: FontWeight.bold,
-          color: const Color(0xFF475569),
-        ),
-      ),
-    );
-  }
-
-  Widget _celdaBody(String texto, bool isLargeScreen,
-      {bool alignLeft = false, bool esBold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      child: Text(
-        texto,
-        textAlign: alignLeft ? TextAlign.left : TextAlign.center,
-        style: TextStyle(
-          fontSize: isLargeScreen ? 11 : 10,
-          fontWeight: esBold ? FontWeight.bold : FontWeight.normal,
-          color: const Color(0xFF0F172A),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // DETALLE DE VENTA (MODAL) – CON CARGA DE PRODUCTOS
+  // DETALLE DE VENTA (MODAL)
   // ============================================================
   void _mostrarModalDetalleVenta(BuildContext context, VentaEntity venta) {
     final fechaLocal = venta.fecha.toLocal();
@@ -294,7 +182,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     final isLargeScreen = !ResponsiveHelper.isMobile(context);
     final isMobile = ResponsiveHelper.isMobile(context);
 
-    // 🔥 Cargar detalles desde Isar (si no están presentes)
     Future<List<DetalleVentaEntity>> getDetalles() async {
       if (venta.items.isNotEmpty) {
         return venta.items.cast<DetalleVentaEntity>().toList();
@@ -377,7 +264,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                     ),
                     const Divider(height: 24),
 
-                    // ---- DATOS DEL CLIENTE (RESPONSIVE) ----
+                    // ---- DATOS DEL CLIENTE ----
                     isMobile
                         ? Container(
                             padding: const EdgeInsets.all(12),
@@ -389,25 +276,54 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _detalleFila('Cliente',
-                                    venta.documento.isEmpty ? 'N/A' : venta.documento),
-                                const SizedBox(height: 8),
-                                _detalleFila('Atendido por', venta.empleado),
-                                const SizedBox(height: 8),
-                                _detalleFila('Método', venta.metodoPago),
-                                const SizedBox(height: 8),
-                                _detalleFila(
-                                  'Sincronizado',
-                                  venta.syncStatus == 'synced'
-                                      ? 'Sí'
-                                      : (venta.syncStatus == 'pending'
-                                          ? 'Pendiente'
-                                          : 'Fallida'),
-                                  color: venta.syncStatus == 'synced'
-                                      ? const Color(0xFF059669)
-                                      : (venta.syncStatus == 'pending'
-                                          ? const Color(0xFFD97706)
-                                          : const Color(0xFFEF4444)),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('Cliente', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                                    Text(venta.documento.isEmpty ? 'N/A' : venta.documento,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('Atendido por', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                                    Text(venta.empleado,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('Método', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                                    Text(venta.metodoPago,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('Sincronizado', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                                    Text(
+                                      venta.syncStatus == 'synced'
+                                          ? 'Sí'
+                                          : (venta.syncStatus == 'pending'
+                                              ? 'Pendiente'
+                                              : 'Fallida'),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                        color: venta.syncStatus == 'synced'
+                                            ? const Color(0xFF059669)
+                                            : (venta.syncStatus == 'pending'
+                                                ? const Color(0xFFD97706)
+                                                : const Color(0xFFEF4444)),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -422,8 +338,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                _columnaDetalle(
-                                    'Cliente',
+                                _columnaDetalle('Cliente',
                                     venta.documento.isEmpty ? 'N/A' : venta.documento,
                                     isLargeScreen),
                                 _columnaDetalle('Atendido por', venta.empleado,
@@ -449,7 +364,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                           ),
                     const SizedBox(height: 16),
 
-                    // ---- TABLA DE PRODUCTOS (USA `detalles`) ----
+                    // ---- TABLA DE PRODUCTOS ----
                     Text(
                       'Detalle de Productos',
                       style: TextStyle(
@@ -579,6 +494,103 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
           },
         );
       },
+    );
+  }
+
+  Widget _columnaDetalle(String titulo, String valor, bool isLargeScreen,
+      {Color? colorValor}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          titulo,
+          style: TextStyle(
+            fontSize: isLargeScreen ? 10 : 12,
+            color: const Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          valor,
+          style: TextStyle(
+            fontSize: isLargeScreen ? 12 : 14,
+            fontWeight: FontWeight.bold,
+            color: colorValor ?? const Color(0xFF0F172A),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _celdaHeader(String texto, bool isLargeScreen) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Text(
+        texto,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: isLargeScreen ? 11 : 10,
+          fontWeight: FontWeight.bold,
+          color: const Color(0xFF475569),
+        ),
+      ),
+    );
+  }
+
+  Widget _celdaBody(String texto, bool isLargeScreen,
+      {bool alignLeft = false, bool esBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      child: Text(
+        texto,
+        textAlign: alignLeft ? TextAlign.left : TextAlign.center,
+        style: TextStyle(
+          fontSize: isLargeScreen ? 11 : 10,
+          fontWeight: esBold ? FontWeight.bold : FontWeight.normal,
+          color: const Color(0xFF0F172A),
+        ),
+      ),
+    );
+  }
+
+  Widget _totalRow(String label, String valor, bool isLargeScreen,
+      {bool esDestacado = false, bool esTotal = false, bool esTotalBs = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: esDestacado
+                ? const Color(0xFF38BDF8)
+                : (esTotal
+                    ? Colors.white
+                    : (esTotalBs
+                        ? const Color(0xFF94A3B8)
+                        : const Color(0xFF94A3B8))),
+            fontSize: esTotal
+                ? (isLargeScreen ? 16 : 15)
+                : (isLargeScreen ? 13 : 12),
+            fontWeight: esTotal
+                ? FontWeight.bold
+                : (esDestacado ? FontWeight.bold : FontWeight.normal),
+          ),
+        ),
+        Text(
+          valor,
+          style: TextStyle(
+            color: esDestacado
+                ? const Color(0xFF38BDF8)
+                : (esTotal
+                    ? const Color(0xFF34D399)
+                    : (esTotalBs ? const Color(0xFF38BDF8) : Colors.white)),
+            fontSize: esTotal
+                ? (isLargeScreen ? 17 : 16)
+                : (isLargeScreen ? 13 : 12),
+            fontWeight: esTotal ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
     );
   }
 
@@ -963,7 +975,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // ---- LISTA DE VENTAS ----
+                  // ---- LISTA DE VENTAS (CORREGIDA) ----
                   Expanded(
                     child: _ventasFiltradas.isEmpty
                         ? Center(
@@ -981,15 +993,14 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                             itemBuilder: (context, index) {
                               final venta = _ventasFiltradas[index];
                               final fechaLocal = venta.fecha.toLocal();
-                              final String fechaFormatted =
-                                  '${fechaLocal.day.toString().padLeft(2, '0')}/${fechaLocal.month.toString().padLeft(2, '0')}/${fechaLocal.year.toString()} - '
-                                  '${fechaLocal.hour.toString().padLeft(2, '0')}:${fechaLocal.minute.toString().padLeft(2, '0')}';
                               final double tasaVentaValida =
                                   (venta.tasaBcv.isNaN || venta.tasaBcv <= 0) ? 0.0 : venta.tasaBcv;
                               final double totalBsVentaValido =
                                   (venta.totalBolivares.isNaN || venta.totalBolivares <= 0)
                                       ? (venta.total * tasaVentaValida)
                                       : venta.totalBolivares;
+
+                              final Color colorMetodo = _getColorMetodo(venta.metodoPago);
 
                               return InkWell(
                                 onTap: () => _mostrarModalDetalleVenta(context, venta),
@@ -1006,28 +1017,29 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                                   ),
                                   child: Row(
                                     children: [
-                                      // ---- ICONO ----
+                                      // ---- ICONO DE MÉTODO DE PAGO (REEMPLAZA "efectivo") ----
                                       Container(
-                                        width: isTablet ? 44 : 36,
-                                        height: isTablet ? 44 : 36,
+                                        width: isTablet ? 40 : 32,
+                                        height: isTablet ? 40 : 32,
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFF1F5F9),
+                                          color: colorMetodo.withValues(alpha: 0.12),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: Icon(
-                                          Icons.article_outlined,
-                                          color: const Color(0xFF334155),
-                                          size: isTablet ? 26 : 20,
+                                          Icons.monetization_on_rounded,
+                                          color: colorMetodo,
+                                          size: isTablet ? 22 : 18,
                                         ),
                                       ),
-                                      const SizedBox(width: 10),
+                                      const SizedBox(width: 8),
 
-                                      // ---- INFORMACIÓN CENTRAL ----
-                                      Flexible(
-                                        flex: isMobile ? 1 : 2,
+                                      // ---- INFORMACIÓN PRINCIPAL (FECHA + TASA) ----
+                                      Expanded(
+                                        flex: isMobile ? 2 : 3,
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
+                                            // Fila superior: ID + fecha (sin overflow)
                                             Row(
                                               children: [
                                                 Flexible(
@@ -1035,74 +1047,54 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                                                     'Venta #${venta.ventaIdString}',
                                                     style: TextStyle(
                                                       fontWeight: FontWeight.bold,
-                                                      fontSize: isTablet ? 16 : 13,
+                                                      fontSize: isTablet ? 14 : 12,
                                                       color: const Color(0xFF0F172A),
                                                     ),
                                                     overflow: TextOverflow.ellipsis,
+                                                    softWrap: false,
                                                   ),
                                                 ),
-                                                const SizedBox(width: 6),
+                                                const SizedBox(width: 4),
+                                                // Badge de tasa (mucho más compacto)
                                                 Container(
                                                   padding: const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 2,
+                                                    horizontal: 4,
+                                                    vertical: 1,
                                                   ),
                                                   decoration: BoxDecoration(
                                                     color: const Color(0xFFE0F2FE),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                    border: Border.all(
-                                                      color: const Color(0xFFBAE6FD),
-                                                    ),
+                                                    borderRadius: BorderRadius.circular(3),
                                                   ),
                                                   child: Text(
-                                                    'Tasa: Bs. ${tasaVentaValida.toStringAsFixed(2)}',
+                                                    'Bs. ${tasaVentaValida.toStringAsFixed(2)}',
                                                     style: TextStyle(
-                                                      fontSize: isTablet ? 10 : 8,
-                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: isTablet ? 8 : 7,
+                                                      fontWeight: FontWeight.w600,
                                                       color: const Color(0xFF0369A1),
                                                     ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                    softWrap: false,
                                                   ),
                                                 ),
                                               ],
                                             ),
-                                            const SizedBox(height: 2),
+                                            // Fila inferior: fecha + empleado
                                             Text(
-                                              '$fechaFormatted • Atendido por: ${venta.empleado}',
+                                              '${fechaLocal.day.toString().padLeft(2, '0')}/${fechaLocal.month.toString().padLeft(2, '0')}/${fechaLocal.year} - ${fechaLocal.hour.toString().padLeft(2, '0')}:${fechaLocal.minute.toString().padLeft(2, '0')}',
                                               style: TextStyle(
-                                                fontSize: isTablet ? 12 : 10,
+                                                fontSize: isTablet ? 11 : 9,
                                                 color: const Color(0xFF64748B),
                                               ),
                                               overflow: TextOverflow.ellipsis,
+                                              softWrap: false,
                                             ),
                                           ],
                                         ),
                                       ),
 
-                                      const SizedBox(width: 8),
+                                      const SizedBox(width: 6),
 
-                                      // ---- MÉTODO DE PAGO ----
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFECFDF5),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          venta.metodoPago.toLowerCase(),
-                                          style: TextStyle(
-                                            fontSize: isTablet ? 12 : 10,
-                                            fontWeight: FontWeight.bold,
-                                            color: const Color(0xFF059669),
-                                          ),
-                                        ),
-                                      ),
-
-                                      const SizedBox(width: 8),
-
-                                      // ---- TOTALES ----
+                                      // ---- TOTALES (COMPACTOS) ----
                                       Column(
                                         crossAxisAlignment: CrossAxisAlignment.end,
                                         mainAxisSize: MainAxisSize.min,
@@ -1110,29 +1102,33 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                                           Text(
                                             '\$${venta.total.toStringAsFixed(2)}',
                                             style: TextStyle(
-                                              fontSize: isTablet ? 17 : 14,
+                                              fontSize: isTablet ? 15 : 13,
                                               fontWeight: FontWeight.bold,
                                               color: const Color(0xFF059669),
                                             ),
+                                            overflow: TextOverflow.ellipsis,
+                                            softWrap: false,
                                           ),
                                           Text(
                                             'Bs. ${totalBsVentaValido.toStringAsFixed(2)}',
                                             style: TextStyle(
-                                              fontSize: isTablet ? 12 : 10,
-                                              fontWeight: FontWeight.bold,
+                                              fontSize: isTablet ? 10 : 9,
+                                              fontWeight: FontWeight.w600,
                                               color: const Color(0xFF0284C7),
                                             ),
+                                            overflow: TextOverflow.ellipsis,
+                                            softWrap: false,
                                           ),
                                         ],
                                       ),
 
-                                      const SizedBox(width: 6),
+                                      const SizedBox(width: 4),
 
                                       // ---- FLECHA ----
                                       Icon(
                                         Icons.chevron_right,
                                         color: const Color(0xFFCBD5E1),
-                                        size: isTablet ? 24 : 18,
+                                        size: isTablet ? 20 : 16,
                                       ),
                                     ],
                                   ),

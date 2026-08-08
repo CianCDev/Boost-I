@@ -34,6 +34,16 @@ class SyncService {
     };
   }
 
+  // ==========================================================
+  // 🆕 MÉTODO AGREGADO: Verifica si la configuración es válida
+  // ==========================================================
+  bool _hasValidSyncConfig() {
+    return _syncServerUrl.isNotEmpty &&
+        _syncServerUrl != 'https://your-sync-server.example' &&
+        _syncApiKey.isNotEmpty &&
+        _syncApiKey != '<REPLACE_WITH_SYNC_API_KEY>';
+  }
+
   Future<void> _loadConfig() async {
     if (_configLoaded) return;
     try {
@@ -116,26 +126,25 @@ class SyncService {
     }
   }
 
-/// Obtiene el total de ventas realizadas en un rango de fechas (para un usuario)
-Future<double> obtenerTotalVentasPorEmpleadoYRango(
-  String empleado,
-  DateTime inicio,
-  DateTime fin,
-) async {
-  final isar = await _isarService.db;
-  final ventas = await isar.ventaEntitys
-      .filter()
-      .empleadoEqualTo(empleado)
-      .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
-      .findAll();
+  /// Obtiene el total de ventas realizadas en un rango de fechas (para un usuario)
+  Future<double> obtenerTotalVentasPorEmpleadoYRango(
+    String empleado,
+    DateTime inicio,
+    DateTime fin,
+  ) async {
+    final isar = await _isarService.db;
+    final ventas = await isar.ventaEntitys
+        .filter()
+        .empleadoEqualTo(empleado)
+        .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
+        .findAll();
 
-  double total = 0;
-  for (var v in ventas) {
-    total += v.total;
+    double total = 0;
+    for (var v in ventas) {
+      total += v.total;
+    }
+    return total;
   }
-  return total;
-}
-
 
   // ==========================================
   // SINCRONIZACIÓN DE VENTAS
@@ -262,74 +271,73 @@ Future<double> obtenerTotalVentasPorEmpleadoYRango(
   }
 
   Future<bool> _enviarMovimientoAlServidor(MovimientoInventarioEntity mov) async {
-  await _loadConfig();
-  try {
-    // Primero, actualizar stock usando RPC (si existe)
+    await _loadConfig();
     try {
-      final rpcResponse = await _supabase.rpc(
-        'ajustar_stock',
-        params: {
-          'p_producto_id': mov.productoId,
-          'p_cantidad': mov.cantidad.toInt(),
-          'p_tipo_movimiento': mov.tipoMovimiento,
-        },
-      );
-      if (rpcResponse == true) {
-        // Insertar registro en movimientos_inventarios
-        final payload = {
-          'producto_id': mov.productoId,
-          'nombre_producto': mov.nombreProducto,
-          'tipo_movimiento': mov.tipoMovimiento,
-          'cantidad': mov.cantidad,
-          'stock_resultante': mov.stockResultante,
-          'fecha': mov.fecha.toIso8601String(),
-          'usuario_id': mov.usuarioId,
-          'sync_status': 'synced',
-        };
-        await _supabase.from('movimientos_inventarios').insert(payload);
-        debugPrint('✅ Movimiento ${mov.id} sincronizado vía RPC');
-        return true;
-      } else {
-        debugPrint('⚠️ RPC ajustar_stock devolvió false');
-        return false;
-      }
-    } catch (rpcError) {
-      // Si RPC falla, intentamos directo (actualizar producto y luego insertar)
-      debugPrint('⚠️ RPC falló, intentando directo: $rpcError');
-      
-      // ✅ CORRECCIÓN: Usar _isarService en lugar de db
-      final producto = await _isarService.obtenerProductoPorId(mov.productoId);
-      if (producto != null && producto.codigoBarras.isNotEmpty) {
-        // Actualizar stock en Supabase usando codigo_barras
-        await _supabase
-            .from('productos')
-            .update({'stock': mov.stockResultante})
-            .eq('codigo_barras', producto.codigoBarras);
+      // Primero, actualizar stock usando RPC (si existe)
+      try {
+        final rpcResponse = await _supabase.rpc(
+          'ajustar_stock',
+          params: {
+            'p_producto_id': mov.productoId,
+            'p_cantidad': mov.cantidad.toInt(),
+            'p_tipo_movimiento': mov.tipoMovimiento,
+          },
+        );
+        if (rpcResponse == true) {
+          // Insertar registro en movimientos_inventarios
+          final payload = {
+            'producto_id': mov.productoId,
+            'nombre_producto': mov.nombreProducto,
+            'tipo_movimiento': mov.tipoMovimiento,
+            'cantidad': mov.cantidad,
+            'stock_resultante': mov.stockResultante,
+            'fecha': mov.fecha.toIso8601String(),
+            'usuario_id': mov.usuarioId,
+            'sync_status': 'synced',
+          };
+          await _supabase.from('movimientos_inventarios').insert(payload);
+          debugPrint('✅ Movimiento ${mov.id} sincronizado vía RPC');
+          return true;
+        } else {
+          debugPrint('⚠️ RPC ajustar_stock devolvió false');
+          return false;
+        }
+      } catch (rpcError) {
+        // Si RPC falla, intentamos directo (actualizar producto y luego insertar)
+        debugPrint('⚠️ RPC falló, intentando directo: $rpcError');
 
-        // Insertar movimiento
-        final payload = {
-          'producto_id': mov.productoId,
-          'nombre_producto': mov.nombreProducto,
-          'tipo_movimiento': mov.tipoMovimiento,
-          'cantidad': mov.cantidad,
-          'stock_resultante': mov.stockResultante,
-          'fecha': mov.fecha.toIso8601String(),
-          'usuario_id': mov.usuarioId,
-          'sync_status': 'synced',
-        };
-        await _supabase.from('movimientos_inventarios').insert(payload);
-        debugPrint('✅ Movimiento ${mov.id} sincronizado vía directa');
-        return true;
-      } else {
-        debugPrint('⚠️ Producto no encontrado o sin código de barras para movimiento ${mov.id}');
-        return false;
+        final producto = await _isarService.obtenerProductoPorId(mov.productoId);
+        if (producto != null && producto.codigoBarras.isNotEmpty) {
+          // Actualizar stock en Supabase usando codigo_barras
+          await _supabase
+              .from('productos')
+              .update({'stock': mov.stockResultante})
+              .eq('codigo_barras', producto.codigoBarras);
+
+          // Insertar movimiento
+          final payload = {
+            'producto_id': mov.productoId,
+            'nombre_producto': mov.nombreProducto,
+            'tipo_movimiento': mov.tipoMovimiento,
+            'cantidad': mov.cantidad,
+            'stock_resultante': mov.stockResultante,
+            'fecha': mov.fecha.toIso8601String(),
+            'usuario_id': mov.usuarioId,
+            'sync_status': 'synced',
+          };
+          await _supabase.from('movimientos_inventarios').insert(payload);
+          debugPrint('✅ Movimiento ${mov.id} sincronizado vía directa');
+          return true;
+        } else {
+          debugPrint('⚠️ Producto no encontrado o sin código de barras para movimiento ${mov.id}');
+          return false;
+        }
       }
+    } catch (e) {
+      debugPrint('🚫 Error enviando movimiento ${mov.id}: $e');
+      return false;
     }
-  } catch (e) {
-    debugPrint('🚫 Error enviando movimiento ${mov.id}: $e');
-    return false;
   }
-}
 
   // ==========================================
   // SINCRONIZACIÓN DE PRODUCTOS Y CATEGORÍAS
@@ -360,91 +368,92 @@ Future<double> obtenerTotalVentasPorEmpleadoYRango(
   }
 
   Future<bool> sincronizarProductosASupabase() async {
-  try {
-    final productosLocales = await _isarService.obtenerProductos();
-    if (productosLocales.isEmpty) return true;
+    try {
+      final productosLocales = await _isarService.obtenerProductos();
+      if (productosLocales.isEmpty) return true;
 
-    final List<Map<String, dynamic>> payloadList = productosLocales.map((p) {
-      return {
-        'codigo_barras': p.codigoBarras,
-        'nombre': p.nombre,
-        'precio_unidad': _limpiarNumero(p.precioUnidad, 0.0),
-        'stock': _limpiarNumero(p.stock, 0.0),
-        'stock_minimo': _limpiarNumero(p.stockMinimo, 5.0),
-        'es_pesado': p.esPesado,
-        'categoria': p.categoria,
-        'proveedor_nombre': p.proveedorNombre,
-        'proveedor_telefono': p.proveedorTelefono,
-        'imagen_url': p.imagenUrl ?? '', // ✅ Enviar la URL guardada
-      };
-    }).toList();
+      final List<Map<String, dynamic>> payloadList = productosLocales.map((p) {
+        return {
+          'codigo_barras': p.codigoBarras,
+          'nombre': p.nombre,
+          'precio_unidad': _limpiarNumero(p.precioUnidad, 0.0),
+          'stock': _limpiarNumero(p.stock, 0.0),
+          'stock_minimo': _limpiarNumero(p.stockMinimo, 5.0),
+          'es_pesado': p.esPesado,
+          'categoria': p.categoria,
+          'proveedor_nombre': p.proveedorNombre,
+          'proveedor_telefono': p.proveedorTelefono,
+          'imagen_url': p.imagenUrl,
+        };
+      }).toList();
 
-    await _supabase.from('productos').upsert(payloadList, onConflict: 'codigo_barras');
-    debugPrint('✅ ${productosLocales.length} productos sincronizados');
-    return true;
-  } catch (e) {
-    debugPrint('🚫 Error sincronizando productos: $e');
-    return false;
-  }
-}
-
- /// Elimina un producto de Supabase por su código de barras.
-/// Retorna `true` si se eliminó al menos una fila, `false` en caso contrario.
-Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
-  try {
-    final codigoLimpio = codigoBarras.trim();
-    if (codigoLimpio.isEmpty) {
-      debugPrint('⚠️ Código de barras vacío, no se puede eliminar.');
+      await _supabase.from('productos').upsert(payloadList, onConflict: 'codigo_barras');
+      debugPrint('✅ ${productosLocales.length} productos sincronizados');
+      return true;
+    } catch (e) {
+      debugPrint('🚫 Error sincronizando productos: $e');
       return false;
     }
+  }
 
-    // Primero, verificar si el producto existe (con eq exacto)
-    var existing = await _supabase
-        .from('productos')
-        .select('id')
-        .eq('codigo_barras', codigoLimpio)
-        .maybeSingle();
+  /// Elimina un producto de Supabase por su código de barras.
+  /// Retorna `true` si se eliminó al menos una fila, `false` en caso contrario.
+  Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
+    try {
+      final codigoLimpio = codigoBarras.trim();
+      if (codigoLimpio.isEmpty) {
+        debugPrint('⚠️ Código de barras vacío, no se puede eliminar.');
+        return false;
+      }
 
-    // Si no existe con exacto, intentar con ilike (insensible a mayúsculas)
-    if (existing == null) {
-      debugPrint('ℹ️ Producto con código exacto "$codigoLimpio" no encontrado, intentando búsqueda flexible...');
-      final resultados = await _supabase
+      // Primero, verificar si el producto existe (con eq exacto)
+      var existing = await _supabase
           .from('productos')
           .select('id')
-          .ilike('codigo_barras', codigoLimpio)
-          .limit(1);
-      if (resultados.isNotEmpty) {
-        existing = resultados.first;
-        debugPrint('🔍 Producto encontrado con búsqueda flexible: ${existing['id']}');
+          .eq('codigo_barras', codigoLimpio)
+          .maybeSingle();
+
+      // Si no existe con exacto, intentar con ilike (insensible a mayúsculas)
+      if (existing == null) {
+        debugPrint('ℹ️ Producto con código exacto "$codigoLimpio" no encontrado, intentando búsqueda flexible...');
+        final resultados = await _supabase
+            .from('productos')
+            .select('id')
+            .ilike('codigo_barras', codigoLimpio)
+            .limit(1);
+        if (resultados.isNotEmpty) {
+          existing = resultados.first;
+          debugPrint('🔍 Producto encontrado con búsqueda flexible: ${existing['id']}');
+        }
       }
+
+      if (existing == null) {
+        debugPrint('ℹ️ Producto con código "$codigoLimpio" no existe en Supabase.');
+        return false;
+      }
+
+      // Ejecutar DELETE (usando el id para mayor precisión)
+      final response = await _supabase
+          .from('productos')
+          .delete()
+          .eq('id', existing['id']);
+
+      final int affected = response != null ? response.length : 0;
+      debugPrint('📦 Filas afectadas en Supabase: $affected');
+
+      if (affected > 0) {
+        debugPrint('✅ Producto eliminado de Supabase (id: ${existing['id']})');
+        return true;
+      } else {
+        debugPrint('⚠️ No se eliminó ninguna fila (código: $codigoLimpio)');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('❌ Error eliminando producto de Supabase: $e');
+      rethrow;
     }
-
-    if (existing == null) {
-      debugPrint('ℹ️ Producto con código "$codigoLimpio" no existe en Supabase.');
-      return false;
-    }
-
-    // Ejecutar DELETE (usando el id para mayor precisión)
-    final response = await _supabase
-        .from('productos')
-        .delete()
-        .eq('id', existing['id']);
-
-    final int affected = response != null ? response.length : 0;
-    debugPrint('📦 Filas afectadas en Supabase: $affected');
-
-    if (affected > 0) {
-      debugPrint('✅ Producto eliminado de Supabase (id: ${existing['id']})');
-      return true;
-    } else {
-      debugPrint('⚠️ No se eliminó ninguna fila (código: $codigoLimpio)');
-      return false;
-    }
-  } catch (e) {
-    debugPrint('❌ Error eliminando producto de Supabase: $e');
-    rethrow;
   }
-}
+
   // ==========================================
   // SINCRONIZACIÓN DE GASTOS
   // ==========================================
@@ -565,11 +574,11 @@ Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
         .map((data) {
           return data.map<UsuarioEntity>((row) {
             return UsuarioEntity()
-               ..id = row['id_isar'] as int
-               ..nombre = row['nombre'] as String
-               ..rol = row['rol'] as String
-               ..estado = row['estado'] as String? ?? 'inactivo'
-               ..deviceId = row['device_id'] as String? ?? '';
+              ..id = row['id_isar'] as int
+              ..nombre = row['nombre'] as String
+              ..rol = row['rol'] as String
+              ..estado = row['estado'] as String? ?? 'inactivo'
+              ..deviceId = row['device_id'] as String? ?? '';
           }).toList();
         });
   }
@@ -673,8 +682,7 @@ Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
   // ==========================================
   // DESCARGA DE VENTAS DESDE SUPABASE
   // ==========================================
-
- Future<void> descargarVentasDesdeSupabase() async {
+Future<void> descargarVentasDesdeSupabase() async {
   try {
     final response = await _supabase
         .from('ventas')
@@ -691,14 +699,16 @@ Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
     int actualizadas = 0;
 
     for (var data in response) {
-      final ventaId = data['venta_id'] as String? ?? '';
-      if (ventaId.isEmpty) continue;
+      // ✅ CORRECCIÓN CLAVE: Obtener el ID numérico de la venta
+      final int ventaIdNum = data['id']; // ← clave primaria en Supabase
+      final String ventaIdString = data['venta_id'] as String? ?? '';
+      if (ventaIdString.isEmpty) continue;
 
-      // 🔥 Descargar detalles de esta venta
+      // 🔥 Usar el ID numérico para la relación
       final detallesResponse = await _supabase
           .from('detalle_ventas')
           .select()
-          .eq('venta_id_fk', ventaId);
+          .eq('venta_id_fk', ventaIdNum); // ← Ahora usa número
 
       final detalles = detallesResponse.map<DetalleVentaEntity>((d) {
         return DetalleVentaEntity()
@@ -708,11 +718,11 @@ Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
           ..subtotal = (d['subtotal'] as num?)?.toDouble() ?? 0.0;
       }).toList();
 
-      // Buscar si ya existe localmente
-      final existing = await _isarService.obtenerVentaPorIdString(ventaId);
+      // Buscar si ya existe localmente por ventaIdString
+      final existing = await _isarService.obtenerVentaPorIdString(ventaIdString);
 
       final venta = VentaEntity()
-        ..ventaIdString = ventaId
+        ..ventaIdString = ventaIdString
         ..fecha = DateTime.parse(data['fecha']).toLocal()
         ..subtotal = (data['subtotal'] as num).toDouble()
         ..impuesto = (data['impuesto'] as num).toDouble()
@@ -733,10 +743,13 @@ Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
         insertadas++;
       }
 
-      // Guardar detalles (usando el ID local de la venta)
+      // Guardar detalles usando el ID local de la venta
       if (detalles.isNotEmpty) {
-        await _isarService.guardarDetallesVenta(venta.id, detalles);
-        debugPrint('📦 ${detalles.length} detalles guardados para venta $ventaId');
+        final ventaLocal = await _isarService.obtenerVentaPorIdString(ventaIdString);
+        if (ventaLocal != null) {
+          await _isarService.guardarDetallesVenta(ventaLocal.id, detalles);
+          debugPrint('📦 ${detalles.length} detalles guardados para venta $ventaIdString');
+        }
       }
     }
 
@@ -746,46 +759,43 @@ Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
   }
 }
 
+  Future<void> descargarProductosDesdeSupabase() async {
+    try {
+      final response = await _supabase
+          .from('productos')
+          .select()
+          .order('nombre', ascending: true);
 
+      if (response.isEmpty) {
+        debugPrint('ℹ️ No hay productos en Supabase para descargar');
+        return;
+      }
 
+      debugPrint('🔄 Descargando ${response.length} productos desde Supabase...');
 
+      for (var data in response) {
+        final producto = ProductoEntity()
+          ..codigoBarras = data['codigo_barras'] ?? ''
+          ..nombre = data['nombre'] ?? ''
+          ..precioUnidad = (data['precio_unidad'] as num?)?.toDouble() ?? 0.0
+          ..stock = (data['stock'] as num?)?.toDouble() ?? 0.0
+          ..stockMinimo = (data['stock_minimo'] as num?)?.toDouble() ?? 5.0
+          ..esPesado = data['es_pesado'] ?? false
+          ..categoria = data['categoria'] ?? ''
+          ..proveedorNombre = data['proveedor_nombre'] ?? ''
+          ..proveedorTelefono = data['proveedor_telefono'] ?? ''
+          ..imagenUrl = data['imagen_url'] ?? '';
 
-Future<void> descargarProductosDesdeSupabase() async {
-  try {
-    final response = await _supabase
-        .from('productos')
-        .select()
-        .order('nombre', ascending: true);
+        // Guardar localmente (si ya existe, se actualiza por código de barras)
+        await _isarService.guardarProducto(producto);
+      }
 
-    if (response.isEmpty) {
-      debugPrint('ℹ️ No hay productos en Supabase para descargar');
-      return;
+      debugPrint('✅ ${response.length} productos descargados y guardados localmente');
+    } catch (e) {
+      debugPrint('❌ Error descargando productos: $e');
     }
-
-    debugPrint('🔄 Descargando ${response.length} productos desde Supabase...');
-
-    for (var data in response) {
-      final producto = ProductoEntity()
-        ..codigoBarras = data['codigo_barras'] ?? ''
-        ..nombre = data['nombre'] ?? ''
-        ..precioUnidad = (data['precio_unidad'] as num?)?.toDouble() ?? 0.0
-        ..stock = (data['stock'] as num?)?.toDouble() ?? 0.0
-        ..stockMinimo = (data['stock_minimo'] as num?)?.toDouble() ?? 5.0
-        ..esPesado = data['es_pesado'] ?? false
-        ..categoria = data['categoria'] ?? ''
-        ..proveedorNombre = data['proveedor_nombre'] ?? ''
-        ..proveedorTelefono = data['proveedor_telefono'] ?? ''
-        ..imagenUrl = data['imagen_url'] ?? '';
-
-      // Guardar localmente (si ya existe, se actualiza por código de barras)
-      await _isarService.guardarProducto(producto);
-    }
-
-    debugPrint('✅ ${response.length} productos descargados y guardados localmente');
-  } catch (e) {
-    debugPrint('❌ Error descargando productos: $e');
   }
-}
+
   // ==========================================
   // LIMPIEZA DE RECURSOS
   // ==========================================

@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable, use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../domain/models/printer_models.dart';

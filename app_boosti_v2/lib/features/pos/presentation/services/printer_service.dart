@@ -337,7 +337,7 @@ class PrinterService {
           }
 
           networkPrinter.rawBytes(allBytes);
-         networkPrinter.disconnect();
+           networkPrinter.disconnect();
 
           _log('✅ Etiquetas impresas por red en intento $attempts');
           return PrintResult.success();

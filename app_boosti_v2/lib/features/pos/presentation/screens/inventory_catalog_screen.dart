@@ -2,24 +2,17 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:barcode_widget/barcode_widget.dart' as barcode;
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
-import 'dart:typed_data';                // Para Uint8List
-import 'package:printing/printing.dart';  // Para Printing
-import 'package:pdf/pdf.dart';           // Para PdfPageFormat
-import 'package:pdf/widgets.dart' as pw; // Para el PDF
 import '../providers/esc_pos_provider.dart';
-import '../../presentation/services/ticket_generator.dart'; // Para TicketItem
-import '../../presentation/services/ticket_service.dart';   // Para TicketService
-import '../providers/esc_pos_provider.dart';   
+import '../../presentation/services/ticket_generator.dart';
+import '../../presentation/services/ticket_service.dart';
 
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/detalle_venta_entity.dart';
@@ -115,6 +108,7 @@ class _InventoryCatalogScreenState
   // ============================
   // POLLING
   // ============================
+  // ignore: unused_element
   void _iniciarPolling() {
     _pollingTimer?.cancel();
     _pollingTimer = Timer.periodic(_pollingInterval, (timer) async {
@@ -364,12 +358,10 @@ class _InventoryCatalogScreenState
           );
         }).toList();
 
-        // Obtener la impresora seleccionada desde el provider
         final selectedPrinter = ref.read(printerProvider);
 
         await TicketService.imprimirTicketVenta(
-          // ignore: use_build_context_synchronously
-          context: context, // <--- IMPORTANTE: pasar el contexto
+          context: context,
           items: ticketItems,
           subtotal: cartState.subtotal,
           impuesto: cartState.impuesto,
@@ -378,7 +370,7 @@ class _InventoryCatalogScreenState
           montoRecibido: recibido,
           cambio: cambio,
           fechaVenta: DateTime.now(),
-          impresoraSeleccionada: selectedPrinter?.device, // o null si no hay
+          impresoraSeleccionada: selectedPrinter?.device,
         );
       } catch (e) {
         debugPrint('Error al imprimir ticket: $e');
@@ -494,7 +486,6 @@ class _InventoryCatalogScreenState
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Código de barras
                     TextField(
                       controller: codigoController,
                       decoration: InputDecoration(
@@ -512,7 +503,6 @@ class _InventoryCatalogScreenState
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // Nombre
                     TextField(
                       controller: nombreController,
                       decoration: const InputDecoration(
@@ -520,7 +510,6 @@ class _InventoryCatalogScreenState
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // Precio
                     TextField(
                       controller: precioController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -530,7 +519,6 @@ class _InventoryCatalogScreenState
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // Stock
                     TextField(
                       controller: stockController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -539,9 +527,8 @@ class _InventoryCatalogScreenState
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // Categoría
                     DropdownButtonFormField<String>(
-                      value: categoriaSeleccionada,
+                      initialValue: categoriaSeleccionada,
                       items: categorias.map((cat) {
                         return DropdownMenuItem(
                           value: cat,
@@ -554,13 +541,12 @@ class _InventoryCatalogScreenState
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // Switch pesado
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Producto pesado (granel)'),
                       value: esPesado,
                       onChanged: (val) => setStateModal(() => esPesado = val),
-                      activeColor: const Color(0xFF10B981),
+                      activeThumbColor: const Color(0xFF10B981),
                     ),
                   ],
                 ),
@@ -579,34 +565,36 @@ class _InventoryCatalogScreenState
                     foregroundColor: Colors.white,
                   ),
                   onPressed: () async {
-                    // Validar campos
                     final nombre = nombreController.text.trim();
                     final precioStr = precioController.text.trim().replaceAll(',', '.');
                     final stockStr = stockController.text.trim().replaceAll(',', '.');
                     final codigo = codigoController.text.trim();
 
                     if (nombre.isEmpty || precioStr.isEmpty || stockStr.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Nombre, precio y stock son obligatorios'),
-                          backgroundColor: Colors.redAccent,
-                        ),
-                      );
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Nombre, precio y stock son obligatorios'),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                      }
                       return;
                     }
                     final precio = double.tryParse(precioStr);
                     final stock = double.tryParse(stockStr);
                     if (precio == null || stock == null || precio <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Ingresa valores numéricos válidos'),
-                          backgroundColor: Colors.redAccent,
-                        ),
-                      );
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Ingresa valores numéricos válidos'),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                      }
                       return;
                     }
 
-                    // Crear producto
                     final nuevoProducto = ProductoEntity()
                       ..codigoBarras = codigo.isNotEmpty ? codigo : await _isarService.generarCodigoBarrasUnico()
                       ..nombre = nombre
@@ -623,7 +611,6 @@ class _InventoryCatalogScreenState
                     await syncService.sincronizarCategoriasASupabase();
                     await syncService.sincronizarProductosASupabase();
 
-                    // Agregar al carrito automáticamente
                     _agregarAlCarrito(nuevoProducto, stock);
 
                     if (mounted) {
@@ -666,7 +653,6 @@ class _InventoryCatalogScreenState
       return;
     }
 
-    // 🔍 Buscar producto por código exacto (método ya existente en IsarService)
     final producto = await _isarService.obtenerProductoPorCodigoBarrasExacto(
       codigoEscaneado.trim(),
     );
@@ -679,7 +665,6 @@ class _InventoryCatalogScreenState
       return;
     }
 
-    // ❌ Producto no encontrado: mostrar diálogo de confirmación
     debugPrint('❌ Producto NO registrado, mostrando diálogo de confirmación.');
 
     final crear = await showDialog<bool>(
@@ -721,251 +706,6 @@ class _InventoryCatalogScreenState
       debugPrint('⏹️ Creación cancelada o widget no montado.');
     }
   }
-
-  // ============================
-  // GENERADOR DE CÓDIGO DE BARRAS
-  // ============================
-void _generarCodigoBarras() {
-  final TextEditingController codigoController = TextEditingController();
-  final GlobalKey _previewKey = GlobalKey();
-  final ValueNotifier<int> regenerarNotifier = ValueNotifier(0);
-
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) {
-      return StatefulBuilder(
-        builder: (context, setState) {
-          final isMobile = ResponsiveHelper.isMobile(context);
-          final isTablet = ResponsiveHelper.isTablet(context);
-          final double dialogWidth = isMobile ? MediaQuery.of(context).size.width * 0.92 : (isTablet ? 600 : 700);
-          final double barcodeWidth = isMobile ? 150 : (isTablet ? 200 : 250);
-          final double barcodeHeight = isMobile ? 60 : (isTablet ? 80 : 100);
-          final double fontSizeTitle = isMobile ? 16 : (isTablet ? 20 : 22);
-          final double fontSizeHint = isMobile ? 12 : (isTablet ? 14 : 16);
-          final double buttonFontSize = isMobile ? 11 : (isTablet ? 13 : 14);
-          final double paddingContent = isMobile ? 12 : (isTablet ? 16 : 20);
-
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isMobile ? 16 : 24)),
-            titlePadding: EdgeInsets.all(paddingContent),
-            contentPadding: EdgeInsets.all(paddingContent),
-            actionsPadding: EdgeInsets.symmetric(horizontal: paddingContent, vertical: 8),
-            title: Text('Generar Código de Barras', style: TextStyle(fontSize: fontSizeTitle, fontWeight: FontWeight.bold)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: codigoController,
-                        style: TextStyle(fontSize: isMobile ? 14 : (isTablet ? 16 : 18)),
-                        decoration: InputDecoration(
-                          hintText: 'Código generado automáticamente',
-                          hintStyle: TextStyle(fontSize: fontSizeHint, color: Colors.grey.shade500),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(isMobile ? 8 : 12)),
-                          contentPadding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 16, vertical: isMobile ? 8 : 12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
-                      ),
-                      child: IconButton(
-                        icon: Icon(Icons.qr_code, color: const Color(0xFF10B981), size: isMobile ? 24 : (isTablet ? 28 : 32)),
-                        onPressed: () => regenerarNotifier.value++,
-                        tooltip: 'Generar otro código',
-                        padding: EdgeInsets.all(isMobile ? 8 : 12),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                ValueListenableBuilder(
-                  valueListenable: regenerarNotifier,
-                  builder: (context, version, child) {
-                    return FutureBuilder<String>(
-                      key: ValueKey(version),
-                      future: _isarService.generarCodigoBarrasUnico(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(isMobile ? 20 : 30),
-                              child: CircularProgressIndicator(color: const Color(0xFF10B981), strokeWidth: isMobile ? 2 : 3),
-                            ),
-                          );
-                        } else if (snapshot.hasError) {
-                          return Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Text('Error: ${snapshot.error}', style: TextStyle(color: Colors.red, fontSize: fontSizeHint)),
-                          );
-                        } else if (snapshot.hasData) {
-                          final codigo = snapshot.data!;
-                          if (codigoController.text != codigo) codigoController.text = codigo;
-                          return RepaintBoundary(
-                            key: _previewKey,
-                            child: Container(
-                              padding: EdgeInsets.all(isMobile ? 12 : 16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(isMobile ? 8 : 12),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                              child: Center(
-                                child: barcode.BarcodeWidget(
-                                  barcode: barcode.Barcode.code128(),
-                                  data: codigo,
-                                  width: barcodeWidth,
-                                  height: barcodeHeight,
-                                  drawText: false,
-                                ),
-                              ),
-                            ),
-                          );
-                        } else {
-                          return const SizedBox.shrink();
-                        }
-                      },
-                    );
-                  },
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Cerrar', style: TextStyle(fontSize: buttonFontSize)),
-              ),
-              // Botones de acción (responsive)
-              ValueListenableBuilder(
-                valueListenable: regenerarNotifier,
-                builder: (context, version, child) {
-                  return FutureBuilder<String>(
-                    key: ValueKey(version),
-                    future: _isarService.generarCodigoBarrasUnico(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
-                        final codigo = snapshot.data!;
-                        final buttonStyle = ElevatedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16, vertical: isMobile ? 8 : 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(isMobile ? 8 : 10)),
-                          minimumSize: isMobile ? const Size(70, 34) : const Size(90, 38),
-                        );
-                        final buttonIconSize = isMobile ? 16.0 : 18.0;
-
-                        if (isMobile) {
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Compartir
-                              ElevatedButton.icon(
-                                style: buttonStyle.copyWith(
-                                  backgroundColor: WidgetStateProperty.all(Colors.grey.shade200),
-                                  foregroundColor: WidgetStateProperty.all(Colors.grey.shade800),
-                                ),
-                                onPressed: () async {
-                                  try {
-                                    final boundary = _previewKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-                                    final image = await boundary.toImage();
-                                    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-                                    final bytes = byteData!.buffer.asUint8List();
-                                    final tempDir = await getTemporaryDirectory();
-                                    final file = File('${tempDir.path}/codigo_barras.png');
-                                    await file.writeAsBytes(bytes);
-                                    await Share.shareXFiles([XFile(file.path)], text: 'Código de barras: $codigo');
-                                  } catch (e) {
-                                    // Ignorar
-                                  }
-                                },
-                                icon: Icon(Icons.share, size: buttonIconSize),
-                                label: Text('Compartir', style: TextStyle(fontSize: buttonFontSize)),
-                              ),
-                              const SizedBox(height: 8),
-                              // Imprimir
-                              ElevatedButton.icon(
-                                style: buttonStyle.copyWith(
-                                  backgroundColor: WidgetStateProperty.all(const Color(0xFF10B981)),
-                                  foregroundColor: WidgetStateProperty.all(Colors.white),
-                                ),
-                                onPressed: () async {
-                                  try {
-                                    final renderObject = _previewKey.currentContext!.findRenderObject();
-                                    if (renderObject is! RenderRepaintBoundary) throw Exception('No es RenderRepaintBoundary');
-                                    final boundary = renderObject;
-                                    final image = await boundary.toImage();
-                                    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-                                    final bytes = byteData!.buffer.asUint8List();
-                                    final impresora = ref.read(printerProvider);
-                                    await TicketService.imprimirCodigoBarras(
-                                      codigo: codigo,
-                                      imageBytes: bytes,
-                                      impresoraSeleccionada: impresora,
-                                    );
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('✅ Código enviado a imprimir'), backgroundColor: Color(0xFF10B981)),
-                                    );
-                                  } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Error: ${e.toString().substring(0, 100)}'), backgroundColor: Colors.red),
-                                    );
-                                  }
-                                },
-                                icon: Icon(Icons.print, size: buttonIconSize),
-                                label: Text('Imprimir', style: TextStyle(fontSize: buttonFontSize)),
-                              ),
-                            ],
-                          );
-                        } else {
-                          return Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Compartir
-                              ElevatedButton.icon(
-                                style: buttonStyle.copyWith(
-                                  backgroundColor: WidgetStateProperty.all(Colors.grey.shade200),
-                                  foregroundColor: WidgetStateProperty.all(Colors.grey.shade800),
-                                ),
-                                onPressed: () async {
-                                  // ... mismo código que arriba
-                                },
-                                icon: Icon(Icons.share, size: buttonIconSize),
-                                label: Text('Compartir', style: TextStyle(fontSize: buttonFontSize)),
-                              ),
-                              const SizedBox(width: 8),
-                              // Imprimir
-                              ElevatedButton.icon(
-                                style: buttonStyle.copyWith(
-                                  backgroundColor: WidgetStateProperty.all(const Color(0xFF10B981)),
-                                  foregroundColor: WidgetStateProperty.all(Colors.white),
-                                ),
-                                onPressed: () async {
-                                  // ... mismo código que arriba
-                                },
-                                icon: Icon(Icons.print, size: buttonIconSize),
-                                label: Text('Imprimir', style: TextStyle(fontSize: buttonFontSize)),
-                              ),
-                            ],
-                          );
-                        }
-                      } else {
-                        return const SizedBox.shrink();
-                      }
-                    },
-                  );
-                },
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
-}
 
   // ============================
   // MODAL DE CANTIDAD CON BALANZA
@@ -1266,7 +1006,6 @@ void _generarCodigoBarras() {
                               }
 
                               localWeightSubscription?.cancel();
-                              // ignore: use_build_context_synchronously
                               Navigator.of(dialogContext).pop();
                               cantidadController.dispose();
                               precioController.dispose();
@@ -1473,15 +1212,7 @@ void _generarCodigoBarras() {
           ),
           const SizedBox(width: 4),
 
-          // 3. BOTÓN GENERAR CÓDIGO DE BARRAS
-          IconButton(
-            icon: const Icon(Icons.qr_code, color: Colors.white),
-            tooltip: 'Generar Código de Barras',
-            onPressed: _generarCodigoBarras,
-          ),
-          const SizedBox(width: 4),
-
-          // 4. BOTÓN BCV
+          // 3. BOTÓN BCV
           Tooltip(
             message: 'Tasa oficial BCV (Haz clic para actualizar)',
             child: MouseRegion(
@@ -2520,6 +2251,7 @@ class _ProductCardState extends State<_ProductCard> {
                         color: Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                       ),
+                        clipBehavior: Clip.antiAlias, // ✅ NUEVO
                       child: Stack(
                         children: [
                           Center(
