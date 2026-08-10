@@ -34,9 +34,6 @@ class SyncService {
     };
   }
 
-  // ==========================================================
-  // 🆕 MÉTODO AGREGADO: Verifica si la configuración es válida
-  // ==========================================================
   bool _hasValidSyncConfig() {
     return _syncServerUrl.isNotEmpty &&
         _syncServerUrl != 'https://your-sync-server.example' &&
@@ -73,7 +70,7 @@ class SyncService {
   }
 
   // ==========================================
-  // SINCRONIZACIÓN DE USUARIOS
+  // SINCRONIZACIÓN DE USUARIOS (hacia Supabase)
   // ==========================================
 
   Future<void> sincronizarUsuariosASupabase() async {
@@ -83,13 +80,12 @@ class SyncService {
         debugPrint('ℹ️ No hay usuarios locales para sincronizar');
         return;
       }
-
+      
       debugPrint('🔄 Sincronizando ${usuarios.length} usuarios con Supabase...');
       int sincronizados = 0;
 
       for (var usuario in usuarios) {
         try {
-          // Buscar si ya existe por id_isar
           final existing = await _supabase
               .from('usuarios')
               .select('id_isar')
@@ -105,6 +101,8 @@ class SyncService {
             'device_id': usuario.deviceId ?? '',
             'estado': usuario.estado,
             'caja_asignada': usuario.cajaAsignada,
+            // 🔥 Corregido: si departamento es vacío, enviar null (la columna debe ser text)
+            'departamento': (usuario.departamento != null && usuario.departamento!.isNotEmpty) ? usuario.departamento : null,
           };
 
           if (existing == null) {
@@ -126,22 +124,20 @@ class SyncService {
     }
   }
 
-
-/// Elimina un usuario de Supabase por su ID (id_isar)
-Future<bool> eliminarUsuarioEnSupabase(int userId) async {
-  try {
-    final response = await _supabase
-        .from('usuarios')
-        .delete()
-        .eq('id_isar', userId)
-        .select();
-    return response.isNotEmpty;
-  } catch (e) {
-    debugPrint('❌ Error eliminando usuario en Supabase: $e');
-    return false;
+  Future<bool> eliminarUsuarioEnSupabase(int userId) async {
+    try {
+      final response = await _supabase
+          .from('usuarios')
+          .delete()
+          .eq('id_isar', userId)
+          .select();
+      return response.isNotEmpty;
+    } catch (e) {
+      debugPrint('❌ Error eliminando usuario en Supabase: $e');
+      return false;
+    }
   }
-}
-  /// Obtiene el total de ventas realizadas en un rango de fechas (para un usuario)
+
   Future<double> obtenerTotalVentasPorEmpleadoYRango(
     String empleado,
     DateTime inicio,
@@ -232,7 +228,6 @@ Future<bool> eliminarUsuarioEnSupabase(int userId) async {
         debugPrint('ℹ️ No hay configuración válida de syncServerUrl/syncApiKey; se usa Supabase directo.');
       }
 
-      // Fallback: Supabase directo
       final responseVenta = await _supabase.from('ventas').insert(payload).select('id').single();
       final int ventaIdPk = responseVenta['id'];
 
@@ -288,7 +283,6 @@ Future<bool> eliminarUsuarioEnSupabase(int userId) async {
   Future<bool> _enviarMovimientoAlServidor(MovimientoInventarioEntity mov) async {
     await _loadConfig();
     try {
-      // Primero, actualizar stock usando RPC (si existe)
       try {
         final rpcResponse = await _supabase.rpc(
           'ajustar_stock',
@@ -299,7 +293,6 @@ Future<bool> eliminarUsuarioEnSupabase(int userId) async {
           },
         );
         if (rpcResponse == true) {
-          // Insertar registro en movimientos_inventarios
           final payload = {
             'producto_id': mov.productoId,
             'nombre_producto': mov.nombreProducto,
@@ -318,18 +311,15 @@ Future<bool> eliminarUsuarioEnSupabase(int userId) async {
           return false;
         }
       } catch (rpcError) {
-        // Si RPC falla, intentamos directo (actualizar producto y luego insertar)
         debugPrint('⚠️ RPC falló, intentando directo: $rpcError');
 
         final producto = await _isarService.obtenerProductoPorId(mov.productoId);
         if (producto != null && producto.codigoBarras.isNotEmpty) {
-          // Actualizar stock en Supabase usando codigo_barras
           await _supabase
               .from('productos')
               .update({'stock': mov.stockResultante})
               .eq('codigo_barras', producto.codigoBarras);
 
-          // Insertar movimiento
           final payload = {
             'producto_id': mov.productoId,
             'nombre_producto': mov.nombreProducto,
@@ -411,8 +401,6 @@ Future<bool> eliminarUsuarioEnSupabase(int userId) async {
     }
   }
 
-  /// Elimina un producto de Supabase por su código de barras.
-  /// Retorna `true` si se eliminó al menos una fila, `false` en caso contrario.
   Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
     try {
       final codigoLimpio = codigoBarras.trim();
@@ -421,14 +409,12 @@ Future<bool> eliminarUsuarioEnSupabase(int userId) async {
         return false;
       }
 
-      // Primero, verificar si el producto existe (con eq exacto)
       var existing = await _supabase
           .from('productos')
           .select('id')
           .eq('codigo_barras', codigoLimpio)
           .maybeSingle();
 
-      // Si no existe con exacto, intentar con ilike (insensible a mayúsculas)
       if (existing == null) {
         debugPrint('ℹ️ Producto con código exacto "$codigoLimpio" no encontrado, intentando búsqueda flexible...');
         final resultados = await _supabase
@@ -447,7 +433,6 @@ Future<bool> eliminarUsuarioEnSupabase(int userId) async {
         return false;
       }
 
-      // Ejecutar DELETE (usando el id para mayor precisión)
       final response = await _supabase
           .from('productos')
           .delete()
@@ -668,7 +653,6 @@ Future<bool> eliminarUsuarioEnSupabase(int userId) async {
         payload['fecha_cierre'] = turno.fechaCierre!.toIso8601String();
       }
 
-      // Verificar si ya existe un turno con este id_isar
       final existing = await _supabase
           .from('turnos')
           .select('id_isar')
@@ -676,11 +660,9 @@ Future<bool> eliminarUsuarioEnSupabase(int userId) async {
           .maybeSingle();
 
       if (existing == null) {
-        // Insertar nuevo
         await _supabase.from('turnos').insert(payload);
         debugPrint('✅ Turno ${turno.id} insertado correctamente');
       } else {
-        // Actualizar existente
         await _supabase
             .from('turnos')
             .update(payload)
@@ -697,82 +679,78 @@ Future<bool> eliminarUsuarioEnSupabase(int userId) async {
   // ==========================================
   // DESCARGA DE VENTAS DESDE SUPABASE
   // ==========================================
-Future<void> descargarVentasDesdeSupabase() async {
-  try {
-    final response = await _supabase
-        .from('ventas')
-        .select()
-        .order('fecha', ascending: false);
-
-    if (response.isEmpty) {
-      debugPrint('ℹ️ No hay ventas en Supabase para descargar');
-      return;
-    }
-
-    debugPrint('🔄 Descargando ${response.length} ventas desde Supabase...');
-    int insertadas = 0;
-    int actualizadas = 0;
-
-    for (var data in response) {
-      // ✅ CORRECCIÓN CLAVE: Obtener el ID numérico de la venta
-      final int ventaIdNum = data['id']; // ← clave primaria en Supabase
-      final String ventaIdString = data['venta_id'] as String? ?? '';
-      if (ventaIdString.isEmpty) continue;
-
-      // 🔥 Usar el ID numérico para la relación
-      final detallesResponse = await _supabase
-          .from('detalle_ventas')
+  Future<void> descargarVentasDesdeSupabase() async {
+    try {
+      final response = await _supabase
+          .from('ventas')
           .select()
-          .eq('venta_id_fk', ventaIdNum); // ← Ahora usa número
+          .order('fecha', ascending: false);
 
-      final detalles = detallesResponse.map<DetalleVentaEntity>((d) {
-        return DetalleVentaEntity()
-          ..nombreProducto = d['nombre_producto'] ?? ''
-          ..precioUnidad = (d['precio_unidad'] as num?)?.toDouble() ?? 0.0
-          ..cantidad = (d['cantidad'] as num?)?.toDouble() ?? 0.0
-          ..subtotal = (d['subtotal'] as num?)?.toDouble() ?? 0.0;
-      }).toList();
-
-      // Buscar si ya existe localmente por ventaIdString
-      final existing = await _isarService.obtenerVentaPorIdString(ventaIdString);
-
-      final venta = VentaEntity()
-        ..ventaIdString = ventaIdString
-        ..fecha = DateTime.parse(data['fecha']).toLocal()
-        ..subtotal = (data['subtotal'] as num).toDouble()
-        ..impuesto = (data['impuesto'] as num).toDouble()
-        ..total = (data['total'] as num).toDouble()
-        ..tasaBcv = (data['tasa_bcv'] as num?)?.toDouble() ?? 0.0
-        ..totalBolivares = (data['total_bolivares'] as num?)?.toDouble() ?? 0.0
-        ..metodoPago = data['metodo_pago'] ?? ''
-        ..documento = data['documento'] ?? ''
-        ..empleado = data['empleado'] ?? ''
-        ..syncStatus = 'synced';
-
-      if (existing != null) {
-        venta.id = existing.id;
-        await _isarService.guardarVenta(venta);
-        actualizadas++;
-      } else {
-        await _isarService.guardarVenta(venta);
-        insertadas++;
+      if (response.isEmpty) {
+        debugPrint('ℹ️ No hay ventas en Supabase para descargar');
+        return;
       }
 
-      // Guardar detalles usando el ID local de la venta
-      if (detalles.isNotEmpty) {
-        final ventaLocal = await _isarService.obtenerVentaPorIdString(ventaIdString);
-        if (ventaLocal != null) {
-          await _isarService.guardarDetallesVenta(ventaLocal.id, detalles);
-          debugPrint('📦 ${detalles.length} detalles guardados para venta $ventaIdString');
+      debugPrint('🔄 Descargando ${response.length} ventas desde Supabase...');
+      int insertadas = 0;
+      int actualizadas = 0;
+
+      for (var data in response) {
+        final int ventaIdNum = data['id'];
+        final String ventaIdString = data['venta_id'] as String? ?? '';
+        if (ventaIdString.isEmpty) continue;
+
+        final detallesResponse = await _supabase
+            .from('detalle_ventas')
+            .select()
+            .eq('venta_id_fk', ventaIdNum);
+
+        final detalles = detallesResponse.map<DetalleVentaEntity>((d) {
+          return DetalleVentaEntity()
+            ..nombreProducto = d['nombre_producto'] ?? ''
+            ..precioUnidad = (d['precio_unidad'] as num?)?.toDouble() ?? 0.0
+            ..cantidad = (d['cantidad'] as num?)?.toDouble() ?? 0.0
+            ..subtotal = (d['subtotal'] as num?)?.toDouble() ?? 0.0;
+        }).toList();
+
+        final existing = await _isarService.obtenerVentaPorIdString(ventaIdString);
+
+        final venta = VentaEntity()
+          ..ventaIdString = ventaIdString
+          ..fecha = DateTime.parse(data['fecha']).toLocal()
+          ..subtotal = (data['subtotal'] as num).toDouble()
+          ..impuesto = (data['impuesto'] as num).toDouble()
+          ..total = (data['total'] as num).toDouble()
+          ..tasaBcv = (data['tasa_bcv'] as num?)?.toDouble() ?? 0.0
+          ..totalBolivares = (data['total_bolivares'] as num?)?.toDouble() ?? 0.0
+          ..metodoPago = data['metodo_pago'] ?? ''
+          ..documento = data['documento'] ?? ''
+          ..empleado = data['empleado'] ?? ''
+          ..syncStatus = 'synced';
+
+        if (existing != null) {
+          venta.id = existing.id;
+          await _isarService.guardarVenta(venta);
+          actualizadas++;
+        } else {
+          await _isarService.guardarVenta(venta);
+          insertadas++;
+        }
+
+        if (detalles.isNotEmpty) {
+          final ventaLocal = await _isarService.obtenerVentaPorIdString(ventaIdString);
+          if (ventaLocal != null) {
+            await _isarService.guardarDetallesVenta(ventaLocal.id, detalles);
+            debugPrint('📦 ${detalles.length} detalles guardados para venta $ventaIdString');
+          }
         }
       }
-    }
 
-    debugPrint('✅ $insertadas ventas insertadas, $actualizadas actualizadas');
-  } catch (e) {
-    debugPrint('❌ Error descargando ventas: $e');
+      debugPrint('✅ $insertadas ventas insertadas, $actualizadas actualizadas');
+    } catch (e) {
+      debugPrint('❌ Error descargando ventas: $e');
+    }
   }
-}
 
   Future<void> descargarProductosDesdeSupabase() async {
     try {
@@ -801,13 +779,97 @@ Future<void> descargarVentasDesdeSupabase() async {
           ..proveedorTelefono = data['proveedor_telefono'] ?? ''
           ..imagenUrl = data['imagen_url'] ?? '';
 
-        // Guardar localmente (si ya existe, se actualiza por código de barras)
         await _isarService.guardarProducto(producto);
       }
 
       debugPrint('✅ ${response.length} productos descargados y guardados localmente');
     } catch (e) {
       debugPrint('❌ Error descargando productos: $e');
+    }
+  }
+
+  // ============================================================
+  // NUEVOS MÉTODOS PARA SINCRONIZACIÓN DE USUARIOS DESDE SUPABASE
+  // ============================================================
+
+  /// Descarga todos los usuarios desde Supabase y actualiza la base de datos local.
+  /// Si un usuario está activo/descanso localmente pero en la nube está inactivo,
+  /// se actualiza localmente a inactivo (para reflejar cierres de sesión externos).
+  Future<void> sincronizarUsuariosDesdeSupabase() async {
+    try {
+      final response = await _supabase
+          .from('usuarios')
+          .select()
+          .order('nombre', ascending: true);
+
+      if (response.isEmpty) {
+        debugPrint('ℹ️ No hay usuarios en Supabase para descargar');
+        return;
+      }
+
+      debugPrint('🔄 Descargando ${response.length} usuarios desde Supabase...');
+
+      final locales = await _isarService.obtenerUsuarios();
+      final Map<int, UsuarioEntity> localesMap = {for (var u in locales) u.id: u};
+
+      for (var data in response) {
+        final int idIsar = data['id_isar'] as int? ?? 0;
+        if (idIsar == 0) {
+          debugPrint('⚠️ Usuario sin id_isar, omitiendo: ${data['nombre']}');
+          continue;
+        }
+
+        final local = localesMap[idIsar];
+        if (local != null) {
+          // Actualizar campos de perfil
+          local.email = data['email'] ?? local.email;
+          local.deviceId = data['device_id'] ?? local.deviceId;
+          local.cajaAsignada = data['caja_asignada'] ?? local.cajaAsignada;
+          local.departamento = data['departamento'] ?? local.departamento; // Si es null, queda null
+
+          // 🔥 ACTUALIZAR ESTADO si en la nube es inactivo y local está activo/descanso
+          final estadoNube = data['estado'] as String? ?? 'inactivo';
+          if (estadoNube == 'inactivo' && (local.estado == 'activo' || local.estado == 'descanso')) {
+            local.estado = 'inactivo';
+            debugPrint('🔄 Usuario ${local.nombre} marcado como inactivo por sincronización');
+          }
+
+          await _isarService.guardarUsuario(local);
+        } else {
+          // Crear nuevo usuario (con estado inactivo por defecto)
+          final nuevoUsuario = UsuarioEntity()
+            ..id = idIsar
+            ..nombre = data['nombre'] ?? ''
+            ..pin = data['pin'] ?? '1234'
+            ..rol = data['rol'] ?? 'cajero'
+            ..activo = true
+            ..estado = 'inactivo'
+            ..cajaAsignada = data['caja_asignada'] ?? ''
+            ..email = data['email']
+            ..deviceId = data['device_id'] ?? ''
+            ..departamento = data['departamento']; // null o string
+          await _isarService.guardarUsuario(nuevoUsuario);
+        }
+      }
+
+      debugPrint('✅ Usuarios sincronizados desde Supabase');
+    } catch (e) {
+      debugPrint('❌ Error descargando usuarios: $e');
+      rethrow;
+    }
+  }
+
+  /// Obtiene todos los usuarios desde Supabase (sin modificar locales)
+  Future<List<Map<String, dynamic>>> obtenerUsuariosDesdeSupabase() async {
+    try {
+      final response = await _supabase
+          .from('usuarios')
+          .select()
+          .order('nombre', ascending: true);
+      return response;
+    } catch (e) {
+      debugPrint('❌ Error obteniendo usuarios desde Supabase: $e');
+      return [];
     }
   }
 

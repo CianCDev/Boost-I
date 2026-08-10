@@ -46,6 +46,19 @@ class MenuOption {
   });
 }
 
+// Modelo para una sección del menú
+class MenuSection {
+  final String title;
+  final IconData? icon;
+  final List<MenuOption> options;
+
+  const MenuSection({
+    required this.title,
+    this.icon,
+    required this.options,
+  });
+}
+
 class PosMenuScreen extends ConsumerStatefulWidget {
   final bool showAppBar;
   const PosMenuScreen({super.key, this.showAppBar = true});
@@ -353,23 +366,28 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   }
 
   // ============================================================
-  // CONFIGURACIÓN DE OPCIONES DEL MENÚ (REORGANIZADO)
+  // CONFIGURACIÓN DE SECCIONES DEL MENÚ (REORGANIZADO)
   // ============================================================
-  List<MenuOption> _getMenuOptions() {
+  List<MenuSection> _getMenuSections() {
     final usuario = ref.read(usuarioActualProvider);
     final bool esAdmin = usuario?.rol == 'admin';
     final bool tieneTurno = _turnoAbierto != null;
 
-    final List<MenuOption> opciones = [];
-
-    // Sección 1: Acciones principales
-    opciones.addAll([
+    // Opciones base (para todos)
+    final opcionesPrincipales = [
       MenuOption(
         title: 'Volver al Catálogo',
         subtitle: 'Pantalla de ventas y cobro',
         icon: Icons.point_of_sale_rounded,
         color: const Color(0xFF10B981),
         onTap: () => Navigator.pop(context),
+      ),
+      MenuOption(
+        title: tieneTurno ? 'Cerrar Turno' : 'Abrir Turno',
+        subtitle: tieneTurno ? 'Finalizar jornada' : 'Iniciar jornada laboral',
+        icon: tieneTurno ? Icons.stop_rounded : Icons.play_arrow_rounded,
+        color: tieneTurno ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+        onTap: tieneTurno ? _cerrarTurno : _abrirTurno,
       ),
       MenuOption(
         title: 'Sincronizar Datos',
@@ -383,13 +401,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         onTap: _sincronizarTodo,
       ),
       MenuOption(
-        title: tieneTurno ? 'Cerrar Turno' : 'Abrir Turno',
-        subtitle: tieneTurno ? 'Finalizar jornada' : 'Iniciar jornada laboral',
-        icon: tieneTurno ? Icons.stop_rounded : Icons.play_arrow_rounded,
-        color: tieneTurno ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-        onTap: tieneTurno ? _cerrarTurno : _abrirTurno,
-      ),
-      MenuOption(
         title: 'Configurar Impresora',
         subtitle: 'Seleccionar y probar impresora POS',
         icon: Icons.print_rounded,
@@ -399,10 +410,77 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           builder: (context) => const PrinterSelectionDialog(),
         ),
       ),
-    ]);
+    ];
 
-    // Sección 2: Ajustes de usuario (para todos)
-    opciones.add(
+    // Opciones de administración (solo admin)
+    final opcionesAdmin = [
+      MenuOption(
+        title: 'Monitor de Empleados',
+        subtitle: 'Estado de cajeros conectados',
+        icon: Icons.people_alt_rounded,
+        color: const Color(0xFF3B82F6),
+        onTap: () => showDialog(
+          context: context,
+          builder: (context) => const monitor.EmployeeMonitorDialog(),
+        ),
+        isAdminOnly: true,
+      ),
+      MenuOption(
+        title: 'Gestión de Personal',
+        subtitle: 'Crear y administrar admins y cajeros',
+        icon: Icons.admin_panel_settings_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => showDialog(
+          context: context,
+          builder: (context) => const PersonnelManagementDialog(),
+        ),
+        isAdminOnly: true,
+      ),
+      MenuOption(
+        title: 'Historial de Ventas',
+        subtitle: 'Ventas del día y turnos',
+        icon: Icons.receipt_long_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const SalesHistoryScreen()),
+        ),
+        isAdminOnly: true,
+      ),
+      MenuOption(
+        title: 'Registrar Gasto',
+        subtitle: 'Agregar egresos del día',
+        icon: Icons.money_off_rounded,
+        color: const Color(0xFFEF4444),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const GastosScreen()),
+        ),
+        isAdminOnly: true,
+      ),
+      MenuOption(
+        title: 'Cierre de Caja',
+        subtitle: 'Arqueo y balance del día',
+        icon: Icons.money_off_csred_rounded,
+        color: const Color(0xFFF59E0B),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const CashClosingScreen()),
+        ),
+        isAdminOnly: true,
+      ),
+      MenuOption(
+        title: 'Backup de Datos',
+        subtitle: 'Crear y compartir copia de seguridad',
+        icon: Icons.backup_rounded,
+        color: const Color(0xFFF59E0B),
+        onTap: _crearBackup,
+        isAdminOnly: true,
+      ),
+    ];
+
+    // Opciones de configuración y utilidades
+    final opcionesConfiguracion = [
       MenuOption(
         title: 'Ajustes de Usuario',
         subtitle: 'Nombre, PIN, tema y más',
@@ -417,80 +495,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           ),
         ),
       ),
-    );
-
-    // Sección 3: Administración (solo admin)
-    if (esAdmin) {
-      opciones.addAll([
-        MenuOption(
-          title: 'Monitor de Empleados',
-          subtitle: 'Estado de cajeros conectados',
-          icon: Icons.people_alt_rounded,
-          color: const Color(0xFF3B82F6),
-          onTap: () => showDialog(
-            context: context,
-            builder: (context) => const monitor.EmployeeMonitorDialog(),
-          ),
-          isAdminOnly: true,
-        ),
-        MenuOption(
-          title: 'Gestión de Personal',
-          subtitle: 'Crear y administrar admins y cajeros',
-          icon: Icons.admin_panel_settings_rounded,
-          color: const Color(0xFF8B5CF6),
-          onTap: () => showDialog(
-            context: context,
-            builder: (context) => const PersonnelManagementDialog(),
-          ),
-          isAdminOnly: true,
-        ),
-        MenuOption(
-          title: 'Registrar Gasto',
-          subtitle: 'Agregar egresos del día',
-          icon: Icons.money_off_rounded,
-          color: const Color(0xFFEF4444),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const GastosScreen()),
-          ),
-          isAdminOnly: true,
-        ),
-        MenuOption(
-          title: 'Historial de Ventas',
-          subtitle: 'Ventas del día y turnos',
-          icon: Icons.receipt_long_rounded,
-          color: const Color(0xFF8B5CF6),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const SalesHistoryScreen()),
-          ),
-          isAdminOnly: true,
-        ),
-        MenuOption(
-          title: 'Backup de Datos',
-          subtitle: 'Crear y compartir copia de seguridad',
-          icon: Icons.backup_rounded,
-          color: const Color(0xFFF59E0B),
-          onTap: _crearBackup,
-          isAdminOnly: true,
-        ),
-        MenuOption(
-          title: 'Cierre de Caja',
-          subtitle: 'Arqueo y balance del día',
-          icon: Icons.money_off_csred_rounded,
-          color: const Color(0xFFF59E0B),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CashClosingScreen()),
-          ),
-          isAdminOnly: true,
-        ),
-      ]);
-    }
-
-    // Sección 4: Configuración avanzada (solo admin)
-    if (esAdmin) {
-      opciones.add(
+      if (esAdmin)
         MenuOption(
           title: 'Cambiar de Empresa',
           subtitle: 'Seleccionar otra organización',
@@ -535,21 +540,61 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           },
           isAdminOnly: true,
         ),
-      );
-    }
+    ];
 
-    // Sección 5: Salir (para todos)
-    opciones.add(
-      MenuOption(
-        title: 'Salir del POS',
-        subtitle: 'Cerrar sesión y volver al login',
-        icon: Icons.logout_rounded,
-        color: const Color(0xFFEF4444),
-        onTap: _logout,
+    // Opción de salir (siempre al final)
+    final opcionSalir = MenuOption(
+      title: 'Salir del POS',
+      subtitle: 'Cerrar sesión y volver al login',
+      icon: Icons.logout_rounded,
+      color: const Color(0xFFEF4444),
+      onTap: _logout,
+    );
+
+    // Construir secciones
+    final List<MenuSection> secciones = [];
+
+    // Sección 1: Acciones principales
+    secciones.add(
+      MenuSection(
+        title: 'Acciones principales',
+        icon: Icons.star_rounded,
+        options: opcionesPrincipales,
       ),
     );
 
-    return opciones;
+    // Sección 2: Administración (solo admin)
+    if (esAdmin) {
+      secciones.add(
+        MenuSection(
+          title: 'Administración y reportes',
+          icon: Icons.analytics_rounded,
+          options: opcionesAdmin,
+        ),
+      );
+    }
+
+    // Sección 3: Configuración y utilidades
+    if (opcionesConfiguracion.isNotEmpty) {
+      secciones.add(
+        MenuSection(
+          title: 'Configuración y utilidades',
+          icon: Icons.tune_rounded,
+          options: opcionesConfiguracion,
+        ),
+      );
+    }
+
+    // Sección 4: Salir
+    secciones.add(
+      MenuSection(
+        title: 'Cerrar sesión',
+        icon: Icons.exit_to_app_rounded,
+        options: [opcionSalir],
+      ),
+    );
+
+    return secciones;
   }
 
   // ============================================================
@@ -563,30 +608,38 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     final usuario = ref.read(usuarioActualProvider);
     final esAdmin = usuario?.rol == 'admin';
 
-    // Filtrar opciones según rol
-    final menuOptions = _getMenuOptions()
-        .where((opt) => !opt.isAdminOnly || esAdmin)
+    // Obtener secciones y filtrar opciones según rol
+    final secciones = _getMenuSections()
+        .map((section) {
+          final opcionesFiltradas = section.options
+              .where((opt) => !opt.isAdminOnly || esAdmin)
+              .toList();
+          return MenuSection(
+            title: section.title,
+            icon: section.icon,
+            options: opcionesFiltradas,
+          );
+        })
+        .where((section) => section.options.isNotEmpty)
         .toList();
 
-    // Configuración de la grid - ajustado para que quede bien en móvil
+    // Configuración de la grid dentro de cada sección
     int crossAxisCount;
     double childAspectRatio;
     if (isMobile) {
       crossAxisCount = 1;
-      childAspectRatio = 3.8; // Reduce la altura para evitar espacio en blanco
+      childAspectRatio = 4.5; // Ajustado para que quepa bien con el título
     } else if (isTablet) {
       crossAxisCount = 2;
-      childAspectRatio = 4.2;
+      childAspectRatio = 5.0;
     } else {
-      crossAxisCount = 3;
-      childAspectRatio = 4.0;
+      crossAxisCount = 2; // En escritorio también usamos 2 columnas para secciones más compactas
+      childAspectRatio = 5.0;
     }
 
     final contenido = Column(
       children: [
-        // ==========================================
-        // BANNER DE ESTADO DE TURNO (usando widget)
-        // ==========================================
+        // BANNER DE TURNO
         TurnoStatusBanner(
           tieneTurno: tieneTurno,
           horaApertura: tieneTurno ? _formatearHora(_turnoAbierto!.fechaApertura) : null,
@@ -594,51 +647,32 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           onCerrarTurno: _cerrarTurno,
         ),
 
-        // ==========================================
-        // GRID DE OPCIONES CON ANIMACIÓN
-        // ==========================================
+        // LISTA DE SECCIONES
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: AnimationLimiter(
-              child: GridView.builder(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  childAspectRatio: childAspectRatio,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                ),
-                itemCount: menuOptions.length,
-                itemBuilder: (context, index) {
-                  final option = menuOptions[index];
-                  return AnimationConfiguration.staggeredGrid(
-                    position: index,
-                    duration: const Duration(milliseconds: 500),
-                    columnCount: crossAxisCount,
-                    child: ScaleAnimation(
-                      scale: 0.8,
-                      curve: Curves.easeOutCubic,
-                      child: FadeInAnimation(
-                        curve: Curves.easeOutCubic,
-                        child: _buildMenuCard(
-                          context,
-                          option: option,
-                          isMobile: isMobile,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              children: [
+                for (var section in secciones) ...[
+                  // Título de sección
+                  _buildSectionTitle(section.title, section.icon, isMobile),
+                  const SizedBox(height: 8),
+                  // Grid de opciones de la sección
+                  _buildOptionsGrid(
+                    section.options,
+                    crossAxisCount,
+                    childAspectRatio,
+                    isMobile,
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ],
             ),
           ),
         ),
       ],
     );
 
-    // ==========================================
-    // ENVOLVER CON SCAFFOLD SEGÚN showAppBar
-    // ==========================================
     if (widget.showAppBar) {
       return Scaffold(
         backgroundColor: Colors.grey.shade50,
@@ -648,6 +682,85 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     } else {
       return contenido;
     }
+  }
+
+  // ==========================================
+  // TÍTULO DE SECCIÓN CON ESTILO MEJORADO
+  // ==========================================
+  Widget _buildSectionTitle(String title, IconData? icon, bool isMobile) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: isMobile ? 18 : 22, color: Colors.grey.shade700),
+            const SizedBox(width: 8),
+          ],
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: isMobile ? 15 : 18,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey.shade800,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const Spacer(),
+          Container(
+            height: 1,
+            width: isMobile ? 40 : 80,
+            color: Colors.grey.shade300,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // GRID DE OPCIONES CON ANIMACIÓN
+  // ==========================================
+  Widget _buildOptionsGrid(
+    List<MenuOption> options,
+    int crossAxisCount,
+    double childAspectRatio,
+    bool isMobile,
+  ) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20),
+      child: AnimationLimiter(
+        child: GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: childAspectRatio,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemCount: options.length,
+          itemBuilder: (context, index) {
+            final option = options[index];
+            return AnimationConfiguration.staggeredGrid(
+              position: index,
+              duration: const Duration(milliseconds: 400),
+              columnCount: crossAxisCount,
+              child: ScaleAnimation(
+                scale: 0.8,
+                curve: Curves.easeOutCubic,
+                child: FadeInAnimation(
+                  curve: Curves.easeOutCubic,
+                  child: _buildMenuCard(
+                    context,
+                    option: option,
+                    isMobile: isMobile,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   // ==========================================
@@ -694,7 +807,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   }
 
   // ==========================================
-  // TARJETA DE MENÚ (con estilo mejorado y centrado)
+  // TARJETA DE MENÚ (con estilo mejorado)
   // ==========================================
   Widget _buildMenuCard(BuildContext context, {
     required MenuOption option,
@@ -723,24 +836,24 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                   option.color.withValues(alpha: 0.15),
                 ],
               ),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: option.color.withValues(alpha: hovered ? 0.6 : 0.2),
-                width: 2,
+                width: 1.5,
               ),
               boxShadow: hovered
                   ? [
                       BoxShadow(
                         color: option.color.withValues(alpha: 0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
                       ),
                     ]
                   : [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
             ),
@@ -748,11 +861,11 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
               color: Colors.transparent,
               child: InkWell(
                 onTap: option.onTap,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(16),
                 child: Padding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 16 : 20,
-                    vertical: 12,
+                    horizontal: isMobile ? 14 : 18,
+                    vertical: 10,
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.start,
@@ -761,7 +874,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                       // Icono con fondo circular
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: option.color.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
@@ -769,7 +882,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                               ? [
                                   BoxShadow(
                                     color: option.color.withValues(alpha: 0.2),
-                                    blurRadius: 12,
+                                    blurRadius: 10,
                                     spreadRadius: 2,
                                   ),
                                 ]
@@ -777,11 +890,11 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                         ),
                         child: Icon(
                           option.icon,
-                          size: isMobile ? 28 : 36,
+                          size: isMobile ? 24 : 30,
                           color: option.color,
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 14),
                       // Texto
                       Expanded(
                         child: Column(
@@ -792,7 +905,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                               option.title,
                               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
-                                    fontSize: isMobile ? 16 : 20,
+                                    fontSize: isMobile ? 15 : 18,
                                   ),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
@@ -801,7 +914,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                             Text(
                               option.subtitle,
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontSize: isMobile ? 12 : 14,
+                                    fontSize: isMobile ? 11 : 13,
                                     color: Colors.grey.shade600,
                                   ),
                               overflow: TextOverflow.ellipsis,
@@ -813,7 +926,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                       // Flecha indicadora
                       Icon(
                         Icons.arrow_forward_ios_rounded,
-                        size: isMobile ? 16 : 20,
+                        size: isMobile ? 14 : 18,
                         color: Colors.grey.shade400,
                       ),
                     ],

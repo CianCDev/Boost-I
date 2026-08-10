@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../utils/responsive_helper.dart';
+import '../services/sync_service.dart';
 
 class EmployeeMonitorDialog extends ConsumerStatefulWidget {
   const EmployeeMonitorDialog({super.key});
@@ -17,17 +15,20 @@ class EmployeeMonitorDialog extends ConsumerStatefulWidget {
 
 class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
   List<UsuarioEntity> _usuarios = [];
+  List<String> _departamentos = [];
+  String? _departamentoSeleccionado;
   bool _isLoading = true;
   String? _error;
   Timer? _timer;
   final IsarService _isarService = IsarService();
+  final SyncService _syncService = SyncService();
 
   @override
   void initState() {
     super.initState();
     _cargarUsuarios();
     _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted) _cargarUsuarios();
+      if (mounted) _sincronizarYActualizar();
     });
   }
 
@@ -37,79 +38,89 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
     super.dispose();
   }
 
-  Future<void> _cargarUsuarios() async {
+  Future<void> _sincronizarYActualizar() async {
     try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+      await _syncService.sincronizarUsuariosDesdeSupabase();
+      await _actualizarEstadosDesdeNube();
+      await _cargarUsuariosLocal();
+    } catch (e) {
+      debugPrint('⚠️ Error en sincronización: $e');
+      await _cargarUsuariosLocal();
+    }
+  }
 
-      final prefs = await SharedPreferences.getInstance();
-      final url = prefs.getString('supabase_url');
-      final anonKey = prefs.getString('supabase_anon_key');
-      final empresaId = prefs.getString('empresa_id');
-
-      if (url == null || anonKey == null) {
-        setState(() {
-          _error = 'No hay configuración de Supabase. Ve a Configurar Empresa.';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      String baseUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
-      if (!baseUrl.contains('/rest/v1')) {
-        baseUrl = '$baseUrl/rest/v1';
-      }
-
-      // ✅ Filtrar por empresa si está disponible
-      String requestUrl = '$baseUrl/usuarios?select=*';
-      if (empresaId != null && empresaId.isNotEmpty) {
-        requestUrl = '$baseUrl/usuarios?select=*&empresa_id=eq.$empresaId';
-      }
-
-      debugPrint('🔍 Request URL: $requestUrl');
-
-      final response = await http.get(
-        Uri.parse(requestUrl),
-        headers: {
-          'apikey': anonKey,
-          'Authorization': 'Bearer $anonKey',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as List;
-        final usuarios = data.map<UsuarioEntity>((row) {
-          return UsuarioEntity()
-            ..id = row['id_isar'] as int
-            ..nombre = row['nombre'] as String
-            ..rol = row['rol'] as String
-            ..estado = row['estado'] as String? ?? 'inactivo'
-            ..deviceId = row['device_id'] as String? ?? '';
-        }).toList();
-
-        // ✅ Actualizar también la base de datos local para mantener consistencia
-        for (final usuario in usuarios) {
-          await _isarService.guardarUsuario(usuario);
-        }
-
-        setState(() {
-          _usuarios = usuarios;
-          _isLoading = false;
-          _error = null;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-          _error = 'HTTP ${response.statusCode}: ${response.body}';
-        });
-      }
+  Future<void> _cargarUsuarios() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      await _syncService.sincronizarUsuariosDesdeSupabase();
+      await _actualizarEstadosDesdeNube();
+      await _cargarUsuariosLocal();
     } catch (e) {
       setState(() {
-        _isLoading = false;
         _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _actualizarEstadosDesdeNube() async {
+    try {
+      final nubeUsuarios = await _syncService.obtenerUsuariosDesdeSupabase();
+      if (nubeUsuarios.isEmpty) return;
+
+      final Map<int, String> estadosNube = {};
+      for (var row in nubeUsuarios) {
+        final id = row['id_isar'] as int?;
+        if (id != null) {
+          estadosNube[id] = (row['estado'] as String? ?? 'inactivo');
+        }
+      }
+
+      final locales = await _isarService.obtenerUsuarios();
+      for (var local in locales) {
+        if (estadosNube.containsKey(local.id)) {
+          final estadoNube = estadosNube[local.id]!;
+          // Si el estado local difiere del de la nube, actualizamos
+          if (local.estado != estadoNube) {
+            await _isarService.actualizarEstadoUsuario(local.id, estadoNube);
+            debugPrint('🔄 Monitor: ${local.nombre} actualizado de ${local.estado} a $estadoNube');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error actualizando estados desde nube: $e');
+    }
+  }
+
+  Future<void> _cargarUsuariosLocal() async {
+    try {
+      // 🔥 AHORA CARGAMOS TODOS LOS USUARIOS, SIN FILTRAR
+      final todos = await _isarService.obtenerUsuarios();
+
+      // Extraer departamentos únicos
+      final depts = todos.map((u) => u.departamento ?? '').where((d) => d.isNotEmpty).toSet().toList();
+      depts.sort();
+
+      setState(() {
+        _departamentos = depts;
+        if (_departamentoSeleccionado == null && depts.isNotEmpty) {
+          _departamentoSeleccionado = depts.first;
+        }
+        List<UsuarioEntity> filtrados = todos;
+        if (_departamentoSeleccionado != null && _departamentoSeleccionado!.isNotEmpty) {
+          filtrados = todos.where((u) => u.departamento == _departamentoSeleccionado).toList();
+        }
+        _usuarios = filtrados;
+        _isLoading = false;
+        _error = null;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
       });
     }
   }
@@ -226,10 +237,34 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
               ),
             ),
             const SizedBox(height: 16),
+            // Filtro por departamento (visible solo si hay más de 1 departamento)
+            if (_departamentos.length > 1)
+              Row(
+                children: [
+                  const Text('Departamento: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Expanded(
+                    child: DropdownButton<String>(
+                      value: _departamentoSeleccionado,
+                      isExpanded: true,
+                      items: [
+                        const DropdownMenuItem(value: '', child: Text('Todos')),
+                        ..._departamentos.map((d) => DropdownMenuItem(value: d, child: Text(d))),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _departamentoSeleccionado = value;
+                        });
+                        _cargarUsuariosLocal();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 8),
             const Divider(),
             const SizedBox(height: 12),
 
-            // LISTA DE EMPLEADOS
+            // LISTA DE EMPLEADOS (TODOS)
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _cargarUsuarios,
@@ -293,7 +328,8 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                 itemBuilder: (context, index) {
                                   final usuario = _usuarios[index];
                                   final isActive = usuario.estado == 'activo';
-                                  final isDescanso = usuario.estado == 'descanso' || usuario.estado == 'manualrest';
+                                  final isDescanso = usuario.estado == 'descanso';
+                                  final isInactive = usuario.estado == 'inactivo' || usuario.estado == 'desconectado';
 
                                   Color estadoColor;
                                   String estadoTexto;
@@ -330,15 +366,18 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                     ),
                                     title: Row(
                                       children: [
-                                        Text(
-                                          usuario.nombre,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: isMobile ? 15 : 17,
-                                            color: theme.textTheme.bodyLarge?.color,
+                                        Expanded(
+                                          child: Text(
+                                            usuario.nombre,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: isMobile ? 15 : 17,
+                                              color: theme.textTheme.bodyLarge?.color,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                        if (isAdmin) ...[
+                                        if (isAdmin && !isMobile) ...[
                                           const SizedBox(width: 8),
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -350,9 +389,26 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                             child: Text(
                                               'ADMIN',
                                               style: TextStyle(
-                                                fontSize: isMobile ? 8 : 10,
+                                                fontSize: 10,
                                                 fontWeight: FontWeight.bold,
                                                 color: const Color(0xFF3B82F6),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                        if (usuario.departamento != null && usuario.departamento!.isNotEmpty && !isMobile) ...[
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.withValues(alpha: 0.2),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              usuario.departamento!,
+                                              style: TextStyle(
+                                                fontSize: isMobile ? 10 : 12,
+                                                color: theme.textTheme.bodySmall?.color,
                                               ),
                                             ),
                                           ),
@@ -420,7 +476,16 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                               ],
                                             ),
                                           )
-                                        : null,
+                                        : isInactive
+                                            ? Container(
+                                                width: 10,
+                                                height: 10,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              )
+                                            : null,
                                     dense: true,
                                   );
                                 },
@@ -432,7 +497,6 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
             const Divider(),
             const SizedBox(height: 8),
 
-            // Botón de actualizar manual
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(

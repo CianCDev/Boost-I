@@ -50,7 +50,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _animationController.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _sincronizarUsuarios();
+      _sincronizarUsuarios(showFeedback: false);
     });
   }
 
@@ -70,7 +70,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (savedId != null) {
       final authState = ref.read(authProvider);
       final exists = authState.usuarios.any((u) => u.id == savedId);
-      if (exists) {
+      if (exists && mounted) {
         setState(() => _selectedUserId = savedId);
       }
     }
@@ -85,6 +85,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   // SINCRONIZACIÓN
   // ============================================================
   Future<void> _sincronizarUsuarios({bool showFeedback = true}) async {
+    // Evitar llamadas si el widget ya no está montado
+    if (!mounted) return;
+
     setState(() => _isLoading = true);
     try {
       await SyncService().sincronizarUsuariosASupabase();
@@ -102,8 +105,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   void _showSnackbar(String message, Color color) {
+    // 🔥 Verificar que el widget esté montado antes de mostrar el SnackBar
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: color),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+      ),
     );
   }
 
@@ -142,6 +152,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         );
     setState(() => _isLoading = false);
 
+    // 🔥 Verificar mounted antes de navegar o mostrar mensajes
     if (success && mounted) {
       final user = ref.read(authProvider).currentUser;
       if (user != null) {
@@ -153,7 +164,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
         );
       }
-    } else {
+    } else if (mounted) {
       setState(() => _errorMessage = 'PIN incorrecto. Intenta de nuevo.');
     }
   }
