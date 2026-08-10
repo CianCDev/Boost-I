@@ -1,20 +1,15 @@
+// lib/features/pos/presentation/providers/theme_provider.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// Provider para almacenar el ThemeMode (sistema, claro u oscuro)
-final themeModeProvider = StateProvider<ThemeMode>((ref) {
-  // Valor inicial: seguir el sistema (o claro)
-  return ThemeMode.system;
+final themeProvider = StateNotifierProvider<ThemeNotifier, ThemeMode>((ref) {
+  return ThemeNotifier();
 });
 
-// Provider para acceder fácilmente al tema actual
-final isDarkModeProvider = Provider<bool>((ref) {
-  final themeMode = ref.watch(themeModeProvider);
-  // Si es sistema, detecta el modo del sistema
-  if (themeMode == ThemeMode.system) {
-    // ignore: deprecated_member_use
-    return WidgetsBinding.instance.window.platformBrightness == Brightness.dark;
+class ThemeNotifier extends StateNotifier<ThemeMode> {
+  ThemeNotifier() : super(ThemeMode.light);
+
+  void toggleTheme() {
+    state = state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
   }
-  return themeMode == ThemeMode.dark;
-});
-
+}

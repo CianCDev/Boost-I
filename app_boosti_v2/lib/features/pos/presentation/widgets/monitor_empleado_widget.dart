@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/Local/entities/usuario_entity.dart';
+import '../../data/Local/entities/isar_service.dart';
 import '../utils/responsive_helper.dart';
 
 class EmployeeMonitorDialog extends ConsumerStatefulWidget {
@@ -19,6 +20,7 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
   bool _isLoading = true;
   String? _error;
   Timer? _timer;
+  final IsarService _isarService = IsarService();
 
   @override
   void initState() {
@@ -36,74 +38,84 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
   }
 
   Future<void> _cargarUsuarios() async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final url = prefs.getString('supabase_url');
-    final anonKey = prefs.getString('supabase_anon_key');
-
-    if (url == null || anonKey == null) {
+    try {
       setState(() {
-        _error = 'No hay configuración de Supabase. Ve a Configurar Empresa.';
-        _isLoading = false;
-      });
-      return;
-    }
-
-    // Limpiar URL (quitar barra final si existe)
-    String baseUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
-    
-    // ⚠️ Si la URL guardada ya contiene '/rest/v1', no la agregues de nuevo
-    // La mayoría de las veces la URL guardada es "https://xxxxx.supabase.co"
-    // Sin embargo, en tu caso particular tienes "/rest/v1" al final.
-    // Para asegurar, si no tiene "/rest/v1", lo agregamos.
-    if (!baseUrl.contains('/rest/v1')) {
-      baseUrl = '$baseUrl/rest/v1';
-    }
-
-    final requestUrl = '$baseUrl/usuarios?select=*';
-    debugPrint('🔍 Request URL: $requestUrl');
-
-    final response = await http.get(
-      Uri.parse(requestUrl),
-      headers: {
-        'apikey': anonKey,
-        'Authorization': 'Bearer $anonKey',
-        'Content-Type': 'application/json',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as List;
-      final usuarios = data.map<UsuarioEntity>((row) {
-        return UsuarioEntity()
-          ..id = row['id_isar'] as int
-          ..nombre = row['nombre'] as String
-          ..rol = row['rol'] as String
-          ..estado = row['estado'] as String? ?? 'inactivo'
-          ..deviceId = row['device_id'] as String? ?? '';
-      }).toList();
-      setState(() {
-        _usuarios = usuarios;
-        _isLoading = false;
+        _isLoading = true;
         _error = null;
       });
-    } else {
+
+      final prefs = await SharedPreferences.getInstance();
+      final url = prefs.getString('supabase_url');
+      final anonKey = prefs.getString('supabase_anon_key');
+      final empresaId = prefs.getString('empresa_id');
+
+      if (url == null || anonKey == null) {
+        setState(() {
+          _error = 'No hay configuración de Supabase. Ve a Configurar Empresa.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      String baseUrl = url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+      if (!baseUrl.contains('/rest/v1')) {
+        baseUrl = '$baseUrl/rest/v1';
+      }
+
+      // ✅ Filtrar por empresa si está disponible
+      String requestUrl = '$baseUrl/usuarios?select=*';
+      if (empresaId != null && empresaId.isNotEmpty) {
+        requestUrl = '$baseUrl/usuarios?select=*&empresa_id=eq.$empresaId';
+      }
+
+      debugPrint('🔍 Request URL: $requestUrl');
+
+      final response = await http.get(
+        Uri.parse(requestUrl),
+        headers: {
+          'apikey': anonKey,
+          'Authorization': 'Bearer $anonKey',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as List;
+        final usuarios = data.map<UsuarioEntity>((row) {
+          return UsuarioEntity()
+            ..id = row['id_isar'] as int
+            ..nombre = row['nombre'] as String
+            ..rol = row['rol'] as String
+            ..estado = row['estado'] as String? ?? 'inactivo'
+            ..deviceId = row['device_id'] as String? ?? '';
+        }).toList();
+
+        // ✅ Actualizar también la base de datos local para mantener consistencia
+        for (final usuario in usuarios) {
+          await _isarService.guardarUsuario(usuario);
+        }
+
+        setState(() {
+          _usuarios = usuarios;
+          _isLoading = false;
+          _error = null;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          _error = 'HTTP ${response.statusCode}: ${response.body}';
+        });
+      }
+    } catch (e) {
       setState(() {
         _isLoading = false;
-        _error = 'HTTP ${response.statusCode}: ${response.body}';
+        _error = e.toString();
       });
     }
-  } catch (e) {
-    setState(() {
-      _isLoading = false;
-      _error = e.toString();
-    });
   }
-}
 
   @override
   Widget build(BuildContext context) {
-    // ... (mantén tu build actual sin cambios, solo llama a _cargarUsuarios en el botón "Reintentar")
     final theme = Theme.of(context);
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
@@ -112,11 +124,6 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
         ? MediaQuery.of(context).size.width * 0.92 
         : (isTablet ? 700 : 600);
     final double dialogMaxHeight = MediaQuery.of(context).size.height * 0.85;
-    final double fontSizeTitle = isMobile ? 18 : (isTablet ? 26 : 22);
-    final double fontSizeSubtitle = isMobile ? 12 : (isTablet ? 16 : 14);
-    final double fontSizeName = isMobile ? 15 : (isTablet ? 18 : 16);
-    final double fontSizeDetail = isMobile ? 11 : (isTablet ? 13 : 11);
-    final double fontSizeEstado = isMobile ? 11 : (isTablet ? 14 : 12);
 
     return Dialog(
       shape: RoundedRectangleBorder(
@@ -152,7 +159,7 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // TÍTULO (con indicador AUTO)
+            // HEADER
             Row(
               children: [
                 Container(
@@ -175,7 +182,7 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                     'Monitor de Empleados',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: fontSizeTitle,
+                      fontSize: isMobile ? 18 : 22,
                       color: theme.textTheme.bodyLarge?.color,
                     ),
                   ),
@@ -185,19 +192,12 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF10B981).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFF10B981),
-                      width: 1,
-                    ),
+                    border: Border.all(color: const Color(0xFF10B981), width: 1),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.autorenew_rounded,
-                        color: const Color(0xFF10B981),
-                        size: isMobile ? 12 : 16,
-                      ),
+                      Icon(Icons.autorenew_rounded, color: const Color(0xFF10B981), size: isMobile ? 12 : 16),
                       const SizedBox(width: 4),
                       Text(
                         'AUTO',
@@ -221,12 +221,12 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
             Text(
               'Actualización automática cada 5 segundos',
               style: TextStyle(
-                fontSize: fontSizeSubtitle,
+                fontSize: isMobile ? 12 : 14,
                 color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(height: 16),
-            Divider(color: theme.dividerColor),
+            const Divider(),
             const SizedBox(height: 12),
 
             // LISTA DE EMPLEADOS
@@ -284,12 +284,9 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                 ),
                               )
                             : ListView.separated(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: isMobile ? 4 : 8,
-                                  vertical: isMobile ? 4 : 8,
-                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 4),
                                 itemCount: _usuarios.length,
-                                separatorBuilder: (_, _) => Divider(
+                                separatorBuilder: (_, __) => Divider(
                                   color: theme.dividerColor,
                                   height: 1,
                                 ),
@@ -318,11 +315,10 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                     estadoIcon = Icons.power_off;
                                   }
 
+                                  final isAdmin = usuario.rol == 'admin';
+
                                   return ListTile(
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: isMobile ? 4 : 8,
-                                      vertical: isMobile ? 2 : 4,
-                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
                                     leading: CircleAvatar(
                                       radius: isMobile ? 20 : 24,
                                       backgroundColor: estadoColor.withValues(alpha: 0.15),
@@ -332,22 +328,43 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                         size: isMobile ? 18 : 22,
                                       ),
                                     ),
-                                    title: Text(
-                                      usuario.nombre,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: fontSizeName,
-                                        color: theme.textTheme.bodyLarge?.color,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                    title: Row(
+                                      children: [
+                                        Text(
+                                          usuario.nombre,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: isMobile ? 15 : 17,
+                                            color: theme.textTheme.bodyLarge?.color,
+                                          ),
+                                        ),
+                                        if (isAdmin) ...[
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: const Color(0xFF3B82F6), width: 0.5),
+                                            ),
+                                            child: Text(
+                                              'ADMIN',
+                                              style: TextStyle(
+                                                fontSize: isMobile ? 8 : 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: const Color(0xFF3B82F6),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                     subtitle: Row(
                                       children: [
                                         Text(
                                           'Rol: ${usuario.rol.toUpperCase()}',
                                           style: TextStyle(
-                                            fontSize: fontSizeDetail,
+                                            fontSize: isMobile ? 12 : 14,
                                             color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                                           ),
                                         ),
@@ -379,7 +396,7 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                                 style: TextStyle(
                                                   color: estadoColor,
                                                   fontWeight: FontWeight.bold,
-                                                  fontSize: fontSizeEstado,
+                                                  fontSize: isMobile ? 11 : 13,
                                                 ),
                                               ),
                                             ],
@@ -412,8 +429,9 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
             ),
 
             const SizedBox(height: 12),
-            Divider(color: theme.dividerColor),
+            const Divider(),
             const SizedBox(height: 8),
+
             // Botón de actualizar manual
             Align(
               alignment: Alignment.centerRight,

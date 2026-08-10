@@ -1,6 +1,7 @@
 // lib/features/pos/presentation/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/auth_provider.dart';
 import '../providers/usuario_provider.dart';
@@ -18,15 +19,12 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _pinController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-
-  bool _isEmailMode = false;
   bool _obscurePin = true;
-  bool _obscurePassword = true;
-
-  // ✅ Usamos el ID del usuario para el dropdown
   int? _selectedUserId;
+  bool _isLoading = false;
+  String? _errorMessage;
+  final GlobalKey<ScaffoldMessengerState> _scaffoldKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -35,11 +33,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(authProvider.notifier).inicializarAdminPorDefecto();
-      _sincronizarUsuarios();
-    });
-
+    _loadSelectedUser();
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -54,46 +48,75 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
     _animationController.forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sincronizarUsuarios();
+    });
   }
 
   @override
   void dispose() {
     _animationController.dispose();
     _pinController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
   // ============================================================
-  // SINCRONIZAR USUARIOS AL INICIAR
+  // CARGA DE USUARIO SELECCIONADO
   // ============================================================
-  Future<void> _sincronizarUsuarios() async {
-    try {
-      await SyncService().sincronizarUsuariosASupabase();
-      await ref.read(authProvider.notifier).loadUsuarios();
-      debugPrint('✅ Usuarios sincronizados correctamente');
-    } catch (e) {
-      debugPrint('⚠️ Error sincronizando usuarios: $e');
-      try {
-        await ref.read(authProvider.notifier).loadUsuarios();
-      } catch (_) {}
+  Future<void> _loadSelectedUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedId = prefs.getInt('selected_user_id');
+    if (savedId != null) {
+      final authState = ref.read(authProvider);
+      final exists = authState.usuarios.any((u) => u.id == savedId);
+      if (exists) {
+        setState(() => _selectedUserId = savedId);
+      }
     }
   }
 
+  Future<void> _saveSelectedUser(int userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('selected_user_id', userId);
+  }
+
   // ============================================================
-  // MÉTODOS DE AUTENTICACIÓN
+  // SINCRONIZACIÓN
+  // ============================================================
+  Future<void> _sincronizarUsuarios({bool showFeedback = true}) async {
+    setState(() => _isLoading = true);
+    try {
+      await SyncService().sincronizarUsuariosASupabase();
+      await ref.read(authProvider.notifier).loadUsuarios();
+      if (showFeedback && mounted) {
+        _showSnackbar('✅ Usuarios sincronizados', Colors.green);
+      }
+    } catch (e) {
+      if (showFeedback && mounted) {
+        _showSnackbar('⚠️ Error sincronizando: $e', Colors.red);
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSnackbar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: color),
+    );
+  }
+
+  // ============================================================
+  // LOGIN
   // ============================================================
   void _loginWithPin() async {
     final authState = ref.read(authProvider);
     if (authState.usuarios.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay usuarios disponibles')),
-      );
+      _showSnackbar('No hay usuarios disponibles', Colors.orange);
       return;
     }
 
-    // ✅ Obtener el usuario seleccionado por ID
     UsuarioEntity? usuarioSeleccionado;
     if (_selectedUserId != null) {
       try {
@@ -104,60 +127,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         usuarioSeleccionado = null;
       }
     }
-    // Si no se encontró o no hay selección, usar el primero
     usuarioSeleccionado ??= authState.usuarios.first;
 
     final pin = _pinController.text.trim();
     if (pin.isEmpty) {
-      ref.read(authProvider.notifier).setError('Por favor ingresa tu PIN.');
+      setState(() => _errorMessage = 'Por favor ingresa tu PIN.');
       return;
     }
 
+    setState(() => _isLoading = true);
     final success = await ref.read(authProvider.notifier).loginWithPin(
           usuarioSeleccionado,
           pin,
         );
+    setState(() => _isLoading = false);
 
     if (success && mounted) {
       final user = ref.read(authProvider).currentUser;
       if (user != null) {
         ref.read(usuarioActualProvider.notifier).setUsuario(user);
+        await _saveSelectedUser(user.id);
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
           ),
         );
       }
-    }
-  }
-
-  void _loginWithEmail() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-    if (email.isEmpty || password.isEmpty) {
-      ref.read(authProvider.notifier).setError('Por favor ingresa correo y contraseña.');
-      return;
-    }
-
-    final success = await ref.read(authProvider.notifier).loginWithEmail(
-          email,
-          password,
-        );
-    if (success && mounted) {
-      final user = ref.read(authProvider).currentUser;
-      if (user != null) {
-        ref.read(usuarioActualProvider.notifier).setUsuario(user);
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
-          ),
-        );
-      }
+    } else {
+      setState(() => _errorMessage = 'PIN incorrecto. Intenta de nuevo.');
     }
   }
 
   // ============================================================
-  // BUILD (sin cambios)
+  // BUILD
   // ============================================================
   @override
   Widget build(BuildContext context) {
@@ -180,7 +182,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final buttonHeight = isMobile ? 50.0 : 62.0;
     final logoSize = isMobile ? 80.0 : 120.0;
 
+    // Obtener usuarios ordenados alfabéticamente
+    final usuariosOrdenados = List<UsuarioEntity>.from(authState.usuarios)
+      ..sort((a, b) => a.nombre.compareTo(b.nombre));
+
+    // Seleccionar el primero si no hay selección
+    if (_selectedUserId == null && usuariosOrdenados.isNotEmpty) {
+      _selectedUserId = usuariosOrdenados.first.id;
+    }
+
+    // Generar mensaje de PINs de ejemplo dinámico
+    String ejemploPins = '';
+    for (var u in usuariosOrdenados) {
+      if (u.rol == 'admin') {
+        ejemploPins += 'Admin (${u.nombre}): ${u.pin}';
+      } else {
+        ejemploPins += ' | ${u.nombre}: ${u.pin}';
+      }
+    }
+
     return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: Colors.transparent,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -194,107 +217,130 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             stops: [0.0, 0.5, 1.0],
           ),
         ),
-        child: Center(
-          child: authState.isLoading && authState.usuarios.isEmpty
-              ? const CircularProgressIndicator(color: Color(0xFF10B981))
-              : FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: SlideTransition(
-                    position: _slideAnimation,
-                    child: Container(
-                      width: containerWidth,
-                      margin: isMobile
-                          ? const EdgeInsets.symmetric(horizontal: 16)
-                          : EdgeInsets.zero,
-                      padding: EdgeInsets.all(paddingSize),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.98),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 40,
-                            offset: const Offset(0, 20),
+        child: SafeArea(
+          child: Center(
+            child: authState.isLoading && authState.usuarios.isEmpty
+                ? const CircularProgressIndicator(color: Color(0xFF10B981))
+                : FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: SlideTransition(
+                      position: _slideAnimation,
+                      child: Container(
+                        width: containerWidth,
+                        margin: isMobile
+                            ? const EdgeInsets.symmetric(horizontal: 16)
+                            : EdgeInsets.zero,
+                        padding: EdgeInsets.all(paddingSize),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.98),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.25),
+                              blurRadius: 40,
+                              offset: const Offset(0, 20),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            width: 1,
                           ),
-                        ],
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          width: 1,
                         ),
-                      ),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildLogo(logoSize, isMobile),
-                            const SizedBox(height: 16),
-                            Center(
-                              child: Text(
-                                'Inicia sesión para acceder al POS',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: isMobile ? 13 : 15,
-                                  fontWeight: FontWeight.w400,
+                        child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildLogo(logoSize, isMobile),
+                              const SizedBox(height: 16),
+                              Center(
+                                child: Text(
+                                  'Inicia sesión para acceder al POS',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: isMobile ? 13 : 15,
+                                    fontWeight: FontWeight.w400,
+                                  ),
                                 ),
                               ),
-                            ),
-                            SizedBox(height: isMobile ? 24 : 32),
-                            _buildModeSelector(isMobile),
-                            SizedBox(height: isMobile ? 20 : 28),
-                            if (!_isEmailMode)
-                              _buildPinMode(isMobile, isTablet)
-                            else
-                              _buildEmailMode(isMobile, isTablet),
-                            if (authState.errorMessage != null) ...[
-                              const SizedBox(height: 16),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.red.shade200),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.error_outline,
-                                        color: Colors.red.shade700, size: 18),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        authState.errorMessage!,
-                                        style: TextStyle(
-                                          color: Colors.red.shade700,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
+                              const SizedBox(height: 24),
+                              _buildPinMode(isMobile, isTablet, usuariosOrdenados),
+                              if (_errorMessage != null) ...[
+                                const SizedBox(height: 16),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.red.shade200),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.error_outline,
+                                          color: Colors.red.shade700, size: 18),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          _errorMessage!,
+                                          style: TextStyle(
+                                            color: Colors.red.shade700,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 24),
+                              _buildLoginButton(buttonHeight, isMobile),
+                              const SizedBox(height: 16),
+                              Center(
+                                child: Text(
+                                  'PIN de ejemplo: $ejemploPins',
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 10 : 12,
+                                    color: Colors.grey.shade500,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Center(
+                                child: TextButton(
+                                  onPressed: _isLoading ? null : () => _sincronizarUsuarios(),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _isLoading
+                                            ? Icons.sync_rounded
+                                            : Icons.cloud_sync_rounded,
+                                        size: 16,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Sincronizar usuarios',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],
-                            SizedBox(height: isMobile ? 24 : 32),
-                            _buildLoginButton(buttonHeight, isMobile,
-                                isLoading: authState.isLoading),
-                            const SizedBox(height: 16),
-                            Center(
-                              child: Text(
-                                'Admin PIN: 1234 | Cajero PIN: 0000',
-                                style: TextStyle(
-                                  fontSize: isMobile ? 10 : 12,
-                                  color: Colors.grey.shade500,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
+          ),
         ),
       ),
     );
@@ -359,110 +405,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildModeSelector(bool isMobile) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildModeButton(
-              icon: Icons.vpn_key_outlined,
-              label: 'PIN',
-              isSelected: !_isEmailMode,
-              onTap: () {
-                setState(() {
-                  _isEmailMode = false;
-                  ref.read(authProvider.notifier).clearError();
-                });
-              },
-              isMobile: isMobile,
-            ),
-          ),
-          Expanded(
-            child: _buildModeButton(
-              icon: Icons.alternate_email_outlined,
-              label: 'Correo',
-              isSelected: _isEmailMode,
-              onTap: () {
-                setState(() {
-                  _isEmailMode = true;
-                  ref.read(authProvider.notifier).clearError();
-                });
-              },
-              isMobile: isMobile,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModeButton({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required bool isMobile,
-  }) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      padding: EdgeInsets.symmetric(vertical: isMobile ? 10 : 14),
-      decoration: BoxDecoration(
-        color: isSelected ? Colors.white : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: isSelected
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 18,
-                color: isSelected ? const Color(0xFF0F172A) : Colors.grey.shade600,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: isMobile ? 13 : 15,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: isSelected ? const Color(0xFF0F172A) : Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPinMode(bool isMobile, bool isTablet) {
-    final authState = ref.watch(authProvider);
+  Widget _buildPinMode(bool isMobile, bool isTablet, List<UsuarioEntity> usuarios) {
     final fontSizeLabel = isMobile ? 13.0 : 15.0;
     final paddingVerticalInput = isTablet ? 22.0 : 18.0;
-
-    // ✅ Si no hay usuario seleccionado y la lista no está vacía, seleccionar el primero
-    if (_selectedUserId == null && authState.usuarios.isNotEmpty) {
-      _selectedUserId = authState.usuarios.first.id;
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -482,7 +427,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             border: Border.all(color: Colors.grey.shade300),
           ),
           child: DropdownButtonFormField<int>(
-            initialValue: _selectedUserId,
+            value: _selectedUserId,
+            isExpanded: true,
             decoration: InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(
@@ -490,24 +436,58 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 vertical: isTablet ? 18.0 : 12.0,
               ),
             ),
-            items: authState.usuarios.map((u) {
+            items: usuarios.map((u) {
+              final isAdmin = u.rol == 'admin';
               return DropdownMenuItem<int>(
                 value: u.id,
-                child: Text(
-                  '${u.nombre} (${u.rol.toUpperCase()})',
-                  style: TextStyle(fontSize: isMobile ? 14 : 16),
+                child: Row(
+                  children: [
+                    Icon(
+                      isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
+                      size: 18,
+                      color: isAdmin ? const Color(0xFF3B82F6) : const Color(0xFF10B981),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        u.nombre,
+                        style: TextStyle(
+                          fontWeight: isAdmin ? FontWeight.bold : FontWeight.normal,
+                          fontSize: isMobile ? 14 : 16,
+                        ),
+                      ),
+                    ),
+                    if (isAdmin)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'ADMIN',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF3B82F6),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               );
             }).toList(),
             onChanged: (val) {
               setState(() {
                 _selectedUserId = val;
+                _errorMessage = null;
               });
+              if (val != null) _saveSelectedUser(val);
             },
             icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
           ),
         ),
-        SizedBox(height: isMobile ? 16 : 24),
+        const SizedBox(height: 16),
         Text(
           'PIN de Acceso',
           style: TextStyle(
@@ -566,99 +546,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildEmailMode(bool isMobile, bool isTablet) {
-    final fontSizeLabel = isMobile ? 13.0 : 15.0;
-    final paddingVerticalInput = isTablet ? 22.0 : 18.0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Correo Electrónico',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: fontSizeLabel,
-            color: Colors.grey.shade700,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-          style: TextStyle(fontSize: isMobile ? 15 : 18),
-          decoration: InputDecoration(
-            hintText: 'ejemplo@correo.com',
-            hintStyle:
-                TextStyle(fontSize: isMobile ? 14 : 16, color: Colors.grey.shade400),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 12.0),
-              child: Icon(Icons.email_outlined,
-                  color: Colors.grey.shade500, size: isTablet ? 28 : 24),
-            ),
-            contentPadding:
-                EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
-          ),
-        ),
-        SizedBox(height: isMobile ? 16 : 24),
-        Text(
-          'Contraseña',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: fontSizeLabel,
-            color: Colors.grey.shade700,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _passwordController,
-          obscureText: _obscurePassword,
-          style: TextStyle(fontSize: isMobile ? 15 : 18),
-          decoration: InputDecoration(
-            hintText: 'Ingresa tu contraseña',
-            hintStyle:
-                TextStyle(fontSize: isMobile ? 14 : 16, color: Colors.grey.shade400),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 12.0),
-              child: Icon(Icons.lock_outline_rounded,
-                  color: Colors.grey.shade500, size: isTablet ? 28 : 24),
-            ),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: Colors.grey.shade500,
-                size: isTablet ? 28 : 24,
-              ),
-              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-            ),
-            contentPadding:
-                EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
-          ),
-          onFieldSubmitted: (_) => _loginWithEmail(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLoginButton(double height, bool isMobile,
-      {required bool isLoading}) {
+  Widget _buildLoginButton(double height, bool isMobile) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       height: height,
@@ -671,10 +559,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
           elevation: 0,
         ),
-        onPressed: isLoading
-            ? null
-            : (_isEmailMode ? _loginWithEmail : _loginWithPin),
-        child: isLoading
+        onPressed: _isLoading || _selectedUserId == null ? null : _loginWithPin,
+        child: _isLoading
             ? const SizedBox(
                 height: 24,
                 width: 24,

@@ -3,16 +3,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+
+import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/auth_provider.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../../data/Local/entities/isar_service.dart';
 
 import '../widgets/admin_validation_dialog.dart';
+import '../widgets/menu/turno_status_banner.dart';
 import 'cash_closing_screen.dart';
 import 'configuracion_empresa_screen.dart';
 import 'sales_history_screen.dart';
-import '../widgets/monitor_empleado_widget.dart';
+import '../widgets/monitor_empleado_widget.dart' as monitor;
 import '../widgets/gestion_personal_dialog.dart';
 import '../widgets/cambiar_pin_dialog.dart';
 import '../../presentation/providers/usuario_provider.dart';
@@ -20,29 +24,66 @@ import '../services/backup_service.dart';
 import 'login_screen.dart';
 import 'gastos_screen.dart';
 import '../../data/Local/entities/turno_entity.dart';
-import '../widgets/printer_selection_widget.dart'; // 👈 Importamos el selector de impresoras
+import '../widgets/printer_selection_widget.dart';
+import 'user_settings_screen.dart';
+
+// Modelo para cada opción del menú
+class MenuOption {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onTap;
+  final bool isAdminOnly;
+
+  const MenuOption({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    this.onTap,
+    this.isAdminOnly = false,
+  });
+}
 
 class PosMenuScreen extends ConsumerStatefulWidget {
-  const PosMenuScreen({super.key});
+  final bool showAppBar;
+  const PosMenuScreen({super.key, this.showAppBar = true});
 
   @override
   ConsumerState<PosMenuScreen> createState() => _PosMenuScreenState();
 }
 
-class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
+class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
+    with SingleTickerProviderStateMixin {
   final IsarService _isarService = IsarService();
   final SyncService _syncService = SyncService();
   int _ventasPendientesSync = 0;
   bool _sincronizando = false;
   TurnoEntity? _turnoAbierto;
+  late AnimationController _animationController;
 
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
     _cargarEstadoSync();
     _cargarEstadoTurno();
+    _animationController.forward();
   }
 
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  // ============================================================
+  // MÉTODOS DE NEGOCIO (sin cambios)
+  // ============================================================
   Future<void> _cargarEstadoSync() async {
     final pendientes = await _isarService.obtenerVentasPendientesSync();
     if (mounted) {
@@ -150,14 +191,12 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
       );
       return;
     }
-     // ✅ Descargar ventas de Supabase antes de calcular el total del turno
-  try {
-    await _syncService.descargarVentasDesdeSupabase();
-  } catch (e) {
-    debugPrint('⚠️ Error descargando ventas para el turno: $e');
-    // Continuar de todas formas
-  }
 
+    try {
+      await _syncService.descargarVentasDesdeSupabase();
+    } catch (e) {
+      debugPrint('⚠️ Error descargando ventas para el turno: $e');
+    }
 
     final double montoFinal = await _isarService.obtenerTotalVentasPorEmpleadoYRango(
       usuario.nombre,
@@ -313,88 +352,151 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isTablet = ResponsiveHelper.isTablet(context);
-    final theme = Theme.of(context);
-    final usuarioLogueado = ref.read(usuarioActualProvider);
-    final bool esAdmin = usuarioLogueado?.rol == 'admin';
+  // ============================================================
+  // CONFIGURACIÓN DE OPCIONES DEL MENÚ (REORGANIZADO)
+  // ============================================================
+  List<MenuOption> _getMenuOptions() {
+    final usuario = ref.read(usuarioActualProvider);
+    final bool esAdmin = usuario?.rol == 'admin';
     final bool tieneTurno = _turnoAbierto != null;
 
-    // ==========================================
-    // LISTA DE OPCIONES DEL MENÚ
-    // ==========================================
-    final List<Map<String, dynamic>> menuOptions = [
-      // 1. Siempre visibles
-      {
-        'title': 'Volver al Catálogo',
-        'subtitle': 'Pantalla de ventas y cobro',
-        'icon': Icons.point_of_sale_rounded,
-        'color': const Color(0xFF10B981),
-        'onTap': () => Navigator.pop(context),
-      },
-      {
-        'title': 'Sincronizar Datos',
-        'subtitle': _sincronizando
+    final List<MenuOption> opciones = [];
+
+    // Sección 1: Acciones principales
+    opciones.addAll([
+      MenuOption(
+        title: 'Volver al Catálogo',
+        subtitle: 'Pantalla de ventas y cobro',
+        icon: Icons.point_of_sale_rounded,
+        color: const Color(0xFF10B981),
+        onTap: () => Navigator.pop(context),
+      ),
+      MenuOption(
+        title: 'Sincronizar Datos',
+        subtitle: _sincronizando
             ? 'Enviando datos a la nube...'
             : '$_ventasPendientesSync pendientes',
-        'icon': Icons.sync_rounded,
-        'color': _ventasPendientesSync > 0
+        icon: Icons.sync_rounded,
+        color: _ventasPendientesSync > 0
             ? const Color(0xFFF59E0B)
             : const Color(0xFF10B981),
-        'onTap': _sincronizarTodo,
-      },
-
-      // ✅ 2. ÚNICO BOTÓN DINÁMICO PARA TURNOS
-      {
-        'title': tieneTurno ? 'Cerrar Turno' : 'Abrir Turno',
-        'subtitle': tieneTurno ? 'Finalizar jornada' : 'Iniciar jornada laboral',
-        'icon': tieneTurno ? Icons.stop_rounded : Icons.play_arrow_rounded,
-        'color': tieneTurno ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-        'onTap': tieneTurno ? _cerrarTurno : _abrirTurno,
-      },
-
-      // 👇 NUEVA OPCIÓN: CONFIGURAR IMPRESORA (para todos)
-      {
-        'title': 'Configurar Impresora',
-        'subtitle': 'Seleccionar y probar impresora POS',
-        'icon': Icons.print_rounded,
-        'color': const Color(0xFF8B5CF6),
-        'onTap': () => showDialog(
+        onTap: _sincronizarTodo,
+      ),
+      MenuOption(
+        title: tieneTurno ? 'Cerrar Turno' : 'Abrir Turno',
+        subtitle: tieneTurno ? 'Finalizar jornada' : 'Iniciar jornada laboral',
+        icon: tieneTurno ? Icons.stop_rounded : Icons.play_arrow_rounded,
+        color: tieneTurno ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+        onTap: tieneTurno ? _cerrarTurno : _abrirTurno,
+      ),
+      MenuOption(
+        title: 'Configurar Impresora',
+        subtitle: 'Seleccionar y probar impresora POS',
+        icon: Icons.print_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => showDialog(
           context: context,
           builder: (context) => const PrinterSelectionDialog(),
         ),
-      },
+      ),
+    ]);
 
-      // 3. Opciones solo para Administradores
-      if (esAdmin) ...[
-        {
-          'title': 'Monitor de Empleados',
-          'subtitle': 'Estado de cajeros conectados',
-          'icon': Icons.people_alt_rounded,
-          'color': const Color(0xFF3B82F6),
-          'onTap': () => showDialog(
-            context: context,
-            builder: (context) => const EmployeeMonitorDialog(),
+    // Sección 2: Ajustes de usuario (para todos)
+    opciones.add(
+      MenuOption(
+        title: 'Ajustes de Usuario',
+        subtitle: 'Nombre, PIN, tema y más',
+        icon: Icons.settings_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => UserSettingsScreen(
+              usuarioLogueado: usuario!,
+            ),
           ),
-        },
-        {
-          'title': 'Gestión de Personal',
-          'subtitle': 'Crear y administrar admins y cajeros',
-          'icon': Icons.admin_panel_settings_rounded,
-          'color': const Color(0xFF8B5CF6),
-          'onTap': () => showDialog(
+        ),
+      ),
+    );
+
+    // Sección 3: Administración (solo admin)
+    if (esAdmin) {
+      opciones.addAll([
+        MenuOption(
+          title: 'Monitor de Empleados',
+          subtitle: 'Estado de cajeros conectados',
+          icon: Icons.people_alt_rounded,
+          color: const Color(0xFF3B82F6),
+          onTap: () => showDialog(
+            context: context,
+            builder: (context) => const monitor.EmployeeMonitorDialog(),
+          ),
+          isAdminOnly: true,
+        ),
+        MenuOption(
+          title: 'Gestión de Personal',
+          subtitle: 'Crear y administrar admins y cajeros',
+          icon: Icons.admin_panel_settings_rounded,
+          color: const Color(0xFF8B5CF6),
+          onTap: () => showDialog(
             context: context,
             builder: (context) => const PersonnelManagementDialog(),
           ),
-        },
-        {
-          'title': 'Cambiar de Empresa',
-          'subtitle': 'Seleccionar otra organización',
-          'icon': Icons.business_center,
-          'color': const Color(0xFF8B5CF6),
-          'onTap': () async {
+          isAdminOnly: true,
+        ),
+        MenuOption(
+          title: 'Registrar Gasto',
+          subtitle: 'Agregar egresos del día',
+          icon: Icons.money_off_rounded,
+          color: const Color(0xFFEF4444),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const GastosScreen()),
+          ),
+          isAdminOnly: true,
+        ),
+        MenuOption(
+          title: 'Historial de Ventas',
+          subtitle: 'Ventas del día y turnos',
+          icon: Icons.receipt_long_rounded,
+          color: const Color(0xFF8B5CF6),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SalesHistoryScreen()),
+          ),
+          isAdminOnly: true,
+        ),
+        MenuOption(
+          title: 'Backup de Datos',
+          subtitle: 'Crear y compartir copia de seguridad',
+          icon: Icons.backup_rounded,
+          color: const Color(0xFFF59E0B),
+          onTap: _crearBackup,
+          isAdminOnly: true,
+        ),
+        MenuOption(
+          title: 'Cierre de Caja',
+          subtitle: 'Arqueo y balance del día',
+          icon: Icons.money_off_csred_rounded,
+          color: const Color(0xFFF59E0B),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const CashClosingScreen()),
+          ),
+          isAdminOnly: true,
+        ),
+      ]);
+    }
+
+    // Sección 4: Configuración avanzada (solo admin)
+    if (esAdmin) {
+      opciones.add(
+        MenuOption(
+          title: 'Cambiar de Empresa',
+          subtitle: 'Seleccionar otra organización',
+          icon: Icons.business_center,
+          color: const Color(0xFF8B5CF6),
+          onTap: () async {
             final confirm = await showDialog<bool>(
               context: context,
               builder: (context) => AlertDialog(
@@ -431,258 +533,296 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen> {
               );
             }
           },
-        },
-        {
-          'title': 'Registrar Gasto',
-          'subtitle': 'Agregar egresos del día',
-          'icon': Icons.money_off_rounded,
-          'color': const Color(0xFFEF4444),
-          'onTap': () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const GastosScreen()),
-          ),
-        },
-        {
-          'title': 'Cambiar mi Clave',
-          'subtitle': 'Actualizar PIN de acceso',
-          'icon': Icons.lock_reset_rounded,
-          'color': const Color(0xFF0EA5E9),
-          'onTap': () {
-            final usuarioActual = ref.read(usuarioActualProvider);
-            if (usuarioActual == null) return;
-
-            if (usuarioActual.rol == 'admin') {
-              showDialog(
-                context: context,
-                builder: (context) => AdminPinChangeDialog(
-                  admin: usuarioActual,
-                  isarService: _isarService,
-                ),
-              );
-            } else {
-              showDialog(
-                context: context,
-                builder: (context) => AdminValidationDialog(
-                  onSuccess: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => CashierPinChangeDialog(
-                        cajero: usuarioActual,
-                        isarService: _isarService,
-                      ),
-                    );
-                  },
-                  onCancel: () => Navigator.of(context).pop(),
-                ),
-              );
-            }
-          },
-        },
-        {
-          'title': 'Historial de Ventas',
-          'subtitle': 'Ventas del día y turnos',
-          'icon': Icons.receipt_long_rounded,
-          'color': const Color(0xFF8B5CF6),
-          'onTap': () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const SalesHistoryScreen()),
-          ),
-        },
-        {
-          'title': 'Backup de Datos',
-          'subtitle': 'Crear y compartir copia de seguridad',
-          'icon': Icons.backup_rounded,
-          'color': const Color(0xFFF59E0B),
-          'onTap': _crearBackup,
-        },
-        {
-          'title': 'Cierre de Caja',
-          'subtitle': 'Arqueo y balance del día',
-          'icon': Icons.money_off_csred_rounded,
-          'color': const Color(0xFFF59E0B),
-          'onTap': () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CashClosingScreen()),
-          ),
-        },
-      ],
-
-      // 4. Opciones para ambos roles (siempre visibles)
-      {
-        'title': 'Salir del POS',
-        'subtitle': 'Cerrar sesión y volver al login',
-        'icon': Icons.logout_rounded,
-        'color': const Color(0xFFEF4444),
-        'onTap': _logout,
-      },
-    ];
-
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text(
-          'Panel de Control POS',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          isAdminOnly: true,
         ),
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                theme.primaryColor,
-                theme.primaryColorDark,
-              ],
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 2,
-        foregroundColor: Colors.white,
+      );
+    }
+
+    // Sección 5: Salir (para todos)
+    opciones.add(
+      MenuOption(
+        title: 'Salir del POS',
+        subtitle: 'Cerrar sesión y volver al login',
+        icon: Icons.logout_rounded,
+        color: const Color(0xFFEF4444),
+        onTap: _logout,
       ),
-      body: Column(
-        children: [
-          // ==========================================
-          // BANNER DE ESTADO DE TURNO
-          // ==========================================
-          if (!tieneTurno)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: Colors.orange.shade100,
-              child: Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '⚠️ No tienes un turno abierto. Abre un turno para comenzar a vender.',
-                      style: TextStyle(color: Colors.orange.shade900),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _abrirTurno,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange.shade700,
-                    ),
-                    child: const Text('Abrir Turno'),
-                  ),
-                ],
-              ),
-            ),
-          if (tieneTurno)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.green.shade100,
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.green.shade700),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '✅ Turno abierto (iniciado: ${_formatearHora(_turnoAbierto!.fechaApertura)})',
-                      style: TextStyle(color: Colors.green.shade900),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    );
 
-          // ==========================================
-          // GRID DE OPCIONES
-          // ==========================================
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
+    return opciones;
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final tieneTurno = _turnoAbierto != null;
+    final usuario = ref.read(usuarioActualProvider);
+    final esAdmin = usuario?.rol == 'admin';
+
+    // Filtrar opciones según rol
+    final menuOptions = _getMenuOptions()
+        .where((opt) => !opt.isAdminOnly || esAdmin)
+        .toList();
+
+    // Configuración de la grid - ajustado para que quede bien en móvil
+    int crossAxisCount;
+    double childAspectRatio;
+    if (isMobile) {
+      crossAxisCount = 1;
+      childAspectRatio = 3.8; // Reduce la altura para evitar espacio en blanco
+    } else if (isTablet) {
+      crossAxisCount = 2;
+      childAspectRatio = 4.2;
+    } else {
+      crossAxisCount = 3;
+      childAspectRatio = 4.0;
+    }
+
+    final contenido = Column(
+      children: [
+        // ==========================================
+        // BANNER DE ESTADO DE TURNO (usando widget)
+        // ==========================================
+        TurnoStatusBanner(
+          tieneTurno: tieneTurno,
+          horaApertura: tieneTurno ? _formatearHora(_turnoAbierto!.fechaApertura) : null,
+          onAbrirTurno: _abrirTurno,
+          onCerrarTurno: _cerrarTurno,
+        ),
+
+        // ==========================================
+        // GRID DE OPCIONES CON ANIMACIÓN
+        // ==========================================
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: AnimationLimiter(
               child: GridView.builder(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: isMobile ? 1 : (isTablet ? 2 : 3),
-                  childAspectRatio: isMobile ? 1.6 : 1.8,
+                  crossAxisCount: crossAxisCount,
+                  childAspectRatio: childAspectRatio,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
                 ),
                 itemCount: menuOptions.length,
                 itemBuilder: (context, index) {
                   final option = menuOptions[index];
-                  return _buildMenuCard(
-                    context,
-                    title: option['title'],
-                    subtitle: option['subtitle'],
-                    icon: option['icon'],
-                    color: option['color'],
-                    onTap: option['onTap'],
-                    isMobile: isMobile,
+                  return AnimationConfiguration.staggeredGrid(
+                    position: index,
+                    duration: const Duration(milliseconds: 500),
+                    columnCount: crossAxisCount,
+                    child: ScaleAnimation(
+                      scale: 0.8,
+                      curve: Curves.easeOutCubic,
+                      child: FadeInAnimation(
+                        curve: Curves.easeOutCubic,
+                        child: _buildMenuCard(
+                          context,
+                          option: option,
+                          isMobile: isMobile,
+                        ),
+                      ),
+                    ),
                   );
                 },
               ),
             ),
           ),
-        ],
+        ),
+      ],
+    );
+
+    // ==========================================
+    // ENVOLVER CON SCAFFOLD SEGÚN showAppBar
+    // ==========================================
+    if (widget.showAppBar) {
+      return Scaffold(
+        backgroundColor: Colors.grey.shade50,
+        appBar: _buildAppBar(context, usuario),
+        body: contenido,
+      );
+    } else {
+      return contenido;
+    }
+  }
+
+  // ==========================================
+  // APP BAR
+  // ==========================================
+  PreferredSizeWidget _buildAppBar(BuildContext context, UsuarioEntity? usuario) {
+    return AppBar(
+      title: const Text(
+        'Panel de Control',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
       ),
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.fromRGBO(68, 109, 241, 1),
+              Color.fromARGB(255, 85, 59, 235),
+            ],
+          ),
+        ),
+      ),
+      backgroundColor: Colors.transparent,
+      elevation: 2,
+      foregroundColor: Colors.white,
+      actions: [
+        if (usuario != null)
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Row(
+              children: [
+                Icon(Icons.person_outline, color: Colors.white.withValues(alpha: 0.9), size: 20),
+                const SizedBox(width: 6),
+                Text(
+                  usuario.nombre,
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
   // ==========================================
-  // TARJETA DE MENÚ
+  // TARJETA DE MENÚ (con estilo mejorado y centrado)
   // ==========================================
-  Widget _buildMenuCard(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required VoidCallback? onTap,
+  Widget _buildMenuCard(BuildContext context, {
+    required MenuOption option,
     required bool isMobile,
   }) {
-    final theme = Theme.of(context);
+    final isHovered = ValueNotifier<bool>(false);
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: theme.cardColor,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(icon, size: isMobile ? 32 : 48, color: color),
+    return MouseRegion(
+      onEnter: (_) => isHovered.value = true,
+      onExit: (_) => isHovered.value = false,
+      child: ValueListenableBuilder(
+        valueListenable: isHovered,
+        builder: (context, hovered, child) {
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            transform: hovered
+                ? (Matrix4.identity()..scale(1.02))
+                : Matrix4.identity(),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  option.color.withValues(alpha: 0.05),
+                  option.color.withValues(alpha: 0.15),
+                ],
               ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: isMobile ? 16 : 22,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: option.color.withValues(alpha: hovered ? 0.6 : 0.2),
+                width: 2,
+              ),
+              boxShadow: hovered
+                  ? [
+                      BoxShadow(
+                        color: option.color.withValues(alpha: 0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontSize: isMobile ? 12 : 14,
-                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-                    ),
-                  ],
+                    ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: option.onTap,
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 16 : 20,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Icono con fondo circular
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: option.color.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                          boxShadow: hovered
+                              ? [
+                                  BoxShadow(
+                                    color: option.color.withValues(alpha: 0.2),
+                                    blurRadius: 12,
+                                    spreadRadius: 2,
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Icon(
+                          option.icon,
+                          size: isMobile ? 28 : 36,
+                          color: option.color,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Texto
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              option.title,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: isMobile ? 16 : 20,
+                                  ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              option.subtitle,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontSize: isMobile ? 12 : 14,
+                                    color: Colors.grey.shade600,
+                                  ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Flecha indicadora
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: isMobile ? 16 : 20,
+                        color: Colors.grey.shade400,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

@@ -104,6 +104,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
             cantidad: 1.0,
             esPesado: false,
           );
+        // ignore: unnecessary_to_list_in_spreads
         }).toList(),
       ];
 
@@ -373,6 +374,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
     final totalMethods = methods.keys.length;
 
     // Ancho mínimo para cada elemento
+    // ignore: unused_local_variable
     final double minItemWidth = isMobile ? 140 : 180;
 
     return Card(

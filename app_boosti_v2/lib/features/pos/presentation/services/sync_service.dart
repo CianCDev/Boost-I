@@ -126,6 +126,21 @@ class SyncService {
     }
   }
 
+
+/// Elimina un usuario de Supabase por su ID (id_isar)
+Future<bool> eliminarUsuarioEnSupabase(int userId) async {
+  try {
+    final response = await _supabase
+        .from('usuarios')
+        .delete()
+        .eq('id_isar', userId)
+        .select();
+    return response.isNotEmpty;
+  } catch (e) {
+    debugPrint('❌ Error eliminando usuario en Supabase: $e');
+    return false;
+  }
+}
   /// Obtiene el total de ventas realizadas en un rango de fechas (para un usuario)
   Future<double> obtenerTotalVentasPorEmpleadoYRango(
     String empleado,

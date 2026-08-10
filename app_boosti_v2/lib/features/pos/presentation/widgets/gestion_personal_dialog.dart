@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/usuario_entity.dart';
 import '../services/sync_service.dart';
+import '../utils/responsive_helper.dart';
 
 class PersonnelManagementDialog extends ConsumerStatefulWidget {
   const PersonnelManagementDialog({super.key});
@@ -11,153 +13,406 @@ class PersonnelManagementDialog extends ConsumerStatefulWidget {
 }
 
 class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _nombreController = TextEditingController();
+  final _pinController = TextEditingController();
+  String _rolSeleccionado = 'cajero';
+  bool _guardando = false;
+  List<UsuarioEntity> _usuarios = [];
+  bool _cargando = true;
+
   final IsarService _isarService = IsarService();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _pinController = TextEditingController();
-  String _selectedRol = 'cajero';
-  bool _isLoading = false;
+  final SyncService _syncService = SyncService();
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarUsuarios();
+  }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _nombreController.dispose();
     _pinController.dispose();
     super.dispose();
   }
 
-  Future<void> _crearNuevoUsuario() async {
-    if (_nameController.text.trim().isEmpty || _pinController.text.trim().length < 4) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('El nombre y un PIN de 4 dígitos son obligatorios.'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
+  Future<void> _cargarUsuarios() async {
+    setState(() => _cargando = true);
+    try {
+      final usuarios = await _isarService.obtenerUsuarios();
+      setState(() {
+        _usuarios = usuarios;
+        _cargando = false;
+      });
+    } catch (e) {
+      setState(() => _cargando = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar usuarios: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
+  }
 
-    setState(() => _isLoading = true);
+  Future<void> _crearUsuario() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _guardando = true);
 
     try {
-      await _isarService.crearUsuario(
-        nombre: _nameController.text.trim(),
-        pin: _pinController.text.trim(),
-        rol: _selectedRol,
-        caja: 'Caja Principal',
-      );
+      final nuevoUsuario = UsuarioEntity()
+        ..nombre = _nombreController.text.trim()
+        ..pin = _pinController.text.trim()
+        ..rol = _rolSeleccionado
+        ..estado = 'inactivo'
+        ..activo = true
+        ..cajaAsignada = '';
 
-      // Sincronizar usuarios con Supabase
-      try {
-        await SyncService().sincronizarUsuariosASupabase();
-      } catch (e) {
-        debugPrint('Error sincronizando usuario: $e');
-      }
+      await _isarService.guardarUsuario(nuevoUsuario);
+      await _syncService.sincronizarUsuariosASupabase();
+
+      setState(() {
+        _nombreController.clear();
+        _pinController.clear();
+        _rolSeleccionado = 'cajero';
+        _guardando = false;
+      });
+
+      await _cargarUsuarios();
 
       if (mounted) {
-        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Usuario creado y sincronizado.'),
+            content: Text('✅ Usuario creado correctamente'),
             backgroundColor: Color(0xFF10B981),
           ),
         );
       }
     } catch (e) {
+      setState(() => _guardando = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al crear usuario: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('❌ Error al crear usuario: $e'), backgroundColor: Colors.red),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _eliminarUsuario(UsuarioEntity usuario) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar Usuario'),
+        content: Text('¿Estás seguro de eliminar a "${usuario.nombre}"? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _isarService.eliminarUsuario(usuario.id);
+        await _syncService.eliminarUsuarioEnSupabase(usuario.id);
+        await _cargarUsuarios();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Usuario eliminado'),
+              backgroundColor: Color(0xFF10B981),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('❌ Error al eliminar: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Row(
-        children: [
-          Icon(Icons.admin_panel_settings, color: Color(0xFF3B82F6)),
-          SizedBox(width: 8),
-          Text('Gestión de Personal y Roles', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        ],
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final color = const Color(0xFF8B5CF6); // Morado para gestión
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      elevation: 8,
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 16 : 40,
+        vertical: 24,
       ),
-      content: SizedBox(
-        width: 450,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Administración de accesos del sistema POS:',
-                style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre del nuevo empleado',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      child: Container(
+        width: isMobile ? double.infinity : 700,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
+        decoration: BoxDecoration(
+          color: Theme.of(context).dialogTheme.backgroundColor ?? Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // HEADER
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.admin_panel_settings_rounded, color: color, size: 28),
                 ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _pinController,
-                obscureText: true,
-                maxLength: 4,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'PIN de acceso (4 dígitos)',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Gestión de Personal',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isMobile ? 20 : 24,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedRol,
-                items: const [
-                  DropdownMenuItem(value: 'cajero', child: Text('Cajero')),
-                  DropdownMenuItem(value: 'admin', child: Text('Administrador')),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 28),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Administración de accesos al sistema POS',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.7) ?? Colors.grey.shade600,
+                    fontSize: isMobile ? 14 : 16,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 16),
+
+            // FORMULARIO
+            Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Nombre
+                  TextFormField(
+                    controller: _nombreController,
+                    enabled: !_guardando,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre del nuevo empleado *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person_outline_rounded),
+                    ),
+                    validator: (v) => v?.trim().isNotEmpty == true ? null : 'Requerido',
+                  ),
+                  const SizedBox(height: 16),
+
+                  // PIN
+                  TextFormField(
+                    controller: _pinController,
+                    enabled: !_guardando,
+                    decoration: const InputDecoration(
+                      labelText: 'PIN de acceso (4 dígitos) *',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.lock_outline_rounded),
+                    ),
+                    keyboardType: TextInputType.number,
+                    maxLength: 4,
+                    validator: (v) {
+                      if (v?.trim().length != 4) return 'Debe tener 4 dígitos';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Rol (Dropdown)
+                  DropdownButtonFormField<String>(
+                    initialValue: _rolSeleccionado,
+                    decoration: const InputDecoration(
+                      labelText: 'Rol / Permisos',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.assignment_ind_rounded),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'admin', child: Text('Administrador')),
+                      DropdownMenuItem(value: 'cajero', child: Text('Cajero')),
+                    ],
+                    onChanged: _guardando ? null : (val) => setState(() => _rolSeleccionado = val!),
+                    isExpanded: true,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Nota
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amber.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline_rounded, color: Colors.amber.shade800, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Para editar roles existentes o eliminar usuarios, ve a Configuración de Usuarios.',
+                            style: TextStyle(
+                              fontSize: isMobile ? 12 : 14,
+                              color: Colors.amber.shade800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Botones de acción
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      TextButton(
+                        onPressed: _guardando ? null : () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        child: const Text('Cerrar'),
+                      ),
+                      ElevatedButton(
+                        onPressed: _guardando ? null : _crearUsuario,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: color,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: _guardando
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.add_rounded, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Crear Usuario'),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
                 ],
-                onChanged: (val) => setState(() => _selectedRol = val!),
-                decoration: InputDecoration(
-                  labelText: 'Rol / Permisos',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+            const Divider(),
+
+            // LISTA DE USUARIOS EXISTENTES
+            if (_cargando)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(child: CircularProgressIndicator(color: Color(0xFF8B5CF6))),
+              )
+            else if (_usuarios.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: Text(
+                    'No hay usuarios registrados',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.6) ?? Colors.grey.shade600,
+                        ),
+                  ),
+                ),
+              )
+            else
+              Container(
+                constraints: BoxConstraints(
+                  maxHeight: isMobile ? 150 : 200,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: _usuarios.map((usuario) {
+                      final isAdmin = usuario.rol == 'admin';
+                      final avatarColor = isAdmin ? const Color(0xFF3B82F6) : const Color(0xFF10B981);
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+                        leading: CircleAvatar(
+                          radius: 18,
+                          backgroundColor: avatarColor.withValues(alpha: 0.15),
+                          child: Icon(
+                            isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
+                            color: avatarColor,
+                            size: 18,
+                          ),
+                        ),
+                        title: Text(
+                          usuario.nombre,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: isMobile ? 14 : 16,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${usuario.rol.toUpperCase()} • ${usuario.estado}',
+                          style: TextStyle(
+                            fontSize: isMobile ? 12 : 14,
+                            color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.6) ?? Colors.grey.shade600,
+                          ),
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444)),
+                          onPressed: () => _eliminarUsuario(usuario),
+                          tooltip: 'Eliminar',
+                        ),
+                        dense: true,
+                      );
+                    }).toList(),
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Para editar roles existentes o eliminar usuarios, ve a Configuración de Usuarios.',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-            ],
-          ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: const Text('Cerrar'),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF10B981),
-            foregroundColor: Colors.white,
-          ),
-          onPressed: _isLoading ? null : _crearNuevoUsuario,
-          child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Crear Nuevo Usuario'),
-        ),
-      ],
     );
   }
 }
