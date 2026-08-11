@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 // Colores base
 const Color primaryBlue = Color(0xFF3B82F6);
 const Color primaryDark = Color(0xFF1E293B);
-const Color grayLight = Color(0xFF64748B);
-const Color grayDark = Color(0xFF94A3B8);
 const Color bgLight = Color(0xFFF8FAFC);
 const Color bgDark = Color(0xFF0F172A);
 const Color cardLight = Colors.white;
 const Color cardDark = Color(0xFF1E293B);
+const Color textLight = Color(0xFF0F172A);
+const Color textDark = Color(0xFFF1F5F9);
+const Color textDarkMuted = Color(0xFF94A3B8);
 
 ThemeData lightTheme() {
   return ThemeData(
@@ -18,47 +19,24 @@ ThemeData lightTheme() {
       primary: primaryBlue,
       secondary: primaryBlue,
       surface: cardLight,
-      onSurface: Color(0xFF0F172A),
+      onSurface: textLight,
     ),
     scaffoldBackgroundColor: bgLight,
-    cardTheme: CardThemeData( // ← CAMBIADO DE CardTheme A CardThemeData
+    cardTheme: const CardThemeData(
       color: cardLight,
       elevation: 2,
     ),
     appBarTheme: const AppBarTheme(
-      backgroundColor: cardLight,
-      foregroundColor: Color(0xFF0F172A),
+      backgroundColor: primaryBlue,
+      foregroundColor: Colors.white,
       elevation: 1,
       centerTitle: false,
     ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: primaryBlue,
-      foregroundColor: Colors.white,
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primaryBlue,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: primaryBlue, width: 2),
-      ),
-    ),
     textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: Color(0xFF0F172A)),
-      bodyMedium: TextStyle(color: Color(0xFF0F172A)),
+      bodyLarge: TextStyle(color: textLight),
+      bodyMedium: TextStyle(color: textLight),
+      titleLarge: TextStyle(color: textLight),
+      titleMedium: TextStyle(color: textLight),
     ),
   );
 }
@@ -72,46 +50,31 @@ ThemeData darkTheme() {
       secondary: primaryBlue,
       surface: cardDark,
       onSurface: Colors.white,
+      onPrimary: Colors.white,
     ),
     scaffoldBackgroundColor: bgDark,
-    cardTheme: CardThemeData( // ← CAMBIADO DE CardTheme A CardThemeData
+    cardTheme: CardThemeData(
       color: cardDark,
-      elevation: 2,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Colors.grey.shade800.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
     ),
     appBarTheme: const AppBarTheme(
-      backgroundColor: cardDark,
+      backgroundColor: primaryDark,
       foregroundColor: Colors.white,
       elevation: 1,
       centerTitle: false,
     ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: primaryBlue,
-      foregroundColor: Colors.white,
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primaryBlue,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: cardDark,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: primaryBlue, width: 2),
-      ),
-    ),
     textTheme: const TextTheme(
       bodyLarge: TextStyle(color: Colors.white),
       bodyMedium: TextStyle(color: Colors.white70),
+      titleLarge: TextStyle(color: Colors.white),
+      titleMedium: TextStyle(color: Colors.white),
     ),
   );
 }

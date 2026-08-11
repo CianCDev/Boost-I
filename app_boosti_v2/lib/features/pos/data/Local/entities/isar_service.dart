@@ -55,7 +55,7 @@ class IsarService {
           MovimientoInventarioEntitySchema,
           GastoEntitySchema,
           LogEntitySchema,
-          TurnoEntitySchema, // ✅ Incluido
+          TurnoEntitySchema,
         ],
         directory: dbPath,
         inspector: true,
@@ -172,24 +172,22 @@ class IsarService {
     }
   }
 
-
-
+  // ==================== MÉTODOS EXISTENTES (GESTIÓN USUARIOS) ====================
   Future<double> obtenerTotalVentasPorEmpleadoYRango(String empleado, DateTime inicio, DateTime fin) async {
-  final isar = await db;
-  final ventas = await isar.ventaEntitys
-      .filter()
-      .empleadoEqualTo(empleado)
-      .and()
-      .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
-      .findAll();
-  double total = 0;
-  for (var v in ventas) {
-    total += v.total;
+    final isar = await db;
+    final ventas = await isar.ventaEntitys
+        .filter()
+        .empleadoEqualTo(empleado)
+        .and()
+        .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
+        .findAll();
+    double total = 0;
+    for (var v in ventas) {
+      total += v.total;
+    }
+    return total;
   }
-  return total;
-}
 
-  // ==================== GESTIÓN DE USUARIOS ====================
   Future<void> inicializarUsuarioAdminPorDefecto() async {
     final isar = await db;
     await _inicializarUsuariosDemo(isar);
@@ -201,9 +199,9 @@ class IsarService {
   }
 
   Future<ProductoEntity?> obtenerProductoPorId(int id) async {
-  final isar = await db;
-  return await isar.productoEntitys.get(id);
-}
+    final isar = await db;
+    return await isar.productoEntitys.get(id);
+  }
 
   Future<List<UsuarioEntity>> obtenerUsuarios() async {
     final isar = await db;
@@ -300,6 +298,183 @@ class IsarService {
     } catch (_) {
       return null;
     }
+  }
+
+  // ============================================================
+  // 🆕 NUEVOS MÉTODOS PARA DASHBOARD Y ESTADÍSTICAS
+  // ============================================================
+
+  /// Obtiene las ventas en un rango de fechas
+  Future<List<VentaEntity>> obtenerVentasPorRango(DateTime inicio, DateTime fin) async {
+    final isar = await db;
+    return await isar.ventaEntitys
+        .filter()
+        .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
+        .sortByFechaDesc()
+        .findAll();
+  }
+
+  /// Obtiene las últimas N ventas
+  Future<List<VentaEntity>> obtenerUltimasVentas(int cantidad) async {
+    final isar = await db;
+    return await isar.ventaEntitys
+        .where()
+        .sortByFechaDesc()
+        .limit(cantidad)
+        .findAll();
+  }
+
+  /// Obtiene los productos más vendidos (por cantidad) con sus nombres
+  Future<List<Map<String, dynamic>>> obtenerProductosMasVendidos(int limite) async {
+    final isar = await db;
+    // Obtener todos los detalles de venta
+    final detalles = await isar.detalleVentaEntitys.where().findAll();
+    // Agrupar por nombreProducto y sumar cantidades
+    final Map<String, double> acumulado = {};
+    for (var d in detalles) {
+      acumulado[d.nombreProducto] = (acumulado[d.nombreProducto] ?? 0) + d.cantidad;
+    }
+    // Convertir a lista y ordenar
+    final lista = acumulado.entries.map((e) {
+      return {
+        'nombre': e.key,
+        'cantidad': e.value,
+      };
+    }).toList();
+    lista.sort((a, b) => (b['cantidad'] as double).compareTo(a['cantidad'] as double));
+    if (lista.length > limite) {
+      return lista.sublist(0, limite);
+    }
+    return lista;
+  }
+
+  /// Obtiene ventas agrupadas por empleado en un rango de fechas
+  Future<Map<String, double>> obtenerVentasPorEmpleado(DateTime inicio, DateTime fin) async {
+    final isar = await db;
+    final ventas = await isar.ventaEntitys
+        .filter()
+        .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
+        .findAll();
+    final Map<String, double> resultado = {};
+    for (var v in ventas) {
+      resultado[v.empleado] = (resultado[v.empleado] ?? 0) + v.total;
+    }
+    return resultado;
+  }
+
+  /// Obtiene total de ventas agrupado por día (últimos N días)
+  Future<List<Map<String, dynamic>>> obtenerVentasPorDia(int cantidadDias) async {
+    final isar = await db;
+    final hoy = DateTime.now();
+    final inicio = DateTime(hoy.year, hoy.month, hoy.day - cantidadDias + 1);
+    final fin = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59, 999);
+    final ventas = await isar.ventaEntitys
+        .filter()
+        .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
+        .findAll();
+    // Agrupar por día (sin hora)
+    final Map<String, double> agrupado = {};
+    for (var v in ventas) {
+      final dia = DateTime(v.fecha.year, v.fecha.month, v.fecha.day);
+      final key = dia.toIso8601String().substring(0, 10); // 'YYYY-MM-DD'
+      agrupado[key] = (agrupado[key] ?? 0) + v.total;
+    }
+    // Ordenar por fecha ascendente
+    final keys = agrupado.keys.toList()..sort();
+    final List<Map<String, dynamic>> resultado = [];
+    for (var key in keys) {
+      resultado.add({
+        'fecha': key,
+        'total': agrupado[key] ?? 0,
+      });
+    }
+    return resultado;
+  }
+
+  /// Suma total de ventas en un rango
+  Future<double> obtenerTotalVentasPorRango(DateTime inicio, DateTime fin) async {
+    final isar = await db;
+    final ventas = await isar.ventaEntitys
+        .filter()
+        .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
+        .findAll();
+    double total = 0;
+    for (var v in ventas) {
+      total += v.total;
+    }
+    return total;
+  }
+
+  /// Suma total de gastos en un rango
+  Future<double> obtenerTotalGastosPorRango(DateTime inicio, DateTime fin) async {
+    final isar = await db;
+    final gastos = await isar.gastoEntitys
+        .filter()
+        .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
+        .findAll();
+    double total = 0;
+    for (var g in gastos) {
+      total += g.monto;
+    }
+    return total;
+  }
+
+  /// Obtiene el resumen completo para el dashboard (llama a varios métodos)
+  Future<Map<String, dynamic>> obtenerResumenDashboard() async {
+    final isar = await db; // <-- OBTENEMOS LA INSTANCIA
+    final hoy = DateTime.now();
+    final inicioHoy = DateTime(hoy.year, hoy.month, hoy.day);
+    final inicioSemana = inicioHoy.subtract(Duration(days: hoy.weekday - 1));
+    final inicioMes = DateTime(hoy.year, hoy.month, 1);
+    final finDia = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59, 999);
+
+    // Totales
+    final totalHoy = await obtenerTotalVentasPorRango(inicioHoy, finDia);
+    final totalSemana = await obtenerTotalVentasPorRango(inicioSemana, finDia);
+    final totalMes = await obtenerTotalVentasPorRango(inicioMes, finDia);
+    final totalGastosMes = await obtenerTotalGastosPorRango(inicioMes, finDia);
+    final totalVentasAyer = await obtenerTotalVentasPorRango(
+      inicioHoy.subtract(const Duration(days: 1)),
+      inicioHoy.subtract(const Duration(seconds: 1)),
+    );
+    final variacion = totalHoy > 0 && totalVentasAyer > 0
+        ? ((totalHoy - totalVentasAyer) / totalVentasAyer) * 100
+        : 0.0;
+
+    // Últimas 5 ventas
+    final ultimasVentas = await obtenerUltimasVentas(5);
+
+    // Top 5 productos
+    final topProductos = await obtenerProductosMasVendidos(5);
+
+    // Stock bajo
+    final stockBajo = await obtenerProductosStockBajo();
+
+    // Ventas por empleado (esta semana)
+    final ventasPorEmpleado = await obtenerVentasPorEmpleado(inicioSemana, finDia);
+
+    // Ventas por día (últimos 7 días)
+    final ventasPorDia = await obtenerVentasPorDia(7);
+
+    // Contar ventas hoy - CORREGIDO: isar.ventaEntitys
+    final ventasHoy = await isar.ventaEntitys
+        .filter()
+        .fechaBetween(inicioHoy, finDia, includeLower: true, includeUpper: true)
+        .count();
+
+    return {
+      'totalHoy': totalHoy,
+      'totalSemana': totalSemana,
+      'totalMes': totalMes,
+      'totalGastosMes': totalGastosMes,
+      'variacion': variacion,
+      'ventasHoy': ventasHoy,
+      'ultimasVentas': ultimasVentas,
+      'topProductos': topProductos,
+      'stockBajo': stockBajo,
+      'ventasPorEmpleado': ventasPorEmpleado,
+      'ventasPorDia': ventasPorDia,
+    };
   }
 
   // ==================== GESTIÓN DE GASTOS ====================
@@ -438,23 +613,21 @@ class IsarService {
   }
 
   // ==================== GESTIÓN DE DETALLES DE VENTA ====================
+  Future<List<DetalleVentaEntity>> obtenerDetallesPorVenta(int ventaId) async {
+    final isar = await db;
+    return await isar.detalleVentaEntitys
+        .filter()
+        .ventaIdEqualTo(ventaId)
+        .findAll();
+  }
 
-/// Obtiene todos los detalles de una venta por su ID
-Future<List<DetalleVentaEntity>> obtenerDetallesPorVenta(int ventaId) async {
-  final isar = await db;
-  return await isar.detalleVentaEntitys
-      .filter()
-      .ventaIdEqualTo(ventaId)
-      .findAll();
-}
-
-Future<VentaEntity?> obtenerVentaPorIdString(String ventaIdString) async {
-  final isar = await db;
-  return await isar.ventaEntitys
-      .filter()
-      .ventaIdStringEqualTo(ventaIdString)
-      .findFirst();
-}
+  Future<VentaEntity?> obtenerVentaPorIdString(String ventaIdString) async {
+    final isar = await db;
+    return await isar.ventaEntitys
+        .filter()
+        .ventaIdStringEqualTo(ventaIdString)
+        .findFirst();
+  }
 
   // ==================== MÉTODOS DE SINCRONIZACIÓN ====================
   Future<List<VentaEntity>> obtenerVentasPendientesSync() async {
@@ -500,16 +673,15 @@ Future<VentaEntity?> obtenerVentaPorIdString(String ventaIdString) async {
   }
 
   Future<void> guardarDetallesVenta(int ventaId, List<DetalleVentaEntity> detalles) async {
-  final isar = await db;
-  await isar.writeTxn(() async {
-    // Eliminar detalles antiguos para evitar duplicados
-    await isar.detalleVentaEntitys.filter().ventaIdEqualTo(ventaId).deleteAll();
-    for (var item in detalles) {
-      item.ventaId = ventaId;
-      await isar.detalleVentaEntitys.put(item);
-    }
-  });
-}
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.detalleVentaEntitys.filter().ventaIdEqualTo(ventaId).deleteAll();
+      for (var item in detalles) {
+        item.ventaId = ventaId;
+        await isar.detalleVentaEntitys.put(item);
+      }
+    });
+  }
 
   // ==================== GESTIÓN DE MOVIMIENTOS ====================
   Future<void> guardarMovimientoInventario(MovimientoInventarioEntity movimiento) async {
@@ -570,57 +742,49 @@ Future<VentaEntity?> obtenerVentaPorIdString(String ventaIdString) async {
   }
 
   Future<ProductoEntity?> obtenerProductoPorCodigoBarrasExacto(String codigo) async {
-  final isar = await db;
-  return await isar.productoEntitys
-      .filter()
-      .codigoBarrasEqualTo(codigo)
-      .findFirst();
-}
-
-// ==================== GENERACIÓN DE CÓDIGO DE BARRAS ÚNICO ====================
-/// Genera un código de barras único que no exista en la base de datos.
-/// El formato es: B + timestamp (últimos 10 dígitos) + 3 dígitos aleatorios.
-/// Ejemplo: B1735123456789
-Future<String> generarCodigoBarrasUnico() async {
-  final isar = await db;
-  final random = Random();
-  String codigo;
-  int intentos = 0;
-
-  do {
-    // Tomamos los últimos 10 dígitos del timestamp para que sea más corto
-    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-    final timestampPart = timestamp.length > 10 
-        ? timestamp.substring(timestamp.length - 10) 
-        : timestamp;
-    final randomNum = (100 + random.nextInt(899)).toString();
-    codigo = 'B$timestampPart$randomNum';
-    intentos++;
-
-    // Verificar que no exista en la base de datos
-    final existente = await isar.productoEntitys
+    final isar = await db;
+    return await isar.productoEntitys
         .filter()
         .codigoBarrasEqualTo(codigo)
         .findFirst();
-    
-    if (existente == null) {
-      debugPrint('✅ Código de barras generado: $codigo');
-      return codigo;
-    }
-    
-    // Si existe, esperar un milisegundo para cambiar el timestamp
-    await Future.delayed(const Duration(milliseconds: 1));
-    
-  } while (intentos < 10);
+  }
 
-  // Fallback: usar microsegundos para garantizar unicidad
-  codigo = 'B${DateTime.now().microsecondsSinceEpoch}';
-  debugPrint('⚠️ Código de barras generado por fallback: $codigo');
-  return codigo;
-}
+  // ==================== GENERACIÓN DE CÓDIGO DE BARRAS ÚNICO ====================
+  Future<String> generarCodigoBarrasUnico() async {
+    final isar = await db;
+    final random = Random();
+    String codigo;
+    int intentos = 0;
 
-  // ==================== GESTIÓN DE TURNOS (COMPLETA) ====================
+    do {
+      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final timestampPart = timestamp.length > 10 
+          ? timestamp.substring(timestamp.length - 10) 
+          : timestamp;
+      final randomNum = (100 + random.nextInt(899)).toString();
+      codigo = 'B$timestampPart$randomNum';
+      intentos++;
 
+      final existente = await isar.productoEntitys
+          .filter()
+          .codigoBarrasEqualTo(codigo)
+          .findFirst();
+      
+      if (existente == null) {
+        debugPrint('✅ Código de barras generado: $codigo');
+        return codigo;
+      }
+      
+      await Future.delayed(const Duration(milliseconds: 1));
+      
+    } while (intentos < 10);
+
+    codigo = 'B${DateTime.now().microsecondsSinceEpoch}';
+    debugPrint('⚠️ Código de barras generado por fallback: $codigo');
+    return codigo;
+  }
+
+  // ==================== GESTIÓN DE TURNOS ====================
   Future<void> guardarTurno(TurnoEntity turno) async {
     final isar = await db;
     await isar.writeTxn(() async {
@@ -657,7 +821,6 @@ Future<String> generarCodigoBarrasUnico() async {
     });
   }
 
-  // ✅ Método necesario para sincronización
   Future<List<TurnoEntity>> obtenerTurnosPendientes() async {
     final isar = await db;
     return await isar.turnoEntitys
@@ -666,7 +829,6 @@ Future<String> generarCodigoBarrasUnico() async {
         .findAll();
   }
 
-  // ✅ Método para marcar turno como sincronizado
   Future<void> marcarTurnoComoSincronizado(int turnoId) async {
     final isar = await db;
     await isar.writeTxn(() async {
