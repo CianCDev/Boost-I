@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -9,9 +10,18 @@ import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/detalle_venta_entity.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
+import '../widgets/sales/sales_history_filter_bar.dart';
+import '../widgets/sales/sales_history_summary_cards.dart';
+import '../widgets/sales/sales_history_search_bar.dart';
+import '../widgets/sales/sales_history_list.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
-  const SalesHistoryScreen({super.key});
+  final bool showAppBar;
+
+  const SalesHistoryScreen({
+    super.key,
+    this.showAppBar = true,
+  });
 
   @override
   State<SalesHistoryScreen> createState() => _SalesHistoryScreenState();
@@ -42,18 +52,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
 
   final List<String> _metodos = ['Todos', 'Efectivo', 'Tarjeta', 'Pago Móvil', 'Divisas'];
 
-  // Mapa de colores por método de pago
-  static const Map<String, Color> _coloresMetodo = {
-    'Efectivo': Color(0xFF10B981),
-    'Tarjeta': Color(0xFF3B82F6),
-    'Pago Móvil': Color(0xFF8B5CF6),
-    'Divisas': Color(0xFFF59E0B),
-    'Otros': Color(0xFF64748B),
-  };
-
-  Color _getColorMetodo(String metodo) {
-    return _coloresMetodo[metodo] ?? _coloresMetodo['Otros']!;
-  }
+  Key _listKey = const ValueKey('initial');
 
   @override
   void initState() {
@@ -62,16 +61,14 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   // ============================================================
-  // CARGA DE VENTAS (CON DESCARGA DESDE SUPABASE)
+  // CARGA Y FILTRADO
   // ============================================================
   Future<void> _cargarVentas() async {
     setState(() => _isLoading = true);
     try {
       try {
         await SyncService().descargarVentasDesdeSupabase();
-      } catch (e) {
-        debugPrint('⚠️ Error descargando ventas: $e');
-      }
+      } catch (_) {}
 
       final ventas = await _isarService.obtenerVentas();
       ventas.sort((a, b) => b.fecha.compareTo(a.fecha));
@@ -100,7 +97,10 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar las ventas: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error al cargar las ventas: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     }
@@ -161,437 +161,8 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       _ventasFiltradas = filtradas;
       _totalUSD = acumuladoUSD;
       _totalBs = acumuladoBs;
+      _listKey = ValueKey('${filtradas.length}_${DateTime.now().millisecondsSinceEpoch}');
     });
-  }
-
-  // ============================================================
-  // DETALLE DE VENTA (MODAL)
-  // ============================================================
-  void _mostrarModalDetalleVenta(BuildContext context, VentaEntity venta) {
-    final fechaLocal = venta.fecha.toLocal();
-    final String fechaFormatted =
-        '${fechaLocal.day.toString().padLeft(2, '0')}/${fechaLocal.month.toString().padLeft(2, '0')}/${fechaLocal.year.toString()} - '
-        '${fechaLocal.hour.toString().padLeft(2, '0')}:${fechaLocal.minute.toString().padLeft(2, '0')}';
-    final double tasaVentaValida =
-        (venta.tasaBcv.isNaN || venta.tasaBcv <= 0) ? 0.0 : venta.tasaBcv;
-    final double totalBsVentaValido =
-        (venta.totalBolivares.isNaN || venta.totalBolivares <= 0)
-            ? (venta.total * tasaVentaValida)
-            : venta.totalBolivares;
-
-    final isLargeScreen = !ResponsiveHelper.isMobile(context);
-    final isMobile = ResponsiveHelper.isMobile(context);
-
-    Future<List<DetalleVentaEntity>> getDetalles() async {
-      if (venta.items.isNotEmpty) {
-        return venta.items.cast<DetalleVentaEntity>().toList();
-      } else {
-        return await _isarService.obtenerDetallesPorVenta(venta.id);
-      }
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return FutureBuilder<List<DetalleVentaEntity>>(
-          future: getDetalles(),
-          builder: (context, snapshot) {
-            final detalles = snapshot.data ?? [];
-
-            return Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              child: Container(
-                width: isLargeScreen ? 650 : MediaQuery.of(context).size.width * 0.92,
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.85,
-                ),
-                padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ---- CABECERA ----
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0F172A),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.receipt_long,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Venta #${venta.ventaIdString}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: isLargeScreen ? 18 : 15,
-                                    color: const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                Text(
-                                  fechaFormatted,
-                                  style: TextStyle(
-                                    fontSize: isLargeScreen ? 13 : 11,
-                                    color: const Color(0xFF64748B),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded,
-                              color: Color(0xFF64748B)),
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-
-                    // ---- DATOS DEL CLIENTE ----
-                    isMobile
-                        ? Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text('Cliente', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
-                                    Text(venta.documento.isEmpty ? 'N/A' : venta.documento,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text('Atendido por', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
-                                    Text(venta.empleado,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text('Método', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
-                                    Text(venta.metodoPago,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text('Sincronizado', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
-                                    Text(
-                                      venta.syncStatus == 'synced'
-                                          ? 'Sí'
-                                          : (venta.syncStatus == 'pending'
-                                              ? 'Pendiente'
-                                              : 'Fallida'),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                        color: venta.syncStatus == 'synced'
-                                            ? const Color(0xFF059669)
-                                            : (venta.syncStatus == 'pending'
-                                                ? const Color(0xFFD97706)
-                                                : const Color(0xFFEF4444)),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          )
-                        : Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                _columnaDetalle('Cliente',
-                                    venta.documento.isEmpty ? 'N/A' : venta.documento,
-                                    isLargeScreen),
-                                _columnaDetalle('Atendido por', venta.empleado,
-                                    isLargeScreen),
-                                _columnaDetalle('Método', venta.metodoPago,
-                                    isLargeScreen),
-                                _columnaDetalle(
-                                  'Sincronizado',
-                                  venta.syncStatus == 'synced'
-                                      ? 'Sí'
-                                      : (venta.syncStatus == 'pending'
-                                          ? 'Pendiente'
-                                          : 'Fallida'),
-                                  isLargeScreen,
-                                  colorValor: venta.syncStatus == 'synced'
-                                      ? const Color(0xFF059669)
-                                      : (venta.syncStatus == 'pending'
-                                          ? const Color(0xFFD97706)
-                                          : const Color(0xFFEF4444)),
-                                ),
-                              ],
-                            ),
-                          ),
-                    const SizedBox(height: 16),
-
-                    // ---- TABLA DE PRODUCTOS ----
-                    Text(
-                      'Detalle de Productos',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: isLargeScreen ? 15 : 13,
-                        color: const Color(0xFF0F172A),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Container(
-                          constraints: BoxConstraints(
-                              minWidth: isLargeScreen ? double.infinity : 300),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: Table(
-                            columnWidths: const {
-                              0: FlexColumnWidth(3),
-                              1: FlexColumnWidth(1),
-                              2: FlexColumnWidth(1.5),
-                              3: FlexColumnWidth(1.5),
-                            },
-                            children: [
-                              TableRow(
-                                decoration:
-                                    const BoxDecoration(color: Color(0xFFF1F5F9)),
-                                children: [
-                                  _celdaHeader('Producto', isLargeScreen),
-                                  _celdaHeader('Cant.', isLargeScreen),
-                                  _celdaHeader('Precio (\$)', isLargeScreen),
-                                  _celdaHeader('Subtotal (\$)', isLargeScreen),
-                                ],
-                              ),
-                              if (detalles.isEmpty)
-                                TableRow(
-                                  children: [
-                                    TableCell(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12),
-                                        child: Center(
-                                          child: Text(
-                                            'Sin productos',
-                                            style: TextStyle(
-                                              fontSize: isLargeScreen ? 14 : 12,
-                                              color: const Color(0xFF64748B),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    TableCell(child: Container()),
-                                    TableCell(child: Container()),
-                                    TableCell(child: Container()),
-                                  ],
-                                )
-                              else
-                                ...detalles.map((item) => TableRow(
-                                      children: [
-                                        _celdaBody(item.nombreProducto,
-                                            isLargeScreen, alignLeft: true),
-                                        _celdaBody(
-                                            item.cantidad.toStringAsFixed(
-                                                item.cantidad % 1 == 0 ? 0 : 3),
-                                            isLargeScreen),
-                                        _celdaBody(
-                                            '\$${item.precioUnidad.toStringAsFixed(2)}',
-                                            isLargeScreen),
-                                        _celdaBody(
-                                            '\$${item.subtotal.toStringAsFixed(2)}',
-                                            isLargeScreen,
-                                            esBold: true),
-                                      ],
-                                    )),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ---- TOTALES ----
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Column(
-                        children: [
-                          _totalRow('Subtotal USD:',
-                              '\$${venta.subtotal.toStringAsFixed(2)}', isLargeScreen),
-                          const SizedBox(height: 6),
-                          _totalRow('Impuesto (IVA USD):',
-                              '\$${venta.impuesto.toStringAsFixed(2)}', isLargeScreen),
-                          const SizedBox(height: 6),
-                          _totalRow(
-                            'Tasa BCV:',
-                            'Bs. ${tasaVentaValida.toStringAsFixed(2)} / \$',
-                            isLargeScreen,
-                            esDestacado: true,
-                          ),
-                          const Divider(color: Color(0xFF334155), height: 20),
-                          _totalRow(
-                            'TOTAL USD:',
-                            '\$${venta.total.toStringAsFixed(2)}',
-                            isLargeScreen,
-                            esTotal: true,
-                          ),
-                          const SizedBox(height: 6),
-                          _totalRow(
-                            'TOTAL BS:',
-                            'Bs. ${totalBsVentaValido.toStringAsFixed(2)}',
-                            isLargeScreen,
-                            esTotalBs: true,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _columnaDetalle(String titulo, String valor, bool isLargeScreen,
-      {Color? colorValor}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          titulo,
-          style: TextStyle(
-            fontSize: isLargeScreen ? 10 : 12,
-            color: const Color(0xFF64748B),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          valor,
-          style: TextStyle(
-            fontSize: isLargeScreen ? 12 : 14,
-            fontWeight: FontWeight.bold,
-            color: colorValor ?? const Color(0xFF0F172A),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _celdaHeader(String texto, bool isLargeScreen) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Text(
-        texto,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: isLargeScreen ? 11 : 10,
-          fontWeight: FontWeight.bold,
-          color: const Color(0xFF475569),
-        ),
-      ),
-    );
-  }
-
-  Widget _celdaBody(String texto, bool isLargeScreen,
-      {bool alignLeft = false, bool esBold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      child: Text(
-        texto,
-        textAlign: alignLeft ? TextAlign.left : TextAlign.center,
-        style: TextStyle(
-          fontSize: isLargeScreen ? 11 : 10,
-          fontWeight: esBold ? FontWeight.bold : FontWeight.normal,
-          color: const Color(0xFF0F172A),
-        ),
-      ),
-    );
-  }
-
-  Widget _totalRow(String label, String valor, bool isLargeScreen,
-      {bool esDestacado = false, bool esTotal = false, bool esTotalBs = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: esDestacado
-                ? const Color(0xFF38BDF8)
-                : (esTotal
-                    ? Colors.white
-                    : (esTotalBs
-                        ? const Color(0xFF94A3B8)
-                        : const Color(0xFF94A3B8))),
-            fontSize: esTotal
-                ? (isLargeScreen ? 16 : 15)
-                : (isLargeScreen ? 13 : 12),
-            fontWeight: esTotal
-                ? FontWeight.bold
-                : (esDestacado ? FontWeight.bold : FontWeight.normal),
-          ),
-        ),
-        Text(
-          valor,
-          style: TextStyle(
-            color: esDestacado
-                ? const Color(0xFF38BDF8)
-                : (esTotal
-                    ? const Color(0xFF34D399)
-                    : (esTotalBs ? const Color(0xFF38BDF8) : Colors.white)),
-            fontSize: esTotal
-                ? (isLargeScreen ? 17 : 16)
-                : (isLargeScreen ? 13 : 12),
-            fontWeight: esTotal ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
-    );
   }
 
   // ============================================================
@@ -601,8 +172,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     if (_ventasFiltradas.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text(
-                'No hay ventas para exportar en el período seleccionado.'),
+            content: Text('No hay ventas para exportar en el período seleccionado.'),
             backgroundColor: Colors.orange),
       );
       return;
@@ -649,612 +219,188 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('Error al exportar CSV: $e'),
-              backgroundColor: Colors.red),
+              backgroundColor: Theme.of(context).colorScheme.error),
         );
       }
     }
   }
 
   // ============================================================
-  // BUILD RESPONSIVE
+  // BUILD
   // ============================================================
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
-    final double hPadding = isTablet ? 20.0 : 12.0;
-    final double vPadding = isTablet ? 20.0 : 12.0;
-
-    final double fontSizeTitle = isTablet ? 22 : 18;
+    final double hPadding = isTablet ? 32.0 : 12.0;
+    final double vPadding = isTablet ? 24.0 : 12.0;
+    final double fontSizeTitle = isTablet ? 26 : 18;
     final double fontSizeResumen = isMobile ? 13 : 16;
-    final double fontSizeResumenValor = isMobile ? 16 : 20;
-    final double spacingWrap = isMobile ? 8 : 12;
+    final double fontSizeResumenValor = isMobile ? 16 : (isTablet ? 26 : 22);
+    final double spacingWrap = isMobile ? 8 : (isTablet ? 18 : 14);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: Text(
-          'Historial de Transacciones',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: fontSizeTitle,
-          ),
-        ),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color.fromRGBO(81, 120, 252, 1), Color.fromARGB(255, 62, 40, 189)],
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 2,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.download_rounded),
-            tooltip: 'Exportar CSV de ventas',
-            onPressed: _exportarCSV,
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            tooltip: 'Actualizar Historial',
-            onPressed: _cargarVentas,
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
-          : Padding(
-              padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
-              child: Column(
-                children: [
-                  // ---- FILTRO DE PERÍODO ----
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _botonPeriodo('dia', 'Hoy', Icons.today, isMobile),
-                        const SizedBox(width: 6),
-                        _botonPeriodo('semana', 'Semana', Icons.date_range, isMobile),
-                        const SizedBox(width: 6),
-                        _botonPeriodo('mes', 'Mes', Icons.calendar_month, isMobile),
-                        const SizedBox(width: 6),
-                        _botonPeriodo('anio', 'Año', Icons.calendar_today, isMobile),
-                        const SizedBox(width: 6),
-                        _botonPeriodo('todos', 'Todas', Icons.all_inclusive, isMobile),
-                      ],
+    final body = _isLoading
+        ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
+        : Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 1200),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SalesHistoryFilterBar(
+                      selectedPeriod: _periodoSeleccionado,
+                      onPeriodChanged: (periodo) {
+                        setState(() => _periodoSeleccionado = periodo);
+                        _aplicarFiltros();
+                      },
+                      isMobile: isMobile,
+                      isTablet: isTablet,
+                      mesesDropdown: _listaMesesDropdown,
+                      mesSeleccionado: _mesSeleccionadoDropdown,
+                      aniosDisponibles: _listaAniosDisponibles,
+                      anioSeleccionado: _anioSeleccionadoDropdown,
+                      onMesChanged: (mes) {
+                        setState(() => _mesSeleccionadoDropdown = mes);
+                        _aplicarFiltros();
+                      },
+                      onAnioChanged: (anio) {
+                        setState(() => _anioSeleccionadoDropdown = anio);
+                        _aplicarFiltros();
+                      },
                     ),
-                  ),
+                    const SizedBox(height: 16),
 
-                  // ---- SELECTORES MES/AÑO ----
-                  if (_periodoSeleccionado == 'mes') ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            height: isTablet ? 44 : 38,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFF10B981), width: 1.5),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                isExpanded: true,
-                                value: _mesSeleccionadoDropdown,
-                                icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981)),
-                                style: TextStyle(
-                                  fontSize: isTablet ? 14 : 12,
-                                  color: const Color(0xFF0F172A),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                items: _listaMesesDropdown.map((mes) {
-                                  return DropdownMenuItem(
-                                    value: mes,
-                                    child: Text(mes == 'Actual' ? 'Mes Actual' : mes),
-                                  );
-                                }).toList(),
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setState(() => _mesSeleccionadoDropdown = val);
-                                    _aplicarFiltros();
-                                  }
-                                },
-                              ),
-                            ),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.1),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Container(
-                            height: isTablet ? 44 : 38,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFF10B981), width: 1.5),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<int>(
-                                isExpanded: true,
-                                value: _anioSeleccionadoDropdown,
-                                icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981)),
-                                style: TextStyle(
-                                  fontSize: isTablet ? 14 : 12,
-                                  color: const Color(0xFF0F172A),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                items: _listaAniosDisponibles.map((anio) {
-                                  return DropdownMenuItem(
-                                    value: anio,
-                                    child: Text('$anio${anio == DateTime.now().year ? ' (Actual)' : ''}'),
-                                  );
-                                }).toList(),
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setState(() => _anioSeleccionadoDropdown = val);
-                                    _aplicarFiltros();
-                                  }
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ] else if (_periodoSeleccionado == 'anio') ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      height: isTablet ? 44 : 38,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF10B981), width: 1.5),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<int>(
-                          isExpanded: true,
-                          value: _anioSeleccionadoDropdown,
-                          icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF10B981)),
-                          style: TextStyle(
-                            fontSize: isTablet ? 14 : 12,
-                            color: const Color(0xFF0F172A),
-                            fontWeight: FontWeight.w600,
-                          ),
-                          items: _listaAniosDisponibles.map((anio) {
-                            return DropdownMenuItem(
-                              value: anio,
-                              child: Text('$anio${anio == DateTime.now().year ? ' (Actual)' : ''}'),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() => _anioSeleccionadoDropdown = val);
-                              _aplicarFiltros();
-                            }
-                          },
-                        ),
+                        );
+                      },
+                      child: SalesHistorySummaryCards(
+                        key: ValueKey('summary_${_ventasFiltradas.length}_${_totalUSD}_${_totalBs}'),
+                        ventasCount: _ventasFiltradas.length,
+                        totalUSD: _totalUSD,
+                        totalBs: _totalBs,
+                        isMobile: isMobile,
+                        isTablet: isTablet,
+                        spacingWrap: spacingWrap,
+                        fontSizeResumen: fontSizeResumen,
+                        fontSizeResumenValor: fontSizeResumenValor,
                       ),
                     ),
+                    const SizedBox(height: 16),
+
+                    SalesHistorySearchBar(
+                      searchQuery: _searchQuery,
+                      onSearchChanged: (value) {
+                        setState(() => _searchQuery = value);
+                        _aplicarFiltros();
+                      },
+                      selectedMethod: _metodoSeleccionado,
+                      methods: _metodos,
+                      onMethodSelected: (metodo) {
+                        setState(() => _metodoSeleccionado = metodo);
+                        _aplicarFiltros();
+                      },
+                      isMobile: isMobile,
+                      isTablet: isTablet,
+                    ),
+                    const SizedBox(height: 16),
+
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 350),
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.05),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: SalesHistoryList(
+                        key: _listKey,
+                        ventas: _ventasFiltradas,
+                        isMobile: isMobile,
+                        isTablet: isTablet,
+                        shrinkWrap: true,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                   ],
-                  const SizedBox(height: 14),
-
-                  // ---- TARJETAS DE RESUMEN ----
-                  Wrap(
-                    spacing: spacingWrap,
-                    runSpacing: spacingWrap,
-                    children: [
-                      _tarjetaResumen(
-                        'Ventas',
-                        '${_ventasFiltradas.length}',
-                        Icons.receipt_long,
-                        const Color(0xFF3B82F6),
-                        isMobile,
-                        isTablet,
-                        fontSizeResumen,
-                        fontSizeResumenValor,
-                      ),
-                      _tarjetaResumen(
-                        'Total USD',
-                        '\$${_totalUSD.toStringAsFixed(2)}',
-                        Icons.attach_money,
-                        const Color(0xFF10B981),
-                        isMobile,
-                        isTablet,
-                        fontSizeResumen,
-                        fontSizeResumenValor,
-                      ),
-                      _tarjetaResumen(
-                        'Total Bs.',
-                        'Bs. ${_totalBs.toStringAsFixed(2)}',
-                        Icons.currency_exchange,
-                        const Color(0xFF0284C7),
-                        isMobile,
-                        isTablet,
-                        fontSizeResumen,
-                        fontSizeResumenValor,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  // ---- BUSCADOR Y FILTRO POR MÉTODO ----
-                  Container(
-                    padding: EdgeInsets.all(isTablet ? 14.0 : 10.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          height: isTablet ? 44 : 38,
-                          child: TextField(
-                            onChanged: (val) {
-                              _searchQuery = val;
-                              _aplicarFiltros();
-                            },
-                            decoration: InputDecoration(
-                              hintText: 'Buscar por ID, Cédula o Empleado...',
-                              hintStyle: TextStyle(
-                                fontSize: isTablet ? 14 : 12,
-                                color: const Color(0xFF94A3B8),
-                              ),
-                              prefixIcon: Icon(
-                                Icons.search,
-                                size: isTablet ? 22 : 18,
-                                color: const Color(0xFF64748B),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 10),
-                              filled: true,
-                              fillColor: const Color(0xFFF8FAFC),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: _metodos.map((metodo) {
-                              final bool esSeleccionado = _metodoSeleccionado == metodo;
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 6.0),
-                                child: InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _metodoSeleccionado = metodo;
-                                    });
-                                    _aplicarFiltros();
-                                  },
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: isTablet ? 12 : 8,
-                                      vertical: isTablet ? 7 : 5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: esSeleccionado ? const Color(0xFF0F172A) : Colors.white,
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(
-                                        color: esSeleccionado ? const Color(0xFF0F172A) : const Color(0xFFCBD5E1),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      metodo,
-                                      style: TextStyle(
-                                        fontSize: isTablet ? 13 : 11,
-                                        fontWeight: esSeleccionado ? FontWeight.bold : FontWeight.normal,
-                                        color: esSeleccionado ? Colors.white : const Color(0xFF475569),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // ---- LISTA DE VENTAS (CORREGIDA) ----
-                  Expanded(
-                    child: _ventasFiltradas.isEmpty
-                        ? Center(
-                            child: Text(
-                              'No hay ventas registradas en el periodo seleccionado.',
-                              style: TextStyle(
-                                fontSize: isTablet ? 15 : 13,
-                                color: const Color(0xFF64748B),
-                              ),
-                            ),
-                          )
-                        : ListView.separated(
-                            itemCount: _ventasFiltradas.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final venta = _ventasFiltradas[index];
-                              final fechaLocal = venta.fecha.toLocal();
-                              final double tasaVentaValida =
-                                  (venta.tasaBcv.isNaN || venta.tasaBcv <= 0) ? 0.0 : venta.tasaBcv;
-                              final double totalBsVentaValido =
-                                  (venta.totalBolivares.isNaN || venta.totalBolivares <= 0)
-                                      ? (venta.total * tasaVentaValida)
-                                      : venta.totalBolivares;
-
-                              final Color colorMetodo = _getColorMetodo(venta.metodoPago);
-
-                              return InkWell(
-                                onTap: () => _mostrarModalDetalleVenta(context, venta),
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: isTablet ? 16 : 10,
-                                    vertical: isTablet ? 14 : 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      // ---- ICONO DE MÉTODO DE PAGO (REEMPLAZA "efectivo") ----
-                                      Container(
-                                        width: isTablet ? 40 : 32,
-                                        height: isTablet ? 40 : 32,
-                                        decoration: BoxDecoration(
-                                          color: colorMetodo.withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Icon(
-                                          Icons.monetization_on_rounded,
-                                          color: colorMetodo,
-                                          size: isTablet ? 22 : 18,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-
-                                      // ---- INFORMACIÓN PRINCIPAL (FECHA + TASA) ----
-                                      Expanded(
-                                        flex: isMobile ? 2 : 3,
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            // Fila superior: ID + fecha (sin overflow)
-                                            Row(
-                                              children: [
-                                                Flexible(
-                                                  child: Text(
-                                                    'Venta #${venta.ventaIdString}',
-                                                    style: TextStyle(
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: isTablet ? 14 : 12,
-                                                      color: const Color(0xFF0F172A),
-                                                    ),
-                                                    overflow: TextOverflow.ellipsis,
-                                                    softWrap: false,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 4),
-                                                // Badge de tasa (mucho más compacto)
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: 4,
-                                                    vertical: 1,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(0xFFE0F2FE),
-                                                    borderRadius: BorderRadius.circular(3),
-                                                  ),
-                                                  child: Text(
-                                                    'Bs. ${tasaVentaValida.toStringAsFixed(2)}',
-                                                    style: TextStyle(
-                                                      fontSize: isTablet ? 8 : 7,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: const Color(0xFF0369A1),
-                                                    ),
-                                                    overflow: TextOverflow.ellipsis,
-                                                    softWrap: false,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            // Fila inferior: fecha + empleado
-                                            Text(
-                                              '${fechaLocal.day.toString().padLeft(2, '0')}/${fechaLocal.month.toString().padLeft(2, '0')}/${fechaLocal.year} - ${fechaLocal.hour.toString().padLeft(2, '0')}:${fechaLocal.minute.toString().padLeft(2, '0')}',
-                                              style: TextStyle(
-                                                fontSize: isTablet ? 11 : 9,
-                                                color: const Color(0xFF64748B),
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                              softWrap: false,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-
-                                      const SizedBox(width: 6),
-
-                                      // ---- TOTALES (COMPACTOS) ----
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            '\$${venta.total.toStringAsFixed(2)}',
-                                            style: TextStyle(
-                                              fontSize: isTablet ? 15 : 13,
-                                              fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF059669),
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                            softWrap: false,
-                                          ),
-                                          Text(
-                                            'Bs. ${totalBsVentaValido.toStringAsFixed(2)}',
-                                            style: TextStyle(
-                                              fontSize: isTablet ? 10 : 9,
-                                              fontWeight: FontWeight.w600,
-                                              color: const Color(0xFF0284C7),
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                            softWrap: false,
-                                          ),
-                                        ],
-                                      ),
-
-                                      const SizedBox(width: 4),
-
-                                      // ---- FLECHA ----
-                                      Icon(
-                                        Icons.chevron_right,
-                                        color: const Color(0xFFCBD5E1),
-                                        size: isTablet ? 20 : 16,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-
-  // ============================================================
-  // BOTÓN DE PERÍODO (RESPONSIVE)
-  // ============================================================
-  Widget _botonPeriodo(String clave, String titulo, IconData icono, bool isMobile) {
-    final bool seleccionado = _periodoSeleccionado == clave;
-    final bool isTablet = ResponsiveHelper.isTablet(context);
-
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _periodoSeleccionado = clave;
-        });
-        _aplicarFiltros();
-      },
-      borderRadius: BorderRadius.circular(8),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          vertical: isTablet ? 10 : 6,
-          horizontal: isTablet ? 14 : 10,
-        ),
-        decoration: BoxDecoration(
-          color: seleccionado ? const Color(0xFF0F172A) : Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: seleccionado ? const Color(0xFF0F172A) : const Color(0xFFCBD5E1),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icono,
-              size: isTablet ? 15 : 12,
-              color: seleccionado ? Colors.white : const Color(0xFF475569),
-            ),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                titulo,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: isTablet ? 13 : 10,
-                  fontWeight: seleccionado ? FontWeight.bold : FontWeight.normal,
-                  color: seleccionado ? Colors.white : const Color(0xFF475569),
                 ),
               ),
             ),
+          );
+
+    if (widget.showAppBar) {
+      return Scaffold(
+        backgroundColor: colorScheme.surfaceContainerLow,
+        appBar: AppBar(
+          title: Text(
+            'Historial de Transacciones',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: fontSizeTitle,
+              color: colorScheme.onPrimary,
+            ),
+          ),
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: isDark
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        colorScheme.primaryContainer.withValues(alpha: 0.9),
+                        colorScheme.primary,
+                      ],
+                    )
+                  : const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color.fromRGBO(81, 120, 252, 1), Color.fromARGB(255, 62, 40, 189)],
+                    ),
+            ),
+          ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          foregroundColor: colorScheme.onPrimary,
+          actions: [
+            IconButton(
+              icon: Icon(Icons.download_rounded, color: colorScheme.onPrimary),
+              tooltip: 'Exportar CSV de ventas',
+              onPressed: _exportarCSV,
+            ),
+            IconButton(
+              icon: Icon(Icons.refresh, color: colorScheme.onPrimary),
+              tooltip: 'Actualizar Historial',
+              onPressed: _cargarVentas,
+            ),
+            const SizedBox(width: 8),
           ],
         ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // TARJETA DE RESUMEN (RESPONSIVE)
-  // ============================================================
-  Widget _tarjetaResumen(
-    String titulo,
-    String valor,
-    IconData icono,
-    Color color,
-    bool isMobile,
-    bool isTablet,
-    double fontSizeLabel,
-    double fontSizeValue,
-  ) {
-    final double iconSize = isTablet ? 20 : 16;
-    final double paddingSize = isTablet ? 14 : 10;
-    final double spacing = isMobile ? 6 : 8;
-
-    return Container(
-      padding: EdgeInsets.all(paddingSize),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Row(
-        mainAxisSize: isMobile ? MainAxisSize.min : MainAxisSize.max,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icono, color: color, size: iconSize),
-          ),
-          SizedBox(width: spacing),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                titulo,
-                style: TextStyle(
-                  fontSize: isTablet ? 13 : 11,
-                  color: const Color(0xFF64748B),
-                ),
-              ),
-              Text(
-                valor,
-                style: TextStyle(
-                  fontSize: isTablet ? 22 : 16,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF0F172A),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+        body: body,
+      );
+    } else {
+      return body;
+    }
   }
 }

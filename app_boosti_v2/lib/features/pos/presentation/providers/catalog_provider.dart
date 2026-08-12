@@ -49,7 +49,7 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     _cargarProductos();
   }
 
-  // Cargar productos desde Isar y actualizar estado
+  // Cargar productos desde Isar (primera carga o recarga manual con loading)
   Future<void> _cargarProductos() async {
     try {
       state = state.copyWith(isLoading: true);
@@ -71,6 +71,30 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     } catch (e) {
       state = state.copyWith(isLoading: false);
       rethrow;
+    }
+  }
+
+  // Cargar en segundo plano (sin cambiar isLoading) para polling y actualizaciones silenciosas
+  Future<void> _cargarProductosEnSegundoPlano() async {
+    try {
+      final productos = await _isarService.obtenerProductos();
+      final setCategorias = productos
+          .map((p) => p.categoria.trim())
+          .where((c) => c.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+      final categorias = ['Todas', ...setCategorias, 'Stock Bajo'];
+
+      // Actualizar estado sin tocar isLoading
+      state = state.copyWith(
+        productos: productos,
+        categorias: categorias,
+        // isLoading se mantiene como estaba
+      );
+      _aplicarFiltros();
+    } catch (e) {
+      // Error silencioso en segundo plano
     }
   }
 
@@ -106,13 +130,29 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     _aplicarFiltros();
   }
 
-  // Recargar desde Supabase (polling)
+  // 🔄 Recarga manual (con loading) – usado al hacer pull-to-refresh o después de una venta
   Future<void> recargarDesdeSupabase() async {
     try {
       await _syncService.descargarProductosDesdeSupabase();
       await _cargarProductos();
     } catch (e) {
       rethrow;
+    }
+  }
+
+  // 🔄 Recarga en segundo plano (sin loading) – usado en polling automático
+  Future<void> recargarEnSegundoPlano() async {
+    // Si es la primera carga, usar la normal con loading
+    if (state.productos.isEmpty) {
+      await recargarDesdeSupabase();
+      return;
+    }
+
+    try {
+      await _syncService.descargarProductosDesdeSupabase();
+      await _cargarProductosEnSegundoPlano();
+    } catch (e) {
+      // Error silencioso en segundo plano
     }
   }
 

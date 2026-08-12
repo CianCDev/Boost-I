@@ -1,64 +1,89 @@
 import 'package:flutter/material.dart';
 
-// Colores base
-const Color primaryBlue = Color(0xFF3B82F6);
-const Color primaryDark = Color(0xFF1E293B);
-const Color grayLight = Color(0xFF64748B);
-const Color grayDark = Color(0xFF94A3B8);
+// Colores base de la aplicación
+const Color primaryGreen = Color(0xFF10B981);
 const Color bgLight = Color(0xFFF8FAFC);
 const Color bgDark = Color(0xFF0F172A);
-const Color cardLight = Colors.white;
+const Color cardLight = Color(0xFFFFFFFF);
 const Color cardDark = Color(0xFF1E293B);
+const Color textLight = Color(0xFF0F172A);
+const Color textDark = Color(0xFFF1F5F9);
 
 ThemeData lightTheme() {
   return ThemeData(
     brightness: Brightness.light,
     useMaterial3: true,
-    colorScheme: const ColorScheme.light(
-      primary: primaryBlue,
-      secondary: primaryBlue,
+    colorScheme: ColorScheme.light(
+      primary: primaryGreen,
+      secondary: primaryGreen,
       surface: cardLight,
-      onSurface: Color(0xFF0F172A),
+      onSurface: textLight,
+      surfaceContainerHighest: const Color(0xFFF1F5F9),
+      surfaceContainerLow: bgLight,
+      outline: const Color(0xFFCBD5E1),
+      onSurfaceVariant: const Color(0xFF64748B),
+      error: const Color(0xFFEF4444),
+      onError: Colors.white,
     ),
     scaffoldBackgroundColor: bgLight,
-    cardTheme: CardThemeData( // ← CAMBIADO DE CardTheme A CardThemeData
+    cardTheme: CardThemeData(
       color: cardLight,
-      elevation: 2,
-    ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: cardLight,
-      foregroundColor: Color(0xFF0F172A),
-      elevation: 1,
-      centerTitle: false,
-    ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: primaryBlue,
-      foregroundColor: Colors.white,
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primaryBlue,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: const Color(0xFFCBD5E1).withValues(alpha: 0.3),
+          width: 1,
         ),
       ),
     ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: primaryBlue, width: 2),
-      ),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      centerTitle: false,
     ),
     textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: Color(0xFF0F172A)),
-      bodyMedium: TextStyle(color: Color(0xFF0F172A)),
+      bodyLarge: TextStyle(color: textLight),
+      bodyMedium: TextStyle(color: textLight),
+      titleLarge: TextStyle(color: textLight),
+      titleMedium: TextStyle(color: textLight),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: const Color(0xFFF8FAFC),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: const Color(0xFFCBD5E1).withValues(alpha: 0.3)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: const Color(0xFFCBD5E1).withValues(alpha: 0.3)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: primaryGreen, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 0,
+      ),
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: primaryGreen,
+      foregroundColor: Colors.white,
+      elevation: 4,
     ),
   );
 }
@@ -67,51 +92,78 @@ ThemeData darkTheme() {
   return ThemeData(
     brightness: Brightness.dark,
     useMaterial3: true,
-    colorScheme: const ColorScheme.dark(
-      primary: primaryBlue,
-      secondary: primaryBlue,
+    colorScheme: ColorScheme.dark(
+      primary: primaryGreen,
+      secondary: primaryGreen,
       surface: cardDark,
       onSurface: Colors.white,
+      onPrimary: Colors.white,
+      surfaceContainerHighest: const Color(0xFF2D3748),
+      surfaceContainerLow: bgDark,
+      outline: const Color(0xFF4A5568),
+      onSurfaceVariant: const Color(0xFF94A3B8),
+      error: const Color(0xFFEF4444),
+      onError: Colors.white,
     ),
     scaffoldBackgroundColor: bgDark,
-    cardTheme: CardThemeData( // ← CAMBIADO DE CardTheme A CardThemeData
+    cardTheme: CardThemeData(
       color: cardDark,
-      elevation: 2,
-    ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: cardDark,
-      foregroundColor: Colors.white,
-      elevation: 1,
-      centerTitle: false,
-    ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      backgroundColor: primaryBlue,
-      foregroundColor: Colors.white,
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primaryBlue,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Colors.grey.shade800.withValues(alpha: 0.3),
+          width: 1,
         ),
       ),
     ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: cardDark,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: primaryBlue, width: 2),
-      ),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      centerTitle: false,
     ),
     textTheme: const TextTheme(
       bodyLarge: TextStyle(color: Colors.white),
       bodyMedium: TextStyle(color: Colors.white70),
+      titleLarge: TextStyle(color: Colors.white),
+      titleMedium: TextStyle(color: Colors.white),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: const Color(0xFF1E293B),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade700.withValues(alpha: 0.3)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade700.withValues(alpha: 0.3)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: primaryGreen, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 0,
+      ),
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: primaryGreen,
+      foregroundColor: Colors.white,
+      elevation: 4,
     ),
   );
 }

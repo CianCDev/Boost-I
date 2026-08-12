@@ -151,31 +151,22 @@ class CartNotifier extends StateNotifier<CartState> {
     state = state.copyWith(items: itemsActualizados);
   }
 
-  /// ✅ CORREGIDO: Elimina un ítem específico del carrito por su índice
+  /// Elimina un ítem específico del carrito por su índice
   void eliminarItem(int index) {
     if (index < 0 || index >= state.items.length) {
-      debugPrint('⚠️ Índice fuera de rango: $index (items: ${state.items.length})');
       return;
     }
     
-    debugPrint('🗑️ Eliminando producto en índice: $index');
     final itemsActualizados = List<CartItem>.from(state.items)..removeAt(index);
-    
-    // ✅ Forzar actualización del estado con la nueva lista
     state = state.copyWith(items: itemsActualizados);
-    
-    debugPrint('📦 Items restantes: ${state.items.length}');
-    debugPrint('💰 Total actualizado: \$${state.total.toStringAsFixed(2)}');
   }
 
   /// Limpia todos los productos del carrito y reinicia el IVA por defecto
   void limpiarCarrito() {
-    debugPrint('🧹 Limpiando carrito...');
     state = state.copyWith(
       items: [],
       porcentajeImpuesto: 0.16,
     );
-    debugPrint('✅ Carrito limpiado');
   }
 
   /// Auxiliar para redondear cantidades (3 decimales si es de balanza, de lo contrario normal)

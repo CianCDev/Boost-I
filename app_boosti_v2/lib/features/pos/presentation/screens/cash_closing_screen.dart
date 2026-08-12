@@ -77,7 +77,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al cargar el corte: $e'),
-            backgroundColor: Colors.redAccent,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
@@ -104,7 +104,6 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
             cantidad: 1.0,
             esPesado: false,
           );
-        // ignore: unnecessary_to_list_in_spreads
         }).toList(),
       ];
 
@@ -123,9 +122,9 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Cierre procesado y ticket impreso'),
-          backgroundColor: Color(0xFF10B981),
+        SnackBar(
+          content: const Text('✅ Cierre procesado y ticket impreso'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
     } catch (e) {
@@ -133,7 +132,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ Error al imprimir: $e'),
-          backgroundColor: Colors.redAccent,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     }
@@ -141,7 +140,8 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
@@ -155,42 +155,62 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
     final double fontSizeMonto = isMobile ? 12 : (isTablet ? 18 : 22);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: colorScheme.surfaceContainerLow,
       appBar: AppBar(
         title: Text(
           isMobile ? 'Corte de Caja' : 'Corte de Caja Diario',
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onPrimary),
         ),
         flexibleSpace: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                theme.primaryColor,
-                theme.primaryColorDark,
-              ],
-            ),
+            gradient: isDark
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      colorScheme.primaryContainer.withValues(alpha: 0.9),
+                      colorScheme.primary,
+                    ],
+                  )
+                : const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color.fromRGBO(68, 109, 241, 1), Color.fromARGB(255, 85, 59, 235)],
+                  ),
           ),
         ),
         backgroundColor: Colors.transparent,
-        elevation: 2,
-        foregroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: colorScheme.onPrimary,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: Icon(Icons.refresh, color: colorScheme.onPrimary),
             tooltip: 'Actualizar',
             onPressed: _cargarCorte,
           ),
         ],
       ),
-      body: _buildBody(theme, isMobile, isTablet, padding, cardPadding, spacing,
-          fontSizeTotal, fontSizeTitle, fontSizeSubtitle, fontSizeMonto),
+      body: _buildBody(
+        context,
+        colorScheme,
+        isDark,
+        isMobile,
+        isTablet,
+        padding,
+        cardPadding,
+        spacing,
+        fontSizeTotal,
+        fontSizeTitle,
+        fontSizeSubtitle,
+        fontSizeMonto,
+      ),
     );
   }
 
   Widget _buildBody(
-    ThemeData theme,
+    BuildContext context,
+    ColorScheme colorScheme,
+    bool isDark,
     bool isMobile,
     bool isTablet,
     double padding,
@@ -207,13 +227,13 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator.adaptive(
-              valueColor: AlwaysStoppedAnimation<Color>(theme.primaryColor),
+              valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
             ),
             const SizedBox(height: 16),
             Text(
               _descargando ? 'Descargando ventas...' : 'Calculando corte...',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.grey.shade600,
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
                 fontSize: fontSizeSubtitle,
               ),
             ),
@@ -230,13 +250,13 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
             Icon(
               Icons.receipt_long_outlined,
               size: 56,
-              color: Colors.grey.shade400,
+              color: colorScheme.outline,
             ),
             const SizedBox(height: 12),
             Text(
               'Sin datos disponibles',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: Colors.grey.shade600,
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
                 fontSize: fontSizeSubtitle,
               ),
             ),
@@ -251,119 +271,152 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildTotalCard(theme, isMobile, cardPadding, fontSizeTotal, fontSizeSubtitle),
+          _buildTotalCard(colorScheme, isDark, isMobile, cardPadding, fontSizeTotal, fontSizeSubtitle),
           SizedBox(height: spacing),
-          _buildPaymentMethodsCard(theme, isMobile, cardPadding,
-              fontSizeTitle, fontSizeMonto, fontSizeSubtitle),
+          _buildPaymentMethodsCard(colorScheme, isDark, isMobile, cardPadding, fontSizeTitle, fontSizeMonto, fontSizeSubtitle),
           SizedBox(height: spacing),
-          _buildInfoCard(theme, isMobile, padding, fontSizeSubtitle),
+          _buildInfoCard(colorScheme, isDark, isMobile, padding, fontSizeSubtitle),
           SizedBox(height: spacing * 1.5),
-          _buildPrintButton(isMobile, theme),
+          _buildPrintButton(colorScheme, isDark, isMobile),
           const SizedBox(height: 12),
         ],
       ),
     );
   }
 
+  // ✅ CONTENEDOR DE TOTAL MEJORADO (más visible)
   Widget _buildTotalCard(
-    ThemeData theme,
+    ColorScheme colorScheme,
+    bool isDark,
     bool isMobile,
     double cardPadding,
     double fontSizeTotal,
     double fontSizeSubtitle,
   ) {
     return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: Colors.white,
-      child: Padding(
-        padding: EdgeInsets.all(cardPadding),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.attach_money_rounded,
-                color: const Color(0xFF10B981),
-                size: isMobile ? 22 : 30,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'TOTAL RECAUDADO',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: isMobile ? 9 : 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.8,
-                    ),
+      elevation: isDark ? 16 : 12,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: colorScheme.primary.withValues(alpha: 0.4),
+          width: 2.5,
+        ),
+      ),
+      color: colorScheme.surface,
+      shadowColor: isDark
+          ? colorScheme.primary.withValues(alpha: 0.5)
+          : colorScheme.primary.withValues(alpha: 0.3),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colorScheme.primary.withValues(alpha: 0.05),
+              colorScheme.primary.withValues(alpha: 0.02),
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(cardPadding * 1.2),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: colorScheme.primary.withValues(alpha: 0.3),
+                    width: 1.5,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '\$${_resumen!.totalVentas.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: fontSizeTotal,
-                      color: const Color(0xFF10B981),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 8 : 12,
-                vertical: isMobile ? 2 : 6,
-              ),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.2),
-                  width: 0.8,
+                ),
+                child: Icon(
+                  Icons.attach_money_rounded,
+                  color: colorScheme.primary,
+                  size: isMobile ? 32 : 42,
                 ),
               ),
-              child: Column(
-                children: [
-                  Text(
-                    '${_resumen!.cantidadTransacciones}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: isMobile ? 14 : 18,
-                      color: const Color(0xFF10B981),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'TOTAL RECAUDADO',
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontSize: isMobile ? 10 : 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
                     ),
-                  ),
-                  Text(
-                    'ventas',
-                    style: TextStyle(
-                      fontSize: isMobile ? 7 : 9,
-                      color: Colors.grey.shade500,
+                    const SizedBox(height: 4),
+                    Text(
+                      '\$${_resumen!.totalVentas.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: fontSizeTotal * 1.1,
+                        color: colorScheme.primary,
+                        shadows: [
+                          Shadow(
+                            color: colorScheme.primary.withValues(alpha: 0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 12 : 16,
+                  vertical: isMobile ? 6 : 10,
+                ),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: colorScheme.primary.withValues(alpha: 0.3),
+                    width: 1.5,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '${_resumen!.cantidadTransacciones}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: isMobile ? 18 : 24,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    Text(
+                      'ventas',
+                      style: TextStyle(
+                        fontSize: isMobile ? 8 : 10,
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ============================================================
-  // MÉTODOS DE PAGO CON WRAP MEJORADO ESTÉTICAMENTE
-  // ============================================================
   Widget _buildPaymentMethodsCard(
-    ThemeData theme,
+    ColorScheme colorScheme,
+    bool isDark,
     bool isMobile,
     double cardPadding,
     double fontSizeTitle,
@@ -373,14 +426,11 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
     final methods = _resumen!.totalesPorMetodo;
     final totalMethods = methods.keys.length;
 
-    // Ancho mínimo para cada elemento
-    // ignore: unused_local_variable
-    final double minItemWidth = isMobile ? 140 : 180;
-
     return Card(
-      elevation: 2,
+      elevation: isDark ? 6 : 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: Colors.white,
+      color: colorScheme.surface,
+      shadowColor: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.06),
       child: Padding(
         padding: EdgeInsets.all(cardPadding),
         child: Column(
@@ -390,7 +440,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
               children: [
                 Icon(
                   Icons.payment_rounded,
-                  color: const Color(0xFF64748B),
+                  color: colorScheme.onSurfaceVariant,
                   size: isMobile ? 16 : 20,
                 ),
                 const SizedBox(width: 6),
@@ -399,21 +449,21 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: fontSizeTitle,
-                    color: const Color(0xFF0F172A),
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     '$totalMethods',
                     style: TextStyle(
                       fontSize: isMobile ? 9 : 11,
-                      color: Colors.grey.shade600,
+                      color: colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -421,8 +471,6 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
               ],
             ),
             const SizedBox(height: 12),
-
-            // ✅ Wrap centrado con elementos de tamaño mínimo
             Center(
               child: Wrap(
                 alignment: WrapAlignment.center,
@@ -433,7 +481,6 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
                   final Color color = _getColorMetodo(metodo);
                   final IconData icon = _getIconMetodo(metodo);
 
-                  // Tamaño del elemento: mínimo, pero se expande si es necesario
                   final double itemWidth = isMobile ? 140 : 180;
 
                   return Container(
@@ -482,7 +529,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: isMobile ? 12 : 14,
-                                  color: const Color(0xFF0F172A),
+                                  color: colorScheme.onSurface,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -514,7 +561,8 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
   }
 
   Widget _buildInfoCard(
-    ThemeData theme,
+    ColorScheme colorScheme,
+    bool isDark,
     bool isMobile,
     double padding,
     double fontSizeSubtitle,
@@ -522,11 +570,12 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
     final now = DateTime.now().toLocal();
 
     return Card(
-      elevation: 1,
+      elevation: isDark ? 4 : 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
       ),
-      color: Colors.grey.shade50,
+      color: colorScheme.surfaceContainerHighest,
+      shadowColor: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.04),
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: padding,
@@ -540,7 +589,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
                 Icon(
                   Icons.calendar_today_outlined,
                   size: isMobile ? 12 : 16,
-                  color: Colors.grey.shade600,
+                  color: colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 4),
                 Text(
@@ -548,14 +597,14 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
                   style: TextStyle(
                     fontSize: isMobile ? 10 : 12,
                     fontWeight: FontWeight.w500,
-                    color: const Color(0xFF0F172A),
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Icon(
                   Icons.timer_outlined,
                   size: isMobile ? 12 : 16,
-                  color: Colors.grey.shade600,
+                  color: colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 4),
                 Text(
@@ -563,7 +612,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
                   style: TextStyle(
                     fontSize: isMobile ? 10 : 12,
                     fontWeight: FontWeight.w500,
-                    color: const Color(0xFF0F172A),
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ],
@@ -576,8 +625,8 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
                       : Icons.warning_amber_rounded,
                   size: isMobile ? 16 : 20,
                   color: _resumen!.totalesPorMetodo.isNotEmpty
-                      ? const Color(0xFF10B981)
-                      : Colors.orange,
+                      ? colorScheme.primary
+                      : colorScheme.error,
                 ),
                 const SizedBox(width: 4),
                 Text(
@@ -586,8 +635,8 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
                     fontSize: isMobile ? 10 : 12,
                     fontWeight: FontWeight.bold,
                     color: _resumen!.totalesPorMetodo.isNotEmpty
-                        ? const Color(0xFF10B981)
-                        : Colors.orange,
+                        ? colorScheme.primary
+                        : colorScheme.error,
                   ),
                 ),
               ],
@@ -598,18 +647,22 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
     );
   }
 
-  Widget _buildPrintButton(bool isMobile, ThemeData theme) {
+  Widget _buildPrintButton(
+    ColorScheme colorScheme,
+    bool isDark,
+    bool isMobile,
+  ) {
     return SizedBox(
       height: isMobile ? 48 : 56,
       child: ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF10B981),
-          foregroundColor: Colors.white,
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          elevation: 3,
-          shadowColor: const Color(0xFF10B981).withValues(alpha: 0.3),
+          elevation: isDark ? 8 : 3,
+          shadowColor: colorScheme.primary.withValues(alpha: 0.3),
           padding: const EdgeInsets.symmetric(horizontal: 16),
         ),
         onPressed: _ejecutarCierreYGuardarPdf,

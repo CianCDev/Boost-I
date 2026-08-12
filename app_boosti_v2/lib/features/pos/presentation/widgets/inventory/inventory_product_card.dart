@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../utils/responsive_helper.dart';
 
-class InventoryProductCard extends StatelessWidget {
+class InventoryProductCard extends StatefulWidget {
   final ProductoEntity producto;
   final bool stockBajo;
   final VoidCallback onTap;
@@ -11,6 +11,7 @@ class InventoryProductCard extends StatelessWidget {
   final bool isMobile;
   final bool isTablet;
   final int index;
+  final AnimationController? animationController;
 
   const InventoryProductCard({
     super.key,
@@ -22,276 +23,388 @@ class InventoryProductCard extends StatelessWidget {
     required this.isMobile,
     required this.isTablet,
     required this.index,
+    this.animationController,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final double fontSizeNombre = isMobile ? 12 : (isTablet ? 16 : 14);
-    final double fontSizePrecio = isMobile ? 14 : (isTablet ? 18 : 16);
-    final double fontSizeDetalle = isMobile ? 8 : (isTablet ? 11 : 10);
-
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.85, end: 1.0),
-      duration: Duration(milliseconds: 400 + (index * 30)),
-      curve: Curves.easeOutCubic,
-      child: _InventoryProductCardContent(
-        producto: producto,
-        stockBajo: stockBajo,
-        onTap: onTap,
-        onLongPress: onLongPress,
-        isSelected: isSelected,
-        isMobile: isMobile,
-        isTablet: isTablet,
-        fontSizeNombre: fontSizeNombre,
-        fontSizePrecio: fontSizePrecio,
-        fontSizeDetalle: fontSizeDetalle,
-      ),
-      builder: (context, scale, child) => Transform.scale(scale: scale, child: child!),
-    );
-  }
+  State<InventoryProductCard> createState() => _InventoryProductCardState();
 }
 
-class _InventoryProductCardContent extends StatelessWidget {
-  final ProductoEntity producto;
-  final bool stockBajo;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
-  final bool isSelected;
-  final bool isMobile;
-  final bool isTablet;
-  final double fontSizeNombre;
-  final double fontSizePrecio;
-  final double fontSizeDetalle;
-
-  const _InventoryProductCardContent({
-    required this.producto,
-    required this.stockBajo,
-    required this.onTap,
-    required this.onLongPress,
-    this.isSelected = false,
-    required this.isMobile,
-    required this.isTablet,
-    required this.fontSizeNombre,
-    required this.fontSizePrecio,
-    required this.fontSizeDetalle,
-  });
+class _InventoryProductCardState extends State<InventoryProductCard> {
+  bool _isHovering = false;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final bool isTablet = ResponsiveHelper.isTablet(context);
+    final bool isMobile = ResponsiveHelper.isMobile(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Container(
+    final double stockValue = widget.producto.stock ?? 0.0;
+    final String stockDisplay = stockValue % 1 == 0
+        ? stockValue.toInt().toString()
+        : stockValue.toStringAsFixed(1);
+
+    // ✅ Tamaños adaptativos (más grandes en tablet/PC)
+    final double paddingHorizontal = isTablet ? 16.0 : (isMobile ? 10.0 : 14.0);
+    final double paddingVertical = isTablet ? 14.0 : (isMobile ? 10.0 : 12.0);
+
+    final double fontSizeNombre = isTablet ? 18 : (isMobile ? 13 : 16);
+    final double fontSizeCodigo = isTablet ? 13 : (isMobile ? 9 : 11);
+    final double fontSizePrecio = isTablet ? 24 : (isMobile ? 15 : 18);
+    final double fontSizeStock = isTablet ? 15 : (isMobile ? 10 : 12);
+    final double fontSizeCategoria = isTablet ? 14 : (isMobile ? 9 : 11);
+    final double fontSizeProveedor = isTablet ? 13 : (isMobile ? 8 : 10);
+
+    final double iconSizeProveedor = isTablet ? 18 : (isMobile ? 8 : 14);
+
+    Widget child = MouseRegion(
+      onEnter: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _isHovering = true);
+        });
+      },
+      onExit: (_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _isHovering = false);
+        });
+      },
+      cursor: SystemMouseCursors.click,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        transform: _isHovering
+            ? Matrix4.diagonal3Values(1.03, 1.03, 1.0)
+            : Matrix4.identity(),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected
-                ? const Color(0xFF8B5CF6)
-                : (stockBajo
-                    ? const Color(0xFFFCA5A5)
-                    : (isTablet ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0))),
-            width: isSelected ? 3 : (stockBajo ? 2 : (isTablet ? 2.5 : 1.5)),
+            color: widget.stockBajo
+                ? colorScheme.error.withValues(alpha: 0.4)
+                : (isDark
+                    ? colorScheme.outline.withValues(alpha: 0.2)
+                    : colorScheme.outline.withValues(alpha: 0.3)),
+            width: widget.stockBajo ? 1.5 : 0.8,
           ),
           boxShadow: [
             BoxShadow(
-              color: isSelected
-                  ? const Color(0xFF8B5CF6).withValues(alpha: 0.3)
-                  : Colors.black.withValues(alpha: isTablet ? 0.08 : 0.05),
-              blurRadius: isSelected ? 20 : (isTablet ? 16 : 12),
+              color: _isHovering
+                  ? (isDark
+                      ? Colors.black.withValues(alpha: 0.5)
+                      : Colors.black.withValues(alpha: 0.2))
+                  : (isDark
+                      ? Colors.black.withValues(alpha: 0.3)
+                      : Colors.black.withValues(alpha: 0.12)),
+              blurRadius: _isHovering ? 24 : 16,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  flex: 5,
-                  child: Container(
-                    width: double.infinity,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Stack(
-                      children: [
-                        Center(
-                          child: producto.imagenUrl.isNotEmpty
-                              ? Image.network(
-                                  producto.imagenUrl,
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  errorBuilder: (_, _, __) =>
-                                      Icon(Icons.inventory_2, size: 40, color: const Color(0xFF3B82F6)),
-                                )
-                              : Icon(Icons.inventory_2, size: 40, color: const Color(0xFF3B82F6)),
-                        ),
-                        if (stockBajo)
-                          Positioned(
-                            top: 8,
-                            left: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFDC2626),
-                                borderRadius: BorderRadius.circular(4),
+        child: InkWell(
+          onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
+          borderRadius: BorderRadius.circular(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ---- IMAGEN (sin cambios) ----
+              Expanded(
+                flex: 5,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Stack(
+                    children: [
+                      Center(
+                        child: widget.producto.imagenUrl.isNotEmpty
+                            ? Image.network(
+                                widget.producto.imagenUrl,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                                errorBuilder: (_, _, _) =>
+                                    Icon(Icons.inventory_2, size: 40, color: colorScheme.primary),
+                              )
+                            : Icon(Icons.inventory_2, size: 40, color: colorScheme.primary),
+                      ),
+                      if (widget.stockBajo)
+                        Positioned(
+                          top: 10,
+                          left: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 2.5,
                               ),
-                              child: const Text(
-                                '¡STOCK BAJO!',
-                                style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                            child: Text(
+                              '¡STOCK BAJO!',
+                              style: TextStyle(
+                                fontSize: isMobile ? 12 : (isTablet ? 16 : 14),
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 0.5,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black.withValues(alpha: 0.3),
+                                    blurRadius: 2,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
+                        ),
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.grey.shade800 : Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                            border: Border.all(
+                              color: isDark ? Colors.grey.shade600 : Colors.grey.shade300,
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                widget.producto.esPesado ? Icons.monitor_weight : Icons.inventory_2,
+                                size: isMobile ? 14 : (isTablet ? 18 : 16),
+                                color: colorScheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                widget.producto.esPesado ? 'Balanza' : 'Unidad',
+                                style: TextStyle(
+                                  fontSize: isMobile ? 11 : (isTablet ? 14 : 13),
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (widget.isSelected)
                         Positioned(
                           top: 8,
                           right: 8,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(4),
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF8B5CF6),
+                              shape: BoxShape.circle,
                             ),
-                            child: Text(
-                              producto.esPesado ? 'Balanza' : 'Unidad',
-                              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                            child: const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 16,
                             ),
                           ),
                         ),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
-                Expanded(
-                  flex: 4,
-                  child: Padding(
-                    padding: EdgeInsets.all(isMobile ? 8.0 : 12.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          producto.nombre,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontSize: fontSizeNombre,
-                            color: const Color(0xFF0F172A),
-                          ),
-                        ),
-                        Text(
-                          'Cód: ${producto.codigoBarras}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontSize: fontSizeDetalle,
-                            color: const Color(0xFF94A3B8),
-                          ),
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '\$${producto.precioUnidad.toStringAsFixed(2)}',
-                              style: theme.textTheme.titleMedium?.copyWith(
+              ),
+              // ---- INFORMACIÓN MEJORADA ----
+              Expanded(
+                flex: 4,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: paddingHorizontal,
+                    vertical: paddingVertical,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Nombre y código en una fila
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            flex: 3,
+                            child: Text(
+                              widget.producto.nombre,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: fontSizePrecio,
-                                color: const Color(0xFF059669),
+                                fontSize: fontSizeNombre,
+                                color: colorScheme.onSurface,
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: stockBajo ? const Color(0xFFFEE2E2) : const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
-                              ),
-                              child: Text(
-                                'Stock: ${producto.stock}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontSize: fontSizeDetalle,
-                                  fontWeight: FontWeight.w600,
-                                  color: stockBajo ? const Color(0xFFEF4444) : const Color(0xFF475569),
-                                ),
+                          ),
+                          Flexible(
+                            flex: 2,
+                            child: Text(
+                              'Cód: ${widget.producto.codigoBarras}',
+                              textAlign: TextAlign.end,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: fontSizeCodigo,
+                                color: colorScheme.onSurfaceVariant,
                               ),
                             ),
-                          ],
-                        ),
-                        if (producto.categoria.isNotEmpty) ...[
-                          const SizedBox(height: 2),
+                          ),
+                        ],
+                      ),
+                      // Precio y stock (con stock más visible)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
                           Text(
-                            'Cat: ${producto.categoria}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontSize: fontSizeDetalle,
-                              color: const Color(0xFF64748B),
+                            '\$${widget.producto.precioUnidad.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: fontSizePrecio,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                          Container(
+                            constraints: const BoxConstraints(minWidth: 70),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isTablet ? 12 : 8,
+                              vertical: isTablet ? 4 : 2,
+                            ),
+                            decoration: BoxDecoration(
+                              // ✅ Fondo sutil para destacar el stock
+                              color: widget.stockBajo
+                                  ? colorScheme.error.withValues(alpha: 0.12)
+                                  : colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: widget.stockBajo
+                                    ? colorScheme.error
+                                    : colorScheme.outline.withValues(alpha: 0.3),
+                                width: widget.stockBajo ? 1.5 : 1.0,
+                              ),
+                            ),
+                            child: Text(
+                              'Stock: $stockDisplay',
+                              style: TextStyle(
+                                fontSize: fontSizeStock,
+                                fontWeight: FontWeight.w600,
+                                color: widget.stockBajo
+                                    ? colorScheme.error
+                                    : colorScheme.onSurfaceVariant,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Categoría (con badge más estilizado)
+                      if (widget.producto.categoria.isNotEmpty) ...[
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isTablet ? 10 : 6,
+                            vertical: isTablet ? 4 : 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: colorScheme.primary.withValues(alpha: 0.2),
+                              width: 0.5,
+                            ),
+                          ),
+                          child: Text(
+                            widget.producto.categoria,
+                            style: TextStyle(
+                              fontSize: fontSizeCategoria,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.primary,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                        ],
-                        if (producto.proveedorNombre.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEEF2FF),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: const Color(0xFFC7D2FE), width: 0.5),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.phone,
-                                    size: isMobile ? 8 : (isTablet ? 12 : 16),
-                                    color: const Color(0xFF4F46E5)),
-                                const SizedBox(width: 2),
-                                Expanded(
-                                  child: Text(
-                                    producto.proveedorNombre,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      fontSize: fontSizeDetalle - 1,
-                                      fontStyle: FontStyle.italic,
-                                      color: const Color(0xFF4F46E5),
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                        ),
                       ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (isSelected)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF8B5CF6),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check,
-                    color: Colors.white,
-                    size: 16,
+                      // Proveedor (con icono más grande y mejor espaciado)
+                      if (widget.producto.proveedorNombre.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.phone,
+                              size: iconSizeProveedor,
+                              color: colorScheme.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                widget.producto.proveedorNombre,
+                                style: TextStyle(
+                                  fontSize: fontSizeProveedor,
+                                  fontStyle: FontStyle.italic,
+                                  fontWeight: FontWeight.w500,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
+
+    if (widget.animationController != null) {
+      return AnimatedBuilder(
+        animation: widget.animationController!,
+        builder: (context, _) {
+          final start = 0.05 * widget.index;
+          final end = start + 0.1;
+          final double scale = Tween<double>(begin: 0.8, end: 1.0)
+              .animate(
+                CurvedAnimation(
+                  parent: widget.animationController!,
+                  curve: Interval(start.clamp(0.0, 1.0), end.clamp(0.0, 1.0),
+                      curve: Curves.easeOutCubic),
+                ),
+              )
+              .value;
+          return Transform.scale(scale: scale, child: child);
+        },
+      );
+    }
+
+    return child;
   }
 }

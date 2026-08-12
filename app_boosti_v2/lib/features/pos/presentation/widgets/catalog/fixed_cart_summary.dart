@@ -14,18 +14,22 @@ class FixedCartSummary extends ConsumerWidget {
     final cartState = ref.watch(cartProvider);
     final bcvTasa = ref.watch(bcvProvider).tasa;
     final isTablet = ResponsiveHelper.isTablet(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       height: isTablet ? 140.0 : 120.0,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade300, width: isTablet ? 2 : 1)),
+        color: colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, -4),
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.5)
+                : Colors.black.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, -8),
           ),
         ],
       ),
@@ -41,7 +45,7 @@ class FixedCartSummary extends ConsumerWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: isTablet ? 28 : 17,
-                    color: const Color(0xFF0F172A),
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -49,7 +53,7 @@ class FixedCartSummary extends ConsumerWidget {
                   'Bs. ${(cartState.total * (bcvTasa > 0 ? bcvTasa : 1)).toStringAsFixed(2)}',
                   style: TextStyle(
                     fontSize: isTablet ? 20 : 13,
-                    color: const Color(0xFF3B82F6),
+                    color: colorScheme.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -59,35 +63,47 @@ class FixedCartSummary extends ConsumerWidget {
             if (cartState.items.isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(right: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEE2E2),
+                  color: Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFECACA), width: 1.5),
+                  border: Border.all(
+                    color: colorScheme.error,
+                    width: 1.5,
+                  ),
                 ),
                 child: Text(
                   '${cartState.items.length}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFDC2626)),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: colorScheme.error,
+                  ),
                 ),
               ),
             SizedBox(
               height: isTablet ? 66 : 44,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   padding: EdgeInsets.symmetric(horizontal: isTablet ? 28 : 12, vertical: 12),
+                  elevation: 0,
                 ),
                 onPressed: cartState.items.isEmpty ? null : () => _openCartBottomSheet(context, ref, onCobrar),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.shopping_cart_outlined, size: 18),
+                    Icon(Icons.shopping_cart_outlined, size: 18, color: colorScheme.onPrimary),
                     const SizedBox(width: 6),
                     Text(
                       'Ver Carrito',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: isTablet ? 20 : 14),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: isTablet ? 20 : 14,
+                        color: colorScheme.onPrimary,
+                      ),
                     ),
                   ],
                 ),
@@ -101,21 +117,22 @@ class FixedCartSummary extends ConsumerWidget {
 
   void _openCartBottomSheet(BuildContext context, WidgetRef ref, VoidCallback onCobrar) {
     final isTablet = ResponsiveHelper.isTablet(context);
+    final colorScheme = Theme.of(context).colorScheme;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       enableDrag: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (BuildContext context) {
         return Container(
           padding: const EdgeInsets.all(24),
           height: MediaQuery.of(context).size.height * 0.95,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: SafeArea(
             child: Consumer(
@@ -134,26 +151,25 @@ class FixedCartSummary extends ConsumerWidget {
                           style: TextStyle(
                             fontSize: isTablet ? 28 : 22,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF0F172A),
+                            color: colorScheme.onSurface,
                           ),
                         ),
                         Row(
                           children: [
                             if (currentCartState.items.isNotEmpty)
                               IconButton(
-                                icon: const Icon(Icons.refresh_outlined, color: Color(0xFFEF4444), size: 28),
+                                icon: Icon(Icons.refresh_outlined, color: colorScheme.error, size: 28),
                                 tooltip: 'Reiniciar Venta',
                                 splashRadius: 28,
                                 constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                                 onPressed: () {
-                                  // Aquí puedes llamar a un diálogo de confirmación
                                   ref.read(cartProvider.notifier).limpiarCarrito();
                                   Navigator.of(context).pop();
                                 },
                               ),
                             const SizedBox(width: 4),
                             IconButton(
-                              icon: const Icon(Icons.close_rounded, size: 28),
+                              icon: Icon(Icons.close_rounded, size: 28, color: colorScheme.onSurfaceVariant),
                               splashRadius: 28,
                               constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                               onPressed: () => Navigator.of(context).pop(),
@@ -162,14 +178,14 @@ class FixedCartSummary extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const Divider(thickness: 2),
+                    Divider(thickness: 1, color: colorScheme.outlineVariant),
                     const SizedBox(height: 16),
                     Expanded(
                       child: currentCartState.items.isEmpty
-                          ? const Center(
+                          ? Center(
                               child: Text(
                                 'El carrito está vacío',
-                                style: TextStyle(fontSize: 18, color: Color(0xFF94A3B8)),
+                                style: TextStyle(fontSize: 18, color: colorScheme.onSurfaceVariant),
                               ),
                             )
                           : ListView.separated(
@@ -178,77 +194,96 @@ class FixedCartSummary extends ConsumerWidget {
                               itemBuilder: (context, index) {
                                 final item = currentCartState.items[index];
                                 final subtotal = item.producto.precioUnidad * item.cantidad;
-                                return Container(
-                                  padding: EdgeInsets.all(isTablet ? 20 : 16),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: const Color(0xFFCBD5E1),
-                                      width: isTablet ? 2 : 1.5,
+                                final String key = '${item.producto.id}_$index';
+
+                                // Envolver en ClipRect para evitar que se salga del contenedor
+                                return ClipRect(
+                                  child: Dismissible(
+                                    key: Key(key),
+                                    direction: DismissDirection.endToStart,
+                                    background: Container(
+                                      alignment: Alignment.centerRight,
+                                      padding: const EdgeInsets.only(right: 20),
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.error,
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Icon(
+                                        Icons.delete_outline,
+                                        color: colorScheme.onError,
+                                        size: isTablet ? 32 : 24,
+                                      ),
                                     ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              item.producto.nombre,
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: isTablet ? 20 : 16,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                    onDismissed: (direction) {
+                                      ref.read(cartProvider.notifier).eliminarItem(index);
+                                    },
+                                    child: Container(
+                                      padding: EdgeInsets.all(isTablet ? 20 : 16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.transparent,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: colorScheme.error,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item.producto.nombre,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: isTablet ? 20 : 16,
+                                                    color: colorScheme.onSurface,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  '${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)} x \$${item.producto.precioUnidad.toStringAsFixed(2)}',
+                                                  style: TextStyle(
+                                                    color: colorScheme.onSurfaceVariant,
+                                                    fontSize: isTablet ? 16 : 14,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              '${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)} x \$${item.producto.precioUnidad.toStringAsFixed(2)}',
-                                              style: TextStyle(
-                                                color: const Color(0xFF64748B),
-                                                fontSize: isTablet ? 16 : 14,
-                                              ),
+                                          ),
+                                          Text(
+                                            '\$${subtotal.toStringAsFixed(2)}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: isTablet ? 20 : 17,
+                                              color: colorScheme.primary,
                                             ),
-                                          ],
-                                        ),
-                                      ),
-                                      Text(
-                                        '\$${subtotal.toStringAsFixed(2)}',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: isTablet ? 20 : 17,
-                                          color: const Color(0xFF059669),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      InkWell(
-                                        onTap: () {
-                                          ref.read(cartProvider.notifier).eliminarItem(index);
-                                        },
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: Container(
-                                          padding: EdgeInsets.all(isTablet ? 12 : 10),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFFEE2E2),
-                                            borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: Colors.red.shade200),
                                           ),
-                                          child: Icon(
-                                            Icons.close_rounded,
-                                            color: Colors.redAccent,
-                                            size: isTablet ? 28 : 22,
+                                          const SizedBox(width: 12),
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.close_rounded,
+                                              color: colorScheme.error,
+                                              size: isTablet ? 28 : 22,
+                                            ),
+                                            onPressed: () {
+                                              ref.read(cartProvider.notifier).eliminarItem(index);
+                                            },
+                                            splashRadius: isTablet ? 28 : 20,
+                                            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                                           ),
-                                        ),
+                                        ],
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 );
                               },
                             ),
                     ),
-                    const Divider(thickness: 2),
+                    Divider(thickness: 1, color: colorScheme.outlineVariant),
                     const SizedBox(height: 12),
                     Column(
                       children: [
@@ -260,7 +295,7 @@ class FixedCartSummary extends ConsumerWidget {
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: isTablet ? 20 : 14,
-                                color: const Color(0xFF64748B),
+                                color: colorScheme.onSurfaceVariant,
                               ),
                             ),
                             Text(
@@ -268,7 +303,7 @@ class FixedCartSummary extends ConsumerWidget {
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: isTablet ? 30 : 20,
-                                color: const Color(0xFF059669),
+                                color: colorScheme.primary,
                               ),
                             ),
                           ],
@@ -282,7 +317,7 @@ class FixedCartSummary extends ConsumerWidget {
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: isTablet ? 18 : 12,
-                                color: const Color(0xFF94A3B8),
+                                color: colorScheme.onSurfaceVariant,
                               ),
                             ),
                             Text(
@@ -290,7 +325,7 @@ class FixedCartSummary extends ConsumerWidget {
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: isTablet ? 22 : 14,
-                                color: const Color(0xFF3B82F6),
+                                color: colorScheme.primary,
                               ),
                             ),
                           ],
@@ -301,16 +336,14 @@ class FixedCartSummary extends ConsumerWidget {
                           height: isTablet ? 76 : 56,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF10B981),
-                              foregroundColor: Colors.white,
+                              backgroundColor: colorScheme.primary,
+                              foregroundColor: colorScheme.onPrimary,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              elevation: 6,
-                              side: const BorderSide(color: Color(0xFF059669), width: 1.5),
+                              elevation: 0,
                             ),
                             onPressed: currentCartState.items.isEmpty
                                 ? null
                                 : () {
-                                    // ✅ CERRAR BOTTOM SHEET Y LLAMAR AL COBRO
                                     Navigator.of(context).pop();
                                     onCobrar();
                                   },

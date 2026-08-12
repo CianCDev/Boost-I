@@ -26,6 +26,7 @@ import 'gastos_screen.dart';
 import '../../data/Local/entities/turno_entity.dart';
 import '../widgets/printer_selection_widget.dart';
 import 'user_settings_screen.dart';
+import '../screens/dashboard_screen.dart';
 
 // Modelo para cada opción del menú
 class MenuOption {
@@ -95,7 +96,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   }
 
   // ============================================================
-  // MÉTODOS DE NEGOCIO (sin cambios)
+  // MÉTODOS DE NEGOCIO
   // ============================================================
   Future<void> _cargarEstadoSync() async {
     final pendientes = await _isarService.obtenerVentasPendientesSync();
@@ -366,15 +367,25 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   }
 
   // ============================================================
-  // CONFIGURACIÓN DE SECCIONES DEL MENÚ (REORGANIZADO)
+  // CONFIGURACIÓN DE SECCIONES DEL MENÚ
   // ============================================================
   List<MenuSection> _getMenuSections() {
     final usuario = ref.read(usuarioActualProvider);
     final bool esAdmin = usuario?.rol == 'admin';
     final bool tieneTurno = _turnoAbierto != null;
 
-    // Opciones base (para todos)
     final opcionesPrincipales = [
+      MenuOption(
+        title: 'Panel de Control',
+        subtitle: 'Estadísticas y métricas del negocio',
+        icon: Icons.dashboard_rounded,
+        color: const Color(0xFF3B82F6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+        ),
+        isAdminOnly: true,
+      ),
       MenuOption(
         title: 'Volver al Catálogo',
         subtitle: 'Pantalla de ventas y cobro',
@@ -412,7 +423,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       ),
     ];
 
-    // Opciones de administración (solo admin)
     final opcionesAdmin = [
       MenuOption(
         title: 'Monitor de Empleados',
@@ -479,7 +489,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       ),
     ];
 
-    // Opciones de configuración y utilidades
     final opcionesConfiguracion = [
       MenuOption(
         title: 'Ajustes de Usuario',
@@ -542,7 +551,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         ),
     ];
 
-    // Opción de salir (siempre al final)
     final opcionSalir = MenuOption(
       title: 'Salir del POS',
       subtitle: 'Cerrar sesión y volver al login',
@@ -551,10 +559,8 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       onTap: _logout,
     );
 
-    // Construir secciones
     final List<MenuSection> secciones = [];
 
-    // Sección 1: Acciones principales
     secciones.add(
       MenuSection(
         title: 'Acciones principales',
@@ -563,7 +569,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       ),
     );
 
-    // Sección 2: Administración (solo admin)
     if (esAdmin) {
       secciones.add(
         MenuSection(
@@ -574,7 +579,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       );
     }
 
-    // Sección 3: Configuración y utilidades
     if (opcionesConfiguracion.isNotEmpty) {
       secciones.add(
         MenuSection(
@@ -585,7 +589,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       );
     }
 
-    // Sección 4: Salir
     secciones.add(
       MenuSection(
         title: 'Cerrar sesión',
@@ -604,11 +607,11 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
+    final theme = Theme.of(context);
     final tieneTurno = _turnoAbierto != null;
     final usuario = ref.read(usuarioActualProvider);
     final esAdmin = usuario?.rol == 'admin';
 
-    // Obtener secciones y filtrar opciones según rol
     final secciones = _getMenuSections()
         .map((section) {
           final opcionesFiltradas = section.options
@@ -623,41 +626,35 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         .where((section) => section.options.isNotEmpty)
         .toList();
 
-    // Configuración de la grid dentro de cada sección
     int crossAxisCount;
     double childAspectRatio;
     if (isMobile) {
       crossAxisCount = 1;
-      childAspectRatio = 4.5; // Ajustado para que quepa bien con el título
+      childAspectRatio = 4.5;
     } else if (isTablet) {
       crossAxisCount = 2;
       childAspectRatio = 5.0;
     } else {
-      crossAxisCount = 2; // En escritorio también usamos 2 columnas para secciones más compactas
+      crossAxisCount = 2;
       childAspectRatio = 5.0;
     }
 
     final contenido = Column(
       children: [
-        // BANNER DE TURNO
         TurnoStatusBanner(
           tieneTurno: tieneTurno,
           horaApertura: tieneTurno ? _formatearHora(_turnoAbierto!.fechaApertura) : null,
           onAbrirTurno: _abrirTurno,
           onCerrarTurno: _cerrarTurno,
         ),
-
-        // LISTA DE SECCIONES
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Column(
               children: [
                 for (var section in secciones) ...[
-                  // Título de sección
                   _buildSectionTitle(section.title, section.icon, isMobile),
                   const SizedBox(height: 8),
-                  // Grid de opciones de la sección
                   _buildOptionsGrid(
                     section.options,
                     crossAxisCount,
@@ -675,8 +672,39 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
 
     if (widget.showAppBar) {
       return Scaffold(
-        backgroundColor: Colors.grey.shade50,
-        appBar: _buildAppBar(context, usuario),
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: const Text(
+            'Panel de Control',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          backgroundColor: theme.appBarTheme.backgroundColor,
+          foregroundColor: theme.appBarTheme.foregroundColor,
+          elevation: 2,
+          actions: [
+            if (usuario != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.person_outline,
+                      color: theme.appBarTheme.foregroundColor?.withOpacity(0.9),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      usuario.nombre,
+                      style: TextStyle(
+                        color: theme.appBarTheme.foregroundColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
         body: contenido,
       );
     } else {
@@ -688,12 +716,17 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   // TÍTULO DE SECCIÓN CON ESTILO MEJORADO
   // ==========================================
   Widget _buildSectionTitle(String title, IconData? icon, bool isMobile) {
+    final theme = Theme.of(context);
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
       child: Row(
         children: [
           if (icon != null) ...[
-            Icon(icon, size: isMobile ? 18 : 22, color: Colors.grey.shade700),
+            Icon(
+              icon,
+              size: isMobile ? 18 : 22,
+              color: theme.colorScheme.onSurface.withOpacity(0.7),
+            ),
             const SizedBox(width: 8),
           ],
           Text(
@@ -701,7 +734,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
             style: TextStyle(
               fontSize: isMobile ? 15 : 18,
               fontWeight: FontWeight.w700,
-              color: Colors.grey.shade800,
+              color: theme.colorScheme.onSurface,
               letterSpacing: 0.5,
             ),
           ),
@@ -709,7 +742,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           Container(
             height: 1,
             width: isMobile ? 40 : 80,
-            color: Colors.grey.shade300,
+            color: theme.colorScheme.onSurface.withOpacity(0.1),
           ),
         ],
       ),
@@ -764,55 +797,13 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   }
 
   // ==========================================
-  // APP BAR
-  // ==========================================
-  PreferredSizeWidget _buildAppBar(BuildContext context, UsuarioEntity? usuario) {
-    return AppBar(
-      title: const Text(
-        'Panel de Control',
-        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-      ),
-      flexibleSpace: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color.fromRGBO(68, 109, 241, 1),
-              Color.fromARGB(255, 85, 59, 235),
-            ],
-          ),
-        ),
-      ),
-      backgroundColor: Colors.transparent,
-      elevation: 2,
-      foregroundColor: Colors.white,
-      actions: [
-        if (usuario != null)
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Row(
-              children: [
-                Icon(Icons.person_outline, color: Colors.white.withValues(alpha: 0.9), size: 20),
-                const SizedBox(width: 6),
-                Text(
-                  usuario.nombre,
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  // ==========================================
-  // TARJETA DE MENÚ (con estilo mejorado)
+  // TARJETA DE MENÚ
   // ==========================================
   Widget _buildMenuCard(BuildContext context, {
     required MenuOption option,
     required bool isMobile,
   }) {
+    final theme = Theme.of(context);
     final isHovered = ValueNotifier<bool>(false);
 
     return MouseRegion(
@@ -824,34 +815,32 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           return AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
-            transform: hovered
-                ? (Matrix4.identity()..scale(1.02))
-                : Matrix4.identity(),
+            transform: hovered ? (Matrix4.identity()..scale(1.02)) : Matrix4.identity(),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  option.color.withValues(alpha: 0.05),
-                  option.color.withValues(alpha: 0.15),
+                  option.color.withValues(alpha: hovered ? 0.15 : 0.05),
+                  option.color.withValues(alpha: hovered ? 0.25 : 0.08),
                 ],
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: option.color.withValues(alpha: hovered ? 0.6 : 0.2),
-                width: 1.5,
+                color: option.color.withValues(alpha: hovered ? 0.6 : 0.15),
+                width: hovered ? 2 : 1,
               ),
               boxShadow: hovered
                   ? [
                       BoxShadow(
-                        color: option.color.withValues(alpha: 0.3),
+                        color: option.color.withValues(alpha: 0.2),
                         blurRadius: 16,
                         offset: const Offset(0, 6),
                       ),
                     ]
                   : [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
+                        color: theme.colorScheme.shadow.withValues(alpha: 0.04),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -863,20 +852,16 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                 onTap: option.onTap,
                 borderRadius: BorderRadius.circular(16),
                 child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 14 : 18,
-                    vertical: 10,
-                  ),
+                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 18, vertical: 10),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.start,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Icono con fondo circular
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: option.color.withValues(alpha: 0.15),
+                          color: option.color.withValues(alpha: hovered ? 0.2 : 0.12),
                           shape: BoxShape.circle,
                           boxShadow: hovered
                               ? [
@@ -895,7 +880,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                         ),
                       ),
                       const SizedBox(width: 14),
-                      // Texto
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -903,31 +887,31 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                           children: [
                             Text(
                               option.title,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: isMobile ? 15 : 18,
-                                  ),
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: isMobile ? 15 : 18,
+                                color: theme.colorScheme.onSurface,
+                              ),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
                             ),
                             const SizedBox(height: 2),
                             Text(
                               option.subtitle,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontSize: isMobile ? 11 : 13,
-                                    color: Colors.grey.shade600,
-                                  ),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontSize: isMobile ? 11 : 13,
+                                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                              ),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
                             ),
                           ],
                         ),
                       ),
-                      // Flecha indicadora
                       Icon(
                         Icons.arrow_forward_ios_rounded,
                         size: isMobile ? 14 : 18,
-                        color: Colors.grey.shade400,
+                        color: theme.colorScheme.onSurface.withOpacity(0.3),
                       ),
                     ],
                   ),

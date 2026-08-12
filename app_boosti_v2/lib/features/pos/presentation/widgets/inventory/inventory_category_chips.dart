@@ -1,12 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/inventory_provider.dart';
 import '../../utils/responsive_helper.dart';
 
-class CategoryButton extends StatefulWidget {
+class InventoryCategoryChips extends ConsumerWidget {
+  const InventoryCategoryChips({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(inventoryProvider);
+    final isTablet = ResponsiveHelper.isTablet(context);
+
+    return Container(
+      height: isTablet ? 60 : 48,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: state.categorias.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final cat = state.categorias[index];
+          return InventoryCategoryButton(
+            categoria: cat,
+            esSeleccionada: state.categoriaSeleccionada == cat,
+            onTap: () => ref.read(inventoryProvider.notifier).setCategoria(cat),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// Widget interno con el mismo estilo que CategoryButton del catálogo
+class InventoryCategoryButton extends StatefulWidget {
   final String categoria;
   final bool esSeleccionada;
   final VoidCallback onTap;
 
-  const CategoryButton({
+  const InventoryCategoryButton({
     super.key,
     required this.categoria,
     required this.esSeleccionada,
@@ -14,10 +46,10 @@ class CategoryButton extends StatefulWidget {
   });
 
   @override
-  State<CategoryButton> createState() => _CategoryButtonState();
+  State<InventoryCategoryButton> createState() => _InventoryCategoryButtonState();
 }
 
-class _CategoryButtonState extends State<CategoryButton> {
+class _InventoryCategoryButtonState extends State<InventoryCategoryButton> {
   bool _isHovered = false;
 
   @override
@@ -27,13 +59,16 @@ class _CategoryButtonState extends State<CategoryButton> {
     final colorScheme = Theme.of(context).colorScheme;
 
     Color backgroundColor;
+    Color borderColor;
     Color textColor;
 
     if (widget.esSeleccionada) {
       backgroundColor = esStockBajo ? colorScheme.error : colorScheme.primary;
+      borderColor = backgroundColor;
       textColor = colorScheme.onPrimary;
     } else {
       backgroundColor = _isHovered ? colorScheme.surfaceContainerHighest : Colors.transparent;
+      borderColor = _isHovered ? colorScheme.primary.withValues(alpha: 0.3) : Colors.transparent;
       textColor = colorScheme.onSurfaceVariant;
     }
 
@@ -57,9 +92,7 @@ class _CategoryButtonState extends State<CategoryButton> {
             border: Border.all(
               color: widget.esSeleccionada
                   ? Colors.transparent
-                  : _isHovered
-                      ? colorScheme.primary.withValues(alpha: 0.3)
-                      : Colors.transparent,
+                  : borderColor,
               width: 1.5,
             ),
             boxShadow: widget.esSeleccionada

@@ -1,5 +1,6 @@
+// lib/features/pos/presentation/widgets/menu/turno_status_banner.dart
+
 import 'package:flutter/material.dart';
-import '../../utils/responsive_helper.dart';
 
 class TurnoStatusBanner extends StatelessWidget {
   final bool tieneTurno;
@@ -17,30 +18,30 @@ class TurnoStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
+    final theme = Theme.of(context);
+    final color = tieneTurno ? Colors.green : Colors.orange;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: tieneTurno
-            ? Colors.green.shade50.withValues(alpha: 0.6)
-            : Colors.amber.shade50.withValues(alpha: 0.6),
-        border: Border(
-          bottom: BorderSide(
-            color: tieneTurno ? Colors.green.shade300 : Colors.amber.shade300,
-            width: 1.2,
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-        ),
+        ],
       ),
       child: Row(
         children: [
           Icon(
-            tieneTurno ? Icons.check_circle_outline : Icons.warning_amber_outlined,
-            key: ValueKey(tieneTurno),
-            color: tieneTurno ? Colors.green.shade700 : Colors.amber.shade800,
-            size: 24,
+            tieneTurno ? Icons.check_circle_rounded : Icons.warning_rounded,
+            color: color,
+            size: 28,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -51,51 +52,43 @@ class TurnoStatusBanner extends StatelessWidget {
                 Text(
                   tieneTurno ? 'Turno abierto' : 'No tienes un turno abierto',
                   style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                    color: tieneTurno ? Colors.green.shade800 : Colors.amber.shade800,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: theme.textTheme.bodyLarge?.color,
                   ),
                 ),
-                if (tieneTurno && horaApertura != null) ...[
-                  const SizedBox(height: 2),
+                if (tieneTurno && horaApertura != null)
                   Text(
-                    'Iniciado: $horaApertura',
+                    'Iniciado a las $horaApertura',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.green.shade600,
+                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
                     ),
                   ),
-                ],
+                if (!tieneTurno)
+                  Text(
+                    'Inicia tu jornada laboral',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                    ),
+                  ),
               ],
             ),
           ),
-          if (!tieneTurno)
-            OutlinedButton(
-              onPressed: onAbrirTurno,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.amber.shade800,
-                side: BorderSide(color: Colors.amber.shade400),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                textStyle: const TextStyle(fontSize: 13),
+          ElevatedButton(
+            onPressed: tieneTurno ? onCerrarTurno : onAbrirTurno,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: const Text('Abrir Turno'),
+              elevation: 0,
             ),
-          if (tieneTurno)
-            TextButton(
-              onPressed: onCerrarTurno,
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.green.shade700,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                textStyle: const TextStyle(fontSize: 13),
-              ),
-              child: const Text('Cerrar Turno'),
-            ),
+            child: Text(tieneTurno ? 'Cerrar' : 'Abrir Turno'),
+          ),
         ],
       ),
     );
