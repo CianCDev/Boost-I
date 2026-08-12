@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../utils/responsive_helper.dart';
 import '../../services/scale_service.dart';
-import '../admin_validation_dialog.dart'; // Ajusta la ruta según tu estructura
+import '../admin_validation_dialog.dart';
+import '../../utils/input_decoration_helper.dart';
 
 class QuantityDialog extends StatefulWidget {
   final ProductoEntity producto;
@@ -27,6 +28,7 @@ class _QuantityDialogState extends State<QuantityDialog> {
 
   bool _adminValidoParaEstaVenta = false;
   bool _usandoPesoAutomatico = true;
+  bool _procesando = false;
   StreamSubscription<double>? _weightSubscription;
 
   @override
@@ -58,6 +60,8 @@ class _QuantityDialogState extends State<QuantityDialog> {
   Widget build(BuildContext context) {
     final isTablet = ResponsiveHelper.isTablet(context);
     final isDesktop = !isTablet && !ResponsiveHelper.isMobile(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -72,11 +76,13 @@ class _QuantityDialogState extends State<QuantityDialog> {
         ),
         padding: EdgeInsets.all(isTablet ? 32.0 : 20.0),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.5)
+                  : Colors.black.withValues(alpha: 0.08),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -93,12 +99,12 @@ class _QuantityDialogState extends State<QuantityDialog> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                      color: colorScheme.primary.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       widget.producto.esPesado ? Icons.monitor_weight : Icons.shopping_cart_outlined,
-                      color: const Color(0xFF10B981),
+                      color: colorScheme.primary,
                       size: 20,
                     ),
                   ),
@@ -106,10 +112,10 @@ class _QuantityDialogState extends State<QuantityDialog> {
                   Expanded(
                     child: Text(
                       'Agregar ${widget.producto.nombre}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
-                        color: Color(0xFF0F172A),
+                        color: colorScheme.onSurface,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -119,21 +125,21 @@ class _QuantityDialogState extends State<QuantityDialog> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                        color: colorScheme.primary.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.wifi_tethering_rounded,
-                              size: 14, color: const Color(0xFF10B981)),
+                              size: 14, color: colorScheme.primary),
                           const SizedBox(width: 4),
                           Text(
                             'Balanza',
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: const Color(0xFF10B981),
+                              color: colorScheme.primary,
                             ),
                           ),
                         ],
@@ -148,15 +154,17 @@ class _QuantityDialogState extends State<QuantityDialog> {
                     : 'Ingresa la cantidad deseada (unidades):',
                 style: TextStyle(
                   fontSize: isTablet || isDesktop ? 16 : 14,
-                  color: Colors.grey.shade600,
+                  color: colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 16),
-              // Campo de cantidad
+
+              // ✅ CAMPO DE CANTIDAD (con helper)
               TextField(
                 controller: _cantidadController,
                 autofocus: true,
+                enableInteractiveSelection: false,
                 keyboardType: TextInputType.numberWithOptions(decimal: widget.producto.esPesado),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(
@@ -171,9 +179,10 @@ class _QuantityDialogState extends State<QuantityDialog> {
                     _weightSubscription?.cancel();
                     _weightSubscription = null;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('✏️ Edición manual activada'),
-                        duration: Duration(seconds: 1),
+                      SnackBar(
+                        content: const Text('✏️ Edición manual activada'),
+                        duration: const Duration(seconds: 1),
+                        backgroundColor: colorScheme.primary,
                       ),
                     );
                   }
@@ -182,46 +191,26 @@ class _QuantityDialogState extends State<QuantityDialog> {
                     extentOffset: _cantidadController.text.length,
                   );
                 },
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
+                  color: colorScheme.onSurface,
                 ),
-                decoration: InputDecoration(
-                  labelText: 'Cantidad',
-                  labelStyle: TextStyle(
-                    fontSize: isTablet || isDesktop ? 16 : 14,
-                    color: Colors.grey.shade600,
-                  ),
+                decoration: InputDecorationHelper.build(
+                  context: context,
+                  label: 'Cantidad',
+                  prefixIcon: widget.producto.esPesado
+                      ? (_usandoPesoAutomatico ? Icons.wifi_tethering : Icons.edit)
+                      : null,
+                  errorText: null,
+                  isDark: isDark,
+                ).copyWith(
                   suffixText: widget.producto.esPesado ? 'kg' : 'unid',
-                  suffixStyle: const TextStyle(
+                  suffixStyle: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Color.fromRGBO(97, 97, 97, 1),
+                    color: colorScheme.onSurfaceVariant,
                   ),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: isTablet || isDesktop ? 20 : 14,
-                  ),
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
-                  ),
-                  prefixIcon: widget.producto.esPesado
-                      ? Icon(
-                          _usandoPesoAutomatico ? Icons.wifi_tethering : Icons.edit,
-                          color: _usandoPesoAutomatico
-                              ? const Color(0xFF10B981)
-                              : Colors.grey.shade500,
-                          size: 20,
-                        )
-                      : null,
                 ),
                 onSubmitted: (val) {
                   final double? cantidad = double.tryParse(val);
@@ -232,40 +221,30 @@ class _QuantityDialogState extends State<QuantityDialog> {
                 },
               ),
               const SizedBox(height: 12),
-              // Campo de precio
+
+              // ✅ CAMPO DE PRECIO (con helper)
               TextField(
                 controller: _precioController,
+                enableInteractiveSelection: false,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF0F172A),
+                  color: colorScheme.onSurface,
                 ),
-                decoration: InputDecoration(
-                  labelText: 'Precio por unidad (\$)',
+                decoration: InputDecorationHelper.build(
+                  context: context,
+                  label: 'Precio por unidad (\$)',
+                  prefixIcon: Icons.attach_money,
+                  errorText: null,
+                  isDark: isDark,
+                ).copyWith(
                   prefixText: '\$ ',
-                  labelStyle: TextStyle(
-                    fontSize: isTablet || isDesktop ? 16 : 14,
-                    color: Colors.grey.shade600,
-                  ),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: isTablet || isDesktop ? 20 : 14,
-                  ),
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
-                  ),
                 ),
               ),
               const SizedBox(height: 28),
-              // Botones
+
+              // Botones (sin cambios)
               Wrap(
                 alignment: WrapAlignment.end,
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -275,8 +254,8 @@ class _QuantityDialogState extends State<QuantityDialog> {
                   TextButton(
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      foregroundColor: Colors.grey.shade700,
-                      backgroundColor: const Color(0xFFF1F5F9),
+                      foregroundColor: colorScheme.onSurfaceVariant,
+                      backgroundColor: colorScheme.surfaceContainerHighest,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -285,15 +264,15 @@ class _QuantityDialogState extends State<QuantityDialog> {
                       _weightSubscription?.cancel();
                       Navigator.of(context).pop();
                     },
-                    child: const Text(
+                    child: Text(
                       'Cancelar',
                       style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                     ),
                   ),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
-                      foregroundColor: Colors.white,
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
                       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -301,51 +280,91 @@ class _QuantityDialogState extends State<QuantityDialog> {
                       elevation: 4,
                     ),
                     onPressed: () async {
-                      final double? cantidad = double.tryParse(_cantidadController.text);
-                      if (cantidad == null || cantidad <= 0) return;
+                      if (_procesando) return;
+                      setState(() => _procesando = true);
 
-                      final double precioIngresado =
-                          double.tryParse(_precioController.text) ?? widget.producto.precioUnidad;
-                      final double precioOriginal = widget.producto.precioUnidad;
-                      final double topeDescuento = precioOriginal * 0.80;
+                      try {
+                        final double? cantidad = double.tryParse(_cantidadController.text);
+                        if (cantidad == null || cantidad <= 0) {
+                          setState(() => _procesando = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Ingrese una cantidad válida'),
+                              backgroundColor: colorScheme.error,
+                            ),
+                          );
+                          return;
+                        }
 
-                      if (!_adminValidoParaEstaVenta && precioIngresado < topeDescuento) {
-                        await showDialog(
-                          context: context,
-                          builder: (context) => AdminValidationDialog(
-                            onSuccess: () {
-                              setState(() => _adminValidoParaEstaVenta = true);
-                            },
-                            onCancel: () {
-                              _precioController.text = widget.producto.precioUnidad.toStringAsFixed(2);
-                            },
-                          ),
-                        );
-                        if (!_adminValidoParaEstaVenta) return;
+                        final double precioIngresado =
+                            double.tryParse(_precioController.text) ?? widget.producto.precioUnidad;
+                        final double precioOriginal = widget.producto.precioUnidad;
+                        final double topeDescuento = precioOriginal * 0.80;
+
+                        if (!_adminValidoParaEstaVenta && precioIngresado < topeDescuento) {
+                          final validado = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AdminValidationDialog(
+                              onSuccess: () {
+                                Navigator.of(context).pop(true);
+                              },
+                              onCancel: () {
+                                _precioController.text = widget.producto.precioUnidad.toStringAsFixed(2);
+                                Navigator.of(context).pop(false);
+                              },
+                            ),
+                          );
+                          if (validado != true) {
+                            setState(() => _procesando = false);
+                            return;
+                          }
+                          _adminValidoParaEstaVenta = true;
+                        }
+
+                        _weightSubscription?.cancel();
+
+                        final productoConPrecio = ProductoEntity()
+                          ..id = widget.producto.id
+                          ..codigoBarras = widget.producto.codigoBarras
+                          ..nombre = widget.producto.nombre
+                          ..precioUnidad = precioIngresado
+                          ..esPesado = widget.producto.esPesado
+                          ..categoria = widget.producto.categoria
+                          ..stock = widget.producto.stock
+                          ..stockMinimo = widget.producto.stockMinimo
+                          ..proveedorNombre = widget.producto.proveedorNombre
+                          ..proveedorTelefono = widget.producto.proveedorTelefono;
+
+                        // Cerrar diálogo y agregar al carrito
+                        Navigator.of(context).pop();
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          widget.onAgregar(productoConPrecio, cantidad);
+                        });
+                      } catch (e) {
+                        setState(() => _procesando = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: colorScheme.error,
+                            ),
+                          );
+                        }
                       }
-
-                      _weightSubscription?.cancel();
-
-                      // Crear una copia del producto con el precio modificado
-                      final productoConPrecio = ProductoEntity()
-                        ..id = widget.producto.id
-                        ..codigoBarras = widget.producto.codigoBarras
-                        ..nombre = widget.producto.nombre
-                        ..precioUnidad = precioIngresado
-                        ..esPesado = widget.producto.esPesado
-                        ..categoria = widget.producto.categoria
-                        ..stock = widget.producto.stock
-                        ..stockMinimo = widget.producto.stockMinimo
-                        ..proveedorNombre = widget.producto.proveedorNombre
-                        ..proveedorTelefono = widget.producto.proveedorTelefono;
-
-                      widget.onAgregar(productoConPrecio, cantidad);
-                      Navigator.of(context).pop();
                     },
-                    child: const Text(
-                      'Agregar al Carrito',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
+                    child: _procesando
+                        ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.onPrimary,
+                            ),
+                          )
+                        : Text(
+                            'Agregar al Carrito',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
                   ),
                 ],
               ),

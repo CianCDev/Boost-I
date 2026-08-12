@@ -1,4 +1,5 @@
-// inventory_screen.dart (refactorizado)
+// inventory_screen.dart
+// Con estilo unificado al catálogo, modo oscuro y animaciones
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/Local/entities/isar_service.dart';
@@ -12,6 +13,7 @@ import '../services/label_generator.dart';
 import '../widgets/inventory/inventory_product_card.dart';
 import '../widgets/inventory/inventory_product_card_skeleton.dart';
 import '../widgets/inventory/inventory_search_bar.dart';
+import '../widgets/inventory/inventory_category_chips.dart';
 import '../widgets/inventory/barcode_generator_dialog.dart';
 import '../widgets/shared/barcode_scanner_dialog.dart';
 import '../utils/responsive_helper.dart';
@@ -35,15 +37,29 @@ class InventoryScreen extends ConsumerStatefulWidget {
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends ConsumerState<InventoryScreen> {
+class _InventoryScreenState extends ConsumerState<InventoryScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    )..forward();
+
     if (widget.codigoBarrasInicial != null && widget.codigoBarrasInicial!.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _mostrarFormularioProducto(codigoBarrasPrecargado: widget.codigoBarrasInicial);
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _scanBarcode() async {
@@ -73,7 +89,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Crear Producto'),
           ),
@@ -102,7 +118,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Producto ${productoAEditar != null ? 'actualizado' : 'creado'} exitosamente'),
-                backgroundColor: const Color(0xFF10B981),
+                backgroundColor: Theme.of(context).colorScheme.primary,
               ),
             );
           }
@@ -128,7 +144,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           try {
             await SyncService().eliminarProductoEnSupabase(producto.codigoBarras.trim());
           } catch (e) {
-            debugPrint('Error eliminando de Supabase: $e');
+            // Error silencioso
           }
           await ref.read(inventoryProvider.notifier).cargarInventario();
           if (mounted) {
@@ -183,6 +199,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                 initialValue: '1',
                                 keyboardType: TextInputType.number,
                                 textAlign: TextAlign.center,
+                                enableInteractiveSelection: false,
                                 decoration: const InputDecoration(
                                   border: OutlineInputBorder(),
                                   contentPadding: EdgeInsets.symmetric(vertical: 4),
@@ -293,7 +310,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
     if (widget.showAppBar) {
       return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
         appBar: _buildAppBar(context),
         floatingActionButton: _buildFAB(context),
         body: contenido,
@@ -308,21 +325,22 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final screenWidth = MediaQuery.of(context).size.width;
+    final colorScheme = Theme.of(context).colorScheme;
 
     int crossAxisCount;
     double childAspectRatio;
     if (screenWidth < 600) {
       crossAxisCount = 2;
-      childAspectRatio = 0.60;
+      childAspectRatio = 0.65;
     } else if (screenWidth < 900) {
       crossAxisCount = 2;
-      childAspectRatio = 0.55;
+      childAspectRatio = 0.65;
     } else if (screenWidth < 1200) {
       crossAxisCount = 3;
-      childAspectRatio = 0.62;
+      childAspectRatio = 0.70;
     } else {
       crossAxisCount = 4;
-      childAspectRatio = 0.68;
+      childAspectRatio = 0.75;
     }
     if (isMobile && MediaQuery.of(context).orientation == Orientation.landscape) {
       crossAxisCount = 3;
@@ -353,16 +371,41 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   onStockBajoToggled: (value) => ref.read(inventoryProvider.notifier).setSoloStockBajo(value),
                   soloStockBajo: state.soloStockBajo,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                // Chips de categorías (estilo unificado con el catálogo)
+                const InventoryCategoryChips(),
+                const SizedBox(height: 12),
+                // Contador de productos
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${productosFiltrados.length} productos',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: () => ref.read(inventoryProvider.notifier).recargarDesdeSupabase(),
-                    color: const Color(0xFF10B981),
+                    color: colorScheme.primary,
                     child: productosFiltrados.isEmpty
                         ? Center(
-                            child: Text(
-                              'No se encontraron productos.',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey, fontSize: 14),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.inventory_2_outlined, size: 48, color: colorScheme.outline),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No se encontraron productos.',
+                                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14),
+                                ),
+                              ],
                             ),
                           )
                         : GridView.builder(
@@ -398,6 +441,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                 isMobile: isMobile,
                                 isTablet: isTablet,
                                 index: index,
+                                animationController: _animationController,
                               );
                             },
                           ),
@@ -411,6 +455,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final state = ref.watch(inventoryProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AppBar(
       leadingWidth: 90,
@@ -418,7 +464,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+            icon: Icon(Icons.arrow_back_ios_new, color: colorScheme.onPrimary, size: 20),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             onPressed: () {
@@ -438,29 +484,39 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               'assets/logo.png',
               width: 30,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(Icons.storefront, color: Colors.white, size: 24),
+              errorBuilder: (_, __, ___) => Icon(Icons.storefront, color: colorScheme.onPrimary, size: 24),
             ),
           ),
         ],
       ),
       title: Text(
         isMobile ? 'Inventario' : 'Gestión de Inventario',
-        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
+        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: colorScheme.onPrimary),
       ),
       centerTitle: isMobile,
       flexibleSpace: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color.fromRGBO(68, 109, 241, 1), Color.fromARGB(255, 85, 59, 235)],
-          ),
+        decoration: BoxDecoration(
+          gradient: isDark
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colorScheme.primaryContainer.withValues(alpha: 0.9),
+                    colorScheme.primary,
+                  ],
+                )
+              : const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color.fromRGBO(68, 109, 241, 1), Color.fromARGB(255, 85, 59, 235)],
+                ),
         ),
       ),
-      foregroundColor: Colors.white,
+      foregroundColor: colorScheme.onPrimary,
+      elevation: 0,
       actions: [
         IconButton(
-          icon: const Icon(Icons.qr_code, color: Colors.white),
+          icon: Icon(Icons.qr_code, color: colorScheme.onPrimary),
           tooltip: 'Generar Código de Barras',
           onPressed: () => showDialog(context: context, builder: (_) => const BarcodeGeneratorDialog()),
         ),
@@ -470,10 +526,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             children: [
               Text(
                 '${state.cantidadSeleccionados} seleccionados',
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: colorScheme.onPrimary, fontSize: 14),
               ),
               IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
+                icon: Icon(Icons.close, color: colorScheme.onPrimary),
                 onPressed: () => ref.read(inventoryProvider.notifier).limpiarSeleccion(),
               ),
             ],
@@ -490,11 +546,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     if (!isAdmin) return null;
 
     final state = ref.watch(inventoryProvider);
+    final colorScheme = Theme.of(context).colorScheme;
 
     if (state.seleccionMultiple && state.productosSeleccionados.isNotEmpty) {
       return FloatingActionButton.extended(
         backgroundColor: const Color(0xFF8B5CF6),
-        foregroundColor: Colors.white,
+        foregroundColor: colorScheme.onPrimary,
         elevation: 8,
         onPressed: _mostrarDialogoCantidadEtiquetas,
         icon: const Icon(Icons.local_offer_outlined, size: 24),
@@ -505,8 +562,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       );
     } else {
       return FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF10B981),
-        foregroundColor: Colors.white,
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
         elevation: 8,
         onPressed: () => _mostrarFormularioProducto(),
         icon: const Icon(Icons.add, size: 24),

@@ -27,16 +27,16 @@ import '../utils/responsive_helper.dart';
 import '../services/scale_service.dart';
 import 'inventory_screen.dart';
 import 'pos_menu_screen.dart';
-import '../widgets/cobrar_dialog.dart';
+import '../widgets/cobrar_dialog.dart'; // ✅ Correcto
 
 class InventoryCatalogScreen extends ConsumerStatefulWidget {
   final UsuarioEntity? usuarioLogueado;
-  final bool showAppBar; // opcional con valor por defecto
+  final bool showAppBar;
 
   const InventoryCatalogScreen({
     super.key,
     this.usuarioLogueado,
-    this.showAppBar = true, // ✅ ahora es opcional
+    this.showAppBar = true,
   });
 
   @override
@@ -53,9 +53,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   StreamSubscription<double>? _weightSubscription;
   Timer? _pollingTimer;
 
-  // ==========================================================================
-  // CICLO DE VIDA
-  // ==========================================================================
   @override
   void initState() {
     super.initState();
@@ -65,9 +62,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     )..forward();
 
     _scaleService.connect();
-    _weightSubscription = _scaleService.weightStream.listen((peso) {
-      debugPrint('⚖️ Peso en tiempo real: $peso kg');
-    });
+    _weightSubscription = _scaleService.weightStream.listen((_) {});
 
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
 
@@ -88,25 +83,19 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     super.dispose();
   }
 
-  // ==========================================================================
-  // POLLING
-  // ==========================================================================
   void _iniciarPolling() {
     _pollingTimer?.cancel();
     _pollingTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
       if (mounted) {
         try {
-          await ref.read(catalogProvider.notifier).recargarDesdeSupabase();
-        } catch (e) {
-          debugPrint('⚠️ Error en polling: $e');
+          await ref.read(catalogProvider.notifier).recargarEnSegundoPlano();
+        } catch (_) {
+          // Error silencioso en polling
         }
       }
     });
   }
 
-  // ==========================================================================
-  // TECLADO FÍSICO
-  // ==========================================================================
   bool _manejarTecladoFisico(KeyEvent event) {
     if (event is KeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.f2) {
@@ -127,9 +116,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     return false;
   }
 
-  // ==========================================================================
-  // ESCÁNER
-  // ==========================================================================
   Future<void> _scanBarcode() async {
     final codigo = await showDialog<String>(
       context: context,
@@ -152,7 +138,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Crear Producto'),
           ),
@@ -164,13 +150,13 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     }
   }
 
-  // ==========================================================================
-  // AGREGAR AL CARRITO
-  // ==========================================================================
   void _agregarAlCarrito(ProductoEntity producto, double cantidad) {
     if (producto.stock < cantidad && !producto.esPesado) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Stock insuficiente'), backgroundColor: Colors.redAccent),
+        SnackBar(
+          content: const Text('Stock insuficiente'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
       return;
     }
@@ -191,16 +177,13 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${producto.nombre} agregado al carrito.'),
-        backgroundColor: const Color(0xFF10B981),
+        backgroundColor: Theme.of(context).colorScheme.primary,
         duration: const Duration(seconds: 1),
       ),
     );
     ref.read(catalogProvider.notifier).setBusqueda('');
   }
 
-  // ==========================================================================
-  // MODAL DE CANTIDAD
-  // ==========================================================================
   void _mostrarModalCantidad(ProductoEntity producto) {
     showDialog(
       context: context,
@@ -213,17 +196,10 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     );
   }
 
-  // ==========================================================================
-  // CREAR PRODUCTO DESDE ESCÁNER (placeholder)
-  // ==========================================================================
   void _mostrarDialogoCrearProducto(String codigo) {
-    debugPrint('Crear producto con código $codigo');
-    // ref.read(catalogProvider.notifier).recargarDesdeSupabase();
+    // Placeholder para crear producto
   }
 
-  // ==========================================================================
-  // COBRO
-  // ==========================================================================
   Future<void> _mostrarModalCobro() async {
     final cartState = ref.read(cartProvider);
     if (cartState.total <= 0) return;
@@ -234,7 +210,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     final resultado = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => CobrarDialog(
+      builder: (context) => CobrarDialog( // ✅ CORREGIDO: antes era cashC
         totalAPagar: cartState.total,
         productos: const [],
       ),
@@ -307,15 +283,15 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
           fechaVenta: DateTime.now(),
           impresoraSeleccionada: selectedPrinter?.device,
         );
-      } catch (e) {
-        debugPrint('Error al imprimir ticket: $e');
+      } catch (_) {
+        // Error al imprimir ticket, ignorar
       }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Venta registrada con éxito! 🎉'),
-          backgroundColor: Color(0xFF10B981),
+        SnackBar(
+          content: const Text('¡Venta registrada con éxito! 🎉'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
         ),
       );
     } catch (e) {
@@ -323,23 +299,20 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al registrar la venta: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }
     }
   }
 
-  // ==========================================================================
-  // BUILD
-  // ==========================================================================
   @override
   Widget build(BuildContext context) {
     final contenido = _buildBody(context);
 
     if (widget.showAppBar) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
         appBar: _buildAppBar(context),
         body: contenido,
       );
@@ -348,14 +321,8 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     }
   }
 
-  // ==========================================================================
-  // CUERPO PRINCIPAL (sin Scaffold)
-  // ==========================================================================
   Widget _buildBody(BuildContext context) {
-    final cartState = ref.watch(cartProvider);
-    final bcvState = ref.watch(bcvProvider);
     final catalogState = ref.watch(catalogProvider);
-
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final orientation = MediaQuery.of(context).orientation;
@@ -384,7 +351,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
               mainAxisSpacing: 12,
             ),
             itemCount: 6,
-            itemBuilder: (_, __) => const ProductCardSkeleton(),
+            itemBuilder: (_, _) => ProductCardSkeleton(),
           )
         : useSidebar
             ? Row(
@@ -395,10 +362,21 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                   ),
                   Container(
                     width: 380,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      border: Border(left: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
-                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(-2, 0))],
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.black.withValues(alpha: 0.5)
+                              : Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 20,
+                          offset: const Offset(-4, 0),
+                        ),
+                      ],
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        bottomLeft: Radius.circular(20),
+                      ),
                     ),
                     child: CartSidebar(
                       onCobrar: _mostrarModalCobro,
@@ -419,14 +397,13 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
               );
   }
 
-  // ==========================================================================
-  // APP BAR
-  // ==========================================================================
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final bcvState = ref.watch(bcvProvider);
     final lowStockCount = ref.read(catalogProvider.notifier).lowStockCount;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AppBar(
       leadingWidth: 85,
@@ -435,42 +412,50 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         child: Image.asset(
           'assets/logo.png',
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => const Icon(Icons.storefront, color: Colors.white, size: 32),
+          errorBuilder: (_, __, ___) => Icon(Icons.storefront, color: colorScheme.onPrimary, size: 32),
         ),
       ),
-      title: Text(isMobile ? '' : 'Catálogo', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18)),
+      title: Text(isMobile ? '' : 'Catálogo',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: colorScheme.onPrimary)),
       flexibleSpace: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color.fromRGBO(68, 109, 241, 1), Color.fromARGB(255, 85, 59, 235)],
-          ),
+        decoration: BoxDecoration(
+          gradient: isDark
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colorScheme.primaryContainer.withValues(alpha: 0.9),
+                    colorScheme.primary,
+                  ],
+                )
+              : const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color.fromRGBO(68, 109, 241, 1), Color.fromARGB(255, 85, 59, 235)],
+                ),
         ),
       ),
       backgroundColor: Colors.transparent,
-      elevation: 2,
-      foregroundColor: Colors.white,
+      elevation: 0,
+      foregroundColor: colorScheme.onPrimary,
       actions: [
-        // Panel de control
         Tooltip(
           message: 'Panel de Control POS',
           child: Container(
             width: isTablet ? 44 : 36,
             height: isTablet ? 44 : 36,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
+              color: colorScheme.onPrimary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
-              icon: const Icon(Icons.grid_view_rounded, color: Colors.white, size: 24),
+              icon: Icon(Icons.grid_view_rounded, color: colorScheme.onPrimary, size: 24),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PosMenuScreen())),
               padding: EdgeInsets.zero,
             ),
           ),
         ),
         const SizedBox(width: 6),
-        // Inventario
         Tooltip(
           message: 'Ir a Gestión de Inventario',
           child: Stack(
@@ -492,7 +477,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                     MaterialPageRoute(
                       builder: (_) => InventoryScreen(
                         usuarioLogueado: widget.usuarioLogueado!,
-                        showAppBar: true, // ✅ pasamos el parámetro
+                        showAppBar: true,
                       ),
                     ),
                   ),
@@ -518,7 +503,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
           ),
         ),
         const SizedBox(width: 4),
-        // BCV
         Tooltip(
           message: 'Tasa oficial BCV (Haz clic para actualizar)',
           child: InkWell(
@@ -528,24 +512,33 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               margin: const EdgeInsets.only(left: 4, right: 8),
               decoration: BoxDecoration(
-                color: bcvState.cargando ? Colors.white.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.15),
+                color: bcvState.cargando
+                    ? colorScheme.onPrimary.withValues(alpha: 0.25)
+                    : colorScheme.onPrimary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                border: Border.all(color: colorScheme.onPrimary.withValues(alpha: 0.4)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.currency_exchange, size: 16, color: Color(0xFF38BDF8)),
+                  Icon(Icons.currency_exchange, size: 16, color: colorScheme.primary),
                   const SizedBox(width: 6),
                   if (bcvState.cargando)
-                    const SizedBox(
+                    SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colorScheme.primary,
+                      ),
                     )
                   else
                     Text(
                       'BCV: Bs. ${bcvState.tasa.toStringAsFixed(2)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: colorScheme.onPrimary,
+                      ),
                     ),
                 ],
               ),
@@ -557,13 +550,11 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     );
   }
 
-  // ==========================================================================
-  // PANEL DE CATÁLOGO
-  // ==========================================================================
   Widget _buildCatalogPanel(int crossAxisCount, double childAspectRatio) {
     final catalogState = ref.watch(catalogProvider);
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: EdgeInsets.all(isTablet ? 24.0 : 16.0),
@@ -580,15 +571,15 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
             child: RefreshIndicator(
               onRefresh: () => ref.read(catalogProvider.notifier).recargarDesdeSupabase(),
               child: catalogState.productosFiltrados.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.inventory_2_outlined, size: 48, color: Color(0xFFCBD5E1)),
-                          SizedBox(height: 12),
+                          Icon(Icons.inventory_2_outlined, size: 48, color: colorScheme.outline),
+                          const SizedBox(height: 12),
                           Text(
                             'No se encontraron productos.',
-                            style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
+                            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14),
                           ),
                         ],
                       ),

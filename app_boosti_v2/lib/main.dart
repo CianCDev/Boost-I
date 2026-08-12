@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:device_preview/device_preview.dart';
 
-import 'features/pos/presentation/providers/theme_provider.dart'; // Asegurar que existe
+import 'features/pos/presentation/providers/theme_provider.dart';
 import 'features/pos/presentation/screens/splash_screen.dart';
 import 'features/pos/presentation/screens/configuracion_empresa_screen.dart';
 import 'features/pos/presentation/screens/login_screen.dart';
@@ -50,7 +50,7 @@ void main() async {
   try {
     final configJson = await rootBundle.loadString('assets/config.json');
     final configMap = jsonDecode(configJson) as Map<String, dynamic>;
-    // Aquí podrías inicializar Telegram si quieres, pero lo dejamos.
+    // Configuración adicional si es necesaria
   } catch (e) {
     debugPrint('⚠️ Error cargando config.json: $e');
   }
@@ -69,7 +69,7 @@ class BoostiPOS extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isLocked = ref.watch(lockProvider);
-    final themeMode = ref.watch(themeProvider); // Asegurar que existe este provider
+    final themeMode = ref.watch(themeProvider);
 
     return MaterialApp(
       title: 'BoostI POS - JAH Lab',

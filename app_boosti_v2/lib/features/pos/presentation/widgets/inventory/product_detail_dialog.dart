@@ -24,7 +24,8 @@ class ProductDetailDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
-    final theme = Theme.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final selectedPrinter = ref.watch(printerProvider);
 
     return Dialog(
@@ -41,8 +42,15 @@ class ProductDetailDialog extends ConsumerWidget {
         ),
         padding: EdgeInsets.all(isMobile ? 12 : (isTablet ? 24 : 32)),
         decoration: BoxDecoration(
-          color: Theme.of(context).dialogTheme.backgroundColor ?? Colors.white,
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? Colors.black.withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: SingleChildScrollView(
           child: Column(
@@ -56,15 +64,16 @@ class ProductDetailDialog extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'Detalles del Producto',
-                      style: theme.textTheme.titleLarge?.copyWith(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: isMobile ? 20 : 24,
+                        color: colorScheme.onSurface,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 28),
+                    icon: Icon(Icons.close_rounded, size: 28, color: colorScheme.onSurfaceVariant),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -78,9 +87,9 @@ class ProductDetailDialog extends ConsumerWidget {
                   width: double.infinity,
                   constraints: BoxConstraints(maxWidth: isMobile ? 400 : 500),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
+                    color: colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                    border: Border.all(color: colorScheme.outline, width: 2),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
@@ -89,9 +98,9 @@ class ProductDetailDialog extends ConsumerWidget {
                             producto.imagenUrl,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) =>
-                                Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
+                                Icon(Icons.inventory_2, size: 64, color: colorScheme.primary),
                           )
-                        : Icon(Icons.inventory_2, size: 64, color: Colors.blueGrey),
+                        : Icon(Icons.inventory_2, size: 64, color: colorScheme.primary),
                   ),
                 ),
               ),
@@ -101,17 +110,18 @@ class ProductDetailDialog extends ConsumerWidget {
               // INFORMACIÓN
               Text(
                 producto.nombre,
-                style: theme.textTheme.headlineSmall?.copyWith(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: isMobile ? 20 : 24,
+                  color: colorScheme.onSurface,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
                 'Cód: ${producto.codigoBarras}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFF94A3B8),
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
                   fontSize: isMobile ? 12 : 14,
                 ),
               ),
@@ -124,9 +134,9 @@ class ProductDetailDialog extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'Precio: \$${producto.precioUnidad.toStringAsFixed(2)}',
-                      style: theme.textTheme.titleMedium?.copyWith(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF10B981),
+                        color: colorScheme.primary,
                         fontSize: isMobile ? 16 : 18,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -135,8 +145,8 @@ class ProductDetailDialog extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'Categoría: ${producto.categoria}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF64748B),
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
                         fontSize: isMobile ? 14 : 16,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -153,9 +163,10 @@ class ProductDetailDialog extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'Stock Actual: ${producto.stock}',
-                      style: theme.textTheme.titleMedium?.copyWith(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: isMobile ? 16 : 18,
+                        color: colorScheme.onSurface,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -163,8 +174,8 @@ class ProductDetailDialog extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'Stock Mínimo: ${producto.stockMinimo}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF64748B),
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
                         fontSize: isMobile ? 14 : 16,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -179,16 +190,16 @@ class ProductDetailDialog extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEEF2FF),
+                    color: colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFC7D2FE), width: 1),
+                    border: Border.all(color: colorScheme.primary.withValues(alpha: 0.2), width: 1),
                   ),
                   child: Text(
                     'Proveedor: ${producto.proveedorNombre} (${producto.proveedorTelefono.isNotEmpty ? producto.proveedorTelefono : "Sin teléfono"})',
-                    style: theme.textTheme.bodySmall?.copyWith(
+                    style: TextStyle(
                       fontStyle: FontStyle.italic,
                       fontWeight: FontWeight.w500,
-                      color: const Color(0xFF4F46E5),
+                      color: colorScheme.primary,
                       fontSize: isMobile ? 12 : 14,
                     ),
                     maxLines: 2,
@@ -248,16 +259,16 @@ class ProductDetailDialog extends ConsumerWidget {
                       ScaffoldMessenger.of(context).clearSnackBars();
                       if (result.success) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('✅ Etiqueta impresa correctamente'),
-                            backgroundColor: Color(0xFF10B981),
+                          SnackBar(
+                            content: const Text('✅ Etiqueta impresa correctamente'),
+                            backgroundColor: colorScheme.primary,
                           ),
                         );
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('❌ Error al imprimir: ${result.message}'),
-                            backgroundColor: Colors.red,
+                            backgroundColor: colorScheme.error,
                           ),
                         );
                       }
@@ -266,7 +277,7 @@ class ProductDetailDialog extends ConsumerWidget {
                     label: const Text('Etiqueta'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF8B5CF6),
-                      foregroundColor: Colors.white,
+                      foregroundColor: colorScheme.onPrimary,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       textStyle: const TextStyle(fontSize: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -277,6 +288,7 @@ class ProductDetailDialog extends ConsumerWidget {
                     onPressed: () => Navigator.pop(context),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      foregroundColor: colorScheme.onSurfaceVariant,
                     ),
                     child: const Text('Cerrar'),
                   ),
@@ -287,8 +299,8 @@ class ProductDetailDialog extends ConsumerWidget {
                       icon: const Icon(Icons.edit_outlined, size: 20),
                       label: const Text('Editar'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF10B981),
-                        foregroundColor: Colors.white,
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         textStyle: const TextStyle(fontSize: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -310,7 +322,7 @@ class ProductDetailDialog extends ConsumerWidget {
                               ),
                               ElevatedButton(
                                 onPressed: () => Navigator.pop(context, true),
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                style: ElevatedButton.styleFrom(backgroundColor: colorScheme.error),
                                 child: const Text('Eliminar'),
                               ),
                             ],
@@ -325,8 +337,8 @@ class ProductDetailDialog extends ConsumerWidget {
                       icon: const Icon(Icons.delete_outline, size: 20),
                       label: const Text('Eliminar'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEF4444),
-                        foregroundColor: Colors.white,
+                        backgroundColor: colorScheme.error,
+                        foregroundColor: colorScheme.onError,
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         textStyle: const TextStyle(fontSize: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

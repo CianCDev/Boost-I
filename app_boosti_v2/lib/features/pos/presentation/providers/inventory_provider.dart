@@ -6,23 +6,26 @@ import '../services/sync_service.dart';
 class InventoryState {
   final List<ProductoEntity> productos;
   final String filtroBusqueda;
+  final String categoriaSeleccionada; // ✅ Ahora es String no nulo
   final bool soloStockBajo;
   final bool seleccionMultiple;
   final Set<int> productosSeleccionados;
   final bool isLoading;
 
-  InventoryState({
+  const InventoryState({
     this.productos = const [],
     this.filtroBusqueda = '',
+    this.categoriaSeleccionada = 'Todas', // Valor por defecto
     this.soloStockBajo = false,
     this.seleccionMultiple = false,
     this.productosSeleccionados = const {},
     this.isLoading = true,
-  });
+  }) : assert(categoriaSeleccionada != null, 'categoriaSeleccionada no puede ser null');
 
   InventoryState copyWith({
     List<ProductoEntity>? productos,
     String? filtroBusqueda,
+    String? categoriaSeleccionada,
     bool? soloStockBajo,
     bool? seleccionMultiple,
     Set<int>? productosSeleccionados,
@@ -31,6 +34,8 @@ class InventoryState {
     return InventoryState(
       productos: productos ?? this.productos,
       filtroBusqueda: filtroBusqueda ?? this.filtroBusqueda,
+      // ✅ Forzamos 'Todas' si se pasa null
+      categoriaSeleccionada: categoriaSeleccionada ?? this.categoriaSeleccionada,
       soloStockBajo: soloStockBajo ?? this.soloStockBajo,
       seleccionMultiple: seleccionMultiple ?? this.seleccionMultiple,
       productosSeleccionados: productosSeleccionados ?? this.productosSeleccionados,
@@ -38,12 +43,34 @@ class InventoryState {
     );
   }
 
+  List<String> get categorias {
+    final setCategorias = productos
+        .map((p) => (p.categoria ?? '').trim())
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return ['Todas', ...setCategorias, 'Stock Bajo'];
+  }
+
   List<ProductoEntity> get productosFiltrados {
+    // ✅ categoriaSeleccionada nunca es null, pero por seguridad usamos 'Todas' si acaso
+    final categoriaActual = categoriaSeleccionada;
+
     return productos.where((p) {
-      final coincideTexto = p.nombre.toLowerCase().contains(filtroBusqueda.toLowerCase()) ||
-          p.codigoBarras.contains(filtroBusqueda);
+      final nombre = (p.nombre ?? '').toLowerCase();
+      final codigo = (p.codigoBarras ?? '').toLowerCase();
+      final busqueda = filtroBusqueda.toLowerCase().trim();
+      final coincideTexto = nombre.contains(busqueda) || codigo.contains(busqueda);
+
+      final categoriaProducto = (p.categoria ?? '').trim();
+      final coincideCategoria = categoriaActual == 'Todas' ||
+          (categoriaActual == 'Stock Bajo' && p.stock <= p.stockMinimo) ||
+          (categoriaActual != 'Stock Bajo' && categoriaProducto == categoriaActual);
+
       final coincideStockBajo = !soloStockBajo || (p.stock <= p.stockMinimo);
-      return coincideTexto && coincideStockBajo;
+
+      return coincideTexto && coincideCategoria && coincideStockBajo;
     }).toList();
   }
 
@@ -54,7 +81,7 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
   final IsarService _isarService = IsarService();
   final SyncService _syncService = SyncService();
 
-  InventoryNotifier() : super(InventoryState()) {
+  InventoryNotifier() : super(const InventoryState()) {
     cargarInventario();
   }
 
@@ -74,6 +101,13 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
 
   void setFiltroBusqueda(String filtro) {
     state = state.copyWith(filtroBusqueda: filtro);
+  }
+
+  void setCategoria(String categoria) {
+    // ✅ Aseguramos que nunca sea null o vacío
+    state = state.copyWith(
+      categoriaSeleccionada: (categoria ?? 'Todas').trim().isEmpty ? 'Todas' : categoria.trim(),
+    );
   }
 
   void setSoloStockBajo(bool valor) {

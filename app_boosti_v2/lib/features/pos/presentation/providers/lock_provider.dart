@@ -24,7 +24,6 @@ class LockStateNotifier extends StateNotifier<bool> {
     }
   }
 
-  // 📌 Bloqueo por inactividad o manual con registro en Supabase
   Future<void> _lockScreen({required String reason}) async {
     state = true;
     _idleTimer?.cancel();
@@ -34,7 +33,6 @@ class LockStateNotifier extends StateNotifier<bool> {
       final userId = supabase.auth.currentUser?.id;
 
       if (userId != null) {
-        // Opcional: Registra el evento de descanso/bloqueo en tu base de datos de Supabase
         await supabase.from('cashier_logs').insert({
           'user_id': userId,
           'event_type': 'rest_start',
@@ -43,23 +41,37 @@ class LockStateNotifier extends StateNotifier<bool> {
         });
       }
     } catch (e) {
-      // Manejo silencioso si estás offline con Isar o sin internet
-      debugPrint('No se pudo registrar el descanso en Supabase: $e');
+      // Error silencioso
     }
   }
 
-  // 📌 Método público para que el cajero active el descanso manualmente desde un botón
   void manualRest() {
     _lockScreen(reason: 'manual');
   }
 
+  Future<void> unlock() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser?.id;
+      if (userId != null) {
+        await supabase.from('cashier_logs').insert({
+          'user_id': userId,
+          'event_type': 'rest_end',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+      }
+    } catch (e) {
+      // Error silencioso
+    }
+    state = false;
+    _startTimer();
+  }
+
   Future<void> unlockScreen(String pin) async {
-    // Reemplaza esto con tu validación real de PIN (puede ser contra Supabase o Isar)
-    if (pin == "1234") { 
+    if (pin == "1234") {
       try {
         final supabase = Supabase.instance.client;
         final userId = supabase.auth.currentUser?.id;
-
         if (userId != null) {
           await supabase.from('cashier_logs').insert({
             'user_id': userId,
@@ -68,9 +80,8 @@ class LockStateNotifier extends StateNotifier<bool> {
           });
         }
       } catch (e) {
-        debugPrint('Error al registrar el fin de descanso: $e');
+        // Error silencioso
       }
-
       state = false;
       _startTimer();
     } else {

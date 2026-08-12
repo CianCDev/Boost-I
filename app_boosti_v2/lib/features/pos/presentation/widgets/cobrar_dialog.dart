@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/bcv_provider.dart';
 import '../utils/responsive_helper.dart';
+import '../utils/input_decoration_helper.dart';
 
 class CobrarDialog extends ConsumerStatefulWidget {
   final double totalAPagar;
@@ -157,6 +158,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
     final double tasaBcv = ref.watch(bcvProvider).tasa;
     final double tasaValida = (tasaBcv.isNaN || tasaBcv <= 0) ? 1.0 : tasaBcv;
@@ -207,12 +210,11 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
             ),
             padding: EdgeInsets.all(isMobile ? 16 : 24),
             decoration: BoxDecoration(
-              // ignore: deprecated_member_use
-              color: theme.dialogBackgroundColor,
+              color: colorScheme.surface,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
+                  color: isDark ? Colors.black.withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.08),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 ),
@@ -248,6 +250,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                               fontSize: isMobile ? 18 : 24,
+                              color: colorScheme.onSurface,
                             ),
                           ),
                         ],
@@ -255,14 +258,14 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF0F9FF),
+                          color: colorScheme.primaryContainer.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFBAE6FD)),
+                          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
                         ),
                         child: Text(
                           'BCV: Bs. ${tasaValida.toStringAsFixed(2)}',
                           style: TextStyle(
-                            color: const Color(0xFF0284C7),
+                            color: colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w700,
                             fontSize: isMobile ? 10 : 12,
                           ),
@@ -276,10 +279,12 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: isMobile ? 16 : 20),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
+                      gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                        colors: isDark
+                            ? [colorScheme.surfaceContainerHighest, colorScheme.surfaceContainer]
+                            : [const Color(0xFF0F172A), const Color(0xFF1E293B)],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
@@ -296,16 +301,20 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('TOTAL A PAGAR (\$)', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.bold)),
-                                  Text('\$${widget.totalAPagar.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF34D399), fontSize: 22, fontWeight: FontWeight.bold)),
+                                  Text('TOTAL A PAGAR (\$)',
+                                      style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  Text('\$${widget.totalAPagar.toStringAsFixed(2)}',
+                                      style: TextStyle(color: colorScheme.primary, fontSize: 22, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                               const SizedBox(height: 4),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('TOTAL EN BS', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.bold)),
-                                  Text('Bs. ${totalBs.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 16, fontWeight: FontWeight.bold)),
+                                  Text('TOTAL EN BS',
+                                      style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  Text('Bs. ${totalBs.toStringAsFixed(2)}',
+                                      style: TextStyle(color: colorScheme.primary, fontSize: 16, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                             ],
@@ -316,17 +325,21 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('TOTAL A PAGAR (\$)', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.bold)),
+                                  Text('TOTAL A PAGAR (\$)',
+                                      style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 4),
-                                  Text('\$${widget.totalAPagar.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF34D399), fontSize: 28, fontWeight: FontWeight.bold)),
+                                  Text('\$${widget.totalAPagar.toStringAsFixed(2)}',
+                                      style: TextStyle(color: colorScheme.primary, fontSize: 28, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  const Text('TOTAL EN BOLÍVARES', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12, fontWeight: FontWeight.bold)),
+                                  Text('TOTAL EN BOLÍVARES',
+                                      style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 4),
-                                  Text('Bs. ${totalBs.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 22, fontWeight: FontWeight.bold)),
+                                  Text('Bs. ${totalBs.toStringAsFixed(2)}',
+                                      style: TextStyle(color: colorScheme.primary, fontSize: 22, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                             ],
@@ -334,7 +347,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                   ),
                   const SizedBox(height: 16),
 
-                  // CHIPS CON COLOR Y ANIMACIÓN
+                  // CHIPS DE MÉTODO
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
@@ -349,7 +362,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                   ),
                   const SizedBox(height: 14),
 
-                  // CAMPOS CON ANIMACIÓN SUAVE (AnimatedSize + AnimatedSwitcher)
+                  // CAMPOS CON ANIMACIÓN
                   AnimatedSize(
                     duration: const Duration(milliseconds: 350),
                     curve: Curves.easeInOutCubic,
@@ -371,32 +384,21 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                           ),
                         );
                       },
-                      child: _buildCamposPorMetodo(tasaValida, isMobile, colorMetodo),
+                      child: _buildCamposPorMetodo(tasaValida, isMobile, colorMetodo, colorScheme, isDark),
                     ),
                   ),
                   const SizedBox(height: 14),
 
-                  // CÉDULA / RIF
-                  TextField(
+                  // ✅ CÉDULA / RIF
+                  _campoTexto(
                     controller: _cedulaController,
                     focusNode: _cedulaFocus,
-                    style: const TextStyle(color: Color(0xFF0F172A)),
-                    decoration: InputDecoration(
-                      labelText: 'Cédula / RIF del Cliente',
-                      labelStyle: TextStyle(color: colorMetodo),
-                      prefixIcon: Icon(Icons.badge_outlined, size: 22, color: colorMetodo),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colorMetodo.withValues(alpha: 0.3)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: colorMetodo, width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    ),
+                    label: 'Cédula / RIF del Cliente',
+                    prefixIcon: Icons.badge_outlined,
+                    color: colorMetodo,
+                    colorScheme: colorScheme,
+                    isDark: isDark,
+                    isMobile: isMobile,
                   ),
                   const SizedBox(height: 14),
 
@@ -405,10 +407,12 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                     duration: const Duration(milliseconds: 250),
                     padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 20, vertical: isMobile ? 12 : 16),
                     decoration: BoxDecoration(
-                      color: pagoCompleto ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                      color: pagoCompleto
+                          ? colorScheme.primaryContainer.withValues(alpha: 0.2)
+                          : colorScheme.errorContainer.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: pagoCompleto ? const Color(0xFFA7F3D0) : const Color(0xFFFECACA),
+                        color: pagoCompleto ? colorScheme.primary : colorScheme.error,
                         width: 1.5,
                       ),
                     ),
@@ -418,16 +422,20 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Vuelto (\$):', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF047857))),
-                                  Text('\$${vueltoUsd.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF047857))),
+                                  Text('Vuelto (\$):',
+                                      style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
+                                  Text('\$${vueltoUsd.toStringAsFixed(2)}',
+                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.primary)),
                                 ],
                               ),
                               const SizedBox(height: 4),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Vuelto (Bs):', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF047857))),
-                                  Text('Bs. ${vueltoBs.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF047857))),
+                                  Text('Vuelto (Bs):',
+                                      style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
+                                  Text('Bs. ${vueltoBs.toStringAsFixed(2)}',
+                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.primary)),
                                 ],
                               ),
                             ],
@@ -437,16 +445,20 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Faltante (\$):', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFB91C1C))),
-                                  Text('\$${faltanteUsd.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFB91C1C))),
+                                  Text('Faltante (\$):',
+                                      style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.error)),
+                                  Text('\$${faltanteUsd.toStringAsFixed(2)}',
+                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.error)),
                                 ],
                               ),
                               const SizedBox(height: 4),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Faltante (Bs):', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFB91C1C))),
-                                  Text('Bs. ${faltanteBs.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFB91C1C))),
+                                  Text('Faltante (Bs):',
+                                      style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.error)),
+                                  Text('Bs. ${faltanteBs.toStringAsFixed(2)}',
+                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.error)),
                                 ],
                               ),
                             ],
@@ -456,8 +468,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
 
                   // BOTONES DE ACCIÓN
                   isMobile
-                      ? _buildMobileButtons(pagoCompleto, totalRecibidoUsd, vueltoUsd, tasaValida)
-                      : _buildDesktopButtons(pagoCompleto, totalRecibidoUsd, vueltoUsd, tasaValida),
+                      ? _buildMobileButtons(pagoCompleto, totalRecibidoUsd, vueltoUsd, tasaValida, colorMetodo)
+                      : _buildDesktopButtons(pagoCompleto, totalRecibidoUsd, vueltoUsd, tasaValida, colorMetodo),
                 ],
               ),
             ),
@@ -468,10 +480,11 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   }
 
   // ===============================
-  // CHIP CON COLOR Y ANIMACIÓN
+  // CHIP DE MÉTODO
   // ===============================
   Widget _buildMetodoChip(String label, IconData icon, Color color, bool isMobile) {
     final bool selected = _metodoPagoSeleccionado == label;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return GestureDetector(
       onTap: () {
@@ -506,7 +519,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
             Icon(
               icon,
               size: isMobile ? 18 : 20,
-              color: selected ? Colors.white : color,
+              color: selected ? colorScheme.onPrimary : color,
             ),
             const SizedBox(width: 8),
             Text(
@@ -514,7 +527,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
               style: TextStyle(
                 fontSize: isMobile ? 14 : 16,
                 fontWeight: selected ? FontWeight.bold : FontWeight.w600,
-                color: selected ? Colors.white : color,
+                color: selected ? colorScheme.onPrimary : color,
               ),
             ),
           ],
@@ -526,14 +539,14 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   // ===============================
   // CAMPOS SEGÚN MÉTODO
   // ===============================
-  Widget _buildCamposPorMetodo(double tasaValida, bool isMobile, Color colorMetodo) {
+  Widget _buildCamposPorMetodo(double tasaValida, bool isMobile, Color colorMetodo, ColorScheme colorScheme, bool isDark) {
     switch (_metodoPagoSeleccionado) {
       case 'Efectivo':
-        return _buildEfectivoFields(tasaValida, isMobile, colorMetodo);
+        return _buildEfectivoFields(tasaValida, isMobile, colorMetodo, colorScheme, isDark);
       case 'Pago Móvil':
-        return _buildPagoMovilFields(tasaValida, isMobile, colorMetodo);
+        return _buildPagoMovilFields(tasaValida, isMobile, colorMetodo, colorScheme, isDark);
       case 'Punto de Venta':
-        return _buildPuntoFields(tasaValida, isMobile, colorMetodo);
+        return _buildPuntoFields(tasaValida, isMobile, colorMetodo, colorScheme, isDark);
       default:
         return const SizedBox.shrink();
     }
@@ -542,7 +555,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   // ===============================
   // CAMPOS: EFECTIVO
   // ===============================
-  Widget _buildEfectivoFields(double tasaValida, bool isMobile, Color color) {
+  Widget _buildEfectivoFields(double tasaValida, bool isMobile, Color color, ColorScheme colorScheme, bool isDark) {
     return Column(
       key: const ValueKey('efectivo'),
       children: [
@@ -555,6 +568,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                 label: 'Efectivo \$',
                 prefixIcon: Icons.attach_money_rounded,
                 color: color,
+                colorScheme: colorScheme,
+                isDark: isDark,
                 onChanged: (_) => setState(() {}),
                 isMobile: isMobile,
               ),
@@ -566,6 +581,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                 label: 'Efectivo Bs',
                 prefixIcon: Icons.payments_outlined,
                 color: color,
+                colorScheme: colorScheme,
+                isDark: isDark,
                 onChanged: (_) => setState(() {}),
                 isMobile: isMobile,
               ),
@@ -597,7 +614,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   // ===============================
   // CAMPOS: PAGO MÓVIL
   // ===============================
-  Widget _buildPagoMovilFields(double tasaValida, bool isMobile, Color color) {
+  Widget _buildPagoMovilFields(double tasaValida, bool isMobile, Color color, ColorScheme colorScheme, bool isDark) {
     return Column(
       key: const ValueKey('pago_movil'),
       children: [
@@ -606,6 +623,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
           label: 'Monto en Bs (Pago Móvil)',
           prefixIcon: Icons.phone_android,
           color: color,
+          colorScheme: colorScheme,
+          isDark: isDark,
           onChanged: (_) => setState(() {}),
           isMobile: isMobile,
         ),
@@ -615,6 +634,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
           label: 'Número de Referencia',
           prefixIcon: Icons.numbers,
           color: color,
+          colorScheme: colorScheme,
+          isDark: isDark,
           isMobile: isMobile,
         ),
         const SizedBox(height: 10),
@@ -623,6 +644,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
           label: 'Nombre del Cliente',
           prefixIcon: Icons.person_outline,
           color: color,
+          colorScheme: colorScheme,
+          isDark: isDark,
           isMobile: isMobile,
         ),
         const SizedBox(height: 10),
@@ -650,7 +673,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   // ===============================
   // CAMPOS: PUNTO DE VENTA
   // ===============================
-  Widget _buildPuntoFields(double tasaValida, bool isMobile, Color color) {
+  Widget _buildPuntoFields(double tasaValida, bool isMobile, Color color, ColorScheme colorScheme, bool isDark) {
     return Column(
       key: const ValueKey('punto'),
       children: [
@@ -659,6 +682,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
           label: 'Monto en Bs (Punto)',
           prefixIcon: Icons.credit_card,
           color: color,
+          colorScheme: colorScheme,
+          isDark: isDark,
           onChanged: (_) => setState(() {}),
           isMobile: isMobile,
         ),
@@ -668,6 +693,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
           label: 'Nombre del Cliente',
           prefixIcon: Icons.person_outline,
           color: color,
+          colorScheme: colorScheme,
+          isDark: isDark,
           isMobile: isMobile,
         ),
         const SizedBox(height: 10),
@@ -693,33 +720,29 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   }
 
   // ===============================
-  // CAMPOS REUTILIZABLES
+  // CAMPOS REUTILIZABLES (CON HELPER)
   // ===============================
   Widget _campoTexto({
     required TextEditingController controller,
+    FocusNode? focusNode,
     required String label,
     required IconData prefixIcon,
     required Color color,
+    required ColorScheme colorScheme,
+    bool isDark = false,
     bool isMobile = false,
   }) {
     return TextField(
       controller: controller,
-      style: const TextStyle(color: Color(0xFF0F172A)),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: color),
-        prefixIcon: Icon(prefixIcon, size: 22, color: color),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: color.withValues(alpha: 0.3)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: color, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      focusNode: focusNode,
+      enableInteractiveSelection: false,
+      style: TextStyle(color: colorScheme.onSurface),
+      decoration: InputDecorationHelper.build(
+        context: context,
+        label: label,
+        prefixIcon: prefixIcon,
+        errorText: null,
+        isDark: isDark,
       ),
     );
   }
@@ -730,6 +753,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     required String label,
     required IconData prefixIcon,
     required Color color,
+    required ColorScheme colorScheme,
+    bool isDark = false,
     required ValueChanged<String> onChanged,
     bool isMobile = false,
   }) {
@@ -739,22 +764,14 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
       onChanged: onChanged,
-      style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: color),
-        prefixIcon: Icon(prefixIcon, size: 22, color: color),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: color.withValues(alpha: 0.3)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: color, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      enableInteractiveSelection: false,
+      style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+      decoration: InputDecorationHelper.build(
+        context: context,
+        label: label,
+        prefixIcon: prefixIcon,
+        errorText: null,
+        isDark: isDark,
       ),
     );
   }
@@ -762,14 +779,14 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   // ===============================
   // BOTONES DE ACCIÓN
   // ===============================
-  Widget _buildDesktopButtons(bool pagoCompleto, double totalRecibidoUsd, double vueltoUsd, double tasaValida) {
-    final Color colorMetodo = _getColorMetodo();
+  Widget _buildDesktopButtons(bool pagoCompleto, double totalRecibidoUsd, double vueltoUsd, double tasaValida, Color colorMetodo) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         TextButton(
           style: TextButton.styleFrom(
-            foregroundColor: Colors.grey.shade700,
+            foregroundColor: colorScheme.onSurfaceVariant,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -779,18 +796,18 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
         const SizedBox(width: 12),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: pagoCompleto ? colorMetodo : const Color(0xFF94A3B8),
-            foregroundColor: Colors.white,
+            backgroundColor: pagoCompleto ? colorMetodo : colorScheme.surfaceContainerHighest,
+            foregroundColor: pagoCompleto ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             elevation: pagoCompleto ? 4 : 0,
           ),
           onPressed: pagoCompleto ? () => _confirmarPago(totalRecibidoUsd, vueltoUsd, tasaValida) : null,
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.check_rounded, size: 22),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text('CONFIRMAR PAGO', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
             ],
           ),
@@ -799,8 +816,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     );
   }
 
-  Widget _buildMobileButtons(bool pagoCompleto, double totalRecibidoUsd, double vueltoUsd, double tasaValida) {
-    final Color colorMetodo = _getColorMetodo();
+  Widget _buildMobileButtons(bool pagoCompleto, double totalRecibidoUsd, double vueltoUsd, double tasaValida, Color colorMetodo) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         SizedBox(
@@ -808,17 +825,17 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
           height: 52,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: pagoCompleto ? colorMetodo : const Color(0xFF94A3B8),
-              foregroundColor: Colors.white,
+              backgroundColor: pagoCompleto ? colorMetodo : colorScheme.surfaceContainerHighest,
+              foregroundColor: pagoCompleto ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               elevation: pagoCompleto ? 4 : 0,
             ),
             onPressed: pagoCompleto ? () => _confirmarPago(totalRecibidoUsd, vueltoUsd, tasaValida) : null,
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.check_rounded, size: 22),
-                SizedBox(width: 10),
+                const SizedBox(width: 10),
                 Text('CONFIRMAR PAGO', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.3)),
               ],
             ),
@@ -827,7 +844,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
         const SizedBox(height: 10),
         TextButton(
           style: TextButton.styleFrom(
-            foregroundColor: Colors.grey.shade700,
+            foregroundColor: colorScheme.onSurfaceVariant,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
