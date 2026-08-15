@@ -27,40 +27,60 @@ const UsuarioEntitySchema = CollectionSchema(
       name: r'cajaAsignada',
       type: IsarType.string,
     ),
-    r'deviceId': PropertySchema(
+    r'departamento': PropertySchema(
       id: 2,
+      name: r'departamento',
+      type: IsarType.string,
+    ),
+    r'deviceId': PropertySchema(
+      id: 3,
       name: r'deviceId',
       type: IsarType.string,
     ),
     r'email': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'email',
       type: IsarType.string,
     ),
     r'estado': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'estado',
       type: IsarType.string,
     ),
+    r'idIsar': PropertySchema(
+      id: 6,
+      name: r'idIsar',
+      type: IsarType.long,
+    ),
     r'nombre': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'nombre',
       type: IsarType.string,
     ),
     r'pin': PropertySchema(
-      id: 6,
+      id: 8,
       name: r'pin',
       type: IsarType.string,
     ),
     r'rol': PropertySchema(
-      id: 7,
+      id: 9,
       name: r'rol',
       type: IsarType.string,
     ),
+    r'supabaseId': PropertySchema(
+      id: 10,
+      name: r'supabaseId',
+      type: IsarType.string,
+    ),
     r'supabaseUid': PropertySchema(
-      id: 8,
+      id: 11,
       name: r'supabaseUid',
       type: IsarType.string,
+    ),
+    r'updatedAt': PropertySchema(
+      id: 12,
+      name: r'updatedAt',
+      type: IsarType.dateTime,
     )
   },
   estimateSize: _usuarioEntityEstimateSize,
@@ -68,7 +88,21 @@ const UsuarioEntitySchema = CollectionSchema(
   deserialize: _usuarioEntityDeserialize,
   deserializeProp: _usuarioEntityDeserializeProp,
   idName: r'id',
-  indexes: {},
+  indexes: {
+    r'idIsar': IndexSchema(
+      id: 192112775422685683,
+      name: r'idIsar',
+      unique: true,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'idIsar',
+          type: IndexType.value,
+          caseSensitive: false,
+        )
+      ],
+    )
+  },
   links: {},
   embeddedSchemas: {},
   getId: _usuarioEntityGetId,
@@ -84,6 +118,12 @@ int _usuarioEntityEstimateSize(
 ) {
   var bytesCount = offsets.last;
   bytesCount += 3 + object.cajaAsignada.length * 3;
+  {
+    final value = object.departamento;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   {
     final value = object.deviceId;
     if (value != null) {
@@ -101,6 +141,12 @@ int _usuarioEntityEstimateSize(
   bytesCount += 3 + object.pin.length * 3;
   bytesCount += 3 + object.rol.length * 3;
   {
+    final value = object.supabaseId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final value = object.supabaseUid;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -117,13 +163,17 @@ void _usuarioEntitySerialize(
 ) {
   writer.writeBool(offsets[0], object.activo);
   writer.writeString(offsets[1], object.cajaAsignada);
-  writer.writeString(offsets[2], object.deviceId);
-  writer.writeString(offsets[3], object.email);
-  writer.writeString(offsets[4], object.estado);
-  writer.writeString(offsets[5], object.nombre);
-  writer.writeString(offsets[6], object.pin);
-  writer.writeString(offsets[7], object.rol);
-  writer.writeString(offsets[8], object.supabaseUid);
+  writer.writeString(offsets[2], object.departamento);
+  writer.writeString(offsets[3], object.deviceId);
+  writer.writeString(offsets[4], object.email);
+  writer.writeString(offsets[5], object.estado);
+  writer.writeLong(offsets[6], object.idIsar);
+  writer.writeString(offsets[7], object.nombre);
+  writer.writeString(offsets[8], object.pin);
+  writer.writeString(offsets[9], object.rol);
+  writer.writeString(offsets[10], object.supabaseId);
+  writer.writeString(offsets[11], object.supabaseUid);
+  writer.writeDateTime(offsets[12], object.updatedAt);
 }
 
 UsuarioEntity _usuarioEntityDeserialize(
@@ -135,14 +185,18 @@ UsuarioEntity _usuarioEntityDeserialize(
   final object = UsuarioEntity();
   object.activo = reader.readBool(offsets[0]);
   object.cajaAsignada = reader.readString(offsets[1]);
-  object.deviceId = reader.readStringOrNull(offsets[2]);
-  object.email = reader.readStringOrNull(offsets[3]);
-  object.estado = reader.readString(offsets[4]);
+  object.departamento = reader.readStringOrNull(offsets[2]);
+  object.deviceId = reader.readStringOrNull(offsets[3]);
+  object.email = reader.readStringOrNull(offsets[4]);
+  object.estado = reader.readString(offsets[5]);
   object.id = id;
-  object.nombre = reader.readString(offsets[5]);
-  object.pin = reader.readString(offsets[6]);
-  object.rol = reader.readString(offsets[7]);
-  object.supabaseUid = reader.readStringOrNull(offsets[8]);
+  object.idIsar = reader.readLong(offsets[6]);
+  object.nombre = reader.readString(offsets[7]);
+  object.pin = reader.readString(offsets[8]);
+  object.rol = reader.readString(offsets[9]);
+  object.supabaseId = reader.readStringOrNull(offsets[10]);
+  object.supabaseUid = reader.readStringOrNull(offsets[11]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[12]);
   return object;
 }
 
@@ -162,15 +216,23 @@ P _usuarioEntityDeserializeProp<P>(
     case 3:
       return (reader.readStringOrNull(offset)) as P;
     case 4:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 5:
       return (reader.readString(offset)) as P;
     case 6:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 7:
       return (reader.readString(offset)) as P;
     case 8:
+      return (reader.readString(offset)) as P;
+    case 9:
+      return (reader.readString(offset)) as P;
+    case 10:
       return (reader.readStringOrNull(offset)) as P;
+    case 11:
+      return (reader.readStringOrNull(offset)) as P;
+    case 12:
+      return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -189,11 +251,74 @@ void _usuarioEntityAttach(
   object.id = id;
 }
 
+extension UsuarioEntityByIndex on IsarCollection<UsuarioEntity> {
+  Future<UsuarioEntity?> getByIdIsar(int idIsar) {
+    return getByIndex(r'idIsar', [idIsar]);
+  }
+
+  UsuarioEntity? getByIdIsarSync(int idIsar) {
+    return getByIndexSync(r'idIsar', [idIsar]);
+  }
+
+  Future<bool> deleteByIdIsar(int idIsar) {
+    return deleteByIndex(r'idIsar', [idIsar]);
+  }
+
+  bool deleteByIdIsarSync(int idIsar) {
+    return deleteByIndexSync(r'idIsar', [idIsar]);
+  }
+
+  Future<List<UsuarioEntity?>> getAllByIdIsar(List<int> idIsarValues) {
+    final values = idIsarValues.map((e) => [e]).toList();
+    return getAllByIndex(r'idIsar', values);
+  }
+
+  List<UsuarioEntity?> getAllByIdIsarSync(List<int> idIsarValues) {
+    final values = idIsarValues.map((e) => [e]).toList();
+    return getAllByIndexSync(r'idIsar', values);
+  }
+
+  Future<int> deleteAllByIdIsar(List<int> idIsarValues) {
+    final values = idIsarValues.map((e) => [e]).toList();
+    return deleteAllByIndex(r'idIsar', values);
+  }
+
+  int deleteAllByIdIsarSync(List<int> idIsarValues) {
+    final values = idIsarValues.map((e) => [e]).toList();
+    return deleteAllByIndexSync(r'idIsar', values);
+  }
+
+  Future<Id> putByIdIsar(UsuarioEntity object) {
+    return putByIndex(r'idIsar', object);
+  }
+
+  Id putByIdIsarSync(UsuarioEntity object, {bool saveLinks = true}) {
+    return putByIndexSync(r'idIsar', object, saveLinks: saveLinks);
+  }
+
+  Future<List<Id>> putAllByIdIsar(List<UsuarioEntity> objects) {
+    return putAllByIndex(r'idIsar', objects);
+  }
+
+  List<Id> putAllByIdIsarSync(List<UsuarioEntity> objects,
+      {bool saveLinks = true}) {
+    return putAllByIndexSync(r'idIsar', objects, saveLinks: saveLinks);
+  }
+}
+
 extension UsuarioEntityQueryWhereSort
     on QueryBuilder<UsuarioEntity, UsuarioEntity, QWhere> {
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhere> anyId() {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(const IdWhereClause.any());
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhere> anyIdIsar() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'idIsar'),
+      );
     });
   }
 }
@@ -264,6 +389,97 @@ extension UsuarioEntityQueryWhere
         lower: lowerId,
         includeLower: includeLower,
         upper: upperId,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause> idIsarEqualTo(
+      int idIsar) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'idIsar',
+        value: [idIsar],
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause>
+      idIsarNotEqualTo(int idIsar) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'idIsar',
+              lower: [],
+              upper: [idIsar],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'idIsar',
+              lower: [idIsar],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'idIsar',
+              lower: [idIsar],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'idIsar',
+              lower: [],
+              upper: [idIsar],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause>
+      idIsarGreaterThan(
+    int idIsar, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'idIsar',
+        lower: [idIsar],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause> idIsarLessThan(
+    int idIsar, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'idIsar',
+        lower: [],
+        upper: [idIsar],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause> idIsarBetween(
+    int lowerIdIsar,
+    int upperIdIsar, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'idIsar',
+        lower: [lowerIdIsar],
+        includeLower: includeLower,
+        upper: [upperIdIsar],
         includeUpper: includeUpper,
       ));
     });
@@ -413,6 +629,160 @@ extension UsuarioEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'cajaAsignada',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'departamento',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'departamento',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'departamento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'departamento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'departamento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'departamento',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'departamento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'departamento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'departamento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'departamento',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'departamento',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      departamentoIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'departamento',
         value: '',
       ));
     });
@@ -917,6 +1287,62 @@ extension UsuarioEntityQueryFilter
   }
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      idIsarEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'idIsar',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      idIsarGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'idIsar',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      idIsarLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'idIsar',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      idIsarBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'idIsar',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       nombreEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -1321,6 +1747,160 @@ extension UsuarioEntityQueryFilter
   }
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'supabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'supabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'supabaseId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'supabaseId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'supabaseId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supabaseIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'supabaseId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       supabaseUidIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -1473,6 +2053,80 @@ extension UsuarioEntityQueryFilter
       ));
     });
   }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      updatedAtIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'updatedAt',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      updatedAtIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'updatedAt',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      updatedAtEqualTo(DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'updatedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      updatedAtGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'updatedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      updatedAtLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'updatedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      updatedAtBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'updatedAt',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
 }
 
 extension UsuarioEntityQueryObject
@@ -1506,6 +2160,20 @@ extension UsuarioEntityQuerySortBy
       sortByCajaAsignadaDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cajaAsignada', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByDepartamento() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'departamento', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByDepartamentoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'departamento', Sort.desc);
     });
   }
 
@@ -1546,6 +2214,18 @@ extension UsuarioEntityQuerySortBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByIdIsar() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'idIsar', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByIdIsarDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'idIsar', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByNombre() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombre', Sort.asc);
@@ -1582,6 +2262,19 @@ extension UsuarioEntityQuerySortBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortBySupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortBySupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supabaseId', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortBySupabaseUid() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'supabaseUid', Sort.asc);
@@ -1592,6 +2285,19 @@ extension UsuarioEntityQuerySortBy
       sortBySupabaseUidDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'supabaseUid', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByUpdatedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'updatedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByUpdatedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'updatedAt', Sort.desc);
     });
   }
 }
@@ -1621,6 +2327,20 @@ extension UsuarioEntityQuerySortThenBy
       thenByCajaAsignadaDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cajaAsignada', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByDepartamento() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'departamento', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByDepartamentoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'departamento', Sort.desc);
     });
   }
 
@@ -1673,6 +2393,18 @@ extension UsuarioEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByIdIsar() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'idIsar', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByIdIsarDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'idIsar', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByNombre() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombre', Sort.asc);
@@ -1709,6 +2441,19 @@ extension UsuarioEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenBySupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenBySupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supabaseId', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenBySupabaseUid() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'supabaseUid', Sort.asc);
@@ -1719,6 +2464,19 @@ extension UsuarioEntityQuerySortThenBy
       thenBySupabaseUidDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'supabaseUid', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByUpdatedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'updatedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByUpdatedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'updatedAt', Sort.desc);
     });
   }
 }
@@ -1735,6 +2493,13 @@ extension UsuarioEntityQueryWhereDistinct
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'cajaAsignada', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByDepartamento(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'departamento', caseSensitive: caseSensitive);
     });
   }
 
@@ -1759,6 +2524,12 @@ extension UsuarioEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByIdIsar() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'idIsar');
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByNombre(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1780,10 +2551,23 @@ extension UsuarioEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctBySupabaseId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'supabaseId', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctBySupabaseUid(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'supabaseUid', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByUpdatedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'updatedAt');
     });
   }
 }
@@ -1808,6 +2592,13 @@ extension UsuarioEntityQueryProperty
     });
   }
 
+  QueryBuilder<UsuarioEntity, String?, QQueryOperations>
+      departamentoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'departamento');
+    });
+  }
+
   QueryBuilder<UsuarioEntity, String?, QQueryOperations> deviceIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'deviceId');
@@ -1823,6 +2614,12 @@ extension UsuarioEntityQueryProperty
   QueryBuilder<UsuarioEntity, String, QQueryOperations> estadoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'estado');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, int, QQueryOperations> idIsarProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'idIsar');
     });
   }
 
@@ -1844,9 +2641,21 @@ extension UsuarioEntityQueryProperty
     });
   }
 
+  QueryBuilder<UsuarioEntity, String?, QQueryOperations> supabaseIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'supabaseId');
+    });
+  }
+
   QueryBuilder<UsuarioEntity, String?, QQueryOperations> supabaseUidProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'supabaseUid');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, DateTime?, QQueryOperations> updatedAtProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'updatedAt');
     });
   }
 }

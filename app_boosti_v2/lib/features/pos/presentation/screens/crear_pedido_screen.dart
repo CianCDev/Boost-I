@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:app_boosti_v2/features/pos/presentation/providers/pedidos_provider.dart'; // ✅ Importación correcta
+import 'package:app_boosti_v2/features/pos/presentation/providers/pedidos_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/detalle_pedido_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/provedor_autocomplete.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/productor_selector.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/detalle_producto_card.dart';
@@ -19,19 +20,18 @@ class CrearPedidoProveedorScreen extends ConsumerStatefulWidget {
 class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedorScreen> {
   final _formKey = GlobalKey<FormState>();
 
+  List<ProveedorEntity> _proveedores = [];
+  ProveedorEntity? _proveedorSeleccionado;
   String _proveedorNombre = '';
   String _proveedorCedula = '';
   String _proveedorTelefono = '';
-  String _proveedorEmpresa = '';
 
   int _localDestinoId = 1;
   final List<DetallePedidoEntity> _detalles = [];
 
   final TextEditingController _cantidadController = TextEditingController(text: '1');
   final TextEditingController _precioController = TextEditingController();
-
   ProductoEntity? _productoSeleccionado;
-  List<String> _proveedoresDisponibles = [];
 
   @override
   void initState() {
@@ -41,41 +41,19 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
 
   Future<void> _cargarProveedores() async {
     final isar = ref.read(isarServiceProvider);
-    final productos = await isar.obtenerProductos();
-    final empresas = productos
-        .map((p) => p.proveedorEmpresa)
-        .where((e) => e != null && e!.isNotEmpty)
-        .map((e) => e!)
-        .toSet()
-        .toList()
-      ..sort();
+    final proveedores = await isar.obtenerProveedores(soloActivos: true);
     setState(() {
-      _proveedoresDisponibles = empresas;
+      _proveedores = proveedores;
     });
   }
 
-  void _seleccionarProveedor(String empresa) {
+  void _seleccionarProveedor(ProveedorEntity proveedor) {
     setState(() {
-      _proveedorEmpresa = empresa;
-      _proveedorNombre = '';
-      _proveedorTelefono = '';
+      _proveedorSeleccionado = proveedor;
+      _proveedorNombre = proveedor.nombre;
+      _proveedorCedula = proveedor.cedula ?? '';
+      _proveedorTelefono = proveedor.telefono ?? '';
     });
-    _autoCompletarDatosProveedor(empresa);
-  }
-
-  Future<void> _autoCompletarDatosProveedor(String empresa) async {
-    final isar = ref.read(isarServiceProvider);
-    final productos = await isar.obtenerProductos();
-    final producto = productos.firstWhere(
-      (p) => p.proveedorEmpresa == empresa,
-      orElse: () => ProductoEntity(),
-    );
-    if (producto.id != 0) {
-      setState(() {
-        _proveedorNombre = producto.proveedorNombre ?? '';
-        _proveedorTelefono = producto.proveedorTelefono ?? '';
-      });
-    }
   }
 
   void _agregarProducto() {
@@ -110,7 +88,7 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensaje),
-        backgroundColor: Colors.grey.shade800,
+        backgroundColor: const Color(0xFF424242),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
@@ -124,17 +102,21 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
       _mostrarSnackbar('Agrega al menos un producto');
       return;
     }
+    if (_proveedorSeleccionado == null) {
+      _mostrarSnackbar('Por favor, selecciona un proveedor válido de la lista.');
+      return;
+    }
 
     final pedido = PedidoEntity()
-      ..localOrigenId = 1 // TODO: obtener del usuario actual
+      ..localOrigenId = 1
       ..localDestinoId = _localDestinoId
-      ..usuarioId = 1 // TODO: obtener del usuario actual
+      ..usuarioId = 1
       ..fechaPedido = DateTime.now()
       ..estado = EstadoPedido.pendiente
-      ..proveedorNombre = _proveedorNombre
-      ..proveedorCedula = _proveedorCedula.isNotEmpty ? _proveedorCedula : null
-      ..proveedorTelefono = _proveedorTelefono.isNotEmpty ? _proveedorTelefono : null
-      ..proveedorEmpresa = _proveedorEmpresa.isNotEmpty ? _proveedorEmpresa : null
+      ..proveedorNombre = _proveedorSeleccionado!.nombre
+      ..proveedorCedula = _proveedorSeleccionado!.cedula
+      ..proveedorTelefono = _proveedorSeleccionado!.telefono
+      ..proveedorEmpresa = _proveedorSeleccionado!.empresa
       ..total = _detalles.fold(0.0, (sum, d) => sum + d.subtotal)
       ..sincronizado = false;
 
@@ -163,11 +145,13 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Ahora sí, usamos el provider definido en pedidos_provider.dart
     final productosAsync = ref.watch(productosParaPedidosProvider);
+    final colorScheme = Theme.of(context).colorScheme; // ✅ Tema dinámico
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      // ✅ Fondo adaptado al modo oscuro/claro
+      backgroundColor: colorScheme.surfaceContainerLow,
       appBar: _buildAppBar(),
       body: Form(
         key: _formKey,
@@ -202,10 +186,7 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color.fromRGBO(68, 109, 241, 1),
-              Color.fromARGB(255, 85, 59, 235),
-            ],
+            colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
           ),
         ),
       ),
@@ -216,16 +197,21 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
         IconButton(
           onPressed: _guardarPedido,
           icon: const Icon(Icons.save_rounded),
-          tooltip: 'Guardar pedido',
         ),
       ],
     );
   }
 
   Widget _buildSeccionProveedor() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      // ✅ Color de la tarjeta adaptado
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant, width: 1), // ✅ Borde sutil
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -233,46 +219,43 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
           children: [
             Row(
               children: [
-                const Icon(Icons.business_rounded, color: Color(0xFF8B5CF6), size: 20),
+                Icon(Icons.business_rounded, color: colorScheme.primary, size: 20),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   'Datos del Proveedor',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colorScheme.onSurface),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            const Text('Buscar por empresa', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+            Text(
+              'Buscar por nombre',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: colorScheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 4),
             ProveedorAutocomplete(
-              proveedoresDisponibles: _proveedoresDisponibles,
+              proveedores: _proveedores,
               onSelected: _seleccionarProveedor,
             ),
             const SizedBox(height: 12),
+            // Aquí usamos el método corregido que se encarga de los colores dinámicos
             _buildCampoTexto(
               label: 'Nombre del Proveedor *',
-              initialValue: _proveedorNombre,
-              onChanged: (v) => _proveedorNombre = v,
+              controller: TextEditingController(text: _proveedorNombre),
+              readOnly: true,
               validator: (v) => v!.isEmpty ? 'Requerido' : null,
             ),
             const SizedBox(height: 8),
             _buildCampoTexto(
               label: 'Cédula / RIF',
-              initialValue: _proveedorCedula,
-              onChanged: (v) => _proveedorCedula = v,
+              controller: TextEditingController(text: _proveedorCedula),
+              readOnly: true,
             ),
             const SizedBox(height: 8),
             _buildCampoTexto(
               label: 'Teléfono',
-              initialValue: _proveedorTelefono,
-              onChanged: (v) => _proveedorTelefono = v,
-            ),
-            const SizedBox(height: 8),
-            _buildCampoTexto(
-              label: 'Empresa *',
-              initialValue: _proveedorEmpresa,
-              onChanged: (v) => _proveedorEmpresa = v,
-              validator: (v) => v!.isEmpty ? 'Requerido' : null,
+              controller: TextEditingController(text: _proveedorTelefono),
+              readOnly: true,
             ),
           ],
         ),
@@ -280,38 +263,55 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
     );
   }
 
+  // ✅ Método de campo de texto ya adaptado al modo oscuro
   Widget _buildCampoTexto({
     required String label,
-    required String initialValue,
-    required Function(String) onChanged,
+    required TextEditingController controller,
     String? Function(String?)? validator,
+    bool readOnly = false,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return TextFormField(
-      initialValue: initialValue,
+      controller: controller,
+      readOnly: readOnly,
+      style: TextStyle(color: colorScheme.onSurface),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: Colors.grey.shade600),
+        labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: colorScheme.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorScheme.outline),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 2),
+          borderSide: BorderSide(color: colorScheme.primary, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
-      onChanged: onChanged,
       validator: validator,
     );
   }
 
   Widget _buildSeccionLocal() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      // ✅ Fondo de tarjeta adaptado
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant, width: 1), // ✅ Borde sutil
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -319,15 +319,16 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
           children: [
             Row(
               children: [
-                const Icon(Icons.storefront_rounded, color: Color(0xFF8B5CF6), size: 20),
+                Icon(Icons.storefront_rounded, color: colorScheme.primary, size: 20),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   'Local Destino',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colorScheme.onSurface),
                 ),
               ],
             ),
             const SizedBox(height: 12),
+            // ✅ Dropdown con colores dinámicos
             DropdownButtonFormField<int>(
               value: _localDestinoId,
               items: const [
@@ -335,20 +336,25 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
                 DropdownMenuItem(value: 2, child: Text('Local Secundario')),
               ],
               onChanged: (value) => setState(() => _localDestinoId = value!),
+              dropdownColor: colorScheme.surface, // ✅ Fondo del dropdown adaptado
+              style: TextStyle(color: colorScheme.onSurface), // ✅ Texto adaptado
               decoration: InputDecoration(
+                hintText: 'Selecciona un local',
+                hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                 filled: true,
-                fillColor: Colors.grey.shade50,
+                // ✅ Fondo dinámico
+                fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 2),
+                  borderSide: BorderSide(color: colorScheme.primary, width: 2),
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                hintText: 'Selecciona un local',
               ),
+              icon: Icon(Icons.arrow_drop_down, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
             ),
           ],
         ),
@@ -357,9 +363,15 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
   }
 
   Widget _buildSeccionProductos(AsyncValue<List<ProductoEntity>> productosAsync) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      // ✅ Fondo de tarjeta adaptado
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant, width: 1),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -367,20 +379,21 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
           children: [
             Row(
               children: [
-                const Icon(Icons.shopping_bag_rounded, color: Color(0xFF8B5CF6), size: 20),
+                Icon(Icons.shopping_bag_rounded, color: colorScheme.primary, size: 20),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   'Agregar Productos',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colorScheme.onSurface),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             productosAsync.when(
               data: (todos) {
-                final filtrados = _proveedorEmpresa.isNotEmpty
-                    ? todos.where((p) => p.proveedorEmpresa == _proveedorEmpresa).toList()
-                    : todos;
+                final List<ProductoEntity> filtrados = _proveedorSeleccionado != null
+                    ? todos.where((p) => p.proveedorId == _proveedorSeleccionado!.id).toList().cast<ProductoEntity>()
+                    : <ProductoEntity>[];
+
                 return ProductoSelector(
                   productos: filtrados,
                   valorSeleccionado: _productoSeleccionado,
@@ -396,9 +409,9 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
             const SizedBox(height: 12),
             if (_detalles.isNotEmpty) ...[
               const Divider(),
-              const Text(
+              Text(
                 'Productos agregados:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: colorScheme.onSurface),
               ),
               const SizedBox(height: 8),
               AnimationLimiter(
@@ -435,31 +448,17 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
-        ),
+        gradient: const LinearGradient(colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)]),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF4F46E5).withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
+          BoxShadow(color: const Color(0xFF4F46E5).withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text(
-            'Total del Pedido',
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          Text(
-            'Bs ${total.toStringAsFixed(2)}',
-            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-          ),
+          const Text('Total del Pedido', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+          Text('Bs ${total.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
         ],
       ),
     );

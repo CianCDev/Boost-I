@@ -12,6 +12,7 @@ class PedidoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _getColor(pedido.estado);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return GestureDetector(
       onTap: onTap,
@@ -19,7 +20,7 @@ class PedidoCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colorScheme.surface, // ✅ Adaptado
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: color.withValues(alpha: 0.3),
@@ -58,9 +59,10 @@ class PedidoCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             pedido.proveedorNombre,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface, // ✅ Adaptado
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -71,29 +73,29 @@ class PedidoCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.business_rounded, size: 14, color: Colors.grey.shade500),
+                        Icon(Icons.business_rounded, size: 14, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
                         const SizedBox(width: 4),
                         Text(
                           pedido.proveedorEmpresa ?? 'Sin empresa',
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
                         ),
                         const Spacer(),
-                        Icon(Icons.calendar_today_rounded, size: 14, color: Colors.grey.shade500),
+                        Icon(Icons.calendar_today_rounded, size: 14, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
                         const SizedBox(width: 4),
                         Text(
                           DateFormat('dd/MM/yyyy').format(pedido.fechaPedido),
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.shopping_bag_rounded, size: 14, color: Colors.grey.shade500),
+                        Icon(Icons.shopping_bag_rounded, size: 14, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
                         const SizedBox(width: 4),
                         Text(
                           '${pedido.detalles?.length ?? 0} productos',
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
                         ),
                         const Spacer(),
                         Text(
@@ -101,7 +103,7 @@ class PedidoCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green.shade700,
+                            color: Colors.green.shade700, // Se mantiene verde para el total
                           ),
                         ),
                       ],

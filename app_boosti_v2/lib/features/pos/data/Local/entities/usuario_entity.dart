@@ -4,11 +4,12 @@ part 'usuario_entity.g.dart';
 
 @Collection()
 class UsuarioEntity {
-  Id id = Isar.autoIncrement; // este es el id local, pero usaremos idIsar como el id real común
+  Id id = Isar
+      .autoIncrement; // este es el id local, pero usaremos idIsar como el id real común
 
   @Index(unique: true)
   late int idIsar; // ID único que se comparte con Supabase (antes era id, pero ahora lo separamos)
-  
+
   late String nombre;
   late String pin;
   late String rol;
@@ -16,6 +17,7 @@ class UsuarioEntity {
   late String estado; // 'activo', 'descanso', 'inactivo'
   late String cajaAsignada;
   String? email;
+  String? supabaseId;
   String? supabaseUid;
   String? deviceId;
   String? departamento; // Nuevo campo

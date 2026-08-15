@@ -21,34 +21,39 @@ class ProductoSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       children: [
         DropdownButtonFormField<ProductoEntity>(
           value: valorSeleccionado,
           hint: Text(
             productos.isEmpty ? 'No hay productos para este proveedor' : 'Seleccionar producto',
-            style: TextStyle(color: Colors.grey.shade500),
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
           ),
           items: productos.map((p) {
             return DropdownMenuItem(
               value: p,
               child: Text(
                 '${p.nombre} (Stock: ${p.stock})',
-                style: const TextStyle(fontSize: 14),
+                style: TextStyle(color: colorScheme.onSurface), // ✅ Adaptado
               ),
             );
           }).toList(),
           onChanged: onChanged,
+          dropdownColor: colorScheme.surface, // ✅ Fondo del dropdown adaptado
+          style: TextStyle(color: colorScheme.onSurface), // ✅ Texto del dropdown adaptado
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.grey.shade50,
+            fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50, // ✅ Adaptado
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 2),
+              borderSide: BorderSide(color: colorScheme.primary, width: 2),
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),
@@ -60,18 +65,19 @@ class ProductoSelector extends StatelessWidget {
               child: TextFormField(
                 controller: cantidadController,
                 keyboardType: TextInputType.number,
+                style: TextStyle(color: colorScheme.onSurface), // ✅ Texto DINÁMICO (AQUÍ ESTABA EL ERROR)
                 decoration: InputDecoration(
                   labelText: 'Cantidad',
-                  labelStyle: TextStyle(color: Colors.grey.shade600),
+                  labelStyle: TextStyle(color: colorScheme.onSurfaceVariant), // ✅ Etiqueta adaptada
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50, // ✅ Fondo adaptado
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 2),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
@@ -82,18 +88,19 @@ class ProductoSelector extends StatelessWidget {
               child: TextFormField(
                 controller: precioController,
                 keyboardType: TextInputType.number,
+                style: TextStyle(color: colorScheme.onSurface), // ✅ Texto DINÁMICO (AQUÍ ESTABA EL ERROR)
                 decoration: InputDecoration(
                   labelText: 'Precio Unitario (Bs)',
-                  labelStyle: TextStyle(color: Colors.grey.shade600),
+                  labelStyle: TextStyle(color: colorScheme.onSurfaceVariant), // ✅ Etiqueta adaptada
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50, // ✅ Fondo adaptado
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 2),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
@@ -102,11 +109,11 @@ class ProductoSelector extends StatelessWidget {
             const SizedBox(width: 8),
             Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF8B5CF6),
+                color: colorScheme.primary,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
+                    color: colorScheme.primary.withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -116,7 +123,7 @@ class ProductoSelector extends StatelessWidget {
                 onPressed: onAgregar,
                 icon: const Icon(Icons.add_rounded, color: Colors.white),
                 style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF8B5CF6),
+                  backgroundColor: colorScheme.primary,
                   foregroundColor: Colors.white,
                 ),
               ),

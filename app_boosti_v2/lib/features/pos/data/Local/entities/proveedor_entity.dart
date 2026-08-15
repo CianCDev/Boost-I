@@ -11,6 +11,8 @@ class ProveedorEntity {
   String? cedula; // Cédula o RIF
   String? telefono; // Teléfono de contacto
   String? empresa; // Nombre de la empresa
+  String? rif;
+  String? direccion;
   bool activo = true; // Para desactivar sin eliminar
   bool sincronizado = false;
   DateTime? fechaSincronizacion;

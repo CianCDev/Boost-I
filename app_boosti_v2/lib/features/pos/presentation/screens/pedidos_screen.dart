@@ -6,6 +6,8 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dar
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/pedido_card.dart';
 import 'package:app_boosti_v2/features/pos/presentation/screens/crear_pedido_screen.dart';
 import 'package:app_boosti_v2/features/pos/presentation/screens/detalle_pedido_screen.dart';
+import '../widgets/sales/sales_history_filter_bar.dart';
+import '../utils/responsive_helper.dart';
 
 class PedidosProveedorScreen extends ConsumerStatefulWidget {
   const PedidosProveedorScreen({super.key});
@@ -20,6 +22,16 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   int? _localDestinoId;
   late AnimationController _animationController;
 
+  String _periodoSeleccionado = 'todos';
+  String _mesSeleccionado = 'Actual';
+  int _anioSeleccionado = DateTime.now().year;
+  List<int> _aniosDisponibles = [];
+
+  final List<String> _listaMesesDropdown = [
+    'Actual', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -28,6 +40,11 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
       duration: const Duration(milliseconds: 500),
     );
     _animationController.forward();
+
+    final now = DateTime.now();
+    for (int i = 2020; i <= now.year; i++) {
+      _aniosDisponibles.add(i);
+    }
   }
 
   @override
@@ -36,9 +53,40 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     super.dispose();
   }
 
+  bool _perteneceAlPeriodo(DateTime fecha, String periodo) {
+    final now = DateTime.now();
+    final fechaLocal = fecha.toLocal();
+    final fechaDia = DateTime(fechaLocal.year, fechaLocal.month, fechaLocal.day);
+    final hoy = DateTime(now.year, now.month, now.day);
+
+    switch (periodo) {
+      case 'dia':
+        return fechaDia.isAtSameMomentAs(hoy);
+      case 'semana':
+        final inicioSemana = hoy.subtract(Duration(days: now.weekday - 1));
+        final finSemana = inicioSemana.add(const Duration(days: 6));
+        return (fechaDia.isAtSameMomentAs(inicioSemana) || fechaDia.isAfter(inicioSemana)) &&
+               (fechaDia.isAtSameMomentAs(finSemana) || fechaDia.isBefore(finSemana));
+      case 'mes':
+        if (_mesSeleccionado == 'Actual') {
+          return fechaLocal.year == now.year && fechaLocal.month == now.month;
+        } else {
+          final int indexMes = _listaMesesDropdown.indexOf(_mesSeleccionado);
+          return fechaLocal.year == _anioSeleccionado && fechaLocal.month == indexMes;
+        }
+      case 'anio':
+        return fechaLocal.year == _anioSeleccionado;
+      case 'todos':
+      default:
+        return true;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final localDestinoId = _localDestinoId ?? 1; // TODO: obtener del usuario actual
+    final localDestinoId = _localDestinoId ?? 1;
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final colorScheme = Theme.of(context).colorScheme;
 
     final pedidosAsync = ref.watch(
       pedidosPorEstadoProvider(
@@ -47,18 +95,33 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: colorScheme.surfaceContainerLow,
       appBar: _buildAppBar(),
       body: Column(
         children: [
-          // Resumen rápido con contadores
           _buildResumenPedidos(pedidosAsync),
-          // Filtro por estado
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 8.0 : 16.0, vertical: 4.0),
+            child: SalesHistoryFilterBar(
+              selectedPeriod: _periodoSeleccionado,
+              onPeriodChanged: (periodo) => setState(() => _periodoSeleccionado = periodo),
+              isMobile: isMobile,
+              isTablet: ResponsiveHelper.isTablet(context),
+              mesesDropdown: _listaMesesDropdown,
+              mesSeleccionado: _mesSeleccionado,
+              aniosDisponibles: _aniosDisponibles,
+              anioSeleccionado: _anioSeleccionado,
+              onMesChanged: (mes) => setState(() => _mesSeleccionado = mes),
+              onAnioChanged: (anio) => setState(() => _anioSeleccionado = anio),
+            ),
+          ),
           _buildFiltroEstado(),
-          // Lista de pedidos
           Expanded(
             child: pedidosAsync.when(
-              data: (pedidos) => _buildListaPedidos(pedidos),
+              data: (pedidos) {
+                final pedidosFiltrados = pedidos.where((p) => _perteneceAlPeriodo(p.fechaPedido, _periodoSeleccionado)).toList();
+                return _buildListaPedidos(pedidosFiltrados);
+              },
               loading: () => _buildLoadingState(),
               error: (err, stack) => _buildErrorState(err),
             ),
@@ -69,24 +132,16 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  // ==========================================
-  // APP BAR CON ESTILO MEJORADO
-  // ==========================================
   PreferredSizeWidget _buildAppBar() {
+    final colorScheme = Theme.of(context).colorScheme;
     return AppBar(
-      title: const Text(
-        'Pedidos a Proveedores',
-        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-      ),
+      title: const Text('Pedidos a Proveedores', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
       flexibleSpace: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color.fromRGBO(68, 109, 241, 1),
-              Color.fromARGB(255, 85, 59, 235),
-            ],
+            colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
           ),
         ),
       ),
@@ -94,9 +149,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
       elevation: 2,
       foregroundColor: Colors.white,
       actions: [
-        // Filtro por local destino
         PopupMenuButton<int>(
-          icon: const Icon(Icons.storefront_rounded),
+          icon: const Icon(Icons.storefront_rounded, color: Colors.white),
           onSelected: (value) => setState(() => _localDestinoId = value),
           itemBuilder: (context) => const [
             PopupMenuItem(value: 1, child: Text('Local Principal')),
@@ -105,16 +159,14 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
         ),
         IconButton(
           onPressed: () => setState(() {}),
-          icon: const Icon(Icons.refresh_rounded),
+          icon: const Icon(Icons.refresh_rounded, color: Colors.white),
         ),
       ],
     );
   }
 
-  // ==========================================
-  // RESUMEN CON CONTADORES (NUEVO)
-  // ==========================================
   Widget _buildResumenPedidos(AsyncValue<List<PedidoEntity>> pedidosAsync) {
+    final colorScheme = Theme.of(context).colorScheme;
     return pedidosAsync.when(
       data: (pedidos) {
         final total = pedidos.length;
@@ -126,7 +178,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
           margin: const EdgeInsets.all(12),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -153,22 +205,19 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   }
 
   Widget _buildContadorItem(String label, int count, Color color) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         Text(
           count.toString(),
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
         ),
         Text(
           label,
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w500,
-            color: Colors.grey.shade600,
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -176,14 +225,20 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   }
 
   // ==========================================
-  // FILTRO POR ESTADO CON ESTILO
+  // FILTRO POR ESTADO (CORREGIDO - RESPONSIVE)
+  // ==========================================
+  // ==========================================
+  // FILTRO POR ESTADO (RESPONSIVE CON SCROLL)
   // ==========================================
   Widget _buildFiltroEstado() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isMobile = ResponsiveHelper.isMobile(context);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -194,41 +249,54 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: SegmentedButton<EstadoPedido?>(
-            segments: const [
-              ButtonSegment(value: null, label: Text('Todos'), icon: Icon(Icons.list_rounded)),
-              ButtonSegment(
-                value: EstadoPedido.pendiente,
-                label: Text('Pendientes'),
-                icon: Icon(Icons.hourglass_top_rounded),
-              ),
-              ButtonSegment(
-                value: EstadoPedido.recibido,
-                label: Text('Recibidos'),
-                icon: Icon(Icons.check_circle_rounded),
-              ),
-              ButtonSegment(
-                value: EstadoPedido.cancelado,
-                label: Text('Cancelados'),
-                icon: Icon(Icons.cancel_rounded),
-              ),
-            ],
-            selected: {_estadoFiltro},
-            onSelectionChanged: (Set<EstadoPedido?> newSelection) {
-              setState(() {
-                _estadoFiltro = newSelection.first;
-              });
-            },
-            style: SegmentedButton.styleFrom(
-              selectedForegroundColor: Colors.white,
-              selectedBackgroundColor: const Color(0xFF8B5CF6),
-              foregroundColor: Colors.grey.shade700,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+          padding: const EdgeInsets.all(6),
+          child: Scrollbar(
+            thumbVisibility: true, // ✅ Muestra la barra de scroll en móviles
+            thickness: 4,
+            radius: const Radius.circular(4),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SegmentedButton<EstadoPedido?>(
+                segments: const [
+                  ButtonSegment(
+                    value: null,
+                    label: Text('Todos'),
+                    icon: Icon(Icons.list_rounded),
+                  ),
+                  ButtonSegment(
+                    value: EstadoPedido.pendiente,
+                    label: Text('Pendientes'),
+                    icon: Icon(Icons.hourglass_top_rounded),
+                  ),
+                  ButtonSegment(
+                    value: EstadoPedido.recibido,
+                    label: Text('Recibidos'),
+                    icon: Icon(Icons.check_circle_rounded),
+                  ),
+                  ButtonSegment(
+                    value: EstadoPedido.cancelado,
+                    label: Text('Cancelados'),
+                    icon: Icon(Icons.cancel_rounded),
+                  ),
+                ],
+                selected: {_estadoFiltro},
+                onSelectionChanged: (Set<EstadoPedido?> newSelection) {
+                  setState(() => _estadoFiltro = newSelection.first);
+                },
+                style: SegmentedButton.styleFrom(
+                  selectedForegroundColor: Colors.white,
+                  selectedBackgroundColor: const Color(0xFF8B5CF6),
+                  foregroundColor: colorScheme.onSurfaceVariant,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  padding: EdgeInsets.symmetric(
+                    vertical: isMobile ? 6 : 8,
+                    horizontal: isMobile ? 8 : 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
               ),
             ),
           ),
@@ -237,10 +305,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  // ==========================================
-  // LISTA DE PEDIDOS CON ANIMACIÓN
-  // ==========================================
   Widget _buildListaPedidos(List<PedidoEntity> pedidos) {
+    final colorScheme = Theme.of(context).colorScheme;
     if (pedidos.isEmpty) {
       return _buildEmptyState();
     }
@@ -285,10 +351,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  // ==========================================
-  // ESTADO VACÍO CON DISEÑO ATRACTIVO
-  // ==========================================
   Widget _buildEmptyState() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -300,20 +364,12 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
               color: const Color(0xFF8B5CF6).withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              Icons.inbox_rounded,
-              size: 60,
-              color: const Color(0xFF8B5CF6).withValues(alpha: 0.6),
-            ),
+            child: const Icon(Icons.inbox_rounded, size: 60, color: Color(0xFF8B5CF6)),
           ),
           const SizedBox(height: 16),
           Text(
             'No hay pedidos',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
           ),
           const SizedBox(height: 8),
           Text(
@@ -321,10 +377,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
                 ? 'Comienza creando tu primer pedido\npresionando el botón +'
                 : 'No hay pedidos en este estado',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-            ),
+            style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 24),
           if (_estadoFiltro != null)
@@ -336,9 +389,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
                 backgroundColor: const Color(0xFF8B5CF6),
                 foregroundColor: Colors.white,
                 elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
         ],
@@ -346,65 +397,39 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  // ==========================================
-  // ESTADOS DE CARGA Y ERROR
-  // ==========================================
   Widget _buildLoadingState() {
     return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6)),
-          ),
+          CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6))),
           SizedBox(height: 16),
-          Text(
-            'Cargando pedidos...',
-            style: TextStyle(color: Colors.grey),
-          ),
+          Text('Cargando pedidos...', style: TextStyle(color: Colors.grey)),
         ],
       ),
     );
   }
 
   Widget _buildErrorState(Object error) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline_rounded,
-            size: 60,
-            color: Colors.red.shade300,
-          ),
+          Icon(Icons.error_outline_rounded, size: 60, color: colorScheme.error),
           const SizedBox(height: 16),
-          Text(
-            'Error al cargar los pedidos',
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
-          ),
+          Text('Error al cargar los pedidos', style: TextStyle(fontSize: 16, color: colorScheme.onSurface)),
           const SizedBox(height: 8),
-          Text(
-            error.toString(),
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-            textAlign: TextAlign.center,
-          ),
+          Text(error.toString(), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
         ],
       ),
     );
   }
 
-  // ==========================================
-  // BOTÓN FLOTANTE CON ESTILO
-  // ==========================================
   Widget _buildFloatingButton() {
     return FloatingActionButton(
       onPressed: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const CrearPedidoProveedorScreen(),
-          ),
-        );
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => const CrearPedidoProveedorScreen()));
         setState(() {});
       },
       backgroundColor: const Color(0xFF8B5CF6),

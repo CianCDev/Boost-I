@@ -1,38 +1,51 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 
 final isarServiceProvider = Provider<IsarService>((ref) => IsarService());
 
-// ==========================================
-// PROVIDERS PARA LISTAR
-// ==========================================
-
-final proveedoresProvider = FutureProvider<List<ProveedorEntity>>((ref) async {
+// Provider con filtros
+final proveedoresConFiltroProvider = FutureProvider.family<List<ProveedorEntity>, ({
+  String query,
+  bool mostrarInactivos,
+  int? productoId,
+})>((ref, params) async {
   final isar = ref.watch(isarServiceProvider);
-  return await isar.obtenerProveedores();
+  
+  final todos = await isar.obtenerProveedores(soloActivos: false);
+  
+  var resultado = todos.where((p) {
+    if (params.mostrarInactivos) {
+      return !p.activo;
+    } else {
+      return p.activo;
+    }
+  }).toList();
+  
+  if (params.query.isNotEmpty) {
+    final q = params.query.toLowerCase();
+    resultado = resultado.where((p) {
+      final coincideNombre = p.nombre.toLowerCase().contains(q);
+      final coincideEmpresa = (p.empresa ?? '').toLowerCase().contains(q);
+      return coincideNombre || coincideEmpresa;
+    }).toList();
+  }
+  
+  if (params.productoId != null) {
+    final productos = await isar.obtenerProductos();
+    final proveedoresIdsConProducto = productos
+        .where((p) => p.proveedorId == params.productoId)
+        .map((p) => p.proveedorId!)
+        .toSet();
+    resultado = resultado.where((p) => proveedoresIdsConProducto.contains(p.id)).toList();
+  }
+  
+  return resultado;
 });
 
-final proveedoresActivosProvider = FutureProvider<List<ProveedorEntity>>((ref) async {
-  final isar = ref.watch(isarServiceProvider);
-  return await isar.obtenerProveedores(soloActivos: true);
-});
-
-final proveedorPorIdProvider = FutureProvider.family<ProveedorEntity?, int>((ref, id) async {
-  final isar = ref.watch(isarServiceProvider);
-  return await isar.obtenerProveedorPorId(id);
-});
-
-// ==========================================
-// PROVIDERS PARA ACCIONES
-// ==========================================
-
-final crearProveedorProvider = FutureProvider.family<void, ProveedorEntity>((ref, proveedor) async {
-  final isar = ref.watch(isarServiceProvider);
-  await isar.guardarProveedor(proveedor);
-});
-
-final actualizarProveedorProvider = FutureProvider.family<void, ProveedorEntity>((ref, proveedor) async {
+// ✅ Provider único para guardar (crea o actualiza según el ID)
+final guardarProveedorProvider = FutureProvider.family<void, ProveedorEntity>((ref, proveedor) async {
   final isar = ref.watch(isarServiceProvider);
   await isar.guardarProveedor(proveedor);
 });
@@ -42,12 +55,7 @@ final desactivarProveedorProvider = FutureProvider.family<void, int>((ref, id) a
   await isar.desactivarProveedor(id);
 });
 
-final eliminarProveedorProvider = FutureProvider.family<bool, int>((ref, id) async {
+final productosPorProveedorProvider = FutureProvider.family<List<ProductoEntity>, int>((ref, proveedorId) async {
   final isar = ref.watch(isarServiceProvider);
-  return await isar.eliminarProveedor(id);
-});
-
-final buscarProveedoresProvider = FutureProvider.family<List<ProveedorEntity>, String>((ref, query) async {
-  final isar = ref.watch(isarServiceProvider);
-  return await isar.buscarProveedores(query);
+  return await isar.obtenerProductosPorProveedor(proveedorId);
 });
