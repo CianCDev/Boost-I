@@ -20,11 +20,13 @@ class CrearPedidoProveedorScreen extends ConsumerStatefulWidget {
 class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedorScreen> {
   final _formKey = GlobalKey<FormState>();
 
+  // Controladores para proveedores (permite el autocompletado en tiempo real)
+  final TextEditingController _nombreController = TextEditingController();
+  final TextEditingController _cedulaController = TextEditingController();
+  final TextEditingController _telefonoController = TextEditingController();
+
   List<ProveedorEntity> _proveedores = [];
   ProveedorEntity? _proveedorSeleccionado;
-  String _proveedorNombre = '';
-  String _proveedorCedula = '';
-  String _proveedorTelefono = '';
 
   int _localDestinoId = 1;
   final List<DetallePedidoEntity> _detalles = [];
@@ -39,6 +41,16 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
     _cargarProveedores();
   }
 
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _cedulaController.dispose();
+    _telefonoController.dispose();
+    _cantidadController.dispose();
+    _precioController.dispose();
+    super.dispose();
+  }
+
   Future<void> _cargarProveedores() async {
     final isar = ref.read(isarServiceProvider);
     final proveedores = await isar.obtenerProveedores(soloActivos: true);
@@ -50,9 +62,9 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
   void _seleccionarProveedor(ProveedorEntity proveedor) {
     setState(() {
       _proveedorSeleccionado = proveedor;
-      _proveedorNombre = proveedor.nombre;
-      _proveedorCedula = proveedor.cedula ?? '';
-      _proveedorTelefono = proveedor.telefono ?? '';
+      _nombreController.text = proveedor.nombre;
+      _cedulaController.text = proveedor.cedula ?? '';
+      _telefonoController.text = proveedor.telefono ?? '';
     });
   }
 
@@ -146,17 +158,16 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
   @override
   Widget build(BuildContext context) {
     final productosAsync = ref.watch(productosParaPedidosProvider);
-    final colorScheme = Theme.of(context).colorScheme; // ✅ Tema dinámico
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      // ✅ Fondo adaptado al modo oscuro/claro
       backgroundColor: colorScheme.surfaceContainerLow,
       appBar: _buildAppBar(),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          // ✅ Padding inferior aumentado para que el FAB no tape el contenido
+          padding: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 100),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -204,13 +215,15 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
 
   Widget _buildSeccionProveedor() {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Card(
       elevation: 2,
-      // ✅ Color de la tarjeta adaptado
       color: colorScheme.surface,
+      // ✅ Sin borde lateral para evitar líneas blancas en modo oscuro
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant, width: 1), // ✅ Borde sutil
+        side: BorderSide.none,
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -238,23 +251,22 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
               onSelected: _seleccionarProveedor,
             ),
             const SizedBox(height: 12),
-            // Aquí usamos el método corregido que se encarga de los colores dinámicos
             _buildCampoTexto(
               label: 'Nombre del Proveedor *',
-              controller: TextEditingController(text: _proveedorNombre),
+              controller: _nombreController,
               readOnly: true,
               validator: (v) => v!.isEmpty ? 'Requerido' : null,
             ),
             const SizedBox(height: 8),
             _buildCampoTexto(
               label: 'Cédula / RIF',
-              controller: TextEditingController(text: _proveedorCedula),
+              controller: _cedulaController,
               readOnly: true,
             ),
             const SizedBox(height: 8),
             _buildCampoTexto(
               label: 'Teléfono',
-              controller: TextEditingController(text: _proveedorTelefono),
+              controller: _telefonoController,
               readOnly: true,
             ),
           ],
@@ -263,7 +275,6 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
     );
   }
 
-  // ✅ Método de campo de texto ya adaptado al modo oscuro
   Widget _buildCampoTexto({
     required String label,
     required TextEditingController controller,
@@ -306,11 +317,10 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
 
     return Card(
       elevation: 2,
-      // ✅ Fondo de tarjeta adaptado
       color: colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant, width: 1), // ✅ Borde sutil
+        side: BorderSide.none, // ✅ Sin borde
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -328,7 +338,6 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
               ],
             ),
             const SizedBox(height: 12),
-            // ✅ Dropdown con colores dinámicos
             DropdownButtonFormField<int>(
               value: _localDestinoId,
               items: const [
@@ -336,13 +345,12 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
                 DropdownMenuItem(value: 2, child: Text('Local Secundario')),
               ],
               onChanged: (value) => setState(() => _localDestinoId = value!),
-              dropdownColor: colorScheme.surface, // ✅ Fondo del dropdown adaptado
-              style: TextStyle(color: colorScheme.onSurface), // ✅ Texto adaptado
+              dropdownColor: colorScheme.surface,
+              style: TextStyle(color: colorScheme.onSurface),
               decoration: InputDecoration(
                 hintText: 'Selecciona un local',
                 hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                 filled: true,
-                // ✅ Fondo dinámico
                 fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -354,7 +362,7 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
-              icon: Icon(Icons.arrow_drop_down, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
+              icon: Icon(Icons.arrow_drop_down, color: colorScheme.onSurfaceVariant),
             ),
           ],
         ),
@@ -364,13 +372,13 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
 
   Widget _buildSeccionProductos(AsyncValue<List<ProductoEntity>> productosAsync) {
     final colorScheme = Theme.of(context).colorScheme;
+
     return Card(
       elevation: 2,
-      // ✅ Fondo de tarjeta adaptado
       color: colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant, width: 1),
+        side: BorderSide.none, // ✅ Sin borde
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

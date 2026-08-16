@@ -225,14 +225,18 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   }
 
   // ==========================================
-  // FILTRO POR ESTADO (CORREGIDO - RESPONSIVE)
-  // ==========================================
-  // ==========================================
-  // FILTRO POR ESTADO (RESPONSIVE CON SCROLL)
+  // FILTRO POR ESTADO (SIN LÍNEA GRIS - VERSIÓN CUSTOM)
   // ==========================================
   Widget _buildFiltroEstado() {
     final colorScheme = Theme.of(context).colorScheme;
     final isMobile = ResponsiveHelper.isMobile(context);
+
+    final List<Map<String, dynamic>> opciones = [
+      {'valor': null, 'etiqueta': 'Todos', 'icono': Icons.list_rounded},
+      {'valor': EstadoPedido.pendiente, 'etiqueta': 'Pendientes', 'icono': Icons.hourglass_top_rounded},
+      {'valor': EstadoPedido.recibido, 'etiqueta': 'Recibidos', 'icono': Icons.check_circle_rounded},
+      {'valor': EstadoPedido.cancelado, 'etiqueta': 'Cancelados', 'icono': Icons.cancel_rounded},
+    ];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -240,71 +244,65 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Scrollbar(
-            thumbVisibility: true, // ✅ Muestra la barra de scroll en móviles
-            thickness: 4,
-            radius: const Radius.circular(4),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SegmentedButton<EstadoPedido?>(
-                segments: const [
-                  ButtonSegment(
-                    value: null,
-                    label: Text('Todos'),
-                    icon: Icon(Icons.list_rounded),
-                  ),
-                  ButtonSegment(
-                    value: EstadoPedido.pendiente,
-                    label: Text('Pendientes'),
-                    icon: Icon(Icons.hourglass_top_rounded),
-                  ),
-                  ButtonSegment(
-                    value: EstadoPedido.recibido,
-                    label: Text('Recibidos'),
-                    icon: Icon(Icons.check_circle_rounded),
-                  ),
-                  ButtonSegment(
-                    value: EstadoPedido.cancelado,
-                    label: Text('Cancelados'),
-                    icon: Icon(Icons.cancel_rounded),
-                  ),
-                ],
-                selected: {_estadoFiltro},
-                onSelectionChanged: (Set<EstadoPedido?> newSelection) {
-                  setState(() => _estadoFiltro = newSelection.first);
-                },
-                style: SegmentedButton.styleFrom(
-                  selectedForegroundColor: Colors.white,
-                  selectedBackgroundColor: const Color(0xFF8B5CF6),
-                  foregroundColor: colorScheme.onSurfaceVariant,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  padding: EdgeInsets.symmetric(
-                    vertical: isMobile ? 6 : 8,
-                    horizontal: isMobile ? 8 : 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+        padding: const EdgeInsets.all(4),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: opciones.map((opcion) {
+              final bool esSeleccionado = _estadoFiltro == opcion['valor'];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _estadoFiltro = opcion['valor'];
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: EdgeInsets.symmetric(
+                      vertical: isMobile ? 6 : 8,
+                      horizontal: isMobile ? 10 : 16,
+                    ),
+                    decoration: BoxDecoration(
+                      // ✅ Color morado si está seleccionado, transparente si no
+                      color: esSeleccionado ? const Color(0xFF8B5CF6) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          opcion['icono'],
+                          size: 16,
+                          color: esSeleccionado ? Colors.white : colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          opcion['etiqueta'],
+                          style: TextStyle(
+                            color: esSeleccionado ? Colors.white : colorScheme.onSurfaceVariant,
+                            fontWeight: esSeleccionado ? FontWeight.bold : FontWeight.w500,
+                            fontSize: isMobile ? 12 : 14,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            }).toList(),
           ),
         ),
       ),
     );
   }
 
+  // ==========================================
+  // LISTA DE PEDIDOS CON ANIMACIÓN
+  // ==========================================
   Widget _buildListaPedidos(List<PedidoEntity> pedidos) {
     final colorScheme = Theme.of(context).colorScheme;
     if (pedidos.isEmpty) {
@@ -351,6 +349,9 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
+  // ==========================================
+  // ESTADO VACÍO CON DISEÑO ATRACTIVO
+  // ==========================================
   Widget _buildEmptyState() {
     final colorScheme = Theme.of(context).colorScheme;
     return Center(
