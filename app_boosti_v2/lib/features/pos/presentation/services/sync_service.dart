@@ -515,28 +515,68 @@ class SyncService {
   }
 
   Future<bool> _enviarGastoAlServidor(GastoEntity gasto) async {
-    try {
-      final payload = {
-        'id_isar': gasto.id,
-        'descripcion': gasto.descripcion,
-        'monto': gasto.monto,
-        'moneda': gasto.moneda,
-        'tasa_bcv': gasto.tasaBcv,
-        'categoria': gasto.categoria,
-        'usuario_id': gasto.usuarioId,
-        'usuario_nombre': gasto.usuarioNombre,
-        'fecha': gasto.fecha.toIso8601String(),
-        'sync_status': 'synced',
-      };
-
-      await _supabase.from('gastos').insert(payload);
-      debugPrint('✅ Gasto sincronizado correctamente');
-      return true;
-    } catch (e) {
-      debugPrint('🚫 Error al enviar gasto: $e');
-      return false;
+  try {
+    String? usuarioUuid;
+    if (gasto.usuarioId != null) {
+      final usuario = await _isarService.obtenerUsuarioPorId(gasto.usuarioId!);
+      if (usuario != null && usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
+        usuarioUuid = usuario.supabaseId;
+      } else {
+        debugPrint('⚠️ Usuario ID ${gasto.usuarioId} no tiene supabaseId. Se envía null.');
+      }
     }
+
+    final payload = {
+      'id_isar': gasto.id,
+      'descripcion': gasto.descripcion,
+      'monto': gasto.monto,
+      'moneda': gasto.moneda,
+      'tasa_bcv': gasto.tasaBcv,
+      'categoria': gasto.categoria,
+      'usuario_nombre': gasto.usuarioNombre,
+      'fecha': gasto.fecha.toIso8601String(),
+      'sync_status': 'synced',
+      if (usuarioUuid != null) 'usuario_id': usuarioUuid,
+    };
+
+    debugPrint('📤 Enviando gasto: ${jsonEncode(payload)}');
+
+    // 1. Verificar si ya existe un registro con este id_isar
+    final existing = await _supabase
+        .from('gastos')
+        .select('id')
+        .eq('id_isar', gasto.id)
+        .maybeSingle();
+
+    dynamic response;
+    if (existing != null) {
+      // 2. Actualizar el registro existente
+      response = await _supabase
+          .from('gastos')
+          .update(payload)
+          .eq('id_isar', gasto.id)
+          .select()
+          .single();
+      debugPrint('✅ Gasto ${gasto.id} actualizado correctamente.');
+    } else {
+      // 3. Insertar nuevo registro
+      response = await _supabase
+          .from('gastos')
+          .insert(payload)
+          .select()
+          .single();
+      debugPrint('✅ Gasto ${gasto.id} insertado correctamente. ID: ${response['id']}');
+    }
+
+    return true;
+  } catch (e) {
+    debugPrint('🚫 Error al enviar gasto: $e');
+    if (e is PostgrestException) {
+      debugPrint('Código de error Supabase: ${e.code}, Mensaje: ${e.message}');
+    }
+    return false;
   }
+}
 
   // ==========================================
   // GESTIÓN DE USUARIOS (microservicio)
@@ -574,29 +614,25 @@ class SyncService {
   }
 
   Future<void> sincronizarTodo() async {
-    await sincronizarVentasPendientes();
-    await sincronizarMovimientosInventario();
-    await sincronizarProductosASupabase();
-    await sincronizarCategoriasASupabase();
-    await sincronizarTurnos();
-    await sincronizarUsuariosASupabase();
-    await sincronizarGastosPendientes();
-    
-    // 🔥 PASO CLAVE: Traer los UUIDs de los usuarios a Isar
-    await sincronizarUsuariosDesdeSupabase(); 
-    
-    // 🔥 ASEGURAMOS QUE EL LOCAL TENGA SU UUID ANTES DE SUBIR PEDIDOS
-    // (Esto es nuevo: llamamos a _obtenerLocalActualUuid para que se asegure de tener el UUID)
-    await _obtenerLocalActualUuid(); 
-    
-    // Ahora los pedidos no se omitirán
-    await sincronizarPedidosPendientes(); 
-    
-    await descargarPedidosDesdeSupabase();
-    await descargarProductosDesdeSupabase();
-    await sincronizarProveedoresPendientes();
-    await descargarProveedoresDesdeSupabase();
-  }
+  await sincronizarVentasPendientes();
+  await sincronizarMovimientosInventario();
+  await sincronizarProductosASupabase();
+  await sincronizarCategoriasASupabase();
+  await sincronizarTurnos();
+  await sincronizarUsuariosASupabase();
+  
+  // 🔥 PRIMERO traer UUIDs de usuarios y luego sincronizar gastos
+  await sincronizarUsuariosDesdeSupabase(); 
+  await sincronizarGastosPendientes();  // ← MOVER AQUÍ
+  
+  // ... resto (pedidos, proveedores, etc.)
+  await _obtenerLocalActualUuid();
+  await sincronizarPedidosPendientes();
+  await descargarPedidosDesdeSupabase();
+  await descargarProductosDesdeSupabase();
+  await sincronizarProveedoresPendientes();
+  await descargarProveedoresDesdeSupabase();
+}
 
   // ==========================================
   // STREAM DE USUARIOS EN TIEMPO REAL (MONITOR)

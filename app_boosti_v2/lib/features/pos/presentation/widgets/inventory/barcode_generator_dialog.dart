@@ -96,7 +96,8 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
         constraints: BoxConstraints(maxWidth: 550),
         padding: EdgeInsets.all(isMobile ? 20 : 28),
         decoration: BoxDecoration(
-          color: Colors.white,
+          // ignore: deprecated_member_use
+          color: Theme.of(context).dialogBackgroundColor,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -151,9 +152,9 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
                 child: Container(
                   padding: EdgeInsets.all(isMobile ? 16 : 20),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(color: Theme.of(context).dividerColor), 
                   ),
                   child: Column(
                     children: [
@@ -178,7 +179,7 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
                             fontSize: isMobile ? 16 : 20,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 2,
-                            color: const Color(0xFF0F172A),
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ),

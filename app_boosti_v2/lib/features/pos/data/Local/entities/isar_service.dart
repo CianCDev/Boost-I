@@ -165,7 +165,7 @@ class IsarService {
         ..pin = '1234'
         ..rol = 'admin'
         ..activo = true
-        ..estado = 'activo'
+        ..estado = 'inactivo'
         ..cajaAsignada = 'Caja Principal';
 
       final cajeroDefault = UsuarioEntity()
@@ -173,7 +173,7 @@ class IsarService {
         ..pin = '1111'
         ..rol = 'cajero'
         ..activo = true
-        ..estado = 'activo'
+        ..estado = 'inactivo'
         ..cajaAsignada = 'Caja 01';
 
       await isar.writeTxn(() async {
@@ -248,6 +248,16 @@ Future<ProductoEntity?> obtenerProductoPorSupabaseId(String supabaseId) async {
     });
     return usuario;
   }
+
+  // ✅ Buscar por dynamicId (UUID)
+Future<UsuarioEntity?> obtenerUsuarioPorDynamicId(String dynamicId) async {
+  final isar = await db;
+  return await isar.usuarioEntitys
+      .where()
+      .dynamicIdEqualTo(dynamicId)
+      .findFirst();
+}
+
 
   Future<void> crearUsuario({
     required String nombre,

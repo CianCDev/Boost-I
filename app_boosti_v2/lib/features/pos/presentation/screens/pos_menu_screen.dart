@@ -13,6 +13,7 @@ import '../../data/Local/entities/isar_service.dart';
 
 import '../widgets/admin_validation_dialog.dart';
 import '../widgets/menu/turno_status_banner.dart';
+import 'audit_log_screen.dart';
 import 'cash_closing_screen.dart';
 import 'configuracion_empresa_screen.dart';
 import 'sales_history_screen.dart';
@@ -448,6 +449,18 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         ),
         isAdminOnly: true,
       ),
+      MenuOption(
+       title: 'Auditoría',
+      subtitle: 'Registro de eventos del sistema',
+      icon: Icons.history_rounded,
+      color: const Color(0xFF8B5CF6),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const AuditLogScreen()),
+      ),
+      isAdminOnly: true,
+      ),
+
       MenuOption(
         title: 'Historial de Ventas',
         subtitle: 'Ventas del día y turnos',

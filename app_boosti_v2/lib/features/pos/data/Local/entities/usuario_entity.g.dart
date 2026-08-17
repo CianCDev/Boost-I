@@ -37,20 +37,20 @@ const UsuarioEntitySchema = CollectionSchema(
       name: r'deviceId',
       type: IsarType.string,
     ),
-    r'email': PropertySchema(
+    r'dynamicId': PropertySchema(
       id: 4,
+      name: r'dynamicId',
+      type: IsarType.string,
+    ),
+    r'email': PropertySchema(
+      id: 5,
       name: r'email',
       type: IsarType.string,
     ),
     r'estado': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'estado',
       type: IsarType.string,
-    ),
-    r'idIsar': PropertySchema(
-      id: 6,
-      name: r'idIsar',
-      type: IsarType.long,
     ),
     r'nombre': PropertySchema(
       id: 7,
@@ -89,16 +89,16 @@ const UsuarioEntitySchema = CollectionSchema(
   deserializeProp: _usuarioEntityDeserializeProp,
   idName: r'id',
   indexes: {
-    r'idIsar': IndexSchema(
-      id: 192112775422685683,
-      name: r'idIsar',
+    r'dynamicId': IndexSchema(
+      id: -273221038475025965,
+      name: r'dynamicId',
       unique: true,
       replace: false,
       properties: [
         IndexPropertySchema(
-          name: r'idIsar',
-          type: IndexType.value,
-          caseSensitive: false,
+          name: r'dynamicId',
+          type: IndexType.hash,
+          caseSensitive: true,
         )
       ],
     )
@@ -130,6 +130,7 @@ int _usuarioEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  bytesCount += 3 + object.dynamicId.length * 3;
   {
     final value = object.email;
     if (value != null) {
@@ -165,9 +166,9 @@ void _usuarioEntitySerialize(
   writer.writeString(offsets[1], object.cajaAsignada);
   writer.writeString(offsets[2], object.departamento);
   writer.writeString(offsets[3], object.deviceId);
-  writer.writeString(offsets[4], object.email);
-  writer.writeString(offsets[5], object.estado);
-  writer.writeLong(offsets[6], object.idIsar);
+  writer.writeString(offsets[4], object.dynamicId);
+  writer.writeString(offsets[5], object.email);
+  writer.writeString(offsets[6], object.estado);
   writer.writeString(offsets[7], object.nombre);
   writer.writeString(offsets[8], object.pin);
   writer.writeString(offsets[9], object.rol);
@@ -187,10 +188,10 @@ UsuarioEntity _usuarioEntityDeserialize(
   object.cajaAsignada = reader.readString(offsets[1]);
   object.departamento = reader.readStringOrNull(offsets[2]);
   object.deviceId = reader.readStringOrNull(offsets[3]);
-  object.email = reader.readStringOrNull(offsets[4]);
-  object.estado = reader.readString(offsets[5]);
+  object.dynamicId = reader.readString(offsets[4]);
+  object.email = reader.readStringOrNull(offsets[5]);
+  object.estado = reader.readString(offsets[6]);
   object.id = id;
-  object.idIsar = reader.readLong(offsets[6]);
   object.nombre = reader.readString(offsets[7]);
   object.pin = reader.readString(offsets[8]);
   object.rol = reader.readString(offsets[9]);
@@ -216,11 +217,11 @@ P _usuarioEntityDeserializeProp<P>(
     case 3:
       return (reader.readStringOrNull(offset)) as P;
     case 4:
-      return (reader.readStringOrNull(offset)) as P;
-    case 5:
       return (reader.readString(offset)) as P;
+    case 5:
+      return (reader.readStringOrNull(offset)) as P;
     case 6:
-      return (reader.readLong(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 7:
       return (reader.readString(offset)) as P;
     case 8:
@@ -252,57 +253,57 @@ void _usuarioEntityAttach(
 }
 
 extension UsuarioEntityByIndex on IsarCollection<UsuarioEntity> {
-  Future<UsuarioEntity?> getByIdIsar(int idIsar) {
-    return getByIndex(r'idIsar', [idIsar]);
+  Future<UsuarioEntity?> getByDynamicId(String dynamicId) {
+    return getByIndex(r'dynamicId', [dynamicId]);
   }
 
-  UsuarioEntity? getByIdIsarSync(int idIsar) {
-    return getByIndexSync(r'idIsar', [idIsar]);
+  UsuarioEntity? getByDynamicIdSync(String dynamicId) {
+    return getByIndexSync(r'dynamicId', [dynamicId]);
   }
 
-  Future<bool> deleteByIdIsar(int idIsar) {
-    return deleteByIndex(r'idIsar', [idIsar]);
+  Future<bool> deleteByDynamicId(String dynamicId) {
+    return deleteByIndex(r'dynamicId', [dynamicId]);
   }
 
-  bool deleteByIdIsarSync(int idIsar) {
-    return deleteByIndexSync(r'idIsar', [idIsar]);
+  bool deleteByDynamicIdSync(String dynamicId) {
+    return deleteByIndexSync(r'dynamicId', [dynamicId]);
   }
 
-  Future<List<UsuarioEntity?>> getAllByIdIsar(List<int> idIsarValues) {
-    final values = idIsarValues.map((e) => [e]).toList();
-    return getAllByIndex(r'idIsar', values);
+  Future<List<UsuarioEntity?>> getAllByDynamicId(List<String> dynamicIdValues) {
+    final values = dynamicIdValues.map((e) => [e]).toList();
+    return getAllByIndex(r'dynamicId', values);
   }
 
-  List<UsuarioEntity?> getAllByIdIsarSync(List<int> idIsarValues) {
-    final values = idIsarValues.map((e) => [e]).toList();
-    return getAllByIndexSync(r'idIsar', values);
+  List<UsuarioEntity?> getAllByDynamicIdSync(List<String> dynamicIdValues) {
+    final values = dynamicIdValues.map((e) => [e]).toList();
+    return getAllByIndexSync(r'dynamicId', values);
   }
 
-  Future<int> deleteAllByIdIsar(List<int> idIsarValues) {
-    final values = idIsarValues.map((e) => [e]).toList();
-    return deleteAllByIndex(r'idIsar', values);
+  Future<int> deleteAllByDynamicId(List<String> dynamicIdValues) {
+    final values = dynamicIdValues.map((e) => [e]).toList();
+    return deleteAllByIndex(r'dynamicId', values);
   }
 
-  int deleteAllByIdIsarSync(List<int> idIsarValues) {
-    final values = idIsarValues.map((e) => [e]).toList();
-    return deleteAllByIndexSync(r'idIsar', values);
+  int deleteAllByDynamicIdSync(List<String> dynamicIdValues) {
+    final values = dynamicIdValues.map((e) => [e]).toList();
+    return deleteAllByIndexSync(r'dynamicId', values);
   }
 
-  Future<Id> putByIdIsar(UsuarioEntity object) {
-    return putByIndex(r'idIsar', object);
+  Future<Id> putByDynamicId(UsuarioEntity object) {
+    return putByIndex(r'dynamicId', object);
   }
 
-  Id putByIdIsarSync(UsuarioEntity object, {bool saveLinks = true}) {
-    return putByIndexSync(r'idIsar', object, saveLinks: saveLinks);
+  Id putByDynamicIdSync(UsuarioEntity object, {bool saveLinks = true}) {
+    return putByIndexSync(r'dynamicId', object, saveLinks: saveLinks);
   }
 
-  Future<List<Id>> putAllByIdIsar(List<UsuarioEntity> objects) {
-    return putAllByIndex(r'idIsar', objects);
+  Future<List<Id>> putAllByDynamicId(List<UsuarioEntity> objects) {
+    return putAllByIndex(r'dynamicId', objects);
   }
 
-  List<Id> putAllByIdIsarSync(List<UsuarioEntity> objects,
+  List<Id> putAllByDynamicIdSync(List<UsuarioEntity> objects,
       {bool saveLinks = true}) {
-    return putAllByIndexSync(r'idIsar', objects, saveLinks: saveLinks);
+    return putAllByIndexSync(r'dynamicId', objects, saveLinks: saveLinks);
   }
 }
 
@@ -311,14 +312,6 @@ extension UsuarioEntityQueryWhereSort
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhere> anyId() {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(const IdWhereClause.any());
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhere> anyIdIsar() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(
-        const IndexWhereClause.any(indexName: r'idIsar'),
-      );
     });
   }
 }
@@ -394,94 +387,48 @@ extension UsuarioEntityQueryWhere
     });
   }
 
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause> idIsarEqualTo(
-      int idIsar) {
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause>
+      dynamicIdEqualTo(String dynamicId) {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(IndexWhereClause.equalTo(
-        indexName: r'idIsar',
-        value: [idIsar],
+        indexName: r'dynamicId',
+        value: [dynamicId],
       ));
     });
   }
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause>
-      idIsarNotEqualTo(int idIsar) {
+      dynamicIdNotEqualTo(String dynamicId) {
     return QueryBuilder.apply(this, (query) {
       if (query.whereSort == Sort.asc) {
         return query
             .addWhereClause(IndexWhereClause.between(
-              indexName: r'idIsar',
+              indexName: r'dynamicId',
               lower: [],
-              upper: [idIsar],
+              upper: [dynamicId],
               includeUpper: false,
             ))
             .addWhereClause(IndexWhereClause.between(
-              indexName: r'idIsar',
-              lower: [idIsar],
+              indexName: r'dynamicId',
+              lower: [dynamicId],
               includeLower: false,
               upper: [],
             ));
       } else {
         return query
             .addWhereClause(IndexWhereClause.between(
-              indexName: r'idIsar',
-              lower: [idIsar],
+              indexName: r'dynamicId',
+              lower: [dynamicId],
               includeLower: false,
               upper: [],
             ))
             .addWhereClause(IndexWhereClause.between(
-              indexName: r'idIsar',
+              indexName: r'dynamicId',
               lower: [],
-              upper: [idIsar],
+              upper: [dynamicId],
               includeUpper: false,
             ));
       }
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause>
-      idIsarGreaterThan(
-    int idIsar, {
-    bool include = false,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IndexWhereClause.between(
-        indexName: r'idIsar',
-        lower: [idIsar],
-        includeLower: include,
-        upper: [],
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause> idIsarLessThan(
-    int idIsar, {
-    bool include = false,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IndexWhereClause.between(
-        indexName: r'idIsar',
-        lower: [],
-        upper: [idIsar],
-        includeUpper: include,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterWhereClause> idIsarBetween(
-    int lowerIdIsar,
-    int upperIdIsar, {
-    bool includeLower = true,
-    bool includeUpper = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IndexWhereClause.between(
-        indexName: r'idIsar',
-        lower: [lowerIdIsar],
-        includeLower: includeLower,
-        upper: [upperIdIsar],
-        includeUpper: includeUpper,
-      ));
     });
   }
 }
@@ -943,6 +890,142 @@ extension UsuarioEntityQueryFilter
   }
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      dynamicIdEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'dynamicId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      dynamicIdGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'dynamicId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      dynamicIdLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'dynamicId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      dynamicIdBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'dynamicId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      dynamicIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'dynamicId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      dynamicIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'dynamicId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      dynamicIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'dynamicId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      dynamicIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'dynamicId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      dynamicIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'dynamicId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      dynamicIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'dynamicId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       emailIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -1278,62 +1361,6 @@ extension UsuarioEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
         property: r'id',
-        lower: lower,
-        includeLower: includeLower,
-        upper: upper,
-        includeUpper: includeUpper,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      idIsarEqualTo(int value) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'idIsar',
-        value: value,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      idIsarGreaterThan(
-    int value, {
-    bool include = false,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        include: include,
-        property: r'idIsar',
-        value: value,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      idIsarLessThan(
-    int value, {
-    bool include = false,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.lessThan(
-        include: include,
-        property: r'idIsar',
-        value: value,
-      ));
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
-      idIsarBetween(
-    int lower,
-    int upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.between(
-        property: r'idIsar',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -2190,6 +2217,19 @@ extension UsuarioEntityQuerySortBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByDynamicId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dynamicId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByDynamicIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dynamicId', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByEmail() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'email', Sort.asc);
@@ -2211,18 +2251,6 @@ extension UsuarioEntityQuerySortBy
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByEstadoDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'estado', Sort.desc);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByIdIsar() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'idIsar', Sort.asc);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByIdIsarDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'idIsar', Sort.desc);
     });
   }
 
@@ -2357,6 +2385,19 @@ extension UsuarioEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByDynamicId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dynamicId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByDynamicIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'dynamicId', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByEmail() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'email', Sort.asc);
@@ -2390,18 +2431,6 @@ extension UsuarioEntityQuerySortThenBy
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.desc);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByIdIsar() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'idIsar', Sort.asc);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByIdIsarDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'idIsar', Sort.desc);
     });
   }
 
@@ -2510,6 +2539,13 @@ extension UsuarioEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByDynamicId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'dynamicId', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByEmail(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -2521,12 +2557,6 @@ extension UsuarioEntityQueryWhereDistinct
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'estado', caseSensitive: caseSensitive);
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByIdIsar() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'idIsar');
     });
   }
 
@@ -2605,6 +2635,12 @@ extension UsuarioEntityQueryProperty
     });
   }
 
+  QueryBuilder<UsuarioEntity, String, QQueryOperations> dynamicIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'dynamicId');
+    });
+  }
+
   QueryBuilder<UsuarioEntity, String?, QQueryOperations> emailProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'email');
@@ -2614,12 +2650,6 @@ extension UsuarioEntityQueryProperty
   QueryBuilder<UsuarioEntity, String, QQueryOperations> estadoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'estado');
-    });
-  }
-
-  QueryBuilder<UsuarioEntity, int, QQueryOperations> idIsarProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'idIsar');
     });
   }
 
