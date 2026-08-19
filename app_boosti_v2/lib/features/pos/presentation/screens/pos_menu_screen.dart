@@ -13,6 +13,7 @@ import '../../data/Local/entities/isar_service.dart';
 
 import '../widgets/admin_validation_dialog.dart';
 import '../widgets/menu/turno_status_banner.dart';
+import 'audit_log_screen.dart';
 import 'cash_closing_screen.dart';
 import 'configuracion_empresa_screen.dart';
 import 'sales_history_screen.dart';
@@ -27,6 +28,8 @@ import '../../data/Local/entities/turno_entity.dart';
 import '../widgets/printer_selection_widget.dart';
 import 'user_settings_screen.dart';
 import '../screens/dashboard_screen.dart';
+import '../screens/pedidos_screen.dart';
+import '../screens/proveedores/proveedores_screen.dart';
 
 // Modelo para cada opción del menú
 class MenuOption {
@@ -447,6 +450,18 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         isAdminOnly: true,
       ),
       MenuOption(
+       title: 'Auditoría',
+      subtitle: 'Registro de eventos del sistema',
+      icon: Icons.history_rounded,
+      color: const Color(0xFF8B5CF6),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const AuditLogScreen()),
+      ),
+      isAdminOnly: true,
+      ),
+
+      MenuOption(
         title: 'Historial de Ventas',
         subtitle: 'Ventas del día y turnos',
         icon: Icons.receipt_long_rounded,
@@ -457,6 +472,33 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         ),
         isAdminOnly: true,
       ),
+      MenuOption(
+    title: 'Pedidos a Proveedores',
+    subtitle: 'Crear y gestionar pedidos',
+    icon: Icons.local_shipping_rounded,
+    color: const Color(0xFF8B5CF6),
+    onTap: () => Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PedidosProveedorScreen(),
+      ),
+    ),
+    isAdminOnly: true,
+  ),
+  MenuOption(
+  title: 'Proveedores',
+  subtitle: 'Gestionar proveedores',
+  icon: Icons.business_center_rounded,
+  color: const Color(0xFF8B5CF6),
+  onTap: () => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const ProveedoresScreen(),
+    ),
+  ),
+  isAdminOnly: true,
+),
+
       MenuOption(
         title: 'Registrar Gasto',
         subtitle: 'Agregar egresos del día',

@@ -4,7 +4,8 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/venta_entity.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import '../widgets/inventory/product_form_dialog.dart'; // <-- Importante para el diálogo
+import '../services/sync_service.dart';             // <-- Para el SyncService
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
@@ -116,6 +117,9 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     return false;
   }
 
+  // ==========================================
+  // ESCANEAR CÓDIGO DE BARRAS (CORREGIDO)
+  // ==========================================
   Future<void> _scanBarcode() async {
     final codigo = await showDialog<String>(
       context: context,
@@ -136,7 +140,10 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         title: const Text('Producto no registrado'),
         content: Text('El código "$codigo" no está registrado.\n¿Deseas crearlo ahora?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
             onPressed: () => Navigator.pop(context, true),
@@ -149,6 +156,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
       _mostrarDialogoCrearProducto(codigo);
     }
   }
+
 
   void _agregarAlCarrito(ProductoEntity producto, double cantidad) {
     if (producto.stock < cantidad && !producto.esPesado) {
@@ -197,7 +205,29 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   }
 
   void _mostrarDialogoCrearProducto(String codigo) {
-    // Placeholder para crear producto
+    showDialog(
+      context: context,
+      builder: (context) => ProductFormDialog(
+        codigoBarrasPrecargado: codigo,
+        onGuardar: (producto) async {
+          final isar = IsarService();
+          // 1. Guardar localmente
+          await isar.guardarProducto(producto);
+          
+          // 2. Sincronizar con la nube
+          await SyncService().sincronizarProductosASupabase();
+          
+          // 3. Refrescar el catálogo para que aparezca el producto nuevo
+          await ref.read(catalogProvider.notifier).recargarDesdeSupabase();
+          
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('✅ Producto creado exitosamente'), backgroundColor: Color(0xFF10B981)),
+            );
+          }
+        },
+      ),
+    );
   }
 
   Future<void> _mostrarModalCobro() async {

@@ -605,7 +605,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                 value ? ThemeMode.dark : ThemeMode.light,
                               );
                             },
-                            activeColor: const Color(0xFFF59E0B),
+                            activeThumbColor: const Color(0xFFF59E0B),
                             activeTrackColor: const Color(0xFFF59E0B).withOpacity(0.4),
                             inactiveThumbColor: Colors.grey.shade400,
                             inactiveTrackColor: Colors.grey.shade300,

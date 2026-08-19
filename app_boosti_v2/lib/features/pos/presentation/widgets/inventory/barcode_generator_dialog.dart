@@ -84,7 +84,6 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     
-    // ✅ Conversión explícita a double para evitar errores de tipo
     final double barcodeWidth = isMobile ? 200.0 : (isTablet ? 280.0 : 350.0);
     final double barcodeHeight = isMobile ? 80.0 : (isTablet ? 100.0 : 120.0);
 
@@ -97,7 +96,8 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
         constraints: BoxConstraints(maxWidth: 550),
         padding: EdgeInsets.all(isMobile ? 20 : 28),
         decoration: BoxDecoration(
-          color: Colors.white,
+          // ignore: deprecated_member_use
+          color: Theme.of(context).dialogBackgroundColor,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -152,17 +152,17 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
                 child: Container(
                   padding: EdgeInsets.all(isMobile ? 16 : 20),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(color: Theme.of(context).dividerColor), 
                   ),
                   child: Column(
                     children: [
                       barcode.BarcodeWidget(
                         barcode: barcode.Barcode.code128(),
                         data: _codigo,
-                        width: barcodeWidth,   // ✅ ahora es double
-                        height: barcodeHeight, // ✅ ahora es double
+                        width: barcodeWidth,
+                        height: barcodeHeight,
                         drawText: false,
                       ),
                       const SizedBox(height: 12),
@@ -179,7 +179,7 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
                             fontSize: isMobile ? 16 : 20,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 2,
-                            color: const Color(0xFF0F172A),
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -190,9 +190,12 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
 
             const SizedBox(height: 20),
 
-            // Botones
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            // ✅ SECCIÓN DE BOTONES CORREGIDA CON WRAP (Responsive)
+            Wrap(
+              alignment: WrapAlignment.center,
+              runAlignment: WrapAlignment.center,
+              spacing: 8,   // Espacio horizontal entre botones
+              runSpacing: 8, // Espacio vertical si bajan a la siguiente línea
               children: [
                 OutlinedButton.icon(
                   onPressed: _generarCodigo,
@@ -204,7 +207,6 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
                     side: BorderSide(color: Colors.grey.shade400),
                   ),
                 ),
-                const SizedBox(width: 12),
                 ElevatedButton.icon(
                   onPressed: _codigo.isEmpty ? null : _compartirCodigo,
                   icon: const Icon(Icons.share_rounded, size: 20),
@@ -216,7 +218,6 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
-                const SizedBox(width: 12),
                 ElevatedButton.icon(
                   onPressed: _codigo.isEmpty ? null : _imprimirCodigo,
                   icon: const Icon(Icons.print_rounded, size: 20),

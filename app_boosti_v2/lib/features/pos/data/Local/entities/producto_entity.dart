@@ -14,9 +14,12 @@ class ProductoEntity {
   late double stock;
   late bool esPesado;
   late String categoria;
+  int? proveedorId;
   String proveedorNombre = '';
   String proveedorTelefono = '';
+  String? supabaseId;
   double stockMinimo = 5.0;
   late String imagenUrl = ''; // Cambiado a String? para permitir null
-  
+  bool sincronizado = false;
+  DateTime? fechaSincronizacion;
 }

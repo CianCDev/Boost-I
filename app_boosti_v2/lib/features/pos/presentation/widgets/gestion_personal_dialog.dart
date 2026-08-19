@@ -9,10 +9,12 @@ class PersonnelManagementDialog extends ConsumerStatefulWidget {
   const PersonnelManagementDialog({super.key});
 
   @override
-  ConsumerState<PersonnelManagementDialog> createState() => _PersonnelManagementDialogState();
+  ConsumerState<PersonnelManagementDialog> createState() =>
+      _PersonnelManagementDialogState();
 }
 
-class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementDialog> {
+class _PersonnelManagementDialogState
+    extends ConsumerState<PersonnelManagementDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
   final _pinController = TextEditingController();
@@ -49,7 +51,9 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
       setState(() => _cargando = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar usuarios: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('Error al cargar usuarios: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
@@ -93,7 +97,9 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
       setState(() => _guardando = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Error al crear usuario: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('❌ Error al crear usuario: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
@@ -104,7 +110,8 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Eliminar Usuario'),
-        content: Text('¿Estás seguro de eliminar a "${usuario.nombre}"? Esta acción no se puede deshacer.'),
+        content: Text(
+            '¿Estás seguro de eliminar a "${usuario.nombre}"? Esta acción no se puede deshacer.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -135,7 +142,9 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('❌ Error al eliminar: $e'), backgroundColor: Colors.red),
+            SnackBar(
+                content: Text('❌ Error al eliminar: $e'),
+                backgroundColor: Colors.red),
           );
         }
       }
@@ -145,6 +154,7 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
+    final theme = Theme.of(context);
     final color = const Color(0xFF8B5CF6); // Morado para gestión
 
     return Dialog(
@@ -161,7 +171,7 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
         ),
         padding: EdgeInsets.all(isMobile ? 16 : 24),
         decoration: BoxDecoration(
-          color: Theme.of(context).dialogTheme.backgroundColor ?? Colors.white,
+          color: theme.dialogTheme.backgroundColor ?? theme.cardColor,
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
@@ -175,7 +185,7 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // HEADER
+            // ========== HEADER ==========
             Row(
               children: [
                 Container(
@@ -184,21 +194,24 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
                     color: color.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.admin_panel_settings_rounded, color: color, size: 28),
+                  child: Icon(Icons.admin_panel_settings_rounded,
+                      color: color, size: 28),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Gestión de Personal',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          fontSize: isMobile ? 20 : 24,
-                        ),
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: isMobile ? 20 : 24,
+                      color: theme.textTheme.bodyLarge?.color,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 28),
+                  icon: Icon(Icons.close_rounded,
+                      size: 28, color: theme.iconTheme.color),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -206,22 +219,21 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
             const SizedBox(height: 4),
             Text(
               'Administración de accesos al sistema POS',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.7) ?? Colors.grey.shade600,
-                    fontSize: isMobile ? 14 : 16,
-                  ),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                fontSize: isMobile ? 14 : 16,
+              ),
             ),
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 16),
 
-            // FORMULARIO
+            // ========== FORMULARIO (siempre visible) ==========
             Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Nombre
                   TextFormField(
                     controller: _nombreController,
                     enabled: !_guardando,
@@ -230,11 +242,10 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.person_outline_rounded),
                     ),
-                    validator: (v) => v?.trim().isNotEmpty == true ? null : 'Requerido',
+                    validator: (v) =>
+                        v?.trim().isNotEmpty == true ? null : 'Requerido',
                   ),
                   const SizedBox(height: 16),
-
-                  // PIN
                   TextFormField(
                     controller: _pinController,
                     enabled: !_guardando,
@@ -251,10 +262,8 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
                     },
                   ),
                   const SizedBox(height: 8),
-
-                  // Rol (Dropdown)
                   DropdownButtonFormField<String>(
-                    initialValue: _rolSeleccionado,
+                    value: _rolSeleccionado,
                     decoration: const InputDecoration(
                       labelText: 'Rol / Permisos',
                       border: OutlineInputBorder(),
@@ -264,12 +273,13 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
                       DropdownMenuItem(value: 'admin', child: Text('Administrador')),
                       DropdownMenuItem(value: 'cajero', child: Text('Cajero')),
                     ],
-                    onChanged: _guardando ? null : (val) => setState(() => _rolSeleccionado = val!),
+                    onChanged: _guardando ? null : (val) {
+                      if (val != null) setState(() => _rolSeleccionado = val);
+                    },
                     isExpanded: true,
                   ),
                   const SizedBox(height: 16),
-
-                  // Nota
+                  // Nota informativa
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -279,7 +289,8 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline_rounded, color: Colors.amber.shade800, size: 20),
+                        Icon(Icons.info_outline_rounded,
+                            color: Colors.amber.shade800, size: 20),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -294,7 +305,6 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   // Botones de acción
                   Wrap(
                     alignment: WrapAlignment.end,
@@ -304,7 +314,8 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
                       TextButton(
                         onPressed: _guardando ? null : () => Navigator.pop(context),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
                         ),
                         child: const Text('Cerrar'),
                       ),
@@ -313,7 +324,8 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
                         style: ElevatedButton.styleFrom(
                           backgroundColor: color,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -345,70 +357,70 @@ class _PersonnelManagementDialogState extends ConsumerState<PersonnelManagementD
             const SizedBox(height: 12),
             const Divider(),
 
-            // LISTA DE USUARIOS EXISTENTES
-            if (_cargando)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(child: CircularProgressIndicator(color: Color(0xFF8B5CF6))),
-              )
-            else if (_usuarios.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Center(
-                  child: Text(
-                    'No hay usuarios registrados',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.6) ?? Colors.grey.shade600,
-                        ),
-                  ),
-                ),
-              )
-            else
-              Container(
-                constraints: BoxConstraints(
-                  maxHeight: isMobile ? 150 : 200,
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: _usuarios.map((usuario) {
-                      final isAdmin = usuario.rol == 'admin';
-                      final avatarColor = isAdmin ? const Color(0xFF3B82F6) : const Color(0xFF10B981);
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
-                        leading: CircleAvatar(
-                          radius: 18,
-                          backgroundColor: avatarColor.withValues(alpha: 0.15),
-                          child: Icon(
-                            isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
-                            color: avatarColor,
-                            size: 18,
+            // ========== LISTA DE USUARIOS (expanded) ==========
+            Expanded(
+              child: _cargando
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Color(0xFF8B5CF6)))
+                  : _usuarios.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No hay usuarios registrados',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.textTheme.bodyMedium?.color
+                                  ?.withOpacity(0.6),
+                            ),
                           ),
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: _usuarios.length,
+                          itemBuilder: (context, index) {
+                            final usuario = _usuarios[index];
+                            final isAdmin = usuario.rol == 'admin';
+                            final avatarColor =
+                                isAdmin ? const Color(0xFF3B82F6) : const Color(0xFF10B981);
+                            return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 0, vertical: 2),
+                              leading: CircleAvatar(
+                                radius: 18,
+                                backgroundColor: avatarColor.withOpacity(0.15),
+                                child: Icon(
+                                  isAdmin
+                                      ? Icons.admin_panel_settings_rounded
+                                      : Icons.person_rounded,
+                                  color: avatarColor,
+                                  size: 18,
+                                ),
+                              ),
+                              title: Text(
+                                usuario.nombre,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: isMobile ? 14 : 16,
+                                  color: theme.textTheme.bodyLarge?.color,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${usuario.rol.toUpperCase()} • ${usuario.estado}',
+                                style: TextStyle(
+                                  fontSize: isMobile ? 12 : 14,
+                                  color: theme.textTheme.bodyMedium?.color
+                                      ?.withOpacity(0.6),
+                                ),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete_outline_rounded,
+                                    color: Color(0xFFEF4444)),
+                                onPressed: () => _eliminarUsuario(usuario),
+                                tooltip: 'Eliminar',
+                              ),
+                              dense: true,
+                            );
+                          },
                         ),
-                        title: Text(
-                          usuario.nombre,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: isMobile ? 14 : 16,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${usuario.rol.toUpperCase()} • ${usuario.estado}',
-                          style: TextStyle(
-                            fontSize: isMobile ? 12 : 14,
-                            color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.6) ?? Colors.grey.shade600,
-                          ),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444)),
-                          onPressed: () => _eliminarUsuario(usuario),
-                          tooltip: 'Eliminar',
-                        ),
-                        dense: true,
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
+            ),
             const SizedBox(height: 8),
           ],
         ),

@@ -7,13 +7,18 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Entidades
+import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import '../entities/turno_entity.dart';
 import '../entities/log_entity.dart';
 import '../entities/venta_entity.dart';
 import '../entities/detalle_venta_entity.dart';
+import '../entities/detalle_pedido_entity.dart';
 import '../entities/producto_entity.dart';
 import '../entities/usuario_entity.dart';
+import '../entities/pedido_entity.dart';
+import '../entities/proveedor_entity.dart';
 import '../entities/movimiento_inventario_entity.dart';
+import '../entities/recepcion_entity.dart';
 import 'gasto_entity.dart';
 
 class IsarService {
@@ -55,7 +60,12 @@ class IsarService {
           MovimientoInventarioEntitySchema,
           GastoEntitySchema,
           LogEntitySchema,
+          PedidoEntitySchema,        // ← DEBE ESTAR
+          DetallePedidoEntitySchema, // ← DEBE ESTAR
+          RecepcionEntitySchema,
           TurnoEntitySchema,
+          LocalEntitySchema,
+          ProveedorEntitySchema,
         ],
         directory: dbPath,
         inspector: true,
@@ -155,7 +165,7 @@ class IsarService {
         ..pin = '1234'
         ..rol = 'admin'
         ..activo = true
-        ..estado = 'activo'
+        ..estado = 'inactivo'
         ..cajaAsignada = 'Caja Principal';
 
       final cajeroDefault = UsuarioEntity()
@@ -163,7 +173,7 @@ class IsarService {
         ..pin = '1111'
         ..rol = 'cajero'
         ..activo = true
-        ..estado = 'activo'
+        ..estado = 'inactivo'
         ..cajaAsignada = 'Caja 01';
 
       await isar.writeTxn(() async {
@@ -171,6 +181,24 @@ class IsarService {
       });
     }
   }
+
+  Future<UsuarioEntity?> obtenerUsuarioPorSupabaseId(String supabaseId) async {
+  final isar = await db;
+  if (supabaseId.isEmpty) return null;
+  return await isar.usuarioEntitys
+      .filter()
+      .supabaseIdEqualTo(supabaseId)
+      .findFirst();
+}
+
+Future<ProductoEntity?> obtenerProductoPorSupabaseId(String supabaseId) async {
+  final isar = await db;
+  if (supabaseId.isEmpty) return null;
+  return await isar.productoEntitys
+      .filter()
+      .supabaseIdEqualTo(supabaseId)
+      .findFirst();
+}
 
   // ==================== MÉTODOS EXISTENTES (GESTIÓN USUARIOS) ====================
   Future<double> obtenerTotalVentasPorEmpleadoYRango(String empleado, DateTime inicio, DateTime fin) async {
@@ -220,6 +248,16 @@ class IsarService {
     });
     return usuario;
   }
+
+  // ✅ Buscar por dynamicId (UUID)
+Future<UsuarioEntity?> obtenerUsuarioPorDynamicId(String dynamicId) async {
+  final isar = await db;
+  return await isar.usuarioEntitys
+      .where()
+      .dynamicIdEqualTo(dynamicId)
+      .findFirst();
+}
+
 
   Future<void> crearUsuario({
     required String nombre,
@@ -839,4 +877,286 @@ class IsarService {
       }
     });
   }
+
+    // ============================================================
+  // MÉTODOS PARA PEDIDOS (PROVEEDORES)
+  // ============================================================
+
+
+
+  /// Guarda un pedido (crea o actualiza)
+  Future<int> guardarPedido(PedidoEntity pedido) async {
+    final isar = await db;
+    return isar.writeTxn<int>(() async {
+      return await isar.pedidoEntitys.put(pedido);
+    });
+  }
+
+  /// Obtiene todos los pedidos por local destino
+  Future<List<PedidoEntity>> obtenerPedidosPorLocalDestino(int localDestinoId) async {
+    final isar = await db;
+    return await isar.pedidoEntitys
+        .where()
+        .localDestinoIdEqualTo(localDestinoId)
+        .findAll();
+  }
+
+  /// Obtiene pedidos por estado (y opcionalmente por local destino)
+  Future<List<PedidoEntity>> obtenerPedidosPorEstado(
+    EstadoPedido estado, {
+    int? localDestinoId,
+  }) async {
+    final isar = await db;
+    if (localDestinoId != null) {
+      return await isar.pedidoEntitys
+          .where()
+          .localDestinoIdEqualTo(localDestinoId)
+          .filter()
+          .estadoEqualTo(estado)
+          .findAll();
+    } else {
+      return await isar.pedidoEntitys
+          .where()
+          .filter()
+          .estadoEqualTo(estado)
+          .findAll();
+    }
+  }
+
+  /// Obtiene un pedido por su ID de Isar
+  Future<PedidoEntity?> obtenerPedidoPorId(int id) async {
+    final isar = await db;
+    return await isar.pedidoEntitys.get(id);
+  }
+
+  /// Obtiene un pedido por su UUID de Supabase
+  Future<PedidoEntity?> obtenerPedidoPorSupabaseId(String supabaseId) async {
+    final isar = await db;
+    if (supabaseId.isEmpty) return null;
+    return await isar.pedidoEntitys
+        .filter()
+        .supabaseIdEqualTo(supabaseId)
+        .findFirst();
+  }
+
+  /// Actualiza el estado de un pedido
+  Future<void> actualizarEstadoPedido(int id, EstadoPedido nuevoEstado) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final pedido = await isar.pedidoEntitys.get(id);
+      if (pedido != null) {
+        pedido.estado = nuevoEstado;
+        await isar.pedidoEntitys.put(pedido);
+      }
+    });
+  }
+
+  /// Actualiza el estado de sincronización de un pedido
+  Future<void> actualizarSyncStatusPedido(int id, bool sincronizado) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final pedido = await isar.pedidoEntitys.get(id);
+      if (pedido != null) {
+        pedido.sincronizado = sincronizado;
+        pedido.fechaSincronizacion = DateTime.now();
+        await isar.pedidoEntitys.put(pedido);
+      }
+    });
+  }
+
+  /// Obtiene pedidos pendientes de sincronizar
+  Future<List<PedidoEntity>> obtenerPedidosPendientesSync() async {
+    final isar = await db;
+    return await isar.pedidoEntitys
+        .where()
+        .sincronizadoEqualTo(false)
+        .findAll();
+  }
+
+  // ============================================================
+  // MÉTODOS PARA DETALLES DE PEDIDO
+  // ============================================================
+
+  /// Guarda un detalle de pedido
+  Future<int> guardarDetallePedido(DetallePedidoEntity detalle) async {
+    final isar = await db;
+    return isar.writeTxn<int>(() async {
+      return await isar.detallePedidoEntitys.put(detalle);
+    });
+  }
+
+  /// Obtiene todos los detalles de un pedido
+  Future<List<DetallePedidoEntity>> obtenerDetallesPorPedido(int pedidoId) async {
+    final isar = await db;
+    return await isar.detallePedidoEntitys
+        .filter()
+        .pedidoIdEqualTo(pedidoId)
+        .findAll();
+  }
+
+  /// Elimina todos los detalles de un pedido
+  Future<void> eliminarDetallesPorPedido(int pedidoId) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final detalles = await isar.detallePedidoEntitys
+          .filter()
+          .pedidoIdEqualTo(pedidoId)
+          .findAll();
+      for (var d in detalles) {
+        await isar.detallePedidoEntitys.delete(d.id);
+      }
+    });
+  }
+
+  // ============================================================
+  // MÉTODOS PARA RECEPCIONES
+  // ============================================================
+
+  /// Guarda una recepción
+  Future<int> guardarRecepcion(RecepcionEntity recepcion) async {
+    final isar = await db;
+    return isar.writeTxn<int>(() async {
+      return await isar.recepcionEntitys.put(recepcion);
+    });
+  }
+
+  /// Obtiene la recepción de un pedido
+  Future<RecepcionEntity?> obtenerRecepcionPorPedido(int pedidoId) async {
+    final isar = await db;
+    return await isar.recepcionEntitys
+        .filter()
+        .pedidoIdEqualTo(pedidoId)
+        .findFirst();
+  }
+
+  /// Actualiza el estado de sincronización de una recepción
+  Future<void> actualizarSyncStatusRecepcion(int id, bool sincronizado) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final recepcion = await isar.recepcionEntitys.get(id);
+      if (recepcion != null) {
+        recepcion.sincronizado = sincronizado;
+        recepcion.fechaSincronizacion = DateTime.now();
+        await isar.recepcionEntitys.put(recepcion);
+      }
+    });
+  }
+
+  // ========== PROVEEDORES ==========
+Future<int> guardarProveedor(ProveedorEntity proveedor) async {
+  final isar = await db;
+  return isar.writeTxn<int>(() async {
+    return await isar.proveedorEntitys.put(proveedor);
+  });
+}
+
+Future<List<ProveedorEntity>> obtenerProveedores({bool soloActivos = true}) async {
+  final isar = await db;
+  if (soloActivos) {
+    return await isar.proveedorEntitys.filter().activoEqualTo(true).findAll();
+  } else {
+    return await isar.proveedorEntitys.where().findAll();
+  }
+}
+
+Future<ProveedorEntity?> obtenerProveedorPorId(int id) async {
+  final isar = await db;
+  return await isar.proveedorEntitys.get(id);
+}
+
+Future<ProveedorEntity?> obtenerProveedorPorSupabaseId(String supabaseId) async {
+  final isar = await db;
+  if (supabaseId.isEmpty) return null;
+  return await isar.proveedorEntitys
+      .filter()
+      .supabaseIdEqualTo(supabaseId)
+      .findFirst();
+}
+
+Future<void> actualizarSyncStatusProveedor(int id, bool sincronizado) async {
+  final isar = await db;
+  await isar.writeTxn(() async {
+    final proveedor = await isar.proveedorEntitys.get(id);
+    if (proveedor != null) {
+      proveedor.sincronizado = sincronizado;
+      proveedor.fechaSincronizacion = DateTime.now();
+      await isar.proveedorEntitys.put(proveedor);
+    }
+  });
+}
+
+Future<List<ProveedorEntity>> obtenerProveedoresPendientesSync() async {
+  final isar = await db;
+  return await isar.proveedorEntitys
+      .filter()
+      .sincronizadoEqualTo(false)
+      .findAll();
+}
+
+Future<void> desactivarProveedor(int id) async {
+  final isar = await db;
+  await isar.writeTxn(() async {
+    final proveedor = await isar.proveedorEntitys.get(id);
+    if (proveedor != null) {
+      proveedor.activo = false;
+      await isar.proveedorEntitys.put(proveedor);
+    }
+  });
+}
+
+Future<List<ProductoEntity>> obtenerProductosPorProveedor(int proveedorId) async {
+  final isar = await db;
+  return await isar.productoEntitys
+      .filter()
+      .proveedorIdEqualTo(proveedorId)
+      .findAll();
+}
+
+
+
+Future<bool> eliminarProveedor(int id) async {
+  final isar = await db;
+  // Verificar si tiene productos asociados
+  final productos = await isar.productoEntitys
+      .filter()
+      .proveedorIdEqualTo(id)
+      .findAll();
+  if (productos.isNotEmpty) {
+    return false; // No se puede eliminar si tiene productos
+  }
+  return await isar.writeTxn(() async {
+    return await isar.proveedorEntitys.delete(id);
+  });
+}
+
+Future<List<ProveedorEntity>> buscarProveedores(String query) async {
+  final isar = await db;
+  if (query.trim().isEmpty) return [];
+  final q = query.trim().toLowerCase();
+  return await isar.proveedorEntitys
+      .filter()
+      .nombreContains(q, caseSensitive: false)
+      .or()
+      .empresaContains(q, caseSensitive: false)
+      .findAll();
+}
+
+// ==================== GESTIÓN DE LOCALES ====================
+
+/// Obtiene un local por su ID de Isar
+Future<LocalEntity?> obtenerLocalPorId(int id) async {
+  final isar = await db;
+  return await isar.localEntitys.get(id);
+}
+
+/// Obtiene un local por su UUID de Supabase
+Future<LocalEntity?> obtenerLocalPorSupabaseId(String supabaseId) async {
+  final isar = await db;
+  if (supabaseId.isEmpty) return null;
+  return await isar.localEntitys
+      .filter()
+      .supabaseIdEqualTo(supabaseId)
+      .findFirst();
+}
+
 }

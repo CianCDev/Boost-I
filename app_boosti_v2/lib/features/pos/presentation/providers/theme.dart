@@ -38,7 +38,7 @@ ThemeData lightTheme() {
       ),
     ),
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.transparent,
+      backgroundColor: primaryGreen,
       foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: false,
