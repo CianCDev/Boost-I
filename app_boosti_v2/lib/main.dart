@@ -21,6 +21,9 @@ import 'package:flutter/services.dart' show rootBundle;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ============================================================
+  // 1. INICIALIZAR SUPABASE
+  // ============================================================
   final prefs = await SharedPreferences.getInstance();
   String? url = prefs.getString('supabase_url');
   final anonKey = prefs.getString('supabase_anon_key');
@@ -44,9 +47,32 @@ void main() async {
     debugPrint('⚠️ No hay configuración de Supabase, esperando configuración');
   }
 
+  // ============================================================
+  // 2. INICIALIZAR ISAR Y MIGRACIONES
+  // ============================================================
   final isarService = IsarService();
+
+  // 2.1. Usuario admin por defecto
   await isarService.inicializarUsuarioAdminPorDefecto();
 
+  // 2.2. Migración de stock a lotes (solo una vez)
+  await isarService.migrarStockExistenteALotes();
+
+  // 🔥 2.3. ASIGNAR SUPABASE ID A PRODUCTOS QUE NO TENGAN
+  try {
+    final actualizados = await isarService.asignarSupabaseIdsAFaltantes();
+    debugPrint('✅ Migración de supabaseId: $actualizados productos actualizados.');
+    if (actualizados == 0) {
+      debugPrint('⚠️ Ningún producto actualizado. Verifica que la columna "id_isar" exista en Supabase y que los productos locales estén sincronizados.');
+    }
+  } catch (e) {
+    debugPrint('❌ Error en migración de supabaseId: $e');
+    debugPrint('⚠️ Los lotes no se sincronizarán hasta que los productos tengan supabaseId.');
+  }
+
+  // ============================================================
+  // 3. CARGAR CONFIGURACIÓN ADICIONAL
+  // ============================================================
   try {
     final configJson = await rootBundle.loadString('assets/config.json');
     final configMap = jsonDecode(configJson) as Map<String, dynamic>;
@@ -55,6 +81,9 @@ void main() async {
     debugPrint('⚠️ Error cargando config.json: $e');
   }
 
+  // ============================================================
+  // 4. EJECUTAR APP
+  // ============================================================
   runApp(
     DevicePreview(
       enabled: !kReleaseMode,

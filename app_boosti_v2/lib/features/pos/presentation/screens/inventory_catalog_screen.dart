@@ -4,8 +4,8 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/venta_entity.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../widgets/inventory/product_form_dialog.dart'; // <-- Importante para el diálogo
-import '../services/sync_service.dart';             // <-- Para el SyncService
+import '../widgets/inventory/product_form_dialog.dart';
+import '../services/sync_service.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
@@ -28,7 +28,14 @@ import '../utils/responsive_helper.dart';
 import '../services/scale_service.dart';
 import 'inventory_screen.dart';
 import 'pos_menu_screen.dart';
-import '../widgets/cobrar_dialog.dart'; // ✅ Correcto
+import '../widgets/cobrar_dialog.dart';
+
+// ✅ IMPORT DE ALIAS (mantenido como está)
+import '../../data/Local/entities/codigo_barra_alia_entity.dart';
+import '../../data/Local/entities/lote_entity.dart';
+
+// ✅ PROVIDER PARA FORZAR REBUILD DEL GRIDVIEW
+final refreshCatalogCounterProvider = StateProvider<int>((ref) => 0);
 
 class InventoryCatalogScreen extends ConsumerStatefulWidget {
   final UsuarioEntity? usuarioLogueado;
@@ -50,6 +57,9 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   final ScaleService _scaleService = ScaleService();
   late AnimationController _animationController;
   final FocusNode _searchFocusNode = FocusNode();
+
+  // Variable para almacenar el factor del alias escaneado
+  double _factorEscaneado = 1.0;
 
   StreamSubscription<double>? _weightSubscription;
   Timer? _pollingTimer;
@@ -118,7 +128,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   }
 
   // ==========================================
-  // ESCANEAR CÓDIGO DE BARRAS (CORREGIDO)
+  // ESCANEAR CÓDIGO DE BARRAS (CON ALIAS)
   // ==========================================
   Future<void> _scanBarcode() async {
     final codigo = await showDialog<String>(
@@ -128,80 +138,288 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     );
     if (codigo == null || codigo.isEmpty) return;
 
-    final producto = await _isarService.obtenerProductoPorCodigoBarrasExacto(codigo.trim());
-    if (producto != null) {
-      _mostrarModalCantidad(producto);
+    // Buscar primero en alias, luego en producto principal
+    final resultado = await _buscarProductoPorCodigo(codigo.trim());
+
+    if (resultado != null) {
+      // Usar el factor del alias (si se encontró uno)
+      _mostrarModalCantidad(resultado, factor: _factorEscaneado);
       return;
     }
 
-    final crear = await showDialog<bool>(
+    // Si no se encontró, ofrecer opciones: crear producto o afiliar
+    final action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Producto no registrado'),
-        content: Text('El código "$codigo" no está registrado.\n¿Deseas crearlo ahora?'),
+        content: Text('El código "$codigo" no está registrado.\n¿Qué deseas hacer?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context, 'cancel'),
             child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'affiliate'),
+            child: const Text('Afiliar a existente'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Crear Producto'),
+            onPressed: () => Navigator.pop(context, 'create'),
+            child: const Text('Crear nuevo producto'),
           ),
         ],
       ),
     );
-    if (crear == true && mounted) {
+
+    if (action == 'create' && mounted) {
       _mostrarDialogoCrearProducto(codigo);
+    } else if (action == 'affiliate' && mounted) {
+      _mostrarDialogoAfiliarCodigo(codigo);
     }
   }
 
+  // Método para buscar producto por código (incluyendo alias)
+  Future<ProductoEntity?> _buscarProductoPorCodigo(String codigo) async {
+    final codigoLimpio = codigo.trim();
+    _factorEscaneado = 1.0;
+
+    // 1. Buscar en alias
+    final alias = await _isarService.obtenerAliasPorCodigo(codigoLimpio);
+    if (alias != null) {
+      final producto = await _isarService.obtenerProductoPorId(alias.productoId);
+      if (producto != null) {
+        _factorEscaneado = alias.factor;
+        return producto;
+      }
+    }
+
+    // 2. Buscar en el campo principal del producto
+    final producto = await _isarService.obtenerProductoPorCodigoBarrasExacto(codigoLimpio);
+    if (producto != null) {
+      _factorEscaneado = 1.0;
+      return producto;
+    }
+
+    return null;
+  }
+
+  // Diálogo para afiliar un código a un producto existente
+  Future<void> _mostrarDialogoAfiliarCodigo(String codigo) async {
+    final productos = await _isarService.obtenerProductos();
+
+    if (productos.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No hay productos disponibles para afiliar. Crea uno primero.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    final productoSeleccionado = await showDialog<ProductoEntity>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Seleccionar Producto'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: ListView.builder(
+            itemCount: productos.length,
+            itemBuilder: (context, index) {
+              final p = productos[index];
+              return FutureBuilder<double>(
+                future: _isarService.obtenerStockTotalPorProducto(p.id),
+                builder: (context, snapshot) {
+                  final stock = snapshot.data ?? 0.0;
+                  return ListTile(
+                    title: Text(p.nombre),
+                    subtitle: Text('Código: ${p.codigoBarras} | Stock: $stock'),
+                    onTap: () => Navigator.pop(context, p),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
+
+    if (productoSeleccionado != null) {
+      // Guardar el alias
+      final nuevoAlias = CodigoBarrasAliasEntity()
+        ..codigo = codigo.trim()
+        ..productoId = productoSeleccionado.id
+        ..factor = 1.0 // Por defecto 1, luego se puede editar
+        ..activo = true
+        ..fechaAsignacion = DateTime.now()
+        ..observaciones = 'Código afiliado desde escaneo'
+        ..sincronizado = false;
+
+      await _isarService.guardarCodigoAlias(nuevoAlias);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Código "$codigo" afiliado a "${productoSeleccionado.nombre}"'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await ref.read(catalogProvider.notifier).recargarDesdeSupabase();
+      }
+    }
+  }
+
+  // Método para afiliar un código desde el detalle del producto
+  Future<void> _afiliarCodigoAProducto(ProductoEntity producto, String codigo) async {
+    final aliasExistente = await _isarService.obtenerAliasPorCodigo(codigo.trim());
+    if (aliasExistente != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Este código ya está afiliado a otro producto.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    final factor = await showDialog<double>(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController(text: '1.0');
+        return AlertDialog(
+          title: const Text('Factor de Conversión'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('¿Cuántas unidades representa este código?'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Factor (ej. 12 para caja)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final val = double.tryParse(controller.text);
+                if (val != null && val > 0) {
+                  Navigator.pop(context, val);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Ingresa un factor válido mayor a 0')),
+                  );
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (factor != null) {
+      final nuevoAlias = CodigoBarrasAliasEntity()
+        ..codigo = codigo.trim()
+        ..productoId = producto.id
+        ..factor = factor
+        ..activo = true
+        ..fechaAsignacion = DateTime.now()
+        ..observaciones = 'Afiliado manualmente'
+        ..sincronizado = false;
+
+      await _isarService.guardarCodigoAlias(nuevoAlias);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Código "$codigo" afiliado con factor $factor'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
 
   void _agregarAlCarrito(ProductoEntity producto, double cantidad) {
-    if (producto.stock < cantidad && !producto.esPesado) {
+    _isarService.obtenerStockTotalPorProducto(producto.id).then((stockTotal) {
+      if (stockTotal < cantidad && !producto.esPesado) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Stock insuficiente. Disponible: $stockTotal'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+        return;
+      }
+
+      HapticFeedback.lightImpact();
+      final productItem = ProductItem(
+        id: producto.id.toString(),
+        codigoBarras: producto.codigoBarras,
+        nombre: producto.nombre,
+        precioUnidad: producto.precioUnidad,
+        esPesado: producto.esPesado,
+        categoria: producto.categoria,
+      );
+      ref.read(cartProvider.notifier).agregarProducto(
+            productItem,
+            cantidad: cantidad,
+            stockMaximo: stockTotal,
+          );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Stock insuficiente'),
+          content: Text('${producto.nombre} agregado al carrito.'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+      ref.read(catalogProvider.notifier).setBusqueda('');
+    }).catchError((e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al verificar stock: $e'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
-      return;
-    }
-    HapticFeedback.lightImpact();
-    final productItem = ProductItem(
-      id: producto.id.toString(),
-      codigoBarras: producto.codigoBarras,
-      nombre: producto.nombre,
-      precioUnidad: producto.precioUnidad,
-      esPesado: producto.esPesado,
-      categoria: producto.categoria,
-    );
-    ref.read(cartProvider.notifier).agregarProducto(
-          productItem,
-          cantidad: cantidad,
-          stockMaximo: producto.stock,
-        );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${producto.nombre} agregado al carrito.'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        duration: const Duration(seconds: 1),
-      ),
-    );
-    ref.read(catalogProvider.notifier).setBusqueda('');
+    });
   }
 
-  void _mostrarModalCantidad(ProductoEntity producto) {
+  void _mostrarModalCantidad(ProductoEntity producto, {double factor = 1.0}) {
     showDialog(
       context: context,
       builder: (context) => QuantityDialog(
         producto: producto,
+        cantidadInicial: factor,
         onAgregar: (productoModificado, cantidad) {
           _agregarAlCarrito(productoModificado, cantidad);
         },
       ),
     );
+  }
+
+  // Versión sobrecargada para mantener compatibilidad
+  void _mostrarModalCantidadOriginal(ProductoEntity producto) {
+    _mostrarModalCantidad(producto, factor: 1.0);
   }
 
   void _mostrarDialogoCrearProducto(String codigo) {
@@ -211,15 +429,22 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         codigoBarrasPrecargado: codigo,
         onGuardar: (producto) async {
           final isar = IsarService();
-          // 1. Guardar localmente
           await isar.guardarProducto(producto);
-          
-          // 2. Sincronizar con la nube
+
+          // Crear lote inicial para el producto
+          final loteInicial = LoteEntity()
+            ..productoId = producto.id
+            ..cantidadInicial = producto.stock
+            ..cantidadRestante = producto.stock
+            ..fechaIngreso = DateTime.now()
+            ..estado = 'activo'
+            ..sincronizado = false;
+
+          await isar.guardarLote(loteInicial);
+
           await SyncService().sincronizarProductosASupabase();
-          
-          // 3. Refrescar el catálogo para que aparezca el producto nuevo
           await ref.read(catalogProvider.notifier).recargarDesdeSupabase();
-          
+
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('✅ Producto creado exitosamente'), backgroundColor: Color(0xFF10B981)),
@@ -240,7 +465,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     final resultado = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => CobrarDialog( // ✅ CORREGIDO: antes era cashC
+      builder: (context) => CobrarDialog(
         totalAPagar: cartState.total,
         productos: const [],
       ),
@@ -254,6 +479,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     }
   }
 
+  // _procesarYGuardarVenta modificado para descontar de lotes
   Future<void> _procesarYGuardarVenta(
       String metodoPago, double cambio, double recibido, double tasaActual) async {
     try {
@@ -262,6 +488,34 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
           'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
       final DateTime ahora = DateTime.now();
       final double totalBsCalculado = cartState.total * tasaActual;
+
+      // Descontar de lotes antes de guardar la venta
+      for (var cartItem in cartState.items) {
+        final productoId = int.tryParse(cartItem.producto.id);
+        if (productoId == null) continue;
+
+        double cantidadPorDescontar = cartItem.cantidad;
+        while (cantidadPorDescontar > 0.001) {
+          final lote = await _isarService.obtenerLoteParaVenta(
+            productoId,
+            priorizarVencimiento: true,
+          );
+          if (lote == null) {
+            throw Exception('Stock insuficiente para ${cartItem.producto.nombre}');
+          }
+
+          final descontar = cantidadPorDescontar > lote.cantidadRestante
+              ? lote.cantidadRestante
+              : cantidadPorDescontar;
+
+          final exito = await _isarService.descontarLote(lote.id, descontar);
+          if (!exito) {
+            throw Exception('Error al descontar lote de ${cartItem.producto.nombre}');
+          }
+
+          cantidadPorDescontar -= descontar;
+        }
+      }
 
       final itemsIsar = cartState.items.map((cartItem) {
         return DetalleVentaEntity()
@@ -586,6 +840,9 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     final isTablet = ResponsiveHelper.isTablet(context);
     final colorScheme = Theme.of(context).colorScheme;
 
+    // ✅ OBTENER EL CONTADOR PARA USARLO COMO KEY
+    final refreshCounter = ref.watch(refreshCatalogCounterProvider);
+
     return Padding(
       padding: EdgeInsets.all(isTablet ? 24.0 : 16.0),
       child: Column(
@@ -615,6 +872,8 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                       ),
                     )
                   : GridView.builder(
+                      // ✅ KEY QUE CAMBIA PARA FORZAR REBUILD
+                      key: ValueKey(refreshCounter),
                       padding: const EdgeInsets.only(bottom: 40),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: crossAxisCount,
@@ -625,14 +884,20 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                       itemCount: catalogState.productosFiltrados.length,
                       itemBuilder: (context, index) {
                         final producto = catalogState.productosFiltrados[index];
-                        final bool stockBajo = producto.stock <= producto.stockMinimo;
-                        return ProductCard(
-                          producto: producto,
-                          stockBajo: stockBajo,
-                          onTap: () => _mostrarModalCantidad(producto),
-                          isMobile: isMobile,
-                          index: index,
-                          animationController: _animationController,
+                        return FutureBuilder<double>(
+                          future: _isarService.obtenerStockTotalPorProducto(producto.id),
+                          builder: (context, snapshot) {
+                            final stockTotal = snapshot.data ?? 0.0;
+                            final bool stockBajo = stockTotal <= producto.stockMinimo;
+                            return ProductCard(
+                              producto: producto,
+                              stockBajo: stockBajo,
+                              onTap: () => _mostrarModalCantidad(producto, factor: 1.0),
+                              isMobile: isMobile,
+                              index: index,
+                              animationController: _animationController,
+                            );
+                          },
                         );
                       },
                     ),
@@ -642,4 +907,4 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
       ),
     );
   }
-}
+} 

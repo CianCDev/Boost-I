@@ -19,6 +19,9 @@ import '../../data/Local/entities/recepcion_entity.dart';
 import '../../data/Local/entities/pedido_entity.dart';
 import '../../data/Local/entities/detalle_pedido_entity.dart';
 import '../../data/Local/entities/local_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/codigo_barra_alia_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SyncService {
@@ -392,6 +395,7 @@ class SyncService {
     }
   }
 
+  /// ✅ Sincroniza productos y actualiza supabaseId local
   Future<bool> sincronizarProductosASupabase() async {
     try {
       final productosLocales = await _isarService.obtenerProductos();
@@ -399,6 +403,7 @@ class SyncService {
 
       final List<Map<String, dynamic>> payloadList = productosLocales.map((p) {
         return {
+          'id_isar': p.id,
           'codigo_barras': p.codigoBarras,
           'nombre': p.nombre,
           'precio_unidad': _limpiarNumero(p.precioUnidad, 0.0),
@@ -412,8 +417,30 @@ class SyncService {
         };
       }).toList();
 
-      await _supabase.from('productos').upsert(payloadList, onConflict: 'codigo_barras');
-      debugPrint('✅ ${productosLocales.length} productos sincronizados');
+      final response = await _supabase
+          .from('productos')
+          .upsert(payloadList, onConflict: 'codigo_barras')
+          .select('id, id_isar');
+
+      int actualizados = 0;
+      for (var data in response) {
+        // 🔥 CORREGIDO: usar .toString() en lugar de as String?
+        final supabaseId = data['id']?.toString();
+        final idIsar = data['id_isar'] as int?;
+        if (supabaseId != null && idIsar != null) {
+          final productoLocal = await _isarService.obtenerProductoPorId(idIsar);
+          if (productoLocal != null && productoLocal.supabaseId != supabaseId) {
+            productoLocal.supabaseId = supabaseId;
+            productoLocal.sincronizado = true;
+            productoLocal.fechaSincronizacion = DateTime.now();
+            await _isarService.guardarProducto(productoLocal);
+            actualizados++;
+            debugPrint('✅ Producto ${productoLocal.nombre} (id: $idIsar) → supabaseId: $supabaseId');
+          }
+        }
+      }
+
+      debugPrint('✅ ${productosLocales.length} productos sincronizados. $actualizados supabaseId actualizados.');
       return true;
     } catch (e) {
       debugPrint('🚫 Error sincronizando productos: $e');
@@ -515,68 +542,65 @@ class SyncService {
   }
 
   Future<bool> _enviarGastoAlServidor(GastoEntity gasto) async {
-  try {
-    String? usuarioUuid;
-    if (gasto.usuarioId != null) {
-      final usuario = await _isarService.obtenerUsuarioPorId(gasto.usuarioId!);
-      if (usuario != null && usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
-        usuarioUuid = usuario.supabaseId;
-      } else {
-        debugPrint('⚠️ Usuario ID ${gasto.usuarioId} no tiene supabaseId. Se envía null.');
+    try {
+      String? usuarioUuid;
+      if (gasto.usuarioId != null) {
+        final usuario = await _isarService.obtenerUsuarioPorId(gasto.usuarioId!);
+        if (usuario != null && usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
+          usuarioUuid = usuario.supabaseId;
+        } else {
+          debugPrint('⚠️ Usuario ID ${gasto.usuarioId} no tiene supabaseId. Se envía null.');
+        }
       }
-    }
 
-    final payload = {
-      'id_isar': gasto.id,
-      'descripcion': gasto.descripcion,
-      'monto': gasto.monto,
-      'moneda': gasto.moneda,
-      'tasa_bcv': gasto.tasaBcv,
-      'categoria': gasto.categoria,
-      'usuario_nombre': gasto.usuarioNombre,
-      'fecha': gasto.fecha.toIso8601String(),
-      'sync_status': 'synced',
-      if (usuarioUuid != null) 'usuario_id': usuarioUuid,
-    };
+      final payload = {
+        'id_isar': gasto.id,
+        'descripcion': gasto.descripcion,
+        'monto': gasto.monto,
+        'moneda': gasto.moneda,
+        'tasa_bcv': gasto.tasaBcv,
+        'categoria': gasto.categoria,
+        'usuario_nombre': gasto.usuarioNombre,
+        'fecha': gasto.fecha.toIso8601String(),
+        'sync_status': 'synced',
+        if (usuarioUuid != null) 'usuario_id': usuarioUuid,
+      };
 
-    debugPrint('📤 Enviando gasto: ${jsonEncode(payload)}');
+      debugPrint('📤 Enviando gasto: ${jsonEncode(payload)}');
 
-    // 1. Verificar si ya existe un registro con este id_isar
-    final existing = await _supabase
-        .from('gastos')
-        .select('id')
-        .eq('id_isar', gasto.id)
-        .maybeSingle();
-
-    dynamic response;
-    if (existing != null) {
-      // 2. Actualizar el registro existente
-      response = await _supabase
+      final existing = await _supabase
           .from('gastos')
-          .update(payload)
+          .select('id')
           .eq('id_isar', gasto.id)
-          .select()
-          .single();
-      debugPrint('✅ Gasto ${gasto.id} actualizado correctamente.');
-    } else {
-      // 3. Insertar nuevo registro
-      response = await _supabase
-          .from('gastos')
-          .insert(payload)
-          .select()
-          .single();
-      debugPrint('✅ Gasto ${gasto.id} insertado correctamente. ID: ${response['id']}');
-    }
+          .maybeSingle();
 
-    return true;
-  } catch (e) {
-    debugPrint('🚫 Error al enviar gasto: $e');
-    if (e is PostgrestException) {
-      debugPrint('Código de error Supabase: ${e.code}, Mensaje: ${e.message}');
+      dynamic response;
+      if (existing != null) {
+        response = await _supabase
+            .from('gastos')
+            .update(payload)
+            .eq('id_isar', gasto.id)
+            .select()
+            .single();
+        debugPrint('✅ Gasto ${gasto.id} actualizado correctamente.');
+      } else {
+        response = await _supabase
+            .from('gastos')
+            .insert(payload)
+            .select()
+            .single();
+        debugPrint('✅ Gasto ${gasto.id} insertado correctamente. ID: ${response['id']}');
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('🚫 Error al enviar gasto: $e');
+      if (e is PostgrestException) {
+        debugPrint('Código de error Supabase: ${e.code}, Mensaje: ${e.message}');
+      }
+      return false;
     }
-    return false;
   }
-}
 
   // ==========================================
   // GESTIÓN DE USUARIOS (microservicio)
@@ -613,26 +637,26 @@ class SyncService {
     }
   }
 
+  /// 🔥 Orden de sincronización CORRECTO: productos primero, luego lotes y alias
   Future<void> sincronizarTodo() async {
-  await sincronizarVentasPendientes();
-  await sincronizarMovimientosInventario();
-  await sincronizarProductosASupabase();
-  await sincronizarCategoriasASupabase();
-  await sincronizarTurnos();
-  await sincronizarUsuariosASupabase();
-  
-  // 🔥 PRIMERO traer UUIDs de usuarios y luego sincronizar gastos
-  await sincronizarUsuariosDesdeSupabase(); 
-  await sincronizarGastosPendientes();  // ← MOVER AQUÍ
-  
-  // ... resto (pedidos, proveedores, etc.)
-  await _obtenerLocalActualUuid();
-  await sincronizarPedidosPendientes();
-  await descargarPedidosDesdeSupabase();
-  await descargarProductosDesdeSupabase();
-  await sincronizarProveedoresPendientes();
-  await descargarProveedoresDesdeSupabase();
-}
+    await sincronizarVentasPendientes();
+    await sincronizarMovimientosInventario();
+    await sincronizarProductosASupabase();
+    await sincronizarCategoriasASupabase();
+    await sincronizarTurnos();
+    await sincronizarUsuariosASupabase();
+    await sincronizarUsuariosDesdeSupabase();
+    await sincronizarGastosPendientes();
+
+    await _obtenerLocalActualUuid();
+    await sincronizarPedidosPendientes();
+    await descargarPedidosDesdeSupabase();
+    await descargarProductosDesdeSupabase();
+    await sincronizarProveedoresPendientes();
+    await descargarProveedoresDesdeSupabase();
+    await sincronizarAliasPendientes();
+    await sincronizarLotesPendientes();
+  }
 
   // ==========================================
   // STREAM DE USUARIOS EN TIEMPO REAL (MONITOR)
@@ -843,10 +867,8 @@ class SyncService {
         final codigoBarras = data['codigo_barras'] ?? '';
         if (codigoBarras.isEmpty) continue;
 
-        // 1. Verificar si el producto ya existe en la base local
         final existente = await _isarService.obtenerProductoPorCodigoBarrasExacto(codigoBarras);
 
-        // Construir el objeto con los datos de la nube
         final productoNube = ProductoEntity()
           ..codigoBarras = codigoBarras
           ..nombre = data['nombre'] ?? ''
@@ -862,9 +884,8 @@ class SyncService {
           ..sincronizado = true
           ..fechaSincronizacion = DateTime.now();
 
-        // 2. Si ya existe, comparamos los datos importantes
         if (existente != null) {
-          bool datosIguales = 
+          bool datosIguales =
               existente.nombre == productoNube.nombre &&
               existente.precioUnidad == productoNube.precioUnidad &&
               existente.stock == productoNube.stock &&
@@ -876,14 +897,12 @@ class SyncService {
 
           if (datosIguales) {
             omitidos++;
-            continue; // ✅ Saltamos el guardado, es exactamente igual
+            continue;
           } else {
-            // 3. Si hay cambios, actualizamos manteniendo el ID local
             productoNube.id = existente.id;
           }
         }
 
-        // 4. Guardar (solo si es nuevo o si hubo cambios)
         await _isarService.guardarProducto(productoNube);
         descargados++;
       }
@@ -899,9 +918,6 @@ class SyncService {
   // NUEVOS MÉTODOS PARA SINCRONIZACIÓN DE USUARIOS DESDE SUPABASE
   // ============================================================
 
-  /// Descarga todos los usuarios desde Supabase y actualiza la base de datos local.
-  /// Si un usuario está activo/descanso localmente pero en la nube está inactivo,
-  /// se actualiza localmente a inactivo (para reflejar cierres de sesión externos).
   Future<void> sincronizarUsuariosDesdeSupabase() async {
     try {
       final response = await _supabase
@@ -928,16 +944,13 @@ class SyncService {
 
         final local = localesMap[idIsar];
         if (local != null) {
-          // 🔥 ASIGNAR EL UUID DE SUPABASE (ESTO FALTA)
-          local.supabaseId = data['id']; // <-- Línea agregada
+          local.supabaseId = data['id'];
 
-          // Actualizar campos de perfil
           local.email = data['email'] ?? local.email;
           local.deviceId = data['device_id'] ?? local.deviceId;
           local.cajaAsignada = data['caja_asignada'] ?? local.cajaAsignada;
           local.departamento = data['departamento'] ?? local.departamento;
 
-          // 🔥 ACTUALIZAR ESTADO si en la nube es inactivo y local está activo/descanso
           final estadoNube = data['estado'] as String? ?? 'inactivo';
           if (estadoNube == 'inactivo' && (local.estado == 'activo' || local.estado == 'descanso')) {
             local.estado = 'inactivo';
@@ -946,7 +959,6 @@ class SyncService {
 
           await _isarService.guardarUsuario(local);
         } else {
-          // Crear nuevo usuario (con estado inactivo por defecto)
           final nuevoUsuario = UsuarioEntity()
             ..id = idIsar
             ..nombre = data['nombre'] ?? ''
@@ -969,7 +981,6 @@ class SyncService {
     }
   }
 
-  /// Obtiene todos los usuarios desde Supabase (sin modificar locales)
   Future<List<Map<String, dynamic>>> obtenerUsuariosDesdeSupabase() async {
     try {
       final response = await _supabase
@@ -987,7 +998,6 @@ class SyncService {
   // PEDIDOS
   // ============================================================
 
-  /// Guarda un pedido (crea o actualiza)
   Future<int> guardarPedido(PedidoEntity pedido) async {
     final isar = await _isarService.db;
     return isar.writeTxn<int>(() async {
@@ -995,7 +1005,6 @@ class SyncService {
     });
   }
 
-  /// Obtiene todos los pedidos de un local destino
   Future<List<PedidoEntity>> obtenerPedidosPorLocalDestino(int localDestinoId) async {
     final isar = await _isarService.db;
     return await isar.pedidoEntitys
@@ -1004,7 +1013,6 @@ class SyncService {
         .findAll();
   }
 
-  /// Obtiene pedidos filtrados por estado (opcionalmente por local destino)
   Future<List<PedidoEntity>> obtenerPedidosPorEstado(
     EstadoPedido estado, {
     int? localDestinoId,
@@ -1026,13 +1034,11 @@ class SyncService {
     }
   }
 
-  /// Obtiene un pedido por su ID
   Future<PedidoEntity?> obtenerPedidoPorId(int id) async {
     final isar = await _isarService.db;
     return await isar.pedidoEntitys.get(id);
   }
 
-  /// Actualiza el estado de un pedido
   Future<void> actualizarEstadoPedido(int id, EstadoPedido nuevoEstado) async {
     final isar = await _isarService.db;
     await isar.writeTxn(() async {
@@ -1044,7 +1050,6 @@ class SyncService {
     });
   }
 
-  /// Marca un pedido como sincronizado
   Future<void> actualizarSyncStatusPedido(int id, bool sincronizado) async {
     final isar = await _isarService.db;
     await isar.writeTxn(() async {
@@ -1057,7 +1062,6 @@ class SyncService {
     });
   }
 
-  /// Obtiene pedidos pendientes de sincronizar
   Future<List<PedidoEntity>> obtenerPedidosPendientesSync() async {
     final isar = await _isarService.db;
     return await isar.pedidoEntitys
@@ -1066,7 +1070,6 @@ class SyncService {
         .findAll();
   }
 
-  /// Obtiene un pedido por su UUID de Supabase
   Future<PedidoEntity?> obtenerPedidoPorSupabaseId(String supabaseId) async {
     final isar = await _isarService.db;
     if (supabaseId.isEmpty) return null;
@@ -1080,7 +1083,6 @@ class SyncService {
   // DETALLES DE PEDIDO
   // ============================================================
 
-  /// Guarda un detalle de pedido
   Future<int> guardarDetallePedido(DetallePedidoEntity detalle) async {
     final isar = await _isarService.db;
     return isar.writeTxn<int>(() async {
@@ -1088,7 +1090,6 @@ class SyncService {
     });
   }
 
-  /// Obtiene los detalles de un pedido
   Future<List<DetallePedidoEntity>> obtenerDetallesPorPedido(int pedidoId) async {
     final isar = await _isarService.db;
     return await isar.detallePedidoEntitys
@@ -1097,7 +1098,6 @@ class SyncService {
         .findAll();
   }
 
-  /// Elimina todos los detalles de un pedido
   Future<void> eliminarDetallesPorPedido(int pedidoId) async {
     final isar = await _isarService.db;
     await isar.writeTxn(() async {
@@ -1115,7 +1115,6 @@ class SyncService {
   // RECEPCIONES
   // ============================================================
 
-  /// Guarda una recepción
   Future<int> guardarRecepcion(RecepcionEntity recepcion) async {
     final isar = await _isarService.db;
     return isar.writeTxn<int>(() async {
@@ -1123,7 +1122,6 @@ class SyncService {
     });
   }
 
-  /// Obtiene la recepción de un pedido
   Future<RecepcionEntity?> obtenerRecepcionPorPedido(int pedidoId) async {
     final isar = await _isarService.db;
     return await isar.recepcionEntitys
@@ -1132,7 +1130,6 @@ class SyncService {
         .findFirst();
   }
 
-  /// Marca una recepción como sincronizada
   Future<void> actualizarSyncStatusRecepcion(int id, bool sincronizado) async {
     final isar = await _isarService.db;
     await isar.writeTxn(() async {
@@ -1146,11 +1143,10 @@ class SyncService {
   }
 
   // ============================================================
-  // SINCRONIZACIÓN DE PEDIDOS (PROVEEDORES) - CORREGIDA
+  // SINCRONIZACIÓN DE PEDIDOS (PROVEEDORES)
   // ============================================================
   Future<void> sincronizarPedidosPendientes() async {
     try {
-      // 🔥 Asegurarnos de que el Local tenga su UUID ANTES de intentar subir pedidos
       await _obtenerLocalActualUuid();
 
       final pedidosPendientes = await _isarService.obtenerPedidosPendientesSync();
@@ -1163,10 +1159,9 @@ class SyncService {
         final String? localDestinoUuid = await _obtenerSupabaseIdLocal(pedido.localDestinoId);
         final String? usuarioUuid = await _obtenerSupabaseIdUsuario(pedido.usuarioId);
 
-        // Si falta algún UUID, no intentamos sincronizar, solo lo marcamos para reintentar luego
         if (localOrigenUuid == null || localDestinoUuid == null || usuarioUuid == null) {
           debugPrint('⚠️ Pedido ${pedido.id} omitido por falta de mapeo de IDs');
-          continue; 
+          continue;
         }
 
         final pedidoData = {
@@ -1227,13 +1222,13 @@ class SyncService {
   }
 
   // ============================================================
-  // DESCARGA DE PEDIDOS DESDE SUPABASE (CON TRANSACCIONES Y CORREGIDA)
+  // DESCARGA DE PEDIDOS DESDE SUPABASE (CORREGIDA)
   // ============================================================
   Future<void> descargarPedidosDesdeSupabase() async {
     try {
       final supabase = Supabase.instance.client;
       final isar = await _isarService.db;
-      
+
       final String? localActualUuid = await _obtenerLocalActualUuid();
       if (localActualUuid == null || localActualUuid.isEmpty) {
         debugPrint('⚠️ No se pudo obtener el UUID del local actual. No se descargarán pedidos.');
@@ -1260,21 +1255,24 @@ class SyncService {
             .findFirst();
         if (existing != null) continue;
 
-        // 🔥 Obtener los UUIDs de los mapeos
-        final String? localOrigenUuid = await _obtenerSupabaseIdLocal(pedidoJson['local_id']);
-        final String? localDestinoUuid = await _obtenerSupabaseIdLocal(pedidoJson['local_destino_id']);
-        final String? usuarioUuid = await _obtenerSupabaseIdUsuario(pedidoJson['usuario_id']);
+        // 🔥 CORREGIDO: usar .toString() en lugar de as String?
+        final String? localOrigenUuid = pedidoJson['local_id']?.toString();
+        final String? localDestinoUuid = pedidoJson['local_destino_id']?.toString();
+        final String? usuarioUuid = pedidoJson['usuario_id']?.toString();
 
-        if (localOrigenUuid == null || localOrigenUuid.isEmpty ||
-            localDestinoUuid == null || localDestinoUuid.isEmpty ||
-            usuarioUuid == null || usuarioUuid.isEmpty) {
+        if (localOrigenUuid == null || localDestinoUuid == null || usuarioUuid == null) {
           debugPrint('⚠️ Pedido ${pedidoJson['id']} omitido por falta de mapeo de IDs en la descarga');
           continue;
         }
 
-        final int localOrigenId = await _obtenerIsarIdLocal(pedidoJson['local_id']);
-        final int localDestinoId = await _obtenerIsarIdLocal(pedidoJson['local_destino_id']);
-        final int usuarioId = await _obtenerIsarIdUsuario(pedidoJson['usuario_id']);
+        final int localOrigenId = await _obtenerIsarIdLocal(localOrigenUuid);
+        final int localDestinoId = await _obtenerIsarIdLocal(localDestinoUuid);
+        final int usuarioId = await _obtenerIsarIdUsuario(usuarioUuid);
+
+        if (localOrigenId == 0 || localDestinoId == 0 || usuarioId == 0) {
+          debugPrint('⚠️ Pedido ${pedidoJson['id']} omitido: IDs locales no encontrados');
+          continue;
+        }
 
         final pedido = PedidoEntity()
           ..supabaseId = pedidoJson['id']
@@ -1336,7 +1334,7 @@ class SyncService {
   }
 
   // ============================================================
-  // MÉTODOS AUXILIARES (CORREGIDOS - RETORNAN null)
+  // MÉTODOS AUXILIARES (CORREGIDOS)
   // ============================================================
   Future<String?> _obtenerSupabaseIdLocal(int isarId) async {
     final local = await _isarService.obtenerLocalPorId(isarId);
@@ -1377,33 +1375,27 @@ class SyncService {
     return producto?.id ?? 0;
   }
 
-  // ============================================================
-  // OBTENER UUID DEL LOCAL ACTUAL (CON CORRECCIÓN DE TIPO)
-  // ============================================================
   Future<String?> _obtenerLocalActualUuid() async {
     final isar = await _isarService.db;
     LocalEntity? localIsar = await isar.localEntitys.get(1);
 
-    // 1. Si no existe en Isar, lo creamos
     if (localIsar == null) {
       final nuevoLocal = LocalEntity()..nombre = 'Local Principal';
       await isar.writeTxn(() async {
         await isar.localEntitys.put(nuevoLocal);
       });
-      localIsar = nuevoLocal; // Ahora localIsar tiene un valor real
+      localIsar = nuevoLocal;
       debugPrint('✅ Local Principal (ID 1) creado en Isar porque no existía.');
     }
 
-    // 2. Si ya tiene el UUID de Supabase, lo devolvemos
     if (localIsar.supabaseId != null && localIsar.supabaseId!.isNotEmpty) {
       return localIsar.supabaseId;
     }
 
-    // 3. Si no tiene UUID, lo buscamos/creamos en Supabase
     try {
       final supabase = Supabase.instance.client;
       final data = await supabase.from('locales').select('id').eq('id_isar', 1).maybeSingle();
-      
+
       String uuid;
       if (data != null) {
         uuid = data['id'] as String;
@@ -1417,12 +1409,11 @@ class SyncService {
         debugPrint('✅ Local creado en Supabase con id_isar = 1. UUID: $uuid');
       }
 
-      // 4. Guardamos el UUID en Isar (DENTRO DE UNA TRANSACCIÓN)
       localIsar.supabaseId = uuid;
       await isar.writeTxn(() async {
-        await isar.localEntitys.put(localIsar!); 
+        await isar.localEntitys.put(localIsar!);
       });
-      
+
       return uuid;
     } catch (e) {
       debugPrint('⚠️ Error crítico en _obtenerLocalActualUuid: $e');
@@ -1506,6 +1497,106 @@ class SyncService {
       debugPrint('Error descargando proveedores: $e');
       rethrow;
     }
+  }
+
+  // ==================== SINCRONIZACIÓN DE ALIAS ====================
+
+  Future<void> sincronizarAliasPendientes() async {
+    try {
+      final pendientes = await _isarService.obtenerAliasPendientesSync();
+      if (pendientes.isEmpty) return;
+
+      for (var alias in pendientes) {
+        final existing = await _supabase
+            .from('codigos_barras_alias')
+            .select('id_isar')
+            .eq('id_isar', alias.id)
+            .maybeSingle();
+
+        final data = {
+          'id_isar': alias.id,
+          'codigo': alias.codigo,
+          'producto_id_fk': await _obtenerSupabaseIdProducto(alias.productoId),
+          'factor': alias.factor,
+          'activo': alias.activo,
+          'fecha_asignacion': alias.fechaAsignacion.toIso8601String(),
+          'observaciones': alias.observaciones,
+          'sincronizado': true,
+          'fecha_sincronizacion': DateTime.now().toIso8601String(),
+        };
+
+        if (existing == null) {
+          await _supabase.from('codigos_barras_alias').insert(data);
+        } else {
+          await _supabase.from('codigos_barras_alias').update(data).eq('id_isar', alias.id);
+        }
+
+        alias.sincronizado = true;
+        alias.fechaSincronizacion = DateTime.now();
+        await _isarService.guardarCodigoAlias(alias);
+      }
+    } catch (e) {
+      debugPrint('❌ Error sincronizando alias: $e');
+    }
+  }
+
+  // ==================== SINCRONIZACIÓN DE LOTES (DEFINITIVA) ====================
+
+  Future<void> sincronizarLotesPendientes() async {
+    try {
+      final pendientes = await _isarService.obtenerLotesPendientesSync();
+      if (pendientes.isEmpty) return;
+
+      for (var lote in pendientes) {
+        final productoIdFk = await _obtenerSupabaseIdProducto(lote.productoId);
+
+        if (productoIdFk == null || productoIdFk.isEmpty) {
+          debugPrint('⚠️ Lote ${lote.id} omitido: producto ${lote.productoId} sin supabaseId (se reintentará)');
+          continue;
+        }
+
+        final existing = await _supabase
+            .from('lotes')
+            .select('id_isar')
+            .eq('id_isar', lote.id)
+            .maybeSingle();
+
+        final data = {
+          'id_isar': lote.id,
+          'producto_id_fk': productoIdFk,
+          'codigo_lote_proveedor': lote.codigoLoteProveedor,
+          'cantidad_inicial': lote.cantidadInicial,
+          'cantidad_restante': lote.cantidadRestante,
+          'fecha_ingreso': lote.fechaIngreso.toIso8601String(),
+          'fecha_vencimiento': lote.fechaVencimiento?.toIso8601String(),
+          'estado': lote.estado,
+          'costo_unitario': lote.costoUnitario,
+          'sincronizado': true,
+          'fecha_sincronizacion': DateTime.now().toIso8601String(),
+        };
+
+        if (existing == null) {
+          await _supabase.from('lotes').insert(data);
+        } else {
+          await _supabase.from('lotes').update(data).eq('id_isar', lote.id);
+        }
+
+        lote.sincronizado = true;
+        lote.fechaSincronizacion = DateTime.now();
+        await _isarService.guardarLote(lote);
+      }
+    } catch (e) {
+      debugPrint('❌ Error sincronizando lotes: $e');
+    }
+  }
+
+  // Métodos para obtener pendientes (delegados a IsarService)
+  Future<List<CodigoBarrasAliasEntity>> obtenerAliasPendientesSync() async {
+    return await _isarService.obtenerAliasPendientesSync();
+  }
+
+  Future<List<LoteEntity>> obtenerLotesPendientesSync() async {
+    return await _isarService.obtenerLotesPendientesSync();
   }
 
   // ==========================================

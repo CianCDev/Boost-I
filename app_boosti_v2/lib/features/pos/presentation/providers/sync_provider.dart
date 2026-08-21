@@ -773,73 +773,75 @@ class SyncService {
   // ==========================================
 
   Future<void> sincronizarPedidosPendientes() async {
-    try {
-      final pedidosPendientes = await _isarService.obtenerPedidosPendientesSync();
-      if (pedidosPendientes.isEmpty) return;
+  try {
+    final pedidosPendientes = await _isarService.obtenerPedidosPendientesSync();
+    if (pedidosPendientes.isEmpty) return;
 
-      final supabase = Supabase.instance.client;
+    final supabase = Supabase.instance.client;
 
-      for (var pedido in pedidosPendientes) {
-        final localOrigenUuid = await _obtenerSupabaseIdLocal(pedido.localOrigenId);
-        final localDestinoUuid = await _obtenerSupabaseIdLocal(pedido.localDestinoId);
-        final usuarioUuid = await _obtenerSupabaseIdUsuario(pedido.usuarioId);
+    for (var pedido in pedidosPendientes) {
+      // ✅ Usamos los IDs enteros directamente (sin UUID)
+      final localOrigenId = pedido.localOrigenId;
+      final localDestinoId = pedido.localDestinoId;
+      final usuarioId = pedido.usuarioId;
 
-        final pedidoData = {
-          'local_id': localOrigenUuid,
-          'local_destino_id': localDestinoUuid,
-          'usuario_id': usuarioUuid,
-          'fecha_pedido': pedido.fechaPedido.toIso8601String(),
-          'estado': pedido.estado.name,
-          'proveedor_nombre': pedido.proveedorNombre,
-          'proveedor_cedula': pedido.proveedorCedula,
-          'proveedor_telefono': pedido.proveedorTelefono,
-          'proveedor_empresa': pedido.proveedorEmpresa,
-          'observaciones': pedido.observaciones,
-          'total': pedido.total,
-          'tipo_pedido': 'proveedor',
-          'sync_status': 'synced',
-        };
+      final pedidoData = {
+        'local_id': localOrigenId,
+        'local_destino_id': localDestinoId,
+        'usuario_id': usuarioId,
+        'fecha_pedido': pedido.fechaPedido.toIso8601String(),
+        'estado': pedido.estado.name,
+        'proveedor_nombre': pedido.proveedorNombre,
+        'proveedor_cedula': pedido.proveedorCedula,
+        'proveedor_telefono': pedido.proveedorTelefono,
+        'proveedor_empresa': pedido.proveedorEmpresa,
+        'observaciones': pedido.observaciones,
+        'total': pedido.total,
+        'tipo_pedido': 'proveedor',
+        'sync_status': 'synced',
+      };
 
-        final response = await supabase
-            .from('pedidos')
-            .insert(pedidoData)
-            .select()
-            .single();
+      final response = await supabase
+          .from('pedidos')
+          .insert(pedidoData)
+          .select()
+          .single();
 
-        final supabasePedidoId = response['id'] as String;
+      final supabasePedidoId = response['id'] as String;
 
-        final detalles = await _isarService.obtenerDetallesPorPedido(pedido.id);
-        for (var detalle in detalles) {
-          final productoUuid = await _obtenerSupabaseIdProducto(detalle.productoId);
-          await supabase.from('detalles_pedido').insert({
-            'pedido_id': supabasePedidoId,
-            'producto_id': productoUuid,
-            'nombre_producto': detalle.nombreProducto,
-            'cantidad': detalle.cantidad,
-            'precio_unidad': detalle.precioUnidad,
-            'subtotal': detalle.subtotal,
-          });
-        }
-
-        final recepcion = await _isarService.obtenerRecepcionPorPedido(pedido.id);
-        if (recepcion != null) {
-          final usuarioRecepcionUuid = await _obtenerSupabaseIdUsuario(recepcion.usuarioId);
-          await supabase.from('recepciones').insert({
-            'pedido_id': supabasePedidoId,
-            'fecha_recepcion': recepcion.fechaRecepcion.toIso8601String(),
-            'usuario_id': usuarioRecepcionUuid,
-            'observaciones': recepcion.observaciones,
-          });
-          await _isarService.actualizarSyncStatusRecepcion(recepcion.id, true);
-        }
-
-        await _isarService.actualizarSyncStatusPedido(pedido.id, true);
+      final detalles = await _isarService.obtenerDetallesPorPedido(pedido.id);
+      for (var detalle in detalles) {
+        // ✅ También usamos el ID entero del producto, no UUID
+        final productoId = detalle.productoId;
+        await supabase.from('detalles_pedido').insert({
+          'pedido_id': supabasePedidoId,
+          'producto_id': productoId,
+          'nombre_producto': detalle.nombreProducto,
+          'cantidad': detalle.cantidad,
+          'precio_unidad': detalle.precioUnidad,
+          'subtotal': detalle.subtotal,
+        });
       }
-    } catch (e) {
-      print('Error sincronizando pedidos: $e');
-      rethrow;
+
+      final recepcion = await _isarService.obtenerRecepcionPorPedido(pedido.id);
+      if (recepcion != null) {
+        final usuarioRecepcionId = recepcion.usuarioId;
+        await supabase.from('recepciones').insert({
+          'pedido_id': supabasePedidoId,
+          'fecha_recepcion': recepcion.fechaRecepcion.toIso8601String(),
+          'usuario_id': usuarioRecepcionId,
+          'observaciones': recepcion.observaciones,
+        });
+        await _isarService.actualizarSyncStatusRecepcion(recepcion.id, true);
+      }
+
+      await _isarService.actualizarSyncStatusPedido(pedido.id, true);
     }
+  } catch (e) {
+    print('Error sincronizando pedidos: $e');
+    rethrow;
   }
+}
 
   Future<void> descargarPedidosDesdeSupabase() async {
     try {

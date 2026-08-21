@@ -58,10 +58,15 @@ class _RegistrarRecepcionDialogState extends ConsumerState<RegistrarRecepcionDia
               : () async {
                   setState(() => _isLoading = true);
                   try {
-                    // TODO: obtener usuario actual
-                    final userId = 1;
+                    final userId = 1; // TODO: obtener usuario actual
                     await ref.read(registrarRecepcionProvider(
-                      (pedidoId: widget.pedidoId, usuarioId: userId, observaciones: _observacionesController.text),
+                      (
+                        pedidoId: widget.pedidoId,
+                        usuarioId: userId,
+                        observaciones: _observacionesController.text,
+                        fechasVencimiento: null,
+                        costosUnitarios: null,
+                      )
                     ).future);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(

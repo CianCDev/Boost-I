@@ -131,14 +131,16 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
   }
 
   // 🔄 Recarga manual (con loading) – usado al hacer pull-to-refresh o después de una venta
-  Future<void> recargarDesdeSupabase() async {
-    try {
-      await _syncService.descargarProductosDesdeSupabase();
-      await _cargarProductos();
-    } catch (e) {
-      rethrow;
-    }
+Future<void> recargarDesdeSupabase() async {
+  try {
+    // Sincronizar con Supabase
+    await _syncService.descargarProductosDesdeSupabase();
+    // Recargar desde Isar para obtener cambios locales
+    await _cargarProductos(); // <-- asegúrate de que este método actualice el estado
+  } catch (e) {
+    rethrow;
   }
+}
 
   // 🔄 Recarga en segundo plano (sin loading) – usado en polling automático
   Future<void> recargarEnSegundoPlano() async {
@@ -161,6 +163,8 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     return state.productos.where((p) => p.stock <= p.stockMinimo).length;
   }
 }
+
+final refreshCatalogCounterProvider = StateProvider<int>((ref) => 0);
 
 // Provider final
 final catalogProvider = StateNotifierProvider<CatalogNotifier, CatalogState>((ref) {

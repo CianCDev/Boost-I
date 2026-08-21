@@ -10,6 +10,8 @@ import '../providers/auth_provider.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/lote_entity.dart';
+import '../../data/Local/entities/producto_entity.dart';
 
 import '../widgets/admin_validation_dialog.dart';
 import '../widgets/menu/turno_status_banner.dart';
@@ -31,7 +33,6 @@ import '../screens/dashboard_screen.dart';
 import '../screens/pedidos_screen.dart';
 import '../screens/proveedores/proveedores_screen.dart';
 
-// Modelo para cada opción del menú
 class MenuOption {
   final String title;
   final String subtitle;
@@ -50,7 +51,6 @@ class MenuOption {
   });
 }
 
-// Modelo para una sección del menú
 class MenuSection {
   final String title;
   final IconData? icon;
@@ -370,6 +370,251 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   }
 
   // ============================================================
+  // ✅ DIAGNÓSTICO Y MIGRACIÓN (usando IsarService)
+  // ============================================================
+
+  Future<Map<String, dynamic>> _obtenerDiagnostico() async {
+    final totalProductos = await _isarService.contarProductos();
+    final totalLotes = await _isarService.contarLotes();
+
+    final productos = await _isarService.obtenerTodosLosProductos();
+    final todosLosLotes = await _isarService.obtenerTodosLosLotes();
+
+    final productosSinLote = <String>[];
+    final productosConStockSinLote = <String>[];
+
+    for (var p in productos) {
+      final lotesProducto = todosLosLotes
+          .where((lote) => lote.productoId == p.id)
+          .toList();
+
+      if (lotesProducto.isEmpty) {
+        productosSinLote.add(p.nombre);
+        if (p.stock > 0) {
+          productosConStockSinLote.add('${p.nombre} (stock: ${p.stock})');
+        }
+      }
+    }
+
+    final porcentaje = totalProductos > 0
+        ? ((totalProductos - productosSinLote.length) / totalProductos * 100).toStringAsFixed(1)
+        : '0.0';
+
+    return {
+      'totalProductos': totalProductos,
+      'totalLotes': totalLotes,
+      'productosSinLote': productosSinLote,
+      'productosSinLoteCount': productosSinLote.length,
+      'productosConStockSinLote': productosConStockSinLote,
+      'porcentajeCobertura': '$porcentaje%',
+    };
+  }
+
+  Widget _buildDiagnosticoItem(String label, dynamic value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(
+            value.toString(),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _mostrarDiagnosticoLotes() async {
+    if (!mounted) return;
+
+    Map<String, dynamic> datos = await _obtenerDiagnostico();
+    bool cargando = false;
+    String? error;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.analytics_rounded, color: Color(0xFF3B82F6)),
+                SizedBox(width: 8),
+                Text('Diagnóstico de Inventario'),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 300,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (cargando)
+                      const Center(child: CircularProgressIndicator())
+                    else if (error != null)
+                      Text('❌ Error: $error', style: const TextStyle(color: Colors.red))
+                    else ...[
+                      _buildDiagnosticoItem('Total productos', datos['totalProductos']),
+                      _buildDiagnosticoItem('Total lotes', datos['totalLotes']),
+                      _buildDiagnosticoItem('Cobertura', datos['porcentajeCobertura']),
+                      const Divider(),
+                      Text(
+                        'Productos sin lote: ${datos['productosSinLoteCount']}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      if ((datos['productosConStockSinLote'] as List).isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          '⚠️ Productos con stock pero sin lote:',
+                          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.orange),
+                        ),
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 120),
+                          margin: const EdgeInsets.only(top: 4),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: (datos['productosConStockSinLote'] as List)
+                                  .map((p) => Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 2),
+                                        child: Text('• $p', style: const TextStyle(fontSize: 12)),
+                                      ))
+                                  .toList(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton.icon(
+                onPressed: cargando
+                    ? null
+                    : () async {
+                        setDialogState(() => cargando = true);
+                        try {
+                          datos = await _obtenerDiagnostico();
+                          error = null;
+                        } catch (e) {
+                          error = e.toString();
+                        }
+                        setDialogState(() => cargando = false);
+                      },
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Recargar'),
+                style: TextButton.styleFrom(foregroundColor: Colors.blue),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cerrar'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: cargando
+                    ? null
+                    : () async {
+                        Navigator.pop(dialogContext);
+
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => const Center(
+                            child: Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(),
+                                    SizedBox(height: 16),
+                                    Text('Ejecutando migración...'),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+
+                        try {
+                          final result = await _isarService.migrarStockExistenteALotes();
+
+                          Navigator.pop(context);
+
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: Icon(
+                                result['success'] ? Icons.check_circle_rounded : Icons.error_rounded,
+                                color: result['success'] ? Colors.green : Colors.red,
+                                size: 48,
+                              ),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    result['success'] ? '✅ Migración exitosa' : '❌ Migración fallida',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: result['success'] ? Colors.green : Colors.red,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text('Lotes creados: ${result['lotesCreados']}'),
+                                  Text('Productos sin stock: ${result['productosSinStock']}'),
+                                  if (result['error'] != null) Text('Error: ${result['error']}'),
+                                ],
+                              ),
+                              actions: [
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    _mostrarDiagnosticoLotes();
+                                  },
+                                  icon: const Icon(Icons.analytics_rounded),
+                                  label: const Text('Ver diagnóstico actualizado'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Cerrar'),
+                                ),
+                              ],
+                            ),
+                          );
+                        } catch (e) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('❌ Error en migración: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: const Text('Ejecutar Migración'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ============================================================
   // CONFIGURACIÓN DE SECCIONES DEL MENÚ
   // ============================================================
   List<MenuSection> _getMenuSections() {
@@ -450,17 +695,16 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         isAdminOnly: true,
       ),
       MenuOption(
-       title: 'Auditoría',
-      subtitle: 'Registro de eventos del sistema',
-      icon: Icons.history_rounded,
-      color: const Color(0xFF8B5CF6),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const AuditLogScreen()),
+        title: 'Auditoría',
+        subtitle: 'Registro de eventos del sistema',
+        icon: Icons.history_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AuditLogScreen()),
+        ),
+        isAdminOnly: true,
       ),
-      isAdminOnly: true,
-      ),
-
       MenuOption(
         title: 'Historial de Ventas',
         subtitle: 'Ventas del día y turnos',
@@ -473,32 +717,31 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         isAdminOnly: true,
       ),
       MenuOption(
-    title: 'Pedidos a Proveedores',
-    subtitle: 'Crear y gestionar pedidos',
-    icon: Icons.local_shipping_rounded,
-    color: const Color(0xFF8B5CF6),
-    onTap: () => Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const PedidosProveedorScreen(),
+        title: 'Pedidos a Proveedores',
+        subtitle: 'Crear y gestionar pedidos',
+        icon: Icons.local_shipping_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const PedidosProveedorScreen(),
+          ),
+        ),
+        isAdminOnly: true,
       ),
-    ),
-    isAdminOnly: true,
-  ),
-  MenuOption(
-  title: 'Proveedores',
-  subtitle: 'Gestionar proveedores',
-  icon: Icons.business_center_rounded,
-  color: const Color(0xFF8B5CF6),
-  onTap: () => Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const ProveedoresScreen(),
-    ),
-  ),
-  isAdminOnly: true,
-),
-
+      MenuOption(
+        title: 'Proveedores',
+        subtitle: 'Gestionar proveedores',
+        icon: Icons.business_center_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ProveedoresScreen(),
+          ),
+        ),
+        isAdminOnly: true,
+      ),
       MenuOption(
         title: 'Registrar Gasto',
         subtitle: 'Agregar egresos del día',
@@ -527,6 +770,14 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         icon: Icons.backup_rounded,
         color: const Color(0xFFF59E0B),
         onTap: _crearBackup,
+        isAdminOnly: true,
+      ),
+      MenuOption(
+        title: 'Diagnóstico de Lotes',
+        subtitle: 'Verificar estado del inventario por lotes',
+        icon: Icons.analytics_rounded,
+        color: const Color(0xFF3B82F6),
+        onTap: _mostrarDiagnosticoLotes,
         isAdminOnly: true,
       ),
     ];

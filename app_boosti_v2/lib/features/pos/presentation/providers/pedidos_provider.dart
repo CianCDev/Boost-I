@@ -7,6 +7,8 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 
+// NUEVO: Import para entidades de lotes
+import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
 
 final isarServiceProvider = Provider<IsarService>((ref) => IsarService());
 final syncServiceProvider = Provider<SyncService>((ref) => SyncService());
@@ -62,14 +64,28 @@ final crearPedidoProvider = FutureProvider.family<void, ({
   await syncService.sincronizarPedidosPendientes();
 });
 
+// ==========================================
+// NUEVO: registrarRecepcionProvider MODIFICADO para crear lotes
+// ==========================================
 final registrarRecepcionProvider = FutureProvider.family<void, ({
   int pedidoId,
   int usuarioId,
-  String? observaciones
+  String? observaciones,
+  // NUEVO: Parámetro opcional para fecha de vencimiento por producto
+  Map<int, DateTime?>? fechasVencimiento,
+  // NUEVO: Parámetro opcional para costo unitario por producto
+  Map<int, double?>? costosUnitarios,
 })>((ref, params) async {
   final isar = ref.watch(isarServiceProvider);
   final syncService = ref.watch(syncServiceProvider);
 
+  // 1. Obtener los detalles del pedido
+  final detalles = await isar.obtenerDetallesPorPedido(params.pedidoId);
+  if (detalles.isEmpty) {
+    throw Exception('El pedido no tiene productos para recibir');
+  }
+
+  // 2. Crear la recepción
   final recepcion = RecepcionEntity()
     ..pedidoId = params.pedidoId
     ..usuarioId = params.usuarioId
@@ -77,10 +93,75 @@ final registrarRecepcionProvider = FutureProvider.family<void, ({
     ..fechaRecepcion = DateTime.now();
 
   await isar.guardarRecepcion(recepcion);
+
+  // 3. Procesar cada detalle: crear lotes
+  for (var detalle in detalles) {
+    final producto = await isar.obtenerProductoPorId(detalle.productoId);
+    if (producto == null) {
+      print('⚠️ Producto ${detalle.productoId} no encontrado, omitiendo...');
+      continue;
+    }
+
+    // NUEVO: Determinar la cantidad a ingresar (en unidades base)
+    // Si el detalle tiene un alias (factor), ya debería estar convertido
+    // Por ahora, asumimos que la cantidad del detalle está en unidades base
+    final double cantidad = detalle.cantidad;
+
+    // NUEVO: Obtener fecha de vencimiento si se proporcionó
+    DateTime? fechaVencimiento;
+    if (params.fechasVencimiento != null && params.fechasVencimiento!.containsKey(detalle.productoId)) {
+      fechaVencimiento = params.fechasVencimiento![detalle.productoId];
+    }
+
+    // NUEVO: Obtener costo unitario si se proporcionó
+    double? costoUnitario;
+    if (params.costosUnitarios != null && params.costosUnitarios!.containsKey(detalle.productoId)) {
+      costoUnitario = params.costosUnitarios![detalle.productoId];
+    }
+
+    // NUEVO: Crear el lote
+    final nuevoLote = LoteEntity()
+      ..productoId = detalle.productoId
+      ..cantidadInicial = cantidad
+      ..cantidadRestante = cantidad
+      ..fechaIngreso = DateTime.now()
+      ..fechaVencimiento = fechaVencimiento
+      ..estado = 'activo'
+      ..costoUnitario = costoUnitario
+      ..sincronizado = false;
+
+    await isar.guardarLote(nuevoLote);
+  }
+
+  // 4. Actualizar estado del pedido
   await isar.actualizarEstadoPedido(params.pedidoId, EstadoPedido.recibido);
+
+  // 5. Sincronizar
   await syncService.sincronizarPedidosPendientes();
+
+  // NUEVO: Sincronizar lotes pendientes
+  await syncService.sincronizarLotesPendientes();
 });
 
+// ==========================================
+// NUEVO: Provider para obtener lotes de un producto
+// ==========================================
+final lotesPorProductoProvider = FutureProvider.family<List<LoteEntity>, int>((ref, productoId) async {
+  final isar = ref.watch(isarServiceProvider);
+  return await isar.obtenerLotesActivos(productoId);
+});
+
+// ==========================================
+// NUEVO: Provider para obtener stock total de un producto (desde lotes)
+// ==========================================
+final stockTotalProductoProvider = FutureProvider.family<double, int>((ref, productoId) async {
+  final isar = ref.watch(isarServiceProvider);
+  return await isar.obtenerStockTotalPorProducto(productoId);
+});
+
+// ==========================================
+// Provider existente (sin cambios)
+// ==========================================
 final cancelarPedidoProvider = FutureProvider.family<void, int>((ref, pedidoId) async {
   final isar = ref.watch(isarServiceProvider);
   final syncService = ref.watch(syncServiceProvider);
