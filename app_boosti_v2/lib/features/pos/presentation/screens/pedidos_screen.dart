@@ -228,77 +228,81 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   // FILTRO POR ESTADO (SIN LÍNEA GRIS - VERSIÓN CUSTOM)
   // ==========================================
   Widget _buildFiltroEstado() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isMobile = ResponsiveHelper.isMobile(context);
+  final colorScheme = Theme.of(context).colorScheme;
+  final isMobile = ResponsiveHelper.isMobile(context);
 
-    final List<Map<String, dynamic>> opciones = [
-      {'valor': null, 'etiqueta': 'Todos', 'icono': Icons.list_rounded},
-      {'valor': EstadoPedido.pendiente, 'etiqueta': 'Pendientes', 'icono': Icons.hourglass_top_rounded},
-      {'valor': EstadoPedido.recibido, 'etiqueta': 'Recibidos', 'icono': Icons.check_circle_rounded},
-      {'valor': EstadoPedido.cancelado, 'etiqueta': 'Cancelados', 'icono': Icons.cancel_rounded},
-    ];
+  final List<Map<String, dynamic>> opciones = [
+    {'valor': null, 'etiqueta': 'Todos', 'icono': Icons.list_rounded},
+    {'valor': EstadoPedido.pendiente, 'etiqueta': 'Pendientes', 'icono': Icons.hourglass_top_rounded},
+    {'valor': EstadoPedido.recibido, 'etiqueta': 'Recibidos', 'icono': Icons.check_circle_rounded},
+    {'valor': EstadoPedido.cancelado, 'etiqueta': 'Cancelados', 'icono': Icons.cancel_rounded},
+  ];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        padding: const EdgeInsets.all(4),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: opciones.map((opcion) {
-              final bool esSeleccionado = _estadoFiltro == opcion['valor'];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _estadoFiltro = opcion['valor'];
-                    });
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: EdgeInsets.symmetric(
-                      vertical: isMobile ? 6 : 8,
-                      horizontal: isMobile ? 10 : 16,
-                    ),
-                    decoration: BoxDecoration(
-                      // ✅ Color morado si está seleccionado, transparente si no
-                      color: esSeleccionado ? const Color(0xFF8B5CF6) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          opcion['icono'],
-                          size: 16,
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    child: Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: opciones.map((opcion) {
+            final bool esSeleccionado = _estadoFiltro == opcion['valor'];
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2.0),
+              child: GestureDetector(
+                onTap: () {
+                  // ✅ Actualizar estado local
+                  setState(() {
+                    _estadoFiltro = opcion['valor'];
+                  });
+                  // ✅ Invalidar el provider para forzar recarga
+                  ref.invalidate(pedidosPorEstadoProvider(
+                    (localDestinoId: _localDestinoId ?? 1, estado: _estadoFiltro),
+                  ));
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: EdgeInsets.symmetric(
+                    vertical: isMobile ? 6 : 8,
+                    horizontal: isMobile ? 10 : 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: esSeleccionado ? const Color(0xFF8B5CF6) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        opcion['icono'],
+                        size: 16,
+                        color: esSeleccionado ? Colors.white : colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        opcion['etiqueta'],
+                        style: TextStyle(
                           color: esSeleccionado ? Colors.white : colorScheme.onSurfaceVariant,
+                          fontWeight: esSeleccionado ? FontWeight.bold : FontWeight.w500,
+                          fontSize: isMobile ? 12 : 14,
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          opcion['etiqueta'],
-                          style: TextStyle(
-                            color: esSeleccionado ? Colors.white : colorScheme.onSurfaceVariant,
-                            fontWeight: esSeleccionado ? FontWeight.bold : FontWeight.w500,
-                            fontSize: isMobile ? 12 : 14,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            }).toList(),
-          ),
+              ),
+            );
+          }).toList(),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ==========================================
   // LISTA DE PEDIDOS CON ANIMACIÓN

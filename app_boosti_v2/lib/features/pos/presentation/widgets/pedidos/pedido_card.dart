@@ -2,12 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/estado_chip.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 
 class PedidoCard extends StatelessWidget {
   final PedidoEntity pedido;
   final VoidCallback onTap;
 
   const PedidoCard({super.key, required this.pedido, required this.onTap});
+
+  Future<int> _getCantidadProductos() async {
+    try {
+      final isar = IsarService();
+      final detalles = await isar.obtenerDetallesPorPedido(pedido.id);
+      return detalles.length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  Color _getColor(EstadoPedido estado) {
+    switch (estado) {
+      case EstadoPedido.pendiente:
+        return Colors.orange.shade400;
+      case EstadoPedido.recibido:
+        return Colors.green.shade400;
+      case EstadoPedido.cancelado:
+        return Colors.red.shade400;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,10 +39,10 @@ class PedidoCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 200), // ✅ AGREGADO
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
-          color: colorScheme.surface, // ✅ Adaptado
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: color.withValues(alpha: 0.3),
@@ -62,7 +84,7 @@ class PedidoCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurface, // ✅ Adaptado
+                              color: colorScheme.onSurface,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -73,29 +95,42 @@ class PedidoCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.business_rounded, size: 14, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
+                        Icon(Icons.business_rounded, size: 14, color: colorScheme.onSurfaceVariant),
                         const SizedBox(width: 4),
                         Text(
                           pedido.proveedorEmpresa ?? 'Sin empresa',
-                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
+                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
                         ),
                         const Spacer(),
-                        Icon(Icons.calendar_today_rounded, size: 14, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
+                        Icon(Icons.calendar_today_rounded, size: 14, color: colorScheme.onSurfaceVariant),
                         const SizedBox(width: 4),
                         Text(
                           DateFormat('dd/MM/yyyy').format(pedido.fechaPedido),
-                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
+                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.shopping_bag_rounded, size: 14, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
+                        Icon(Icons.shopping_bag_rounded, size: 14, color: colorScheme.onSurfaceVariant),
                         const SizedBox(width: 4),
-                        Text(
-                          '${pedido.detalles?.length ?? 0} productos',
-                          style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
+                        // ✅ CONSULTA ASÍNCRONA PARA EL CONTADOR DE PRODUCTOS
+                        Expanded(
+                          child: FutureBuilder<int>(
+                            future: _getCantidadProductos(),
+                            initialData: 0,
+                            builder: (context, snapshot) {
+                              final cantidad = snapshot.data ?? 0;
+                              return Text(
+                                '$cantidad productos',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              );
+                            },
+                          ),
                         ),
                         const Spacer(),
                         Text(
@@ -103,7 +138,7 @@ class PedidoCard extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green.shade700, // Se mantiene verde para el total
+                            color: Colors.green.shade700,
                           ),
                         ),
                       ],
@@ -116,16 +151,5 @@ class PedidoCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Color _getColor(EstadoPedido estado) {
-    switch (estado) {
-      case EstadoPedido.pendiente:
-        return Colors.orange.shade400;
-      case EstadoPedido.recibido:
-        return Colors.green.shade400;
-      case EstadoPedido.cancelado:
-        return Colors.red.shade400;
-    }
   }
 }

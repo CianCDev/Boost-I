@@ -399,9 +399,8 @@ class _CrearPedidoProveedorScreenState extends ConsumerState<CrearPedidoProveedo
             productosAsync.when(
               data: (todos) {
                 final List<ProductoEntity> filtrados = _proveedorSeleccionado != null
-                    ? todos.where((p) => p.proveedorId == _proveedorSeleccionado!.id).toList().cast<ProductoEntity>()
-                    : <ProductoEntity>[];
-
+    ? todos.where((p) => p.proveedorId == _proveedorSeleccionado!.id || p.proveedorId == null).toList()
+    : todos;
                 return ProductoSelector(
                   productos: filtrados,
                   valorSeleccionado: _productoSeleccionado,

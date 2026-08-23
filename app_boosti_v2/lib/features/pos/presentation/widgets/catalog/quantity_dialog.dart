@@ -11,10 +11,15 @@ class QuantityDialog extends StatefulWidget {
   final ProductoEntity producto;
   final Function(ProductoEntity, double) onAgregar;
 
+  /// Cantidad inicial sugerida (factor de alias, ej. 12 para caja)
+  /// Por defecto 1.0 para mantener compatibilidad con código existente
+  final double cantidadInicial;
+
   const QuantityDialog({
     super.key,
     required this.producto,
     required this.onAgregar,
+    this.cantidadInicial = 1.0,
   });
 
   @override
@@ -34,7 +39,20 @@ class _QuantityDialogState extends State<QuantityDialog> {
   @override
   void initState() {
     super.initState();
-    _cantidadController.text = widget.producto.esPesado ? '0.000' : '1';
+
+    // ✅ Usar cantidadInicial para productos NO pesados
+    if (widget.producto.esPesado) {
+      _cantidadController.text = '0.000';
+    } else {
+      // Si el factor es entero, mostrarlo sin decimales; si no, con decimales
+      final double inicial = widget.cantidadInicial;
+      if (inicial % 1 == 0) {
+        _cantidadController.text = inicial.toInt().toString();
+      } else {
+        _cantidadController.text = inicial.toStringAsFixed(2);
+      }
+    }
+
     _precioController.text = widget.producto.precioUnidad.toStringAsFixed(2);
 
     if (widget.producto.esPesado) {
@@ -170,7 +188,7 @@ class _QuantityDialogState extends State<QuantityDialog> {
                   FilteringTextInputFormatter.allow(
                     widget.producto.esPesado
                         ? RegExp(r'^\d*\.?\d{0,3}')
-                        : RegExp(r'^\d*'),
+                        : RegExp(r'^\d*\.?\d{0,2}'), // Permitir decimales para productos no pesados
                   ),
                 ],
                 onTap: () {
@@ -244,7 +262,7 @@ class _QuantityDialogState extends State<QuantityDialog> {
               ),
               const SizedBox(height: 28),
 
-              // Botones (sin cambios)
+              // Botones
               Wrap(
                 alignment: WrapAlignment.end,
                 crossAxisAlignment: WrapCrossAlignment.center,

@@ -5,6 +5,9 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/pedidos_provid
 import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/detalle_pedido_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/recepcion_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/codigo_barra_alia_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
+import '../providers/catalog_provider.dart';
 import '../utils/responsive_helper.dart';
 import '../widgets/pedidos/estado_chip.dart';
 
@@ -42,7 +45,7 @@ class _DetallePedidoProveedorScreenState extends ConsumerState<DetallePedidoProv
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: colorScheme.surfaceContainerLow, // ✅ Adaptado
+      backgroundColor: colorScheme.surfaceContainerLow,
       appBar: AppBar(
         title: const Text('Detalle del Pedido', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         flexibleSpace: Container(
@@ -90,21 +93,14 @@ class _DetallePedidoProveedorScreenState extends ConsumerState<DetallePedidoProv
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // --- TARJETA DE DATOS DEL PROVEEDOR ---
                 InfoPedido(pedido: pedido),
                 const SizedBox(height: 20),
-
-                // --- TARJETA DE PRODUCTOS ---
                 DetallesList(detalles: detalles),
                 const SizedBox(height: 20),
-
-                // --- TARJETA DE RECEPCIÓN (si existe) ---
                 if (recepcion != null) ...[
                   InfoRecepcion(recepcion: recepcion),
                   const SizedBox(height: 20),
                 ],
-
-                // --- ACCIONES ---
                 AccionesPedido(
                   pedido: pedido,
                   onActualizar: () => setState(() => _cargarDatos()),
@@ -137,7 +133,7 @@ class InfoPedido extends StatelessWidget {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: colorScheme.surface, // ✅ Adaptado
+      color: colorScheme.surface,
       shadowColor: Colors.black.withOpacity(0.06),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -150,7 +146,7 @@ class InfoPedido extends StatelessWidget {
                 Expanded(
                   child: Text(
                     pedido.proveedorNombre.isNotEmpty ? pedido.proveedorNombre : 'Proveedor sin nombre',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.onSurface), // ✅ Adaptado
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -159,9 +155,8 @@ class InfoPedido extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Divider(thickness: 1, color: colorScheme.outlineVariant), // ✅ Adaptado
+            Divider(thickness: 1, color: colorScheme.outlineVariant),
             const SizedBox(height: 12),
-
             _buildInfoRow(colorScheme, Icons.badge_outlined, 'Cédula / RIF', pedido.proveedorCedula ?? 'No especificada'),
             const SizedBox(height: 6),
             _buildInfoRow(colorScheme, Icons.phone_outlined, 'Teléfono', pedido.proveedorTelefono ?? 'No especificado'),
@@ -169,16 +164,13 @@ class InfoPedido extends StatelessWidget {
             _buildInfoRow(colorScheme, Icons.calendar_today_outlined, 'Fecha del pedido', fechaFormateada),
             const SizedBox(height: 6),
             _buildInfoRow(colorScheme, Icons.storefront_outlined, 'Local destino', 'Local ${pedido.localDestinoId}'),
-            
             if (pedido.observaciones != null && pedido.observaciones!.isNotEmpty) ...[
               const SizedBox(height: 6),
               _buildInfoRow(colorScheme, Icons.note_outlined, 'Observaciones', pedido.observaciones!),
             ],
-
             const SizedBox(height: 12),
-            Divider(thickness: 1, color: colorScheme.outlineVariant), // ✅ Adaptado
+            Divider(thickness: 1, color: colorScheme.outlineVariant),
             const SizedBox(height: 12),
-
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -213,16 +205,16 @@ class InfoPedido extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: colorScheme.onSurfaceVariant), // ✅ Adaptado
+        Icon(icon, size: 16, color: colorScheme.onSurfaceVariant),
         const SizedBox(width: 8),
         Text(
           '$label: ',
-          style: TextStyle(fontWeight: FontWeight.w500, color: colorScheme.onSurfaceVariant, fontSize: 13), // ✅ Adaptado
+          style: TextStyle(fontWeight: FontWeight.w500, color: colorScheme.onSurfaceVariant, fontSize: 13),
         ),
         Expanded(
           child: Text(
             value,
-            style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500, fontSize: 13), // ✅ Adaptado
+            style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500, fontSize: 13),
             overflow: TextOverflow.ellipsis,
             maxLines: 2,
           ),
@@ -248,7 +240,7 @@ class DetallesList extends StatelessWidget {
       return Center(
         child: Text(
           'No hay productos en este pedido.',
-          style: TextStyle(color: colorScheme.onSurfaceVariant), // ✅ Adaptado
+          style: TextStyle(color: colorScheme.onSurfaceVariant),
         ),
       );
     }
@@ -256,7 +248,7 @@ class DetallesList extends StatelessWidget {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: colorScheme.surface, // ✅ Adaptado
+      color: colorScheme.surface,
       shadowColor: Colors.black.withOpacity(0.06),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -265,11 +257,11 @@ class DetallesList extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.shopping_bag_outlined, color: colorScheme.primary, size: 20), // ✅ Adaptado
+                Icon(Icons.shopping_bag_outlined, color: colorScheme.primary, size: 20),
                 const SizedBox(width: 8),
                 Text(
                   'Productos',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface), // ✅ Adaptado
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
               ],
             ),
@@ -279,37 +271,37 @@ class DetallesList extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest, // ✅ Adaptado
+                  color: colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colorScheme.outlineVariant, width: 1), // ✅ Adaptado
+                  border: Border.all(color: colorScheme.outlineVariant, width: 1),
                 ),
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: colorScheme.primary.withOpacity(0.1), // ✅ Adaptado
+                        color: colorScheme.primary.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(Icons.inventory_2_outlined, color: colorScheme.primary, size: 18), // ✅ Adaptado
+                      child: Icon(Icons.inventory_2_outlined, color: colorScheme.primary, size: 18),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(d.nombreProducto, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: colorScheme.onSurface)), // ✅ Adaptado
+                          Text(d.nombreProducto, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: colorScheme.onSurface)),
                           const SizedBox(height: 2),
                           Text(
                             '${d.cantidad.toStringAsFixed(d.cantidad % 1 == 0 ? 0 : 3)} x Bs ${d.precioUnidad.toStringAsFixed(2)}',
-                            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12), // ✅ Adaptado
+                            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
                           ),
                         ],
                       ),
                     ),
                     Text(
                       'Bs ${d.subtotal.toStringAsFixed(2)}',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 15), // ✅ Adaptado
+                      style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 15),
                     ),
                   ],
                 ),
@@ -337,7 +329,7 @@ class InfoRecepcion extends StatelessWidget {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: Colors.green.shade50, // Se mantiene verde suave para recepción
+      color: Colors.green.shade50,
       shadowColor: Colors.black.withOpacity(0.06),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -394,12 +386,12 @@ class AccionesPedido extends ConsumerWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerHighest, // ✅ Adaptado
+            color: colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Text(
             'Pedido ya finalizado',
-            style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500), // ✅ Adaptado
+            style: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
           ),
         ),
       );
@@ -432,7 +424,6 @@ class AccionesPedido extends ConsumerWidget {
             elevation: 2,
           ),
         ),
-
         OutlinedButton.icon(
           onPressed: () async {
             final confirm = await showDialog<bool>(
@@ -483,7 +474,7 @@ class AccionesPedido extends ConsumerWidget {
 }
 
 // ==========================================
-// DIÁLOGO: REGISTRAR RECEPCIÓN
+// DIÁLOGO: REGISTRAR RECEPCIÓN (CORREGIDO)
 // ==========================================
 class RegistrarRecepcionDialog extends ConsumerStatefulWidget {
   final int pedidoId;
@@ -514,7 +505,7 @@ class _RegistrarRecepcionDialogState extends ConsumerState<RegistrarRecepcionDia
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: colorScheme.surface, // ✅ Adaptado
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
         ),
         child: Column(
@@ -531,14 +522,14 @@ class _RegistrarRecepcionDialogState extends ConsumerState<RegistrarRecepcionDia
             Text(
               'Confirma la llegada de todos los productos al inventario.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: colorScheme.onSurfaceVariant), // ✅ Adaptado
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 20),
             TextFormField(
               controller: _observacionesController,
               decoration: InputDecoration(
                 labelText: 'Observaciones (opcional)',
-                labelStyle: TextStyle(color: colorScheme.onSurfaceVariant), // ✅ Adaptado
+                labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
@@ -572,23 +563,44 @@ class _RegistrarRecepcionDialogState extends ConsumerState<RegistrarRecepcionDia
     );
   }
 
-  Future<void> _confirmarRecepcion() async {
-    setState(() => _isLoading = true);
-    try {
-      final userId = 1; // TODO: Obtener usuario actual
-      await ref.read(registrarRecepcionProvider(
-        (pedidoId: widget.pedidoId, usuarioId: userId, observaciones: _observacionesController.text),
-      ).future);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Recepción registrada correctamente'), backgroundColor: Color(0xFF10B981)));
-      }
-      Navigator.pop(context, true);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red));
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+Future<void> _confirmarRecepcion() async {
+  setState(() => _isLoading = true);
+  try {
+    final userId = 1; // Obtener usuario actual
+    await ref.read(registrarRecepcionProvider((
+      pedidoId: widget.pedidoId,
+      usuarioId: userId,
+      observaciones: _observacionesController.text,
+      fechasVencimiento: null,
+      costosUnitarios: null,
+    )).future);
+
+    // ✅ 1. RECARGAR EL CATÁLOGO (refresca el provider completo)
+    ref.refresh(catalogProvider);
+
+    // ✅ 2. INCREMENTAR EL CONTADOR PARA RECONSTRUIR EL GRIDVIEW
+    ref.read(refreshCatalogCounterProvider.notifier).state++;
+
+    // ✅ 3. ACTUALIZAR LA LISTA DE PEDIDOS
+    ref.invalidate(pedidosPorEstadoProvider);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Recepción registrada y stock actualizado'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
     }
+    Navigator.pop(context, true);
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
+}
 }
