@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/venta_entity.dart';
-import '../../data/Local/entities/detalle_venta_entity.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../widgets/sales/sales_history_filter_bar.dart';
@@ -291,7 +290,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                         );
                       },
                       child: SalesHistorySummaryCards(
-                        key: ValueKey('summary_${_ventasFiltradas.length}_${_totalUSD}_${_totalBs}'),
+                        key: ValueKey('summary_${_ventasFiltradas.length}_${_totalUSD}_$_totalBs'),
                         ventasCount: _ventasFiltradas.length,
                         totalUSD: _totalUSD,
                         totalBs: _totalBs,

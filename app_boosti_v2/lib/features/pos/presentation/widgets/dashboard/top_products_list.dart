@@ -8,6 +8,7 @@ class TopProductsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final mostrar = productos.take(isMobile ? 3 : 5).toList();
 
     return AnimatedOpacity(
@@ -16,17 +17,17 @@ class TopProductsList extends StatelessWidget {
       opacity: 1.0,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.08),
+              color: Theme.of(context).shadowColor.withValues(alpha: 0.08),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
           border: Border.all(
-            color: Colors.grey.shade200,
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
             width: 1,
           ),
         ),
@@ -43,7 +44,7 @@ class TopProductsList extends StatelessWidget {
                   style: TextStyle(
                     fontSize: isMobile ? 14 : 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
                   ),
                 ),
               ],
@@ -57,14 +58,14 @@ class TopProductsList extends StatelessWidget {
                     'Aún no hay productos vendidos',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade500,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
                     ),
                   ),
                 ),
               ),
             ] else ...[
               for (int i = 0; i < mostrar.length; i++) ...[
-                _buildItem(mostrar[i], i, isMobile),
+                _buildItem(mostrar[i], i, isMobile, isDark),
                 if (i < mostrar.length - 1) const SizedBox(height: 8),
               ],
             ],
@@ -74,7 +75,7 @@ class TopProductsList extends StatelessWidget {
     );
   }
 
-  Widget _buildItem(Map<String, dynamic> item, int index, bool isMobile) {
+  Widget _buildItem(Map<String, dynamic> item, int index, bool isMobile, bool isDark) {
     final cantidad = (item['cantidad'] as double).toStringAsFixed(0);
     final colorRanking = index == 0
         ? Colors.amber.shade600
@@ -128,7 +129,7 @@ class TopProductsList extends StatelessWidget {
               style: TextStyle(
                 fontSize: isMobile ? 12 : 14,
                 fontWeight: FontWeight.w500,
-                color: Colors.grey.shade800,
+                color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
               ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,

@@ -321,7 +321,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                     '• ${widget.usuarioLogueado.cajaAsignada}',
                                     style: TextStyle(
                                       fontSize: isMobile ? 12 : 14,
-                                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                                      color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                                     ),
                                   ),
                                 ],
@@ -352,7 +352,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                     side: BorderSide(
-                      color: theme.dividerColor.withOpacity(0.1),
+                      color: theme.dividerColor.withValues(alpha: 0.1),
                       width: 1,
                     ),
                   ),
@@ -467,7 +467,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                               widget.usuarioLogueado.nombre,
                               style: TextStyle(
                                 fontSize: fontSizeSubtitle,
-                                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                                color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                               ),
                             ),
                             trailing: IconButton(
@@ -491,7 +491,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                     side: BorderSide(
-                      color: theme.dividerColor.withOpacity(0.1),
+                      color: theme.dividerColor.withValues(alpha: 0.1),
                       width: 1,
                     ),
                   ),
@@ -524,13 +524,13 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         'Actualizar tu PIN de ${widget.usuarioLogueado.rol}',
                         style: TextStyle(
                           fontSize: fontSizeSubtitle,
-                          color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                          color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                         ),
                       ),
                       trailing: Icon(
                         Icons.arrow_forward_ios_rounded,
                         size: iconSize * 0.6,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
                       ),
                       onTap: _cambiarPin,
                     ),
@@ -544,7 +544,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                     side: BorderSide(
-                      color: theme.dividerColor.withOpacity(0.1),
+                      color: theme.dividerColor.withValues(alpha: 0.1),
                       width: 1,
                     ),
                   ),
@@ -589,7 +589,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                   key: ValueKey(isDark),
                                   style: TextStyle(
                                     fontSize: fontSizeSubtitle,
-                                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                                    color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                                   ),
                                 ),
                               ),
@@ -606,7 +606,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                               );
                             },
                             activeThumbColor: const Color(0xFFF59E0B),
-                            activeTrackColor: const Color(0xFFF59E0B).withOpacity(0.4),
+                            activeTrackColor: const Color(0xFFF59E0B).withValues(alpha: 0.4),
                             inactiveThumbColor: Colors.grey.shade400,
                             inactiveTrackColor: Colors.grey.shade300,
                             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -635,7 +635,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                     side: BorderSide(
-                      color: theme.dividerColor.withOpacity(0.1),
+                      color: theme.dividerColor.withValues(alpha: 0.1),
                       width: 1,
                     ),
                   ),
@@ -667,13 +667,13 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         'Salir de la aplicación',
                         style: TextStyle(
                           fontSize: fontSizeSubtitle,
-                          color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                          color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                         ),
                       ),
                       trailing: Icon(
                         Icons.arrow_forward_ios_rounded,
                         size: iconSize * 0.6,
-                        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
                       ),
                       onTap: _cerrarSesion,
                     ),
@@ -688,40 +688,40 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
   }
 
   Widget _buildSectionHeader(
-    String title,
-    IconData icon,
-    ThemeData theme,
-    bool isMobile,
-    double fontSizeTitle,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: isMobile ? 20 : 28,
-            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+  String title,
+  IconData icon,
+  ThemeData theme,
+  bool isMobile,
+  double fontSizeTitle,
+) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    child: Row(
+      children: [
+        Icon(
+          icon,
+          size: isMobile ? 20 : 28,
+          color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: isMobile ? 16 : 22,
+            color: theme.textTheme.bodyMedium?.color,
+            letterSpacing: 0.5,
           ),
-          const SizedBox(width: 12),
-          Text(
-            title,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: isMobile ? 16 : 22,
-              color: theme.textTheme.bodyMedium?.color,
-              letterSpacing: 0.5,
-            ),
+        ),
+        Expanded(
+          child: Container(
+            height: 1,
+            margin: const EdgeInsets.only(left: 20),
+            color: theme.dividerColor.withValues(alpha: 0.2),
           ),
-          Expanded(
-            child: Container(
-              height: 1,
-              margin: const EdgeInsets.only(left: 20),
-              color: theme.dividerColor.withOpacity(0.2),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 }

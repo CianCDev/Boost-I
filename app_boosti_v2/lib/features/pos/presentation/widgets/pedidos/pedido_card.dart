@@ -39,7 +39,7 @@ class PedidoCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200), // ✅ AGREGADO
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
           color: colorScheme.surface,
@@ -60,7 +60,6 @@ class PedidoCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              // Indicador de estado (barra lateral)
               Container(
                 width: 4,
                 height: 50,
@@ -70,7 +69,6 @@ class PedidoCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-              // Contenido principal
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,7 +113,6 @@ class PedidoCard extends StatelessWidget {
                       children: [
                         Icon(Icons.shopping_bag_rounded, size: 14, color: colorScheme.onSurfaceVariant),
                         const SizedBox(width: 4),
-                        // ✅ CONSULTA ASÍNCRONA PARA EL CONTADOR DE PRODUCTOS
                         Expanded(
                           child: FutureBuilder<int>(
                             future: _getCantidadProductos(),
@@ -134,7 +131,7 @@ class PedidoCard extends StatelessWidget {
                         ),
                         const Spacer(),
                         Text(
-                          'Bs ${pedido.total.toStringAsFixed(2)}',
+                          '\$${pedido.total.toStringAsFixed(2)}', // ✅ USD
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,

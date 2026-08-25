@@ -1,19 +1,17 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
+import 'package:app_boosti_v2/features/pos/presentation/screens/pedido/pedidos_screen.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/menu/diagnostico_lote_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
-import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/auth_provider.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../../data/Local/entities/isar_service.dart';
-import '../../data/Local/entities/lote_entity.dart';
-import '../../data/Local/entities/producto_entity.dart';
-
-import '../widgets/admin_validation_dialog.dart';
 import '../widgets/menu/turno_status_banner.dart';
 import 'audit_log_screen.dart';
 import 'cash_closing_screen.dart';
@@ -21,7 +19,6 @@ import 'configuracion_empresa_screen.dart';
 import 'sales_history_screen.dart';
 import '../widgets/monitor_empleado_widget.dart' as monitor;
 import '../widgets/gestion_personal_dialog.dart';
-import '../widgets/cambiar_pin_dialog.dart';
 import '../../presentation/providers/usuario_provider.dart';
 import '../services/backup_service.dart';
 import 'login_screen.dart';
@@ -30,8 +27,9 @@ import '../../data/Local/entities/turno_entity.dart';
 import '../widgets/printer_selection_widget.dart';
 import 'user_settings_screen.dart';
 import '../screens/dashboard_screen.dart';
-import '../screens/pedidos_screen.dart';
 import '../screens/proveedores/proveedores_screen.dart';
+
+// ✅ IMPORT DEL NUEVO DIÁLOGO DE DIAGNÓSTICO
 
 class MenuOption {
   final String title;
@@ -118,35 +116,106 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     }
   }
 
-  Future<void> _sincronizarTodo() async {
+  // 🔥 SINCRONIZACIÓN CON DIÁLOGO DE PROGRESO
+  Future<void> _sincronizarConProgreso() async {
     if (_sincronizando) return;
     setState(() => _sincronizando = true);
 
-    try {
-      await _syncService.sincronizarTodo();
-      await _cargarEstadoSync();
-      await _cargarEstadoTurno();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final currentContext = context;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Datos sincronizados correctamente'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Error al sincronizar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _sincronizando = false);
+    String mensajeProgreso = 'Iniciando sincronización...';
+    bool sincronizacionActiva = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // ignore: deprecated_member_use
+          return WillPopScope(
+            onWillPop: () async => false,
+            child: AlertDialog(
+              title: const Text('Sincronizando...'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const LinearProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    mensajeProgreso,
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    sincronizacionActiva = false;
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cancelar'),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    if (!sincronizacionActiva) {
+      setState(() => _sincronizando = false);
+      return;
     }
+
+    try {
+      await _actualizarProgreso('Sincronizando ventas...');
+      final result = await _syncService.sincronizarTodoConResumen();
+
+      Navigator.pop(context);
+
+      final mensaje = StringBuffer('✅ Sincronización completada\n');
+      if (result['ventas']! > 0) mensaje.writeln('• ${result['ventas']} ventas');
+      if (result['productos']! > 0) mensaje.writeln('• ${result['productos']} productos');
+      if (result['proveedores']! > 0) mensaje.writeln('• ${result['proveedores']} proveedores');
+      if (result['gastos']! > 0) mensaje.writeln('• ${result['gastos']} gastos');
+      if (result['pedidos']! > 0) mensaje.writeln('• ${result['pedidos']} pedidos');
+      if (result['lotes']! > 0) mensaje.writeln('• ${result['lotes']} lotes');
+      if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizado ✅');
+
+      if (!currentContext.mounted) return;
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text(mensaje.toString()),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      try {
+        Navigator.pop(context);
+      } catch (_) {}
+
+      if (!currentContext.mounted) return;
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('❌ Error al sincronizar: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      debugPrint('❌ Error en sincronización: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _sincronizando = false);
+        _cargarEstadoSync();
+      }
+    }
+  }
+
+  Future<void> _actualizarProgreso(String mensaje) async {
+    debugPrint('📌 $mensaje');
+    await Future.delayed(const Duration(milliseconds: 300));
   }
 
   Future<void> _abrirTurno() async {
@@ -179,6 +248,15 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     await _isarService.guardarTurno(nuevoTurno);
     await _isarService.actualizarEstadoUsuario(usuario.id, 'activo');
     await _syncService.actualizarEstadoUsuarioEnSupabase(usuario.id, 'activo');
+    await _isarService.guardarLog(
+      LogEntity()
+        ..accion = 'APERTURA_TURNO'
+        ..usuarioNombre = usuario.nombre
+        ..usuarioRol = usuario.rol
+        ..detalles = 'Caja: ${usuario.cajaAsignada}'
+        ..fecha = DateTime.now()
+        ..sincronizado = false,
+    );
 
     await _cargarEstadoTurno();
 
@@ -262,6 +340,15 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       await _isarService.guardarTurno(turnoAbierto);
       await _isarService.actualizarEstadoUsuario(usuario.id, 'inactivo');
       await _syncService.sincronizarTurnos();
+      await _isarService.guardarLog(
+        LogEntity()
+          ..accion = 'CIERRE_TURNO'
+          ..usuarioNombre = usuario.nombre
+          ..usuarioRol = usuario.rol
+          ..detalles = 'Monto final: \$${montoFinal.toStringAsFixed(2)}'
+          ..fecha = DateTime.now()
+          ..sincronizado = false,
+      );
 
       await _cargarEstadoTurno();
 
@@ -370,251 +457,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   }
 
   // ============================================================
-  // ✅ DIAGNÓSTICO Y MIGRACIÓN (usando IsarService)
-  // ============================================================
-
-  Future<Map<String, dynamic>> _obtenerDiagnostico() async {
-    final totalProductos = await _isarService.contarProductos();
-    final totalLotes = await _isarService.contarLotes();
-
-    final productos = await _isarService.obtenerTodosLosProductos();
-    final todosLosLotes = await _isarService.obtenerTodosLosLotes();
-
-    final productosSinLote = <String>[];
-    final productosConStockSinLote = <String>[];
-
-    for (var p in productos) {
-      final lotesProducto = todosLosLotes
-          .where((lote) => lote.productoId == p.id)
-          .toList();
-
-      if (lotesProducto.isEmpty) {
-        productosSinLote.add(p.nombre);
-        if (p.stock > 0) {
-          productosConStockSinLote.add('${p.nombre} (stock: ${p.stock})');
-        }
-      }
-    }
-
-    final porcentaje = totalProductos > 0
-        ? ((totalProductos - productosSinLote.length) / totalProductos * 100).toStringAsFixed(1)
-        : '0.0';
-
-    return {
-      'totalProductos': totalProductos,
-      'totalLotes': totalLotes,
-      'productosSinLote': productosSinLote,
-      'productosSinLoteCount': productosSinLote.length,
-      'productosConStockSinLote': productosConStockSinLote,
-      'porcentajeCobertura': '$porcentaje%',
-    };
-  }
-
-  Widget _buildDiagnosticoItem(String label, dynamic value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(
-            value.toString(),
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _mostrarDiagnosticoLotes() async {
-    if (!mounted) return;
-
-    Map<String, dynamic> datos = await _obtenerDiagnostico();
-    bool cargando = false;
-    String? error;
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.analytics_rounded, color: Color(0xFF3B82F6)),
-                SizedBox(width: 8),
-                Text('Diagnóstico de Inventario'),
-              ],
-            ),
-            content: SizedBox(
-              width: double.maxFinite,
-              height: 300,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (cargando)
-                      const Center(child: CircularProgressIndicator())
-                    else if (error != null)
-                      Text('❌ Error: $error', style: const TextStyle(color: Colors.red))
-                    else ...[
-                      _buildDiagnosticoItem('Total productos', datos['totalProductos']),
-                      _buildDiagnosticoItem('Total lotes', datos['totalLotes']),
-                      _buildDiagnosticoItem('Cobertura', datos['porcentajeCobertura']),
-                      const Divider(),
-                      Text(
-                        'Productos sin lote: ${datos['productosSinLoteCount']}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      if ((datos['productosConStockSinLote'] as List).isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        const Text(
-                          '⚠️ Productos con stock pero sin lote:',
-                          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.orange),
-                        ),
-                        Container(
-                          constraints: const BoxConstraints(maxHeight: 120),
-                          margin: const EdgeInsets.only(top: 4),
-                          child: SingleChildScrollView(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: (datos['productosConStockSinLote'] as List)
-                                  .map((p) => Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 2),
-                                        child: Text('• $p', style: const TextStyle(fontSize: 12)),
-                                      ))
-                                  .toList(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              TextButton.icon(
-                onPressed: cargando
-                    ? null
-                    : () async {
-                        setDialogState(() => cargando = true);
-                        try {
-                          datos = await _obtenerDiagnostico();
-                          error = null;
-                        } catch (e) {
-                          error = e.toString();
-                        }
-                        setDialogState(() => cargando = false);
-                      },
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('Recargar'),
-                style: TextButton.styleFrom(foregroundColor: Colors.blue),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cerrar'),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: cargando
-                    ? null
-                    : () async {
-                        Navigator.pop(dialogContext);
-
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (context) => const Center(
-                            child: Card(
-                              child: Padding(
-                                padding: EdgeInsets.all(24),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    CircularProgressIndicator(),
-                                    SizedBox(height: 16),
-                                    Text('Ejecutando migración...'),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-
-                        try {
-                          final result = await _isarService.migrarStockExistenteALotes();
-
-                          Navigator.pop(context);
-
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: Icon(
-                                result['success'] ? Icons.check_circle_rounded : Icons.error_rounded,
-                                color: result['success'] ? Colors.green : Colors.red,
-                                size: 48,
-                              ),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    result['success'] ? '✅ Migración exitosa' : '❌ Migración fallida',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: result['success'] ? Colors.green : Colors.red,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text('Lotes creados: ${result['lotesCreados']}'),
-                                  Text('Productos sin stock: ${result['productosSinStock']}'),
-                                  if (result['error'] != null) Text('Error: ${result['error']}'),
-                                ],
-                              ),
-                              actions: [
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    _mostrarDiagnosticoLotes();
-                                  },
-                                  icon: const Icon(Icons.analytics_rounded),
-                                  label: const Text('Ver diagnóstico actualizado'),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Cerrar'),
-                                ),
-                              ],
-                            ),
-                          );
-                        } catch (e) {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('❌ Error en migración: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('Ejecutar Migración'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  // ============================================================
   // CONFIGURACIÓN DE SECCIONES DEL MENÚ
   // ============================================================
   List<MenuSection> _getMenuSections() {
@@ -657,7 +499,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         color: _ventasPendientesSync > 0
             ? const Color(0xFFF59E0B)
             : const Color(0xFF10B981),
-        onTap: _sincronizarTodo,
+        onTap: _sincronizarConProgreso,
       ),
       MenuOption(
         title: 'Configurar Impresora',
@@ -772,12 +614,16 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         onTap: _crearBackup,
         isAdminOnly: true,
       ),
+      // 🔥 NUEVO: Usando el widget refactorizado
       MenuOption(
         title: 'Diagnóstico de Lotes',
         subtitle: 'Verificar estado del inventario por lotes',
         icon: Icons.analytics_rounded,
         color: const Color(0xFF3B82F6),
-        onTap: _mostrarDiagnosticoLotes,
+        onTap: () => showDialog(
+          context: context,
+          builder: (_) => const DiagnosticoLotesDialog(),
+        ),
         isAdminOnly: true,
       ),
     ];
@@ -982,7 +828,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                   children: [
                     Icon(
                       Icons.person_outline,
-                      color: theme.appBarTheme.foregroundColor?.withOpacity(0.9),
+                      color: theme.appBarTheme.foregroundColor?.withValues(alpha: 0.9),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -1018,7 +864,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
             Icon(
               icon,
               size: isMobile ? 18 : 22,
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),
             const SizedBox(width: 8),
           ],
@@ -1035,7 +881,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           Container(
             height: 1,
             width: isMobile ? 40 : 80,
-            color: theme.colorScheme.onSurface.withOpacity(0.1),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
           ),
         ],
       ),
@@ -1108,6 +954,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           return AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
+            // ignore: deprecated_member_use
             transform: hovered ? (Matrix4.identity()..scale(1.02)) : Matrix4.identity(),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -1193,7 +1040,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                               option.subtitle,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 fontSize: isMobile ? 11 : 13,
-                                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                               ),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
@@ -1204,7 +1051,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                       Icon(
                         Icons.arrow_forward_ios_rounded,
                         size: isMobile ? 14 : 18,
-                        color: theme.colorScheme.onSurface.withOpacity(0.3),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
                       ),
                     ],
                   ),

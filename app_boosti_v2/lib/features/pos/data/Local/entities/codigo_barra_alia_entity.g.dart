@@ -1,5 +1,7 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
+// ignore_for_file: experimental_member_use
+
 part of 'codigo_barra_alia_entity.dart';
 
 // **************************************************************************

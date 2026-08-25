@@ -54,11 +54,11 @@ class _SplashScreenState extends State<SplashScreen> {
       if (deniedPermanently.isNotEmpty) {
         // Opcional: mostrar un diálogo para que el usuario vaya a ajustes
         // Pero no bloqueamos la app
-        print('⚠️ Permisos denegados permanentemente: $deniedPermanently');
+        debugPrint('⚠️ Permisos denegados permanentemente: $deniedPermanently');
       }
     } catch (e) {
       // Si falla la solicitud de permisos, continuar de todas formas
-      print('⚠️ Error al pedir permisos: $e');
+      debugPrint('⚠️ Error al pedir permisos: $e');
     }
   }
 

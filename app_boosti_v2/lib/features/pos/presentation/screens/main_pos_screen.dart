@@ -99,7 +99,7 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
         child: Image.asset(
           'assets/logo.png',
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => const Icon(Icons.storefront, color: Colors.white, size: 32), // ✅ corregido
+          errorBuilder: (_, _, _) => const Icon(Icons.storefront, color: Colors.white, size: 32), // ✅ corregido
         ),
       ),
       title: Text(

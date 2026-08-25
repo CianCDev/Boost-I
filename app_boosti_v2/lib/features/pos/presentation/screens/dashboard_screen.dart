@@ -80,7 +80,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   'Última actualización: ${_formatFecha(estado.ultimaActualizacion)}',
                   style: TextStyle(
                     fontSize: 12,
-                    color: theme.appBarTheme.foregroundColor?.withOpacity(0.7),
+                    color: theme.appBarTheme.foregroundColor?.withValues(alpha: 0.7),
                   ),
                 ),
               ),
@@ -269,7 +269,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(height: 24),
@@ -301,7 +301,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           'Datos actualizados en tiempo real • ${_formatFecha(DateTime.now())}',
           style: TextStyle(
             fontSize: 11,
-            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
           ),
         ),
       ),

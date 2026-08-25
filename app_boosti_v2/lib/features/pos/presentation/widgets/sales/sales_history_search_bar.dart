@@ -120,7 +120,6 @@ class _MethodChip extends StatefulWidget {
   final bool isTablet;
 
   const _MethodChip({
-    super.key,
     required this.label,
     required this.selected,
     required this.onTap,

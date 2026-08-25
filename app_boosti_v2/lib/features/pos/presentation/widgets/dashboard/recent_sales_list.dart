@@ -9,6 +9,7 @@ class RecentSalesList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final mostrar = ventas.take(isMobile ? 3 : 5).toList();
 
     return AnimatedOpacity(
@@ -17,17 +18,17 @@ class RecentSalesList extends StatelessWidget {
       opacity: 1.0,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.08),
+              color: Theme.of(context).shadowColor.withValues(alpha: 0.08),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
           border: Border.all(
-            color: Colors.grey.shade200,
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
             width: 1,
           ),
         ),
@@ -44,7 +45,7 @@ class RecentSalesList extends StatelessWidget {
                   style: TextStyle(
                     fontSize: isMobile ? 14 : 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
                   ),
                 ),
               ],
@@ -58,14 +59,14 @@ class RecentSalesList extends StatelessWidget {
                     'No hay ventas recientes',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade500,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
                     ),
                   ),
                 ),
               ),
             ] else ...[
               for (int i = 0; i < mostrar.length; i++) ...[
-                _buildItem(mostrar[i], i, isMobile),
+                _buildItem(mostrar[i], i, isMobile, isDark),
                 if (i < mostrar.length - 1) const SizedBox(height: 8),
               ],
             ],
@@ -75,7 +76,7 @@ class RecentSalesList extends StatelessWidget {
     );
   }
 
-  Widget _buildItem(VentaEntity venta, int index, bool isMobile) {
+  Widget _buildItem(VentaEntity venta, int index, bool isMobile, bool isDark) {
     final color = _getMetodoPagoColor(venta.metodoPago);
     final icon = _getMetodoPagoIcon(venta.metodoPago);
     final hora = '${venta.fecha.hour.toString().padLeft(2, '0')}:${venta.fecha.minute.toString().padLeft(2, '0')}';
@@ -116,7 +117,7 @@ class RecentSalesList extends StatelessWidget {
                     style: TextStyle(
                       fontSize: isMobile ? 11 : 13,
                       fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade800,
+                      color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
@@ -127,7 +128,7 @@ class RecentSalesList extends StatelessWidget {
                 '${venta.empleado} • $hora',
                 style: TextStyle(
                   fontSize: isMobile ? 9 : 11,
-                  color: Colors.grey.shade500,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
                 ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,

@@ -27,7 +27,7 @@ class ProductoSelector extends StatelessWidget {
     return Column(
       children: [
         DropdownButtonFormField<ProductoEntity>(
-          value: valorSeleccionado,
+          initialValue: valorSeleccionado,
           hint: Text(
             productos.isEmpty ? 'No hay productos para este proveedor' : 'Seleccionar producto',
             style: TextStyle(color: colorScheme.onSurfaceVariant),
@@ -37,16 +37,16 @@ class ProductoSelector extends StatelessWidget {
               value: p,
               child: Text(
                 '${p.nombre} (Stock: ${p.stock})',
-                style: TextStyle(color: colorScheme.onSurface), // ✅ Adaptado
+                style: TextStyle(color: colorScheme.onSurface),
               ),
             );
           }).toList(),
           onChanged: onChanged,
-          dropdownColor: colorScheme.surface, // ✅ Fondo del dropdown adaptado
-          style: TextStyle(color: colorScheme.onSurface), // ✅ Texto del dropdown adaptado
+          dropdownColor: colorScheme.surface,
+          style: TextStyle(color: colorScheme.onSurface),
           decoration: InputDecoration(
             filled: true,
-            fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50, // ✅ Adaptado
+            fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -65,12 +65,12 @@ class ProductoSelector extends StatelessWidget {
               child: TextFormField(
                 controller: cantidadController,
                 keyboardType: TextInputType.number,
-                style: TextStyle(color: colorScheme.onSurface), // ✅ Texto DINÁMICO (AQUÍ ESTABA EL ERROR)
+                style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'Cantidad',
-                  labelStyle: TextStyle(color: colorScheme.onSurfaceVariant), // ✅ Etiqueta adaptada
+                  labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                   filled: true,
-                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50, // ✅ Fondo adaptado
+                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -88,12 +88,12 @@ class ProductoSelector extends StatelessWidget {
               child: TextFormField(
                 controller: precioController,
                 keyboardType: TextInputType.number,
-                style: TextStyle(color: colorScheme.onSurface), // ✅ Texto DINÁMICO (AQUÍ ESTABA EL ERROR)
+                style: TextStyle(color: colorScheme.onSurface),
                 decoration: InputDecoration(
-                  labelText: 'Precio Unitario (Bs)',
-                  labelStyle: TextStyle(color: colorScheme.onSurfaceVariant), // ✅ Etiqueta adaptada
+                  labelText: 'Precio Unitario (USD)', // ✅ Cambiado a USD
+                  labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                   filled: true,
-                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50, // ✅ Fondo adaptado
+                  fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.grey.shade50,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,

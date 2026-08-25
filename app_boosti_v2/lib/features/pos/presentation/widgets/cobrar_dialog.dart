@@ -1,9 +1,14 @@
+
+import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/bcv_provider.dart';
 import '../utils/responsive_helper.dart';
 import '../utils/input_decoration_helper.dart';
+
 
 class CobrarDialog extends ConsumerStatefulWidget {
   final double totalAPagar;
@@ -128,18 +133,29 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     final String docTexto = _cedulaController.text.trim();
     final String documentoFinal = docTexto.isEmpty ? 'V-00000000' : docTexto;
 
-    Navigator.of(context).pop({
-      'procesado': true,
-      'metodoPago': metodoPrincipal,
-      'documento': documentoFinal,
-      'cedulaCliente': documentoFinal,
-      'montoRecibido': totalRecibidoUsd,
-      'vuelto': vueltoUsd,
-      'referencia': referencia,
-      'nombreCliente': nombreCliente,
-    });
-  }
+    // 🔥 LOG DE VENTA
+    final usuario = ref.read(usuarioActualProvider);
+    IsarService().guardarLog(
+      LogEntity()
+        ..accion = 'VENTA_REALIZADA'
+        ..usuarioNombre = usuario?.nombre ?? 'Sistema'
+        ..usuarioRol = usuario?.rol ?? 'cajero'
+        ..detalles = 'Total: \$${widget.totalAPagar.toStringAsFixed(2)} - Método: $metodoPrincipal'
+        ..fecha = DateTime.now()
+        ..sincronizado = false,
+    );
 
+  Navigator.of(context).pop({
+    'procesado': true,
+    'metodoPago': metodoPrincipal,
+    'documento': documentoFinal,
+    'cedulaCliente': documentoFinal,
+    'montoRecibido': totalRecibidoUsd,
+    'vuelto': vueltoUsd,
+    'referencia': referencia,
+    'nombreCliente': nombreCliente,
+  });
+}
   Color _getColorMetodo() {
     switch (_metodoPagoSeleccionado) {
       case 'Efectivo':

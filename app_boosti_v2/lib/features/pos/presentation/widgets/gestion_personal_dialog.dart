@@ -1,3 +1,4 @@
+import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/Local/entities/isar_service.dart';
@@ -75,6 +76,15 @@ class _PersonnelManagementDialogState
 
       await _isarService.guardarUsuario(nuevoUsuario);
       await _syncService.sincronizarUsuariosASupabase();
+      await _isarService.guardarLog(
+      LogEntity()
+        ..accion = 'CREAR_USUARIO'
+        ..usuarioNombre = 'Admin' // o el admin actual
+        ..usuarioRol = 'admin'
+        ..detalles = 'Usuario: ${_nombreController.text} - Rol: $_rolSeleccionado'
+        ..fecha = DateTime.now()
+        ..sincronizado = false,
+    );
 
       setState(() {
         _nombreController.clear();
@@ -131,6 +141,15 @@ class _PersonnelManagementDialogState
         await _isarService.eliminarUsuario(usuario.id);
         await _syncService.eliminarUsuarioEnSupabase(usuario.id);
         await _cargarUsuarios();
+        await _isarService.guardarLog(
+        LogEntity()
+          ..accion = 'ELIMINAR_USUARIO'
+          ..usuarioNombre = 'Admin'
+          ..usuarioRol = 'admin'
+          ..detalles = 'Usuario: ${usuario.nombre} (ID: ${usuario.id})'
+          ..fecha = DateTime.now()
+          ..sincronizado = false,
+      );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -145,6 +164,7 @@ class _PersonnelManagementDialogState
             SnackBar(
                 content: Text('❌ Error al eliminar: $e'),
                 backgroundColor: Colors.red),
+                
           );
         }
       }
@@ -220,7 +240,7 @@ class _PersonnelManagementDialogState
             Text(
               'Administración de accesos al sistema POS',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                 fontSize: isMobile ? 14 : 16,
               ),
             ),
@@ -263,7 +283,7 @@ class _PersonnelManagementDialogState
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: _rolSeleccionado,
+                    initialValue: _rolSeleccionado,
                     decoration: const InputDecoration(
                       labelText: 'Rol / Permisos',
                       border: OutlineInputBorder(),
@@ -328,6 +348,7 @@ class _PersonnelManagementDialogState
                               horizontal: 24, vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
+                            
                           ),
                         ),
                         child: _guardando
@@ -368,7 +389,7 @@ class _PersonnelManagementDialogState
                             'No hay usuarios registrados',
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.textTheme.bodyMedium?.color
-                                  ?.withOpacity(0.6),
+                                  ?.withValues(alpha: 0.6),
                             ),
                           ),
                         )
@@ -385,7 +406,7 @@ class _PersonnelManagementDialogState
                                   horizontal: 0, vertical: 2),
                               leading: CircleAvatar(
                                 radius: 18,
-                                backgroundColor: avatarColor.withOpacity(0.15),
+                                backgroundColor: avatarColor.withValues(alpha: 0.15),
                                 child: Icon(
                                   isAdmin
                                       ? Icons.admin_panel_settings_rounded
@@ -407,7 +428,7 @@ class _PersonnelManagementDialogState
                                 style: TextStyle(
                                   fontSize: isMobile ? 12 : 14,
                                   color: theme.textTheme.bodyMedium?.color
-                                      ?.withOpacity(0.6),
+                                      ?.withValues(alpha: 0.6),
                                 ),
                               ),
                               trailing: IconButton(

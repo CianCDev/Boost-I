@@ -1,3 +1,5 @@
+// ignore_for_file: file_names
+
 import 'package:flutter/material.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
 
@@ -50,7 +52,7 @@ class _MultiSelectDialogState extends State<MultiSelectDialog> {
                     title: Text(producto.nombre),
                     subtitle: Text('Código: ${producto.codigoBarras}'),
                     secondary: Text(
-                      'Bs ${producto.precioUnidad.toStringAsFixed(2)}',
+                      '\$${producto.precioUnidad.toStringAsFixed(2)}', // ✅ USD
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     controlAffinity: ListTileControlAffinity.leading,

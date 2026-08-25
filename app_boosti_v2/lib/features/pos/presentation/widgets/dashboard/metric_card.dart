@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' show Vector3;
 
 class MetricCard extends StatefulWidget {
   final String titulo;
@@ -46,6 +45,7 @@ class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 600),
@@ -64,7 +64,7 @@ class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateM
                 1.0,
               ),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -123,7 +123,7 @@ class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateM
                             style: TextStyle(
                               fontSize: isMobile ? 10 : 12,
                               fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade600,
+                              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                               letterSpacing: 0.3,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -150,7 +150,7 @@ class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateM
                         widget.subtitulo!,
                         style: TextStyle(
                           fontSize: isMobile ? 9 : 11,
-                          color: widget.subtituloColor ?? Colors.grey.shade500,
+                          color: widget.subtituloColor ?? (isDark ? Colors.grey.shade400 : Colors.grey.shade500),
                           fontWeight: FontWeight.w500,
                         ),
                         overflow: TextOverflow.ellipsis,

@@ -34,14 +34,14 @@ class DetalleProductoCard extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.w500),
         ),
         subtitle: Text(
-          '${detalle.cantidad} x Bs ${detalle.precioUnidad.toStringAsFixed(2)}',
+          '${detalle.cantidad} x \$${detalle.precioUnidad.toStringAsFixed(2)}', // ✅ USD
           style: TextStyle(color: Colors.grey.shade600),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Bs ${detalle.subtotal.toStringAsFixed(2)}',
+              '\$${detalle.subtotal.toStringAsFixed(2)}', // ✅ USD
               style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
             ),
             const SizedBox(width: 8),

@@ -17,7 +17,9 @@ class CatalogSearchBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // ignore: unused_local_variable
     final isTablet = ResponsiveHelper.isTablet(context);
+    // ignore: unused_local_variable
     final busqueda = ref.watch(catalogProvider).busqueda;
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;

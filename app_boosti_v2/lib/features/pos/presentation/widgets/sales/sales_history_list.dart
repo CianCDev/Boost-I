@@ -39,7 +39,7 @@ class SalesHistoryList extends StatelessWidget {
       shrinkWrap: shrinkWrap,
       physics: shrinkWrap ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
       itemCount: ventas.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final venta = ventas[index];
         return SalesHistoryItem(

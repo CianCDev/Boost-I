@@ -2,15 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:isar/isar.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/detalle_pedido_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/recepcion_entity.dart';
-import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
-import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import '../../data/Local/entities/gasto_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
@@ -838,7 +836,7 @@ class SyncService {
       await _isarService.actualizarSyncStatusPedido(pedido.id, true);
     }
   } catch (e) {
-    print('Error sincronizando pedidos: $e');
+    debugPrint('Error sincronizando pedidos: $e');
     rethrow;
   }
 }
@@ -912,7 +910,7 @@ class SyncService {
         }
       }
     } catch (e) {
-      print('Error descargando pedidos: $e');
+      debugPrint('Error descargando pedidos: $e');
       rethrow;
     }
   }
@@ -921,6 +919,7 @@ class SyncService {
   // MÉTODOS AUXILIARES PARA MAPEAR IDs
   // ==========================================
 
+  // ignore: unused_element
   Future<String> _obtenerSupabaseIdLocal(int isarId) async {
     final local = await _isarService.obtenerLocalPorId(isarId);
     return local?.supabaseId ?? '';
@@ -931,6 +930,7 @@ class SyncService {
     return local?.id ?? 0;
   }
 
+  // ignore: unused_element
   Future<String> _obtenerSupabaseIdUsuario(int isarId) async {
     final usuario = await _isarService.obtenerUsuarioPorId(isarId);
     return usuario?.supabaseId ?? '';
@@ -941,6 +941,7 @@ class SyncService {
     return usuario?.id ?? 0;
   }
 
+  // ignore: unused_element
   Future<String> _obtenerSupabaseIdProducto(int isarId) async {
     final producto = await _isarService.obtenerProductoPorId(isarId);
     return producto?.supabaseId ?? '';
@@ -957,7 +958,7 @@ class SyncService {
   }
 
   // ==========================================
-  // SINCRONIZAR TODO
+  // SINCRONIZAR Todo
   // ==========================================
 
   Future<void> sincronizarTodo() async {

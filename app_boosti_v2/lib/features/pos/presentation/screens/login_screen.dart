@@ -1,4 +1,6 @@
 // lib/features/pos/presentation/screens/login_screen.dart
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -438,7 +440,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             border: Border.all(color: Colors.grey.shade300),
           ),
           child: DropdownButtonFormField<int>(
-            value: _selectedUserId,
+            initialValue: _selectedUserId,
             isExpanded: true,
             decoration: InputDecoration(
               border: InputBorder.none,

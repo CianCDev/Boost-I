@@ -190,7 +190,7 @@ class FixedCartSummary extends ConsumerWidget {
                             )
                           : ListView.separated(
                               itemCount: currentCartState.items.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 12),
+                              separatorBuilder: (_, _) => const SizedBox(height: 12),
                               itemBuilder: (context, index) {
                                 final item = currentCartState.items[index];
                                 final subtotal = item.producto.precioUnidad * item.cantidad;

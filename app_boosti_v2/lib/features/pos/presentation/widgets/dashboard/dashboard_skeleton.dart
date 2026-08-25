@@ -7,6 +7,10 @@ class DashboardSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final baseColor = isDark ? Colors.grey.shade800 : Colors.grey.shade300;
+    final highlightColor = isDark ? Colors.grey.shade700 : Colors.grey.shade100;
 
     return SingleChildScrollView(
       padding: EdgeInsets.symmetric(
@@ -14,8 +18,8 @@ class DashboardSkeleton extends StatelessWidget {
         vertical: isMobile ? 8 : 16,
       ),
       child: Shimmer.fromColors(
-        baseColor: Colors.grey.shade300,
-        highlightColor: Colors.grey.shade100,
+        baseColor: baseColor,
+        highlightColor: highlightColor,
         child: Column(
           children: [
             // Grid de métricas
@@ -29,7 +33,7 @@ class DashboardSkeleton extends StatelessWidget {
               children: List.generate(4, (index) {
                 return Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? Colors.grey.shade900 : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   padding: const EdgeInsets.all(12),
@@ -41,7 +45,7 @@ class DashboardSkeleton extends StatelessWidget {
             Container(
               height: isMobile ? 150 : 200,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isDark ? Colors.grey.shade900 : Colors.white,
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
@@ -51,7 +55,7 @@ class DashboardSkeleton extends StatelessWidget {
               Container(
                 height: 120,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? Colors.grey.shade900 : Colors.white,
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
@@ -59,7 +63,7 @@ class DashboardSkeleton extends StatelessWidget {
               Container(
                 height: 120,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? Colors.grey.shade900 : Colors.white,
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
@@ -70,7 +74,7 @@ class DashboardSkeleton extends StatelessWidget {
                     child: Container(
                       height: 120,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: isDark ? Colors.grey.shade900 : Colors.white,
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
@@ -80,7 +84,7 @@ class DashboardSkeleton extends StatelessWidget {
                     child: Container(
                       height: 120,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: isDark ? Colors.grey.shade900 : Colors.white,
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),

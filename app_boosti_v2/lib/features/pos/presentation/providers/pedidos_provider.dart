@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/detalle_pedido_entity.dart';
@@ -98,7 +99,7 @@ final registrarRecepcionProvider = FutureProvider.family<void, ({
   for (var detalle in detalles) {
     final producto = await isar.obtenerProductoPorId(detalle.productoId);
     if (producto == null) {
-      print('⚠️ Producto ${detalle.productoId} no encontrado, omitiendo...');
+      debugPrint('⚠️ Producto ${detalle.productoId} no encontrado, omitiendo...');
       continue;
     }
 

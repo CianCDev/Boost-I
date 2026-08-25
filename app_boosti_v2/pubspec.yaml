@@ -43,6 +43,7 @@ dependencies:
   permission_handler: ^11.3.1
   barcode_widget: ^2.0.4
   esc_pos_utils_lts: ^0.0.1
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:

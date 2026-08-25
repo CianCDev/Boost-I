@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -361,6 +363,7 @@ class _QuantityDialogState extends State<QuantityDialog> {
                       } catch (e) {
                         setState(() => _procesando = false);
                         if (mounted) {
+                          // ignore: use_build_context_synchronously
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Error: $e'),

@@ -22,7 +22,6 @@ import '../../data/Local/entities/local_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/codigo_barra_alia_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
 
-import 'package:shared_preferences/shared_preferences.dart';
 
 class SyncService {
   final IsarService _isarService = IsarService();
@@ -397,56 +396,70 @@ class SyncService {
 
   /// ✅ Sincroniza productos y actualiza supabaseId local
   Future<bool> sincronizarProductosASupabase() async {
-    try {
-      final productosLocales = await _isarService.obtenerProductos();
-      if (productosLocales.isEmpty) return true;
+  try {
+    final productosLocales = await _isarService.obtenerProductos();
+    if (productosLocales.isEmpty) return true;
 
-      final List<Map<String, dynamic>> payloadList = productosLocales.map((p) {
-        return {
-          'id_isar': p.id,
-          'codigo_barras': p.codigoBarras,
-          'nombre': p.nombre,
-          'precio_unidad': _limpiarNumero(p.precioUnidad, 0.0),
-          'stock': _limpiarNumero(p.stock, 0.0),
-          'stock_minimo': _limpiarNumero(p.stockMinimo, 5.0),
-          'es_pesado': p.esPesado,
-          'categoria': p.categoria,
-          'proveedor_nombre': p.proveedorNombre,
-          'proveedor_telefono': p.proveedorTelefono,
-          'imagen_url': p.imagenUrl,
-        };
-      }).toList();
+    // Enviamos todos los productos (upsert por código de barras)
+    final List<Map<String, dynamic>> payloadList = productosLocales.map((p) {
+      return {
+        'id_isar': p.id,
+        'codigo_barras': p.codigoBarras,
+        'nombre': p.nombre,
+        'precio_unidad': _limpiarNumero(p.precioUnidad, 0.0),
+        'stock': _limpiarNumero(p.stock, 0.0),
+        'stock_minimo': _limpiarNumero(p.stockMinimo, 5.0),
+        'es_pesado': p.esPesado,
+        'categoria': p.categoria,
+        'proveedor_nombre': p.proveedorNombre,
+        'proveedor_telefono': p.proveedorTelefono,
+        'imagen_url': p.imagenUrl,
+      };
+    }).toList();
 
-      final response = await _supabase
-          .from('productos')
-          .upsert(payloadList, onConflict: 'codigo_barras')
-          .select('id, id_isar');
+    // Realizar upsert
+    await _supabase
+        .from('productos')
+        .upsert(payloadList, onConflict: 'codigo_barras');
 
-      int actualizados = 0;
-      for (var data in response) {
-        // 🔥 CORREGIDO: usar .toString() en lugar de as String?
-        final supabaseId = data['id']?.toString();
-        final idIsar = data['id_isar'] as int?;
-        if (supabaseId != null && idIsar != null) {
-          final productoLocal = await _isarService.obtenerProductoPorId(idIsar);
-          if (productoLocal != null && productoLocal.supabaseId != supabaseId) {
-            productoLocal.supabaseId = supabaseId;
-            productoLocal.sincronizado = true;
-            productoLocal.fechaSincronizacion = DateTime.now();
-            await _isarService.guardarProducto(productoLocal);
-            actualizados++;
-            debugPrint('✅ Producto ${productoLocal.nombre} (id: $idIsar) → supabaseId: $supabaseId');
-          }
-        }
+    // Ahora obtener los IDs de Supabase para todos los productos locales
+    final idsIsar = productosLocales.map((p) => p.id).toList();
+    final response = await _supabase
+        .from('productos')
+        .select('id, id_isar')
+        .inFilter('id_isar', idsIsar);
+
+    // Mapear id_isar -> supabaseId
+    final Map<int, String> mapa = {};
+    for (var row in response) {
+      final idIsar = row['id_isar'] as int?;
+      final supabaseId = row['id']?.toString();
+      if (idIsar != null && supabaseId != null && supabaseId.isNotEmpty) {
+        mapa[idIsar] = supabaseId;
       }
-
-      debugPrint('✅ ${productosLocales.length} productos sincronizados. $actualizados supabaseId actualizados.');
-      return true;
-    } catch (e) {
-      debugPrint('🚫 Error sincronizando productos: $e');
-      return false;
     }
+
+    // Actualizar cada producto local con su supabaseId
+    int actualizados = 0;
+    for (var p in productosLocales) { 
+      final nuevoId = mapa[p.id];
+      if (nuevoId != null && p.supabaseId != nuevoId) {
+        p.supabaseId = nuevoId;
+        p.sincronizado = true;
+        p.fechaSincronizacion = DateTime.now();
+        await _isarService.guardarProducto(p);
+        actualizados++;
+        debugPrint('✅ Producto ${p.nombre} (id: ${p.id}) → supabaseId: $nuevoId');
+      }
+    }
+
+    debugPrint('✅ ${productosLocales.length} productos sincronizados. $actualizados supabaseId actualizados.');
+    return true;
+  } catch (e) {
+    debugPrint('🚫 Error sincronizando productos: $e');
+    return false;
   }
+}
 
   Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
     try {
@@ -544,13 +557,11 @@ class SyncService {
   Future<bool> _enviarGastoAlServidor(GastoEntity gasto) async {
     try {
       String? usuarioUuid;
-      if (gasto.usuarioId != null) {
-        final usuario = await _isarService.obtenerUsuarioPorId(gasto.usuarioId!);
-        if (usuario != null && usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
-          usuarioUuid = usuario.supabaseId;
-        } else {
-          debugPrint('⚠️ Usuario ID ${gasto.usuarioId} no tiene supabaseId. Se envía null.');
-        }
+      final usuario = await _isarService.obtenerUsuarioPorId(gasto.usuarioId);
+      if (usuario != null && usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
+        usuarioUuid = usuario.supabaseId;
+      } else {
+        debugPrint('⚠️ Usuario ID ${gasto.usuarioId} no tiene supabaseId. Se envía null.');
       }
 
       final payload = {
@@ -563,7 +574,7 @@ class SyncService {
         'usuario_nombre': gasto.usuarioNombre,
         'fecha': gasto.fecha.toIso8601String(),
         'sync_status': 'synced',
-        if (usuarioUuid != null) 'usuario_id': usuarioUuid,
+        'usuario_id': usuarioUuid,
       };
 
       debugPrint('📤 Enviando gasto: ${jsonEncode(payload)}');
@@ -677,6 +688,121 @@ class SyncService {
           }).toList();
         });
   }
+
+Future<void> sincronizarProveedoresForzada() async {
+  try {
+    debugPrint('🔥 Iniciando sincronización forzada de proveedores...');
+    
+    final supabase = Supabase.instance.client;
+    
+    // 1. Descargar todos los proveedores desde Supabase
+    final response = await supabase
+        .from('proveedores')
+        .select()
+        .order('nombre', ascending: true);
+    
+    debugPrint('📥 Descargados ${response.length} proveedores desde Supabase');
+    
+    // 2. Obtener todos los proveedores locales
+    final locales = await _isarService.obtenerProveedores(soloActivos: false);
+    final Map<int, ProveedorEntity> localesPorId = {
+      for (var p in locales) p.id: p
+    };
+    
+    // 3. Mapa de supabaseId -> proveedor local para actualizar
+    final Map<String, ProveedorEntity> localesPorSupabaseId = {
+      for (var p in locales) if (p.supabaseId != null) p.supabaseId!: p
+    };
+    
+    // 4. Procesar proveedores de Supabase
+    final Set<int> idsLocalesProcesados = {};
+    final Set<String> supabaseIdsProcesados = {};
+    
+    for (var data in response) {
+      final supabaseId = data['id'] as String?;
+      if (supabaseId == null) continue;
+      
+      supabaseIdsProcesados.add(supabaseId);
+      
+      // Buscar si ya existe localmente (por supabaseId o por id_isar)
+      final idIsar = data['id_isar'] as int?;
+      ProveedorEntity? local = localesPorSupabaseId[supabaseId];
+      
+      if (local == null && idIsar != null) {
+        local = localesPorId[idIsar];
+      }
+      
+      final proveedorNube = ProveedorEntity()
+        ..supabaseId = supabaseId
+        ..nombre = data['nombre'] ?? ''
+        ..cedula = data['cedula'] as String?
+        ..email = data['email'] as String?
+        ..direccion = data['direccion']
+        ..telefono = data['telefono'] as String?
+        ..empresa = data['empresa'] as String?
+        ..activo = data['activo'] ?? true
+        ..sincronizado = true
+        ..fechaSincronizacion = DateTime.now();
+      
+      if (local != null) {
+        // Actualizar existente
+        proveedorNube.id = local.id;
+        await _isarService.guardarProveedor(proveedorNube);
+        idsLocalesProcesados.add(local.id);
+        debugPrint('🔄 Proveedor actualizado: ${proveedorNube.nombre}');
+      } else {
+        // Crear nuevo
+        await _isarService.guardarProveedor(proveedorNube);
+        debugPrint('📥 Proveedor creado desde Supabase: ${proveedorNube.nombre}');
+      }
+    }
+    
+    // 5. Subir proveedores locales que no están en Supabase
+    int subidos = 0;
+    for (var local in locales) {
+      if (!idsLocalesProcesados.contains(local.id)) {
+        // Este proveedor no existe en Supabase, subirlo
+        final data = {
+          'id_isar': local.id,
+          'nombre': local.nombre,
+          'cedula': local.cedula,
+          'email': local.email,
+          'direccion': local.direccion,
+          'telefono': local.telefono,
+          'empresa': local.empresa,
+          'activo': local.activo,
+          'sync_status': 'synced',
+        };
+        
+        try {
+          final response = await supabase
+              .from('proveedores')
+              .insert(data)
+              .select('id')
+              .single();
+          
+          final supabaseId = response['id'] as String?;
+          if (supabaseId != null) {
+            local.supabaseId = supabaseId;
+            local.sincronizado = true;
+            local.fechaSincronizacion = DateTime.now();
+            await _isarService.guardarProveedor(local);
+            subidos++;
+            debugPrint('⬆️ Proveedor subido a Supabase: ${local.nombre}');
+          }
+        } catch (e) {
+          debugPrint('❌ Error al subir proveedor ${local.nombre}: $e');
+        }
+      }
+    }
+    
+    debugPrint('✅ Sincronización forzada completada: ${response.length} descargados, $subidos subidos');
+  } catch (e) {
+    debugPrint('❌ Error en sincronización forzada: $e');
+    rethrow;
+  }
+}
+
 
   Future<bool> actualizarEstadoUsuarioEnSupabase(int userId, String nuevoEstado) async {
     try {
@@ -847,72 +973,80 @@ class SyncService {
     }
   }
 
-  Future<void> descargarProductosDesdeSupabase() async {
-    try {
-      final response = await _supabase
-          .from('productos')
-          .select()
-          .order('nombre', ascending: true);
+ Future<void> descargarProductosDesdeSupabase() async {
+  try {
+    final response = await _supabase
+        .from('productos')
+        .select()
+        .order('nombre', ascending: true);
 
-      if (response.isEmpty) {
-        debugPrint('ℹ️ No hay productos en Supabase para descargar');
-        return;
-      }
-
-      debugPrint('🔄 Verificando ${response.length} productos desde Supabase...');
-      int descargados = 0;
-      int omitidos = 0;
-
-      for (var data in response) {
-        final codigoBarras = data['codigo_barras'] ?? '';
-        if (codigoBarras.isEmpty) continue;
-
-        final existente = await _isarService.obtenerProductoPorCodigoBarrasExacto(codigoBarras);
-
-        final productoNube = ProductoEntity()
-          ..codigoBarras = codigoBarras
-          ..nombre = data['nombre'] ?? ''
-          ..precioUnidad = (data['precio_unidad'] as num?)?.toDouble() ?? 0.0
-          ..stock = (data['stock'] as num?)?.toDouble() ?? 0.0
-          ..stockMinimo = (data['stock_minimo'] as num?)?.toDouble() ?? 5.0
-          ..esPesado = data['es_pesado'] ?? false
-          ..categoria = data['categoria'] ?? ''
-          ..proveedorNombre = data['proveedor_nombre'] ?? ''
-          ..proveedorTelefono = data['proveedor_telefono'] ?? ''
-          ..imagenUrl = data['imagen_url'] ?? ''
-          ..supabaseId = data['id']?.toString()
-          ..sincronizado = true
-          ..fechaSincronizacion = DateTime.now();
-
-        if (existente != null) {
-          bool datosIguales =
-              existente.nombre == productoNube.nombre &&
-              existente.precioUnidad == productoNube.precioUnidad &&
-              existente.stock == productoNube.stock &&
-              existente.stockMinimo == productoNube.stockMinimo &&
-              existente.esPesado == productoNube.esPesado &&
-              existente.categoria == productoNube.categoria &&
-              existente.proveedorNombre == productoNube.proveedorNombre &&
-              existente.imagenUrl == productoNube.imagenUrl;
-
-          if (datosIguales) {
-            omitidos++;
-            continue;
-          } else {
-            productoNube.id = existente.id;
-          }
-        }
-
-        await _isarService.guardarProducto(productoNube);
-        descargados++;
-      }
-
-      debugPrint('✅ $descargados productos actualizados/insertados, $omitidos productos omitidos (sin cambios)');
-    } catch (e) {
-      debugPrint('❌ Error descargando productos: $e');
-      rethrow;
+    if (response.isEmpty) {
+      debugPrint('ℹ️ No hay productos en Supabase para descargar');
+      return;
     }
+
+    debugPrint('🔄 Procesando ${response.length} productos desde Supabase...');
+    
+    // Obtener productos locales
+    final productosLocales = await _isarService.obtenerTodosLosProductos();
+    final Map<String, ProductoEntity> localesPorCodigo = {
+      for (var p in productosLocales) p.codigoBarras: p
+    };
+    
+    final Set<String> codigosEnNube = {};
+
+    for (var data in response) {
+      final codigoBarras = data['codigo_barras'] ?? '';
+      if (codigoBarras.isEmpty) continue;
+      
+      codigosEnNube.add(codigoBarras);
+
+      final productoLocal = localesPorCodigo[codigoBarras];
+      
+      final productoNube = ProductoEntity()
+        ..codigoBarras = codigoBarras
+        ..nombre = data['nombre'] ?? ''
+        ..precioUnidad = (data['precio_unidad'] as num?)?.toDouble() ?? 0.0
+        ..stock = (data['stock'] as num?)?.toDouble() ?? 0.0
+        ..stockMinimo = (data['stock_minimo'] as num?)?.toDouble() ?? 5.0
+        ..esPesado = data['es_pesado'] ?? false
+        ..categoria = data['categoria'] ?? ''
+        ..proveedorNombre = data['proveedor_nombre'] ?? ''
+        ..proveedorTelefono = data['proveedor_telefono'] ?? ''
+        ..imagenUrl = data['imagen_url'] ?? ''
+        ..supabaseId = data['id']?.toString()
+        ..sincronizado = true
+        ..fechaSincronizacion = DateTime.now();
+
+      if (productoLocal != null) {
+        // ✅ Actualizar producto existente
+        productoNube.id = productoLocal.id;
+        productoNube.proveedorId = productoLocal.proveedorId;
+        await _isarService.guardarProducto(productoNube);
+        debugPrint('🔄 Producto actualizado: ${productoNube.nombre}');
+      } else {
+        // ✅ Crear producto nuevo
+        await _isarService.guardarProducto(productoNube);
+        debugPrint('✅ Producto creado: ${productoNube.nombre}');
+      }
+    }
+
+    // ✅ ELIMINAR productos locales que ya no existen en Supabase
+    int eliminados = 0;
+    for (var producto in productosLocales) {
+      if (!codigosEnNube.contains(producto.codigoBarras)) {
+        await _isarService.eliminarProducto(producto.id);
+        eliminados++;
+        debugPrint('🗑️ Producto eliminado por no existir en Supabase: ${producto.nombre}');
+      }
+    }
+
+    debugPrint('✅ Productos sincronizados: ${response.length} actualizados/creados, $eliminados eliminados');
+  } catch (e) {
+    debugPrint('❌ Error descargando productos: $e');
+    rethrow;
   }
+}
 
   // ============================================================
   // NUEVOS MÉTODOS PARA SINCRONIZACIÓN DE USUARIOS DESDE SUPABASE
@@ -1426,78 +1560,199 @@ class SyncService {
   // ============================================================
 
   Future<void> sincronizarProveedoresPendientes() async {
-    try {
-      final pendientes = await _isarService.obtenerProveedoresPendientesSync();
-      if (pendientes.isEmpty) return;
+  try {
+    final pendientes = await _isarService.obtenerProveedoresPendientesSync();
+    if (pendientes.isEmpty) {
+      debugPrint('ℹ️ No hay proveedores pendientes para sincronizar');
+      return;
+    }
 
-      final supabase = Supabase.instance.client;
+    debugPrint('🔄 Sincronizando ${pendientes.length} proveedores con Supabase...');
 
-      for (var proveedor in pendientes) {
-        final data = {
-          'nombre': proveedor.nombre,
-          'cedula': proveedor.cedula,
-          'direccion': proveedor.direccion,
-          'telefono': proveedor.telefono,
-          'empresa': proveedor.empresa,
-          'activo': proveedor.activo,
-          'sync_status': 'synced',
-        };
+    final supabase = Supabase.instance.client;
 
-        if (proveedor.supabaseId != null && proveedor.supabaseId!.isNotEmpty) {
-          await supabase
+    for (var proveedor in pendientes) {
+      debugPrint('📤 Enviando proveedor: ${proveedor.nombre} (ID local: ${proveedor.id})');
+
+      final data = {
+        'id_isar': proveedor.id,
+        'nombre': proveedor.nombre,
+        'cedula': proveedor.cedula,
+        'email': proveedor.email,
+        'direccion': proveedor.direccion,
+        'telefono': proveedor.telefono,
+        'empresa': proveedor.empresa,
+        'activo': proveedor.activo,
+        'sync_status': 'synced',
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      try {
+        // ✅ 1. Realizar upsert y obtener el id
+        final response = await supabase
+            .from('proveedores')
+            .upsert(data, onConflict: 'id_isar')
+            .select('id')
+            .maybeSingle();
+
+        String? supabaseId = response?['id'] as String?;
+
+        // ✅ 2. Si no se obtuvo, buscar por id_isar
+        if (supabaseId == null) {
+          final findResponse = await supabase
               .from('proveedores')
-              .update(data)
-              .eq('id', proveedor.supabaseId!);
-        } else {
-          final response = await supabase
-              .from('proveedores')
-              .insert(data)
-              .select()
-              .single();
-          proveedor.supabaseId = response['id'] as String?;
+              .select('id')
+              .eq('id_isar', proveedor.id)
+              .maybeSingle();
+          supabaseId = findResponse?['id'] as String?;
         }
 
-        await _isarService.actualizarSyncStatusProveedor(proveedor.id, true);
+        // ✅ 3. Actualizar localmente solo si se obtuvo el ID
+        if (supabaseId != null) {
+          proveedor.supabaseId = supabaseId;
+          proveedor.sincronizado = true;
+          proveedor.fechaSincronizacion = DateTime.now();
+          proveedor.updatedAt = DateTime.now(); // 🔥 Actualizar fecha local
+          await _isarService.guardarProveedor(proveedor);
+          debugPrint('✅ Proveedor ${proveedor.nombre} sincronizado con ID: $supabaseId');
+        } else {
+          debugPrint('⚠️ No se pudo obtener ID de Supabase para ${proveedor.nombre}');
+        }
+      } catch (e) {
+        debugPrint('❌ Error al sincronizar proveedor ${proveedor.nombre}: $e');
       }
-    } catch (e) {
-      debugPrint('Error sincronizando proveedores: $e');
-      rethrow;
     }
+
+    debugPrint('✅ Sincronización de proveedores completada');
+  } catch (e) {
+    debugPrint('❌ Error general en sincronizarProveedoresPendientes: $e');
+    rethrow;
+  }
+}
+Future<void> descargarProveedoresDesdeSupabase() async {
+  try {
+    final supabase = Supabase.instance.client;
+    final response = await supabase
+        .from('proveedores')
+        .select()
+        .order('nombre', ascending: true);
+
+    debugPrint('🔄 Descargando ${response.length} proveedores desde Supabase...');
+
+    // Obtener todos los proveedores locales
+    final locales = await _isarService.obtenerProveedores(soloActivos: false);
+    final Map<String, ProveedorEntity> localesPorSupabaseId = {
+      for (var p in locales) if (p.supabaseId != null) p.supabaseId!: p
+    };
+    final Map<int, ProveedorEntity> localesPorId = {
+      for (var p in locales) p.id: p
+    };
+
+    for (var data in response) {
+      final supabaseId = data['id'] as String?;
+      if (supabaseId == null) continue;
+
+      final idIsar = data['id_isar'] as int?;
+      ProveedorEntity? local = localesPorSupabaseId[supabaseId];
+      
+      if (local == null && idIsar != null) {
+        local = localesPorId[idIsar];
+      }
+
+      final proveedorNube = ProveedorEntity()
+        ..supabaseId = supabaseId
+        ..nombre = data['nombre'] ?? ''
+        ..cedula = data['cedula'] as String?
+        ..email = data['email'] as String?
+        ..direccion = data['direccion']
+        ..telefono = data['telefono'] as String?
+        ..empresa = data['empresa'] as String?
+        ..activo = data['activo'] ?? true
+        ..sincronizado = true
+        ..fechaSincronizacion = DateTime.now();
+
+      if (local != null) {
+        // Actualizar existente
+        proveedorNube.id = local.id;
+        await _isarService.guardarProveedor(proveedorNube);
+        debugPrint('🔄 Proveedor ${proveedorNube.nombre} actualizado');
+      } else {
+        // Crear nuevo
+        await _isarService.guardarProveedor(proveedorNube);
+        debugPrint('📥 Proveedor ${proveedorNube.nombre} creado');
+      }
+    }
+  } catch (e) {
+    debugPrint('❌ Error descargando proveedores: $e');
+    rethrow;
   }
 
-  Future<void> descargarProveedoresDesdeSupabase() async {
-    try {
-      final supabase = Supabase.instance.client;
-      final response = await supabase
-          .from('proveedores')
-          .select()
-          .order('nombre', ascending: true);
+}
 
-      for (var data in response) {
-        final supabaseId = data['id'] as String?;
-        if (supabaseId == null) continue;
+Future<Map<String, int>> sincronizarTodoConResumen() async {
+  int ventas = 0, productos = 0, proveedores = 0, gastos = 0, pedidos = 0, lotes = 0;
 
-        final existing = await _isarService.obtenerProveedorPorSupabaseId(supabaseId);
-        if (existing != null) continue;
-
-        final proveedor = ProveedorEntity()
-          ..supabaseId = supabaseId
-          ..nombre = data['nombre'] ?? ''
-          ..cedula = data['cedula'] as String?
-          ..direccion = data['direccion']
-          ..telefono = data['telefono'] as String?
-          ..empresa = data['empresa'] as String?
-          ..activo = data['activo'] ?? true
-          ..sincronizado = true
-          ..fechaSincronizacion = DateTime.now();
-
-        await _isarService.guardarProveedor(proveedor);
-      }
-    } catch (e) {
-      debugPrint('Error descargando proveedores: $e');
-      rethrow;
+  try {
+    // Ventas
+    final ventasPend = await _isarService.obtenerVentasPendientesSync();
+    if (ventasPend.isNotEmpty) {
+      await sincronizarVentasPendientes();
+      ventas = ventasPend.length;
     }
+
+    // Productos
+    final productosPend = await _isarService.obtenerProductosPendientesSync();
+    if (productosPend.isNotEmpty) {
+      await sincronizarProductosASupabase();
+      productos = productosPend.length;
+    }
+
+    // Proveedores
+    final proveedoresPend = await _isarService.obtenerProveedoresPendientesSync();
+    if (proveedoresPend.isNotEmpty) {
+      await sincronizarProveedoresPendientes();
+      proveedores = proveedoresPend.length;
+    }
+
+    // Gastos
+    final gastosPend = await _isarService.obtenerGastosPendientesSync();
+    if (gastosPend.isNotEmpty) {
+      await sincronizarGastosPendientes();
+      gastos = gastosPend.length;
+    }
+
+    // Pedidos
+    final pedidosPend = await _isarService.obtenerPedidosPendientesSync();
+    if (pedidosPend.isNotEmpty) {
+      await sincronizarPedidosPendientes();
+      pedidos = pedidosPend.length;
+    }
+
+    // Lotes
+    final lotesPend = await _isarService.obtenerLotesPendientesSync();
+    if (lotesPend.isNotEmpty) {
+      await sincronizarLotesPendientes();
+      lotes = lotesPend.length;
+    }
+
+    // Finalmente descargar todo lo nuevo
+    await descargarVentasDesdeSupabase();
+    await descargarProductosDesdeSupabase();
+    await descargarProveedoresDesdeSupabase();
+
+    return {
+      'ventas': ventas,
+      'productos': productos,
+      'proveedores': proveedores,
+      'gastos': gastos,
+      'pedidos': pedidos,
+      'lotes': lotes,
+    };
+  } catch (e) {
+    debugPrint('❌ Error en sincronización completa: $e');
+    rethrow;
   }
+}
 
   // ==================== SINCRONIZACIÓN DE ALIAS ====================
 

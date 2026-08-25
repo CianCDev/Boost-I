@@ -1,3 +1,5 @@
+import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/producto_entity.dart';
@@ -97,7 +99,7 @@ class ProductDetailDialog extends ConsumerWidget {
                         ? Image.network(
                             producto.imagenUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
+                            errorBuilder: (_, _, _) =>
                                 Icon(Icons.inventory_2, size: 64, color: colorScheme.primary),
                           )
                         : Icon(Icons.inventory_2, size: 64, color: colorScheme.primary),
@@ -308,7 +310,18 @@ class ProductDetailDialog extends ConsumerWidget {
                     ),
                     ElevatedButton.icon(
                       onPressed: () async {
+                        await IsarService().guardarLog(
+                        LogEntity()
+                          ..accion = 'ELIMINAR_PRODUCTO'
+                          ..usuarioNombre = 'Sistema'
+                          ..usuarioRol = 'admin'
+                          ..detalles = 'Producto ID: ${producto.id} - ${producto.nombre}'
+                          ..fecha = DateTime.now()
+                          ..sincronizado = false,
+                      );
+
                         final confirm = await showDialog<bool>(
+                          // ignore: use_build_context_synchronously
                           context: context,
                           builder: (context) => AlertDialog(
                             title: const Text('Eliminar Producto'),

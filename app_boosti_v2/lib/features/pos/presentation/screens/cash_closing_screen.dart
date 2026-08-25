@@ -104,7 +104,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
             cantidad: 1.0,
             esPesado: false,
           );
-        }).toList(),
+        }),
       ];
 
       await TicketService.imprimirTicketVenta(

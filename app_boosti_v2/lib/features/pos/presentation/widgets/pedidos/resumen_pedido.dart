@@ -4,12 +4,12 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/detalle_pedido_en
 
 class ResumenPedido extends StatelessWidget {
   final List<DetallePedidoEntity> detalles;
-  final Function(DetallePedidoEntity) onEliminar; // ← NUEVO
+  final Function(DetallePedidoEntity) onEliminar;
 
   const ResumenPedido({
     super.key, 
     required this.detalles,
-    required this.onEliminar, // ← NUEVO
+    required this.onEliminar,
   });
 
   @override
@@ -29,12 +29,12 @@ class ResumenPedido extends StatelessWidget {
         ...detalles.map(
           (d) => DetalleProductoCard(
             detalle: d,
-            onEliminar: () => onEliminar(d), // ← PROPAGA LA ELIMINACIÓN
+            onEliminar: () => onEliminar(d),
           ),
         ),
         const Divider(),
         Text(
-          'Total: Bs ${detalles.fold(0.0, (sum, d) => sum + d.subtotal).toStringAsFixed(2)}',
+          'Total: \$${detalles.fold(0.0, (sum, d) => sum + d.subtotal).toStringAsFixed(2)}', // ✅ USD
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ],

@@ -39,7 +39,7 @@ class GastosList extends StatelessWidget {
       shrinkWrap: shrinkWrap,
       physics: shrinkWrap ? const NeverScrollableScrollPhysics() : const BouncingScrollPhysics(),
       itemCount: gastos.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final gasto = gastos[index];
         return GastosItem(

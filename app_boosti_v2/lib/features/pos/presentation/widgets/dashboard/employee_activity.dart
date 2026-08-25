@@ -8,6 +8,7 @@ class EmployeeActivity extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final maxTotal = empleados.values.isNotEmpty ? empleados.values.reduce((a, b) => a > b ? a : b) : 0;
     final entries = empleados.entries.toList();
 
@@ -17,17 +18,17 @@ class EmployeeActivity extends StatelessWidget {
       opacity: 1.0,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.08),
+              color: Theme.of(context).shadowColor.withValues(alpha: 0.08),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
           border: Border.all(
-            color: Colors.grey.shade200,
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
             width: 1,
           ),
         ),
@@ -44,7 +45,7 @@ class EmployeeActivity extends StatelessWidget {
                   style: TextStyle(
                     fontSize: isMobile ? 14 : 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
                   ),
                 ),
               ],
@@ -58,14 +59,14 @@ class EmployeeActivity extends StatelessWidget {
                     'No hay ventas registradas esta semana',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade500,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
                     ),
                   ),
                 ),
               ),
             ] else ...[
               for (int i = 0; i < entries.length; i++) ...[
-                _buildItem(entries[i], i, isMobile, maxTotal.toDouble()),
+                _buildItem(entries[i], i, isMobile, maxTotal.toDouble(), isDark),
                 if (i < entries.length - 1) const SizedBox(height: 10),
               ],
             ],
@@ -75,7 +76,7 @@ class EmployeeActivity extends StatelessWidget {
     );
   }
 
-  Widget _buildItem(MapEntry<String, double> entry, int index, bool isMobile, double maxTotal) {
+  Widget _buildItem(MapEntry<String, double> entry, int index, bool isMobile, double maxTotal, bool isDark) {
     final porcentaje = maxTotal > 0 ? entry.value / maxTotal : 0;
     final colores = [
       Colors.green.shade600,
@@ -124,7 +125,7 @@ class EmployeeActivity extends StatelessWidget {
                   entry.key,
                   style: TextStyle(
                     fontSize: isMobile ? 12 : 14,
-                    color: Colors.grey.shade700,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
                   ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
@@ -144,8 +145,8 @@ class EmployeeActivity extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-            value: porcentaje.toDouble().clamp(0.0, 1.0),     
-            backgroundColor: Colors.grey.shade100,
+              value: porcentaje.toDouble().clamp(0.0, 1.0),
+              backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade100,
               color: color,
               minHeight: 4,
             ),

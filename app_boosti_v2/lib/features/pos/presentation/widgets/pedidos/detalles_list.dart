@@ -19,15 +19,15 @@ class DetallesList extends StatelessWidget {
         ...detalles.map((d) => ListTile(
               leading: const Icon(Icons.shopping_cart),
               title: Text(d.nombreProducto),
-              subtitle: Text('${d.cantidad} x Bs ${d.precioUnidad.toStringAsFixed(2)}'),
+              subtitle: Text('${d.cantidad} x \$${d.precioUnidad.toStringAsFixed(2)}'), // ✅ USD
               trailing: Text(
-                'Bs ${d.subtotal.toStringAsFixed(2)}',
+                '\$${d.subtotal.toStringAsFixed(2)}', // ✅ USD
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             )),
         const Divider(),
         Text(
-          'Total: Bs ${detalles.fold(0.0, (sum, d) => sum + d.subtotal).toStringAsFixed(2)}',
+          'Total: \$${detalles.fold(0.0, (sum, d) => sum + d.subtotal).toStringAsFixed(2)}', // ✅ USD
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ],

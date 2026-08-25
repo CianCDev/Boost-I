@@ -20,6 +20,7 @@ class InventoryState {
     this.seleccionMultiple = false,
     this.productosSeleccionados = const {},
     this.isLoading = true,
+  // ignore: unnecessary_null_comparison
   }) : assert(categoriaSeleccionada != null, 'categoriaSeleccionada no puede ser null');
 
   InventoryState copyWith({
@@ -45,7 +46,7 @@ class InventoryState {
 
   List<String> get categorias {
     final setCategorias = productos
-        .map((p) => (p.categoria ?? '').trim())
+        .map((p) => (p.categoria).trim())
         .where((c) => c.isNotEmpty)
         .toSet()
         .toList()
@@ -58,12 +59,12 @@ class InventoryState {
     final categoriaActual = categoriaSeleccionada;
 
     return productos.where((p) {
-      final nombre = (p.nombre ?? '').toLowerCase();
-      final codigo = (p.codigoBarras ?? '').toLowerCase();
+      final nombre = (p.nombre).toLowerCase();
+      final codigo = (p.codigoBarras).toLowerCase();
       final busqueda = filtroBusqueda.toLowerCase().trim();
       final coincideTexto = nombre.contains(busqueda) || codigo.contains(busqueda);
 
-      final categoriaProducto = (p.categoria ?? '').trim();
+      final categoriaProducto = (p.categoria).trim();
       final coincideCategoria = categoriaActual == 'Todas' ||
           (categoriaActual == 'Stock Bajo' && p.stock <= p.stockMinimo) ||
           (categoriaActual != 'Stock Bajo' && categoriaProducto == categoriaActual);
@@ -106,7 +107,7 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
   void setCategoria(String categoria) {
     // ✅ Aseguramos que nunca sea null o vacío
     state = state.copyWith(
-      categoriaSeleccionada: (categoria ?? 'Todas').trim().isEmpty ? 'Todas' : categoria.trim(),
+      categoriaSeleccionada: (categoria).trim().isEmpty ? 'Todas' : categoria.trim(),
     );
   }
 

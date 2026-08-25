@@ -42,10 +42,11 @@ class _SalesChartState extends State<SalesChart> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     if (widget.datos.isEmpty) {
-      return _buildEmptyState();
+      return _buildEmptyState(context);
     }
 
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final colores = [
       Colors.blue.shade600,
       Colors.purple.shade600,
@@ -63,17 +64,17 @@ class _SalesChartState extends State<SalesChart> with SingleTickerProviderStateM
           scaleY: _animation.value,
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withValues(alpha: 0.08),
+                  color: Theme.of(context).shadowColor.withValues(alpha: 0.08),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
               ],
               border: Border.all(
-                color: Colors.grey.shade200,
+                color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                 width: 1,
               ),
             ),
@@ -90,7 +91,7 @@ class _SalesChartState extends State<SalesChart> with SingleTickerProviderStateM
                       style: TextStyle(
                         fontSize: widget.compacto ? 13 : 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade800,
+                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
                       ),
                     ),
                   ],
@@ -105,10 +106,17 @@ class _SalesChartState extends State<SalesChart> with SingleTickerProviderStateM
                       barGroups: _buildBarGroups(colores),
                       borderData: FlBorderData(show: false),
                       gridData: FlGridData(
-                        show: !widget.compacto,
-                        horizontalInterval: _calcularIntervalo(),
-                        drawVerticalLine: false,
-                      ),
+                      show: !widget.compacto,
+                      horizontalInterval: _calcularIntervalo(),
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (value) {
+                        return FlLine(
+                          // Aquí aplicas tu lógica de tema oscuro/claro
+                          color: isDark ? Colors.grey.shade700 : Colors.grey.shade200, 
+                          strokeWidth: 1, // Opcional: puedes ajustar el grosor de la línea
+                        );
+                      },
+                    ),
                       titlesData: FlTitlesData(
                         show: true,
                         bottomTitles: AxisTitles(
@@ -131,7 +139,7 @@ class _SalesChartState extends State<SalesChart> with SingleTickerProviderStateM
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
-                                    color: Colors.grey.shade600,
+                                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                                   ),
                                 );
                               }
@@ -140,7 +148,7 @@ class _SalesChartState extends State<SalesChart> with SingleTickerProviderStateM
                                 '$dia/${fecha.month}',
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: Colors.grey.shade500,
+                                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
                                 ),
                               );
                             },
@@ -155,7 +163,7 @@ class _SalesChartState extends State<SalesChart> with SingleTickerProviderStateM
                                 '\$${value.toStringAsFixed(0)}',
                                 style: TextStyle(
                                   fontSize: 9,
-                                  color: Colors.grey.shade400,
+                                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade400,
                                 ),
                               );
                             },
@@ -171,7 +179,7 @@ class _SalesChartState extends State<SalesChart> with SingleTickerProviderStateM
                       ),
                       barTouchData: BarTouchData(
                         touchTooltipData: BarTouchTooltipData(
-                          getTooltipColor: (group) => Colors.grey.shade800,
+                          getTooltipColor: (group) => isDark ? Colors.grey.shade800 : Colors.grey.shade800,
                           tooltipPadding: const EdgeInsets.all(8),
                           tooltipMargin: 8,
                           getTooltipItem: (group, groupIndex, rod, rodIndex) {
@@ -202,6 +210,7 @@ class _SalesChartState extends State<SalesChart> with SingleTickerProviderStateM
   }
 
   List<BarChartGroupData> _buildBarGroups(List<Color> colores) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return widget.datos.asMap().entries.map((entry) {
       final index = entry.key;
       final item = entry.value;
@@ -219,7 +228,7 @@ class _SalesChartState extends State<SalesChart> with SingleTickerProviderStateM
             backDrawRodData: BackgroundBarChartRodData(
               show: true,
               toY: _calcularMaximo() * 1.1,
-              color: color.withValues(alpha: 0.06),
+              color: color.withValues(alpha: isDark ? 0.08 : 0.06),
             ),
           ),
         ],
@@ -242,24 +251,27 @@ class _SalesChartState extends State<SalesChart> with SingleTickerProviderStateM
     return 500;
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+        ),
       ),
       padding: const EdgeInsets.all(24),
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.show_chart_rounded, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.show_chart_rounded, size: 48, color: isDark ? Colors.grey.shade600 : Colors.grey.shade300),
             const SizedBox(height: 8),
             Text(
               'Sin datos de ventas',
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade500,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
               ),
             ),
           ],

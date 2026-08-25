@@ -321,7 +321,7 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                             : ListView.separated(
                                 padding: const EdgeInsets.symmetric(vertical: 4),
                                 itemCount: _usuarios.length,
-                                separatorBuilder: (_, __) => Divider(
+                                separatorBuilder: (_, _) => Divider(
                                   color: theme.dividerColor,
                                   height: 1,
                                 ),

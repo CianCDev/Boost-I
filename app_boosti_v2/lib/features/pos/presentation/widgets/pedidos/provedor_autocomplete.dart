@@ -33,7 +33,7 @@ class ProveedorAutocomplete extends StatelessWidget {
           style: TextStyle(color: colorScheme.onSurface), // ✅ Texto DINÁMICO
           decoration: InputDecoration(
             hintText: 'Escribe el nombre de la empresa',
-            hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withOpacity(0.6)),
+            hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
             prefixIcon: Icon(Icons.search_rounded, color: colorScheme.onSurfaceVariant),
             filled: true,
             // ✅ Fondo dinámico: oscuro en dark mode, blanco en light mode
@@ -68,7 +68,7 @@ class ProveedorAutocomplete extends StatelessWidget {
                       : null,
                   leading: Icon(Icons.business_rounded, color: colorScheme.primary),
                   onTap: () => onSelected(option),
-                  hoverColor: colorScheme.primary.withOpacity(0.08),
+                  hoverColor: colorScheme.primary.withValues(alpha: 0.08),
                 );
               },
             ),

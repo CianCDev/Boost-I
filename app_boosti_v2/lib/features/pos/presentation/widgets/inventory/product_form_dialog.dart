@@ -1,7 +1,10 @@
 import 'dart:io';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
 import 'package:flutter/material.dart';
+// ignore: unnecessary_import
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -13,12 +16,14 @@ class ProductFormDialog extends StatefulWidget {
   final ProductoEntity? producto;
   final Future<void> Function(ProductoEntity) onGuardar;
   final String? codigoBarrasPrecargado;
+  final UsuarioEntity? usuarioActual; // 👈 NUEVO
 
   const ProductFormDialog({
     super.key,
     this.producto,
     required this.onGuardar,
     this.codigoBarrasPrecargado,
+    this.usuarioActual, // 👈 NUEVO
   });
 
   @override
@@ -201,6 +206,17 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
 
       // ✅ Ejecutar onGuardar en segundo plano (no bloquear la UI)
       await widget.onGuardar(producto);
+      if (widget.usuarioActual != null) {
+        await IsarService().guardarLog(
+          LogEntity()
+            ..accion = widget.producto == null ? 'CREAR_PRODUCTO' : 'EDITAR_PRODUCTO'
+            ..usuarioNombre = widget.usuarioActual!.nombre
+            ..usuarioRol = widget.usuarioActual!.rol
+            ..detalles = 'Producto: ${producto.nombre} (Cód: ${producto.codigoBarras})'
+            ..fecha = DateTime.now()
+            ..sincronizado = false,
+        );
+      }
 
     } catch (e) {
       if (mounted) {
@@ -222,6 +238,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
+    // ignore: unused_local_variable
     final isTablet = ResponsiveHelper.isTablet(context);
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -454,7 +471,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                 const SizedBox(height: 8),
 
                 // PESADO
-                SwitchListTile(
+               SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(
                     '¿Es producto pesado (granel)?',
@@ -463,7 +480,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                   value: _esPesado,
                   onChanged: (val) => setState(() => _esPesado = val),
                   activeThumbColor: color,
-                  activeColor: color.withValues(alpha: 0.3),
+                  activeTrackColor: color.withValues(alpha: 0.3),  // ✅ Corregido
                   tileColor: Colors.transparent,
                 ),
                 const Divider(height: 32),
@@ -524,10 +541,10 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                   children: [
                     TextButton(
                       onPressed: _guardando ? null : () => Navigator.pop(context),
-                      child: Text('Cancelar', style: TextStyle(color: colorScheme.onSurfaceVariant)),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       ),
+                      child: Text('Cancelar', style: TextStyle(color: colorScheme.onSurfaceVariant)),
                     ),
                     ElevatedButton(
                       onPressed: _guardando ? null : _guardar,
@@ -623,7 +640,7 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
 
   Widget _campoCategoria(ColorScheme colorScheme, bool isDark) {
     return DropdownButtonFormField<String>(
-      value: _categoriaSeleccionada,
+      initialValue: _categoriaSeleccionada,
       decoration: InputDecorationHelper.build(
         context: context,
         label: 'Categoría',

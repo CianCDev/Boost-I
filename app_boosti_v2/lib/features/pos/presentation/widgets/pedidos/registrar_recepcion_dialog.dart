@@ -73,6 +73,7 @@ class _RegistrarRecepcionDialogState extends ConsumerState<RegistrarRecepcionDia
                         const SnackBar(content: Text('✅ Recepción registrada correctamente')),
                       );
                     }
+                    // ignore: use_build_context_synchronously
                     Navigator.pop(context, true);
                   } catch (e) {
                     if (context.mounted) {

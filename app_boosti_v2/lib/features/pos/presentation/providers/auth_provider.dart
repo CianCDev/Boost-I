@@ -1,4 +1,5 @@
 // lib/features/pos/presentation/providers/auth_provider.dart
+import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,6 +7,7 @@ import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../services/device_info.dart';
 import '../services/sync_service.dart';
+
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier();
@@ -105,7 +107,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
           debugPrint('Supabase login falló (continuamos offline): $e');
         }
       }
-
+      await _isarService.guardarLog(
+        LogEntity()
+          ..accion = 'INICIO_SESION'
+          ..usuarioNombre = usuarioValido.nombre
+          ..usuarioRol = usuarioValido.rol
+          ..detalles = 'Inicio de sesión exitoso'
+          ..fecha = DateTime.now()
+          ..sincronizado = false,
+      );
       // Actualizar estado en Supabase a activo
       final successNube = await _syncService.actualizarEstadoUsuarioEnSupabase(
         usuarioValido.id,
@@ -198,6 +208,15 @@ Future<void> logout() async {
         debugPrint('⚠️ Error en sincronización post-logout: $e');
       }
     }
+        await _isarService.guardarLog(
+      LogEntity()
+        ..accion = 'CIERRE_SESION'
+        ..usuarioNombre = state.currentUser!.nombre
+        ..usuarioRol = state.currentUser!.rol
+        ..detalles = 'Cierre de sesión'
+        ..fecha = DateTime.now()
+        ..sincronizado = false,
+    );
 
     // 4. Cerrar sesión en Supabase
     await Supabase.instance.client.auth.signOut();

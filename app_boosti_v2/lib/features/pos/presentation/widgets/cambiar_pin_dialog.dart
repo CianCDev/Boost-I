@@ -1,3 +1,4 @@
+import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
 import 'package:flutter/material.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
@@ -27,7 +28,6 @@ class _PinChangeDialogState extends State<PinChangeDialog> {
   final TextEditingController _confirmPinController = TextEditingController();
   bool _obscureNewPin = true;
   bool _obscureConfirmPin = true;
-  bool _isRevealed = false;
   bool _cargando = false;
   bool _mostrarPinActual = false;
 
@@ -61,7 +61,15 @@ class _PinChangeDialogState extends State<PinChangeDialog> {
       );
       return;
     }
-
+      await IsarService().guardarLog(
+  LogEntity()
+    ..accion = 'CAMBIO_PIN'
+    ..usuarioNombre = widget.usuario.nombre
+    ..usuarioRol = widget.usuario.rol
+    ..detalles = 'Usuario ID: ${widget.usuario.id}'
+    ..fecha = DateTime.now()
+    ..sincronizado = false,
+);
     setState(() => _cargando = true);
     final exito = await widget.isarService.cambiarClaveUsuario(widget.usuario.id, newPin);
     if (mounted) {
@@ -278,11 +286,11 @@ class _PinChangeDialogState extends State<PinChangeDialog> {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar'),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
+                  child: const Text('Cancelar'),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(

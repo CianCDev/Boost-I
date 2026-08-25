@@ -40,7 +40,7 @@ class _InventoryProductCardState extends State<InventoryProductCard> {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final double stockValue = widget.producto.stock ?? 0.0;
+    final double stockValue = widget.producto.stock;
     final String stockDisplay = stockValue % 1 == 0
         ? stockValue.toInt().toString()
         : stockValue.toStringAsFixed(1);

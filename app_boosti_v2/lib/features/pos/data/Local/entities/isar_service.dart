@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
 // Entidades
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import '../entities/turno_entity.dart';
@@ -205,6 +205,21 @@ class IsarService {
         .supabaseIdEqualTo(supabaseId)
         .findFirst();
   }
+
+  Future<void> resetearSupabaseIdsIncorrectos() async {
+  final isar = await db;
+  final productos = await isar.productoEntitys.where().findAll();
+  for (var p in productos) {
+    // Si el supabaseId no es un número entero (o no parece válido), lo borramos
+    if (p.supabaseId != null && int.tryParse(p.supabaseId!) == null) {
+      p.supabaseId = null;
+      p.sincronizado = false;
+    }
+  }
+  await isar.writeTxn(() async {
+    await isar.productoEntitys.putAll(productos);
+  });
+}
 
   // ==================== MÉTODOS EXISTENTES (GESTIÓN USUARIOS) ====================
   Future<double> obtenerTotalVentasPorEmpleadoYRango(
@@ -1027,10 +1042,10 @@ class IsarService {
   }
 
   /// Obtiene pedidos pendientes de sincronizar
-  Future<List<PedidoEntity>> obtenerPedidosPendientesSync() async {
+  Future<List<ProductoEntity>> obtenerProductosPendientesSync() async {
     final isar = await db;
-    return await isar.pedidoEntitys
-        .where()
+    return await isar.productoEntitys
+        .filter()
         .sincronizadoEqualTo(false)
         .findAll();
   }
@@ -1039,6 +1054,7 @@ class IsarService {
   // MÉTODOS PARA DETALLES DE PEDIDO
   // ============================================================
 
+
   /// Guarda un detalle de pedido
   Future<int> guardarDetallePedido(DetallePedidoEntity detalle) async {
     final isar = await db;
@@ -1046,6 +1062,14 @@ class IsarService {
       return await isar.detallePedidoEntitys.put(detalle);
     });
   }
+
+  Future<List<PedidoEntity>> obtenerPedidosPendientesSync() async {
+  final isar = await db;
+  return await isar.pedidoEntitys
+      .where()
+      .sincronizadoEqualTo(false)
+      .findAll();
+}
 
   /// Obtiene todos los detalles de un pedido
   Future<List<DetallePedidoEntity>> obtenerDetallesPorPedido(

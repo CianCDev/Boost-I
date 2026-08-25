@@ -1,5 +1,7 @@
 // inventory_screen.dart
 // Con estilo unificado al catálogo, modo oscuro y animaciones
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/Local/entities/isar_service.dart';
@@ -359,7 +361,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               mainAxisSpacing: 12,
             ),
             itemCount: 6,
-            itemBuilder: (_, __) => const InventoryProductCardSkeleton(),
+            itemBuilder: (_, _) => const InventoryProductCardSkeleton(),
           )
         : Padding(
             padding: const EdgeInsets.all(12.0),
@@ -484,7 +486,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               'assets/logo.png',
               width: 30,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Icon(Icons.storefront, color: colorScheme.onPrimary, size: 24),
+              errorBuilder: (_, _, _) => Icon(Icons.storefront, color: colorScheme.onPrimary, size: 24),
             ),
           ),
         ],

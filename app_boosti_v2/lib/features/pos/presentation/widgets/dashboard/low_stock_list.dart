@@ -9,6 +9,7 @@ class LowStockList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final mostrar = productos.take(isMobile ? 3 : 5).toList();
 
     return AnimatedOpacity(
@@ -17,17 +18,17 @@ class LowStockList extends StatelessWidget {
       opacity: 1.0,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.08),
+              color: Theme.of(context).shadowColor.withValues(alpha: 0.08),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
           border: Border.all(
-            color: Colors.grey.shade200,
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
             width: 1,
           ),
         ),
@@ -44,7 +45,7 @@ class LowStockList extends StatelessWidget {
                   style: TextStyle(
                     fontSize: isMobile ? 14 : 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
                   ),
                 ),
               ],
@@ -72,7 +73,7 @@ class LowStockList extends StatelessWidget {
               ),
             ] else ...[
               for (int i = 0; i < mostrar.length; i++) ...[
-                _buildItem(mostrar[i], i, isMobile),
+                _buildItem(mostrar[i], i, isMobile, isDark),
                 if (i < mostrar.length - 1) const SizedBox(height: 10),
               ],
             ],
@@ -82,7 +83,7 @@ class LowStockList extends StatelessWidget {
     );
   }
 
-  Widget _buildItem(ProductoEntity producto, int index, bool isMobile) {
+  Widget _buildItem(ProductoEntity producto, int index, bool isMobile, bool isDark) {
     final porcentaje = producto.stock / producto.stockMinimo;
     final colorBar = porcentaje < 0.3
         ? Colors.red.shade600
@@ -116,7 +117,7 @@ class LowStockList extends StatelessWidget {
                   style: TextStyle(
                     fontSize: isMobile ? 12 : 14,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade800,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
                   ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
@@ -137,7 +138,7 @@ class LowStockList extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: porcentaje.clamp(0.0, 1.0),
-              backgroundColor: Colors.grey.shade100,
+              backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade100,
               color: colorBar,
               minHeight: 4,
             ),

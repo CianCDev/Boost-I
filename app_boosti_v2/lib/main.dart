@@ -75,7 +75,7 @@ void main() async {
   // ============================================================
   try {
     final configJson = await rootBundle.loadString('assets/config.json');
-    final configMap = jsonDecode(configJson) as Map<String, dynamic>;
+    jsonDecode(configJson);
     // Configuración adicional si es necesaria
   } catch (e) {
     debugPrint('⚠️ Error cargando config.json: $e');

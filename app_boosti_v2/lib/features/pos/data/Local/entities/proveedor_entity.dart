@@ -6,18 +6,21 @@ part 'proveedor_entity.g.dart';
 class ProveedorEntity {
   Id id = Isar.autoIncrement;
 
-  String? supabaseId; // UUID de Supabase
-  late String nombre; // Nombre del proveedor (obligatorio)
-  String? cedula; // Cédula o RIF
-  String? telefono; // Teléfono de contacto
-  String? empresa; // Nombre de la empresa
+  String? supabaseId;
+  late String nombre;
+  String? cedula;
+  String? telefono;
+  String? empresa;
   String? rif;
   String? direccion;
-  bool activo = true; // Para desactivar sin eliminar
+  bool activo = true;
   bool sincronizado = false;
   DateTime? fechaSincronizacion;
+  String? email;
+  
+  // 🔥 NUEVO: Para comparar fechas de actualización
+  DateTime? updatedAt; 
 
-  // Relación inversa (opcional): productos asociados a este proveedor
   @Ignore()
   List<ProductoEntity>? productos;
 }

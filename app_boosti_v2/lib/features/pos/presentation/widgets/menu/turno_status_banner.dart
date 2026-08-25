@@ -25,12 +25,12 @@ class TurnoStatusBanner extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.05),
+            color: color.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -62,7 +62,7 @@ class TurnoStatusBanner extends StatelessWidget {
                     'Iniciado a las $horaApertura',
                     style: TextStyle(
                       fontSize: 12,
-                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                      color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                     ),
                   ),
                 if (!tieneTurno)
@@ -70,7 +70,7 @@ class TurnoStatusBanner extends StatelessWidget {
                     'Inicia tu jornada laboral',
                     style: TextStyle(
                       fontSize: 12,
-                      color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                      color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                     ),
                   ),
               ],

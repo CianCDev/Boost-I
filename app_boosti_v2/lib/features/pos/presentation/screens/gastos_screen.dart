@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/Local/entities/gasto_entity.dart';
@@ -207,6 +208,15 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
     _descripcionController.clear();
     _montoController.clear();
     await _cargarGastos();
+    await _isarService.guardarLog(
+  LogEntity()
+    ..accion = 'GASTO_REGISTRADO'
+    ..usuarioNombre = usuario.nombre
+    ..usuarioRol = usuario.rol
+    ..detalles = '${gasto.descripcion} - Monto: ${gasto.monto} ${gasto.moneda}'
+    ..fecha = DateTime.now()
+    ..sincronizado = false,
+);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -286,7 +296,7 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
                         );
                       },
                       child: GastosSummaryCards(
-                        key: ValueKey('summary_${_gastosFiltrados.length}_${_totalUSD}_${_totalBs}'),
+                        key: ValueKey('summary_${_gastosFiltrados.length}_${_totalUSD}_$_totalBs'),
                         gastosCount: _gastosFiltrados.length,
                         totalUSD: _totalUSD,
                         totalBs: _totalBs,
@@ -523,7 +533,7 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _monedaSeleccionada,
+                  initialValue: _monedaSeleccionada,
                   items: const [
                     DropdownMenuItem(value: 'USD', child: Text('USD')),
                     DropdownMenuItem(value: 'Bs', child: Text('Bolívares')),
@@ -557,7 +567,7 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _categoriaSeleccionada,
+                  initialValue: _categoriaSeleccionada,
                   items: _categorias.map((c) {
                     return DropdownMenuItem(value: c, child: Text(c));
                   }).toList(),

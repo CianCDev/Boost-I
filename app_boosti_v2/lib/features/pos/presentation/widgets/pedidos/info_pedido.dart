@@ -38,7 +38,7 @@ class InfoPedido extends StatelessWidget {
             if (pedido.observaciones != null) Text('Observaciones: ${pedido.observaciones}'),
             const SizedBox(height: 8),
             Text(
-              'Total: Bs ${pedido.total.toStringAsFixed(2)}',
+              'Total: \$${pedido.total.toStringAsFixed(2)}', // ✅ USD
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
           ],

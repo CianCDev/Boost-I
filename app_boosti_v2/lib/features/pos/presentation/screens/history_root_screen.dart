@@ -1,8 +1,8 @@
 // lib/features/pos/presentation/screens/history_root_screen.dart
+import 'package:app_boosti_v2/features/pos/presentation/screens/gastos_screen.dart';
+import 'package:app_boosti_v2/features/pos/presentation/screens/sales_history_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'sales_history_screen.dart';
-import 'gastos_screen.dart';
 import '../utils/responsive_helper.dart';
 
 class HistoryRootScreen extends ConsumerStatefulWidget {
