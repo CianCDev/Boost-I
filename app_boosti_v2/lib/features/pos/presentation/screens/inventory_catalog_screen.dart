@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:async';
+import 'package:app_boosti_v2/features/pos/domain/models/product_item.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/catalog/catalog_actions.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/catalog/catalog_app_bar.dart';
 import 'package:flutter/material.dart';
@@ -11,21 +12,21 @@ import '../../data/Local/entities/usuario_entity.dart';
 import '../controllers/cart_controller.dart';
 import '../providers/catalog_provider.dart';
 import '../providers/bcv_provider.dart';
+import '../providers/catalog/view_mode_provider.dart';
 import '../widgets/catalog/category_chips.dart';
 import '../widgets/catalog/fixed_cart_summary.dart';
 import '../widgets/catalog/product_card.dart';
 import '../widgets/catalog/product_card_skeleton.dart';
 import '../widgets/catalog/search_bar.dart';
 import '../widgets/catalog/cart_sidebar.dart';
+import '../widgets/catalog/view_mode_toggle.dart';
+import '../widgets/catalog/product_list_tile.dart';
 import '../widgets/shared/barcode_scanner_dialog.dart';
 import '../utils/responsive_helper.dart';
 import '../services/scale_service.dart';
+import '../providers/themes/app_colors.dart';
 
-// Provider para forzar rebuild del grid (se mantiene)
 final refreshCatalogCounterProvider = StateProvider<int>((ref) => 0);
-
-// Provider para el factor de escaneo (se importa desde catalog_actions)
-
 
 class InventoryCatalogScreen extends ConsumerStatefulWidget {
   final UsuarioEntity? usuarioLogueado;
@@ -112,9 +113,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     return false;
   }
 
-  // =========================================================================
-  // Acciones delegadas al servicio CatalogActions
-  // =========================================================================
   Future<void> _scanBarcode() async {
     final codigo = await showDialog<String>(
       context: context,
@@ -128,11 +126,37 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
 
     if (producto != null) {
       final factor = ref.read(ultimoFactorProvider);
-      actions.mostrarModalCantidad(producto, context, factor: factor);
+      final cartNotifier = ref.read(cartProvider.notifier);
+      final existingIndex = cartNotifier.buscarItemIndex(producto.id);
+
+      if (producto.esPesado) {
+        actions.mostrarModalCantidad(producto, context, factor: factor);
+      } else {
+        final cantidad = factor > 0 ? factor : 1.0;
+        if (existingIndex != -1) {
+          // ✅ Usamos sumarCantidad (ya existe en CartNotifier)
+          cartNotifier.sumarCantidad(existingIndex, cantidad);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${producto.nombre} +${cantidad.toStringAsFixed(0)} unidades'),
+              duration: const Duration(milliseconds: 800),
+              backgroundColor: mintLeaf,
+            ),
+          );
+        } else {
+          cartNotifier.agregarItem(producto as ProductItem, cantidad);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${producto.nombre} agregado al carrito'),
+              duration: const Duration(milliseconds: 800),
+              backgroundColor: mintLeaf,
+            ),
+          );
+        }
+      }
       return;
     }
 
-    // No encontrado: ofrecer opciones
     final action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -148,7 +172,10 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
             child: const Text('Afiliar a existente'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: mintLeaf,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(context, 'create'),
             child: const Text('Crear nuevo producto'),
           ),
@@ -168,9 +195,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     await actions.mostrarModalCobro(context, widget.usuarioLogueado);
   }
 
-  // =========================================================================
-  // BUILD
-  // =========================================================================
   @override
   Widget build(BuildContext context) {
     final contenido = _buildBody(context);
@@ -268,6 +292,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     final isTablet = ResponsiveHelper.isTablet(context);
     final colorScheme = Theme.of(context).colorScheme;
     final refreshCounter = ref.watch(refreshCatalogCounterProvider);
+    final viewMode = ref.watch(viewModeProvider);
 
     return Padding(
       padding: EdgeInsets.all(isTablet ? 24.0 : 16.0),
@@ -277,9 +302,11 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
             focusNode: _searchFocusNode,
             onScanPressed: _scanBarcode,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           const CategoryChips(),
-          const SizedBox(height: 16),
+          // ✅ Barra de herramientas con el toggle
+          const ViewModeToggle(),
+          const SizedBox(height: 8),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () => ref.read(catalogProvider.notifier).recargarDesdeSupabase(),
@@ -297,38 +324,63 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                         ],
                       ),
                     )
-                  : GridView.builder(
-                      key: ValueKey(refreshCounter),
-                      padding: const EdgeInsets.only(bottom: 40),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        childAspectRatio: childAspectRatio,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                      ),
-                      itemCount: catalogState.productosFiltrados.length,
-                      itemBuilder: (context, index) {
-                        final producto = catalogState.productosFiltrados[index];
-                        return FutureBuilder<double>(
-                          future: _isarService.obtenerStockTotalPorProducto(producto.id),
-                          builder: (context, snapshot) {
-                            final stockTotal = snapshot.data ?? 0.0;
-                            final bool stockBajo = stockTotal <= producto.stockMinimo;
-                            return ProductCard(
-                              producto: producto,
-                              stockBajo: stockBajo,
-                              onTap: () {
-                                final actions = ref.read(catalogActionsProvider);
-                                actions.mostrarModalCantidad(producto, context, factor: 1.0);
+                  : viewMode == ViewMode.grid
+                      ? GridView.builder(
+                          key: ValueKey(refreshCounter),
+                          padding: const EdgeInsets.only(bottom: 40),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            childAspectRatio: childAspectRatio,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                          itemCount: catalogState.productosFiltrados.length,
+                          itemBuilder: (context, index) {
+                            final producto = catalogState.productosFiltrados[index];
+                            return FutureBuilder<double>(
+                              future: _isarService.obtenerStockTotalPorProducto(producto.id),
+                              builder: (context, snapshot) {
+                                final stockTotal = snapshot.data ?? 0.0;
+                                final bool stockBajo = stockTotal <= producto.stockMinimo;
+                                return ProductCard(
+                                  producto: producto,
+                                  stockBajo: stockBajo,
+                                  onTap: () {
+                                    final actions = ref.read(catalogActionsProvider);
+                                    actions.mostrarModalCantidad(producto, context, factor: 1.0);
+                                  },
+                                  isMobile: isMobile,
+                                  index: index,
+                                  animationController: _animationController,
+                                );
                               },
-                              isMobile: isMobile,
-                              index: index,
-                              animationController: _animationController,
                             );
                           },
-                        );
-                      },
-                    ),
+                        )
+                      : ListView.builder(
+                          key: ValueKey(refreshCounter),
+                          padding: const EdgeInsets.only(bottom: 40),
+                          itemCount: catalogState.productosFiltrados.length,
+                          itemBuilder: (context, index) {
+                            final producto = catalogState.productosFiltrados[index];
+                            return FutureBuilder<double>(
+                              future: _isarService.obtenerStockTotalPorProducto(producto.id),
+                              builder: (context, snapshot) {
+                                final stockTotal = snapshot.data ?? 0.0;
+                                final bool stockBajo = stockTotal <= producto.stockMinimo;
+                                return ProductListTile(
+                                  producto: producto,
+                                  stockBajo: stockBajo,
+                                  onTap: () {
+                                    final actions = ref.read(catalogActionsProvider);
+                                    actions.mostrarModalCantidad(producto, context, factor: 1.0);
+                                  },
+                                  index: index,
+                                );
+                              },
+                            );
+                          },
+                        ),
             ),
           ),
         ],

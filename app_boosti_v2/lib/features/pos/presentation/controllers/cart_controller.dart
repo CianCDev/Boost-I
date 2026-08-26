@@ -128,6 +128,27 @@ class CartNotifier extends StateNotifier<CartState> {
     }
   }
 
+  /// ✅ NUEVO: Agrega un producto (alias de agregarProducto para consistencia con otros archivos)
+  void agregarItem(ProductItem producto, double cantidad, {double? stockMaximo}) {
+    agregarProducto(producto, cantidad: cantidad, stockMaximo: stockMaximo);
+  }
+
+  /// ✅ NUEVO: Busca el índice de un producto por su ID
+  int buscarItemIndex(int productoId) {
+    // ignore: unrelated_type_equality_checks
+    return state.items.indexWhere((item) => item.producto.id == productoId);
+  }
+
+  /// ✅ NUEVO: Suma una cantidad a un ítem existente (por índice)
+  void sumarCantidad(int index, double cantidad, {double? stockMaximo}) {
+    if (index < 0 || index >= state.items.length) return;
+    if (cantidad <= 0) return;
+
+    final itemActual = state.items[index];
+    final double nuevaCantidad = itemActual.cantidad + cantidad;
+    actualizarCantidad(index, nuevaCantidad, stockMaximo: stockMaximo);
+  }
+
   /// Actualiza directamente la cantidad de un ítem por su índice en la lista
   void actualizarCantidad(int index, double nuevaCantidad, {double? stockMaximo}) {
     if (index < 0 || index >= state.items.length) return;

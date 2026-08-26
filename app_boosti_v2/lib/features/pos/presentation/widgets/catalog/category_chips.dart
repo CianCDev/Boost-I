@@ -23,6 +23,7 @@ class CategoryChips extends ConsumerWidget {
         itemBuilder: (context, index) {
           final cat = state.categorias[index];
           return CategoryButton(
+            key: ValueKey(cat), // ✅ Añadida clave única
             categoria: cat,
             esSeleccionada: state.categoriaSeleccionada == cat,
             onTap: () => ref.read(catalogProvider.notifier).setCategoria(cat),

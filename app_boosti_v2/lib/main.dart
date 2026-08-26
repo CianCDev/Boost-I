@@ -1,12 +1,11 @@
-import 'package:app_boosti_v2/features/pos/presentation/providers/theme.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/themes/theme.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/themes/theme_provider.dart'; // ✅ NUEVO
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:device_preview/device_preview.dart';
-
-import 'features/pos/presentation/providers/theme_provider.dart';
 import 'features/pos/presentation/screens/splash_screen.dart';
 import 'features/pos/presentation/screens/configuracion_empresa_screen.dart';
 import 'features/pos/presentation/screens/login_screen.dart';
@@ -98,7 +97,7 @@ class BoostiPOS extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isLocked = ref.watch(lockProvider);
-    final themeMode = ref.watch(themeProvider);
+    final themeMode = ref.watch(themeProvider); // ✅ AHORA FUNCIONA
 
     return MaterialApp(
       title: 'BoostI POS - JAH Lab',

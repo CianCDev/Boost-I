@@ -1,13 +1,6 @@
+// lib/features/pos/presentation/providers/themes/theme.dart
 import 'package:flutter/material.dart';
-
-// Colores base de la aplicación
-const Color primaryGreen = Color(0xFF10B981);
-const Color bgLight = Color(0xFFF8FAFC);
-const Color bgDark = Color(0xFF0F172A);
-const Color cardLight = Color(0xFFFFFFFF);
-const Color cardDark = Color(0xFF1E293B);
-const Color textLight = Color(0xFF0F172A);
-const Color textDark = Color(0xFFF1F5F9);
+import 'app_colors.dart';
 
 ThemeData lightTheme() {
   return ThemeData(
@@ -16,49 +9,51 @@ ThemeData lightTheme() {
     colorScheme: ColorScheme.light(
       primary: primaryGreen,
       secondary: primaryGreen,
-      surface: cardLight,
-      onSurface: textLight,
+      surface: cardLight,          // #FFFFFF
+      onSurface: textDark,         // #0F172A
       surfaceContainerHighest: const Color(0xFFF1F5F9),
-      surfaceContainerLow: bgLight,
-      outline: const Color(0xFFCBD5E1),
-      onSurfaceVariant: const Color(0xFF64748B),
-      error: const Color(0xFFEF4444),
+      surfaceContainerLow: bgLight, // #F8FAFC
+      outline: textMuted.withValues(alpha: 0.3),
+      onSurfaceVariant: textMuted,
+      error: redError,
       onError: Colors.white,
     ),
     scaffoldBackgroundColor: bgLight,
     cardTheme: CardThemeData(
       color: cardLight,
-      elevation: 0,
+      elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: const Color(0xFFCBD5E1).withValues(alpha: 0.3),
+          color: textMuted.withValues(alpha: 0.15),
           width: 1,
         ),
       ),
     ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: primaryGreen,
-      foregroundColor: Colors.white,
+    appBarTheme: AppBarTheme(
+      backgroundColor: bgLight,
+      foregroundColor: textDark,
       elevation: 0,
       centerTitle: false,
+      iconTheme: const IconThemeData(color: primaryGreen),
+      actionsIconTheme: const IconThemeData(color: primaryGreen),
     ),
     textTheme: const TextTheme(
-      bodyLarge: TextStyle(color: textLight),
-      bodyMedium: TextStyle(color: textLight),
-      titleLarge: TextStyle(color: textLight),
-      titleMedium: TextStyle(color: textLight),
+      bodyLarge: TextStyle(color: textDark),
+      bodyMedium: TextStyle(color: textDark),
+      titleLarge: TextStyle(color: textDark),
+      titleMedium: TextStyle(color: textDark),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFFF8FAFC),
+      fillColor: bgLight,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: const Color(0xFFCBD5E1).withValues(alpha: 0.3)),
+        borderSide: BorderSide(color: textMuted.withValues(alpha: 0.3)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: const Color(0xFFCBD5E1).withValues(alpha: 0.3)),
+        borderSide: BorderSide(color: textMuted.withValues(alpha: 0.3)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -66,7 +61,7 @@ ThemeData lightTheme() {
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
+        borderSide: const BorderSide(color: redError, width: 2),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     ),
@@ -95,33 +90,35 @@ ThemeData darkTheme() {
     colorScheme: ColorScheme.dark(
       primary: primaryGreen,
       secondary: primaryGreen,
-      surface: cardDark,
+      surface: bgDark,              // #1E293B
       onSurface: Colors.white,
       onPrimary: Colors.white,
-      surfaceContainerHighest: const Color(0xFF2D3748),
+      surfaceContainerHighest: deepSpaceBlueLight, // #2D3748
       surfaceContainerLow: bgDark,
-      outline: const Color(0xFF4A5568),
-      onSurfaceVariant: const Color(0xFF94A3B8),
-      error: const Color(0xFFEF4444),
+      outline: Colors.white.withValues(alpha: 0.1),
+      onSurfaceVariant: slateGreyLight, // #94A3B8
+      error: redError,
       onError: Colors.white,
     ),
-    scaffoldBackgroundColor: bgDark,
+    scaffoldBackgroundColor: darkBlue,  // #0F2A44 (azul más vivo para fondo)
     cardTheme: CardThemeData(
-      color: cardDark,
+      color: cardDark,              // #334155
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: Colors.grey.shade800.withValues(alpha: 0.3),
+          color: Colors.white.withValues(alpha: 0.08),
           width: 1,
         ),
       ),
     ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.transparent,
+    appBarTheme: AppBarTheme(
+      backgroundColor: darkBlue,
       foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: false,
+      iconTheme: const IconThemeData(color: secondaryBlue),
+      actionsIconTheme: const IconThemeData(color: secondaryBlue),
     ),
     textTheme: const TextTheme(
       bodyLarge: TextStyle(color: Colors.white),
@@ -131,14 +128,14 @@ ThemeData darkTheme() {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFF1E293B),
+      fillColor: deepSpaceBlueLight,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade700.withValues(alpha: 0.3)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade700.withValues(alpha: 0.3)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -146,7 +143,7 @@ ThemeData darkTheme() {
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
+        borderSide: const BorderSide(color: redError, width: 2),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     ),

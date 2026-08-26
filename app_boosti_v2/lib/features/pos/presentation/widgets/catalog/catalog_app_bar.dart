@@ -1,3 +1,4 @@
+// lib/features/pos/presentation/widgets/catalog/catalog_app_bar.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/bcv_provider.dart';
@@ -18,153 +19,279 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final isTablet = ResponsiveHelper.isTablet(context);
     final bcvState = ref.watch(bcvProvider);
     final lowStockCount = ref.read(catalogProvider.notifier).lowStockCount;
-    final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // ✅ Degradados según modo
+    final LinearGradient gradient;
+    if (isDark) {
+      gradient = const LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [Color(0xFF10B981), Color(0xFF059669)], 
+      );
+    } else {
+      gradient = const LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [Color(0xFF5352ED), Color(0xFF4840E8), Color(0xFF5955EE)],
+      );
+    }
+
+    final bcvBackgroundColor = Colors.transparent;
+    final bcvBorderColor = Colors.white;
+    final bcvTextColor = Colors.white;
+    final bcvIconColor = Colors.white;
+
+    // Variables de estado para el hover (Declaradas fuera de los builders para que mantengan su estado)
+    bool isInventoryHovered = false;
+    bool isBcvHovered = false;
+
     return AppBar(
-      leadingWidth: 85,
-      leading: Padding(
-        padding: const EdgeInsets.all(10.0),
-        child: Image.asset(
-          'assets/logo.png',
-          fit: BoxFit.contain,
-          errorBuilder: (_, _, _) => Icon(Icons.storefront, color: colorScheme.onPrimary, size: 32),
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      centerTitle: false,
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          gradient: gradient,
+        ),
+      ),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(
+          height: 1,
+          color: Colors.white.withValues(alpha: 0.15),
         ),
       ),
       title: Text(
         isMobile ? '' : 'Catálogo',
-        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: colorScheme.onPrimary),
-      ),
-      flexibleSpace: Container(
-        decoration: BoxDecoration(
-          gradient: isDark
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    colorScheme.primaryContainer.withValues(alpha: 0.9),
-                    colorScheme.primary,
-                  ],
-                )
-              : const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color.fromRGBO(68, 109, 241, 1), Color.fromARGB(255, 85, 59, 235)],
-                ),
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: isTablet ? 22 : 18,
+          color: Colors.white,
         ),
       ),
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      foregroundColor: colorScheme.onPrimary,
-      actions: [
-        Tooltip(
-          message: 'Panel de Control POS',
-          child: Container(
-            width: isTablet ? 44 : 36,
-            height: isTablet ? 44 : 36,
-            decoration: BoxDecoration(
-              color: colorScheme.onPrimary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: Icon(Icons.grid_view_rounded, color: colorScheme.onPrimary, size: 24),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PosMenuScreen())),
-              padding: EdgeInsets.zero,
-            ),
+      leading: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Padding(
+          padding: const EdgeInsets.all(10.0),
+          child: Image.asset(
+            'assets/logo.png',
+            fit: BoxFit.contain,
+            errorBuilder: (_, _, _) =>
+                Icon(Icons.storefront, color: Colors.white, size: isTablet ? 36 : 32),
           ),
         ),
+      ),
+      actions: [
+        // Panel de Control
+        _buildActionButton(
+          context,
+          icon: Icons.grid_view_rounded,
+          tooltip: 'Panel de Control POS',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PosMenuScreen()),
+          ),
+          isTablet: isTablet,
+        ),
         const SizedBox(width: 6),
+
+        // Botón de inventario (Con estado de hover corregido)
         Tooltip(
           message: 'Ir a Gestión de Inventario',
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: isTablet ? 44 : 36,
-                height: isTablet ? 44 : 36,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.inventory_2_outlined, color: Colors.white),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => InventoryScreen(
-                        usuarioLogueado: usuarioLogueado!,
-                        showAppBar: true,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                onEnter: (_) => setState(() => isInventoryHovered = true),
+                onExit: (_) => setState(() => isInventoryHovered = false),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: isTablet ? 48 : 40,
+                      height: isTablet ? 48 : 40,
+                      decoration: BoxDecoration(
+                        // ✅ Ahora el fondo sí cambia al hacer hover
+                        color: Colors.white.withValues(alpha: isInventoryHovered ? 0.15 : 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.inventory_2_outlined, color: Colors.white),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => InventoryScreen(
+                              usuarioLogueado: usuarioLogueado!,
+                              showAppBar: true,
+                            ),
+                          ),
+                        ),
+                        padding: EdgeInsets.zero,
+                        splashRadius: isTablet ? 28 : 22,
+                        mouseCursor: SystemMouseCursors.click, // Asegura el cursor en el IconButton
                       ),
                     ),
-                  ),
-                  padding: EdgeInsets.zero,
+                    if (lowStockCount > 0)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFF97316),
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                          child: Text(
+                            '$lowStockCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-              ),
-              if (lowStockCount > 0)
-                Positioned(
-                  right: -2,
-                  top: -2,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                    child: Text(
-                      '$lowStockCount',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
+              );
+            },
           ),
         ),
         const SizedBox(width: 4),
+
+        // ✅ Badge BCV con animación natural (Fade + Size) y hover corregido
         Tooltip(
           message: 'Tasa oficial BCV (Haz clic para actualizar)',
-          child: InkWell(
-            onTap: () => ref.read(bcvProvider).actualizarTasa(),
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              margin: const EdgeInsets.only(left: 4, right: 8),
-              decoration: BoxDecoration(
-                color: bcvState.cargando
-                    ? colorScheme.onPrimary.withValues(alpha: 0.25)
-                    : colorScheme.onPrimary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: colorScheme.onPrimary.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.currency_exchange, size: 16, color: colorScheme.primary),
-                  const SizedBox(width: 6),
-                  if (bcvState.cargando)
-                    SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: colorScheme.primary,
-                      ),
-                    )
-                  else
-                    Text(
-                      'BCV: Bs. ${bcvState.tasa.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: colorScheme.onPrimary,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                onEnter: (_) => setState(() => isBcvHovered = true),
+                onExit: (_) => setState(() => isBcvHovered = false),
+                child: GestureDetector(
+                  onTap: () => ref.read(bcvProvider).actualizarTasa(),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isTablet ? 16 : 12,
+                      vertical: isTablet ? 8 : 6,
+                    ),
+                    margin: const EdgeInsets.only(left: 4, right: 8),
+                    decoration: BoxDecoration(
+                      // Efecto hover sutil para el badge
+                      color: isBcvHovered 
+                          ? Colors.white.withValues(alpha: 0.1) 
+                          : (bcvState.cargando ? Colors.white.withValues(alpha: 0.15) : bcvBackgroundColor),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: bcvState.cargando
+                            ? Colors.white.withValues(alpha: 0.3)
+                            : bcvBorderColor.withValues(alpha: 0.8),
+                        width: 1.5,
                       ),
                     ),
-                ],
-              ),
-            ),
+                    // ✅ Animación de tamaño suave en lugar de encogerse abruptamente
+                    child: AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        // ✅ Transición suave de opacidad (fade in/out)
+                        transitionBuilder: (Widget child, Animation<double> animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                        child: bcvState.cargando
+                            ? SizedBox(
+                                key: const ValueKey('loading'),
+                                width: isTablet ? 18 : 14,
+                                height: isTablet ? 18 : 14,
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Row(
+                                key: const ValueKey('loaded'),
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.currency_exchange,
+                                    size: isTablet ? 20 : 16,
+                                    color: bcvIconColor,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'BCV: Bs. ${bcvState.tasa.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: isTablet ? 15 : 13,
+                                      color: bcvTextColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
         const SizedBox(width: 8),
       ],
+    );
+  }
+
+  Widget _buildActionButton(
+    BuildContext context, {
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    required bool isTablet,
+  }) {
+    final size = isTablet ? 48.0 : 40.0;
+    final iconSize = isTablet ? 26.0 : 22.0;
+    
+    // Variable fuera del builder
+    bool isActionHovered = false;
+
+    return Tooltip(
+      message: tooltip,
+      child: StatefulBuilder(
+        builder: (context, setState) {
+          return MouseRegion(
+            cursor: SystemMouseCursors.click,
+            onEnter: (_) => setState(() => isActionHovered = true),
+            onExit: (_) => setState(() => isActionHovered = false),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                // ✅ Se aclara al hacer hover
+                color: Colors.white.withValues(alpha: isActionHovered ? 0.15 : 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                icon: Icon(icon, color: Colors.white, size: iconSize),
+                onPressed: onPressed,
+                padding: EdgeInsets.zero,
+                splashRadius: isTablet ? 28 : 22,
+                mouseCursor: SystemMouseCursors.click, // Asegura el cursor
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 

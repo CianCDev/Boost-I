@@ -4,7 +4,7 @@ import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../presentation/providers/usuario_provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/theme_provider.dart';
+import '../providers/themes/theme_provider.dart'; // ✅ IMPORT AGREGADO
 import '../utils/responsive_helper.dart';
 import '../widgets/admin_validation_dialog.dart';
 import '../widgets/cambiar_pin_dialog.dart';
@@ -151,45 +151,44 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final color = const Color(0xFF8B5CF6);
     final theme = Theme.of(context);
 
-    final themeMode = ref.watch(themeProvider);
+    final themeMode = ref.watch(themeProvider); // ✅ AHORA FUNCIONA
     final isDark = themeMode == ThemeMode.dark;
 
-    // 🔥 Tamaños adaptativos - AHORA MÁS GRANDES
     final double maxWidth = isMobile
         ? double.infinity
-        : (isTablet ? 900 : 1200); // Más ancho
+        : (isTablet ? 900 : 1200);
 
     final double paddingHorizontal = isMobile
         ? 16
-        : (isTablet ? 60 : 80); // Más padding lateral
+        : (isTablet ? 60 : 80);
 
     final double paddingVertical = isMobile
         ? 16
-        : (isTablet ? 36 : 48); // Más padding vertical
+        : (isTablet ? 36 : 48);
 
     final double avatarRadius = isMobile
         ? 32
-        : (isTablet ? 56 : 72); // Avatar más grande
+        : (isTablet ? 56 : 72);
 
     final double fontSizeTitle = isMobile
         ? 18
-        : (isTablet ? 26 : 32); // Títulos más grandes
+        : (isTablet ? 26 : 32);
 
     final double fontSizeBody = isMobile
         ? 14
-        : (isTablet ? 17 : 20); // Texto corporal más grande
+        : (isTablet ? 17 : 20);
 
     final double fontSizeSubtitle = isMobile
         ? 12
-        : (isTablet ? 15 : 18); // Subtítulos más grandes
+        : (isTablet ? 15 : 18);
 
     final double cardPadding = isMobile
         ? 16
-        : (isTablet ? 24 : 32); // Más padding en tarjetas
+        : (isTablet ? 24 : 32);
 
     final double sectionSpacing = isMobile
         ? 24
-        : (isTablet ? 36 : 48); // Más separación entre secciones
+        : (isTablet ? 36 : 48);
 
     final double iconSize = isMobile ? 24 : (isTablet ? 28 : 32);
     final double switchScale = isMobile ? 1.0 : (isTablet ? 1.2 : 1.4);
@@ -346,7 +345,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // ---- Cambiar nombre ----
                 Card(
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -485,7 +483,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // ---- Cambiar PIN ----
                 Card(
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -538,7 +535,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // ---- Tema oscuro ----
                 Card(
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -629,7 +625,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // ---- Cerrar sesión ----
                 Card(
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -688,40 +683,40 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
   }
 
   Widget _buildSectionHeader(
-  String title,
-  IconData icon,
-  ThemeData theme,
-  bool isMobile,
-  double fontSizeTitle,
-) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 4),
-    child: Row(
-      children: [
-        Icon(
-          icon,
-          size: isMobile ? 20 : 28,
-          color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          title,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: isMobile ? 16 : 22,
-            color: theme.textTheme.bodyMedium?.color,
-            letterSpacing: 0.5,
+    String title,
+    IconData icon,
+    ThemeData theme,
+    bool isMobile,
+    double fontSizeTitle,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: isMobile ? 20 : 28,
+            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
           ),
-        ),
-        Expanded(
-          child: Container(
-            height: 1,
-            margin: const EdgeInsets.only(left: 20),
-            color: theme.dividerColor.withValues(alpha: 0.2),
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: isMobile ? 16 : 22,
+              color: theme.textTheme.bodyMedium?.color,
+              letterSpacing: 0.5,
+            ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+          Expanded(
+            child: Container(
+              height: 1,
+              margin: const EdgeInsets.only(left: 20),
+              color: theme.dividerColor.withValues(alpha: 0.2),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
