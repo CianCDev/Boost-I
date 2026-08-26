@@ -75,6 +75,20 @@ ThemeData lightTheme() {
         elevation: 0,
       ),
     ),
+    
+    // CORRECCIÓN APLICADA AQUÍ 👇
+    textButtonTheme: const TextButtonThemeData(
+      style: ButtonStyle(
+        mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
+      ),
+    ),
+    iconButtonTheme: const IconButtonThemeData(
+      style: ButtonStyle(
+        mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
+      ),
+    ),
+    // 👆 HASTA AQUÍ
+
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: primaryGreen,
       foregroundColor: Colors.white,
@@ -157,6 +171,20 @@ ThemeData darkTheme() {
         elevation: 0,
       ),
     ),
+
+    // CORRECCIÓN APLICADA AQUÍ 👇
+    textButtonTheme: const TextButtonThemeData(
+      style: ButtonStyle(
+        mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
+      ),
+    ),
+    iconButtonTheme: const IconButtonThemeData(
+      style: ButtonStyle(
+        mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
+      ),
+    ),
+    // 👆 HASTA AQUÍ
+
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: primaryGreen,
       foregroundColor: Colors.white,

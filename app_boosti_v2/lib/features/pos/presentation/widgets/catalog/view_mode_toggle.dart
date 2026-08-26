@@ -77,6 +77,7 @@ class ViewModeToggle extends ConsumerWidget {
 
           return GestureDetector(
             onTap: () {
+              // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
               ref.read(viewModeProvider.notifier).state = target;
             },
             onTapDown: (_) => setState(() => isHovered = true),
