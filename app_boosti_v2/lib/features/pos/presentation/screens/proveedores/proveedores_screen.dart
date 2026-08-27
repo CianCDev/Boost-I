@@ -47,9 +47,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     }
   }
 
-  // 🔥 Método centralizado con manejo seguro de context
-
-  // 🔥 Sincronización normal (con snackbar seguro)
+  // ==================== SINCRONIZACIÓN ====================
   Future<void> _sincronizarProveedores() async {
     if (_isSyncing) return;
     setState(() => _isSyncing = true);
@@ -93,66 +91,132 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     }
   }
 
-  // 🔥 MÉTODO QUE GENERABA EL ERROR - Corregido
- Future<void> _sincronizarProveedoresForzada() async {
-  if (_isSyncing) return;
-  setState(() => _isSyncing = true);
+  Future<void> _sincronizarProveedoresForzada() async {
+    if (_isSyncing) return;
+    setState(() => _isSyncing = true);
 
-  final scaffoldMessenger = ScaffoldMessenger.of(context);
-  final currentContext = context;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final currentContext = context;
 
-  try {
-    debugPrint('🔥 Iniciando sincronización forzada de proveedores...');
-    
-    // ✅ 1. Obtener proveedores pendientes desde IsarService (usando el provider)
-    final isarService = ref.read(isarServiceProvider);
-    final pendientes = await isarService.obtenerProveedoresPendientesSync();
-    final cantidadPendientes = pendientes.length;
-    
-    final sync = SyncService();
+    try {
+      debugPrint('🔥 Iniciando sincronización forzada de proveedores...');
+      final isarService = ref.read(isarServiceProvider);
+      final pendientes = await isarService.obtenerProveedoresPendientesSync();
+      final cantidadPendientes = pendientes.length;
 
-    // 2. Subir proveedores pendientes
-    await sync.sincronizarProveedoresPendientes();
-    debugPrint('⬆️ $cantidadPendientes proveedores subidos a Supabase');
+      final sync = SyncService();
+      await sync.sincronizarProveedoresPendientes();
+      debugPrint('⬆️ $cantidadPendientes proveedores subidos a Supabase');
 
-    // 3. Descargar proveedores desde Supabase
-    await sync.descargarProveedoresDesdeSupabase();
-    debugPrint('📥 Proveedores descargados desde Supabase');
+      await sync.descargarProveedoresDesdeSupabase();
+      debugPrint('📥 Proveedores descargados desde Supabase');
 
-    // 4. Refrescar UI
-    ref.invalidate(proveedoresConFiltroProvider((
-      query: _queryBusqueda,
-      mostrarInactivos: _mostrarInactivos,
-      productoId: _productoFiltroId,
-    )));
-    await _cargarProductos();
+      ref.invalidate(proveedoresConFiltroProvider((
+        query: _queryBusqueda,
+        mostrarInactivos: _mostrarInactivos,
+        productoId: _productoFiltroId,
+      )));
+      await _cargarProductos();
 
-    if (!currentContext.mounted) return;
-    scaffoldMessenger.showSnackBar(
-      SnackBar(
-        content: Text('✅ Sincronización forzada completada: $cantidadPendientes subidos'),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  } catch (e) {
-    if (!currentContext.mounted) return;
-    scaffoldMessenger.showSnackBar(
-      SnackBar(
-        content: Text('❌ Error en sincronización forzada: $e'),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 4),
-      ),
-    );
-    debugPrint('❌ Error en sincronización forzada: $e');
-  } finally {
-    if (mounted) {
-      setState(() => _isSyncing = false);
+      if (!currentContext.mounted) return;
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('✅ Sincronización forzada completada: $cantidadPendientes subidos'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!currentContext.mounted) return;
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('❌ Error en sincronización forzada: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      debugPrint('❌ Error en sincronización forzada: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncing = false);
+      }
     }
   }
-}
 
+  // ==================== ELIMINACIÓN PROFESIONAL (SIN BORRAR PRODUCTOS) ====================
   Future<void> _eliminarProveedor(ProveedorEntity proveedor) async {
+    final isar = ref.read(isarServiceProvider);
+    final productosAsociados = await isar.obtenerProductosPorProveedor(proveedor.id);
+
+    // Si no tiene productos, eliminación simple con confirmación
+    if (productosAsociados.isEmpty) {
+      await _confirmarYEliminar(proveedor);
+      return;
+    }
+
+    // Si tiene productos, mostramos diálogo con opciones
+    final action = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar Proveedor con Productos'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'El proveedor "${proveedor.nombre}" tiene ${productosAsociados.length} producto(s) asociado(s).',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              '¿Qué deseas hacer con los productos?',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '• Desvincular: los productos quedarán sin proveedor.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const Text(
+              '• Reasignar: mover los productos a otro proveedor.',
+              style: TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'cancel'),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'unlink'),
+            child: const Text('Desvincular productos'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, 'reassign'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF8B5CF6),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Reasignar a otro'),
+          ),
+        ],
+      ),
+    );
+
+    if (action == 'cancel') return;
+
+    if (action == 'unlink') {
+      // Desvincular productos (proveedorId = null) y eliminar proveedor
+      await _desvincularYEliminar(proveedor, productosAsociados);
+    } else if (action == 'reassign') {
+      // Reasignar productos a otro proveedor y luego eliminar
+      await _reasignarYEliminar(proveedor, productosAsociados);
+    }
+  }
+
+  // Confirmación simple para proveedores sin productos
+  Future<void> _confirmarYEliminar(ProveedorEntity proveedor) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -173,42 +237,53 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     );
 
     if (confirm == true) {
-      final scaffoldMessenger = ScaffoldMessenger.of(context);
-      final currentContext = context;
+      await _ejecutarEliminacion(proveedor);
+    }
+  }
 
-      try {
-        final isar = ref.read(isarServiceProvider);
-        final syncService = SyncService();
+  // Desvincular productos (proveedorId = null) y eliminar proveedor
+  Future<void> _desvincularYEliminar(ProveedorEntity proveedor, List<ProductoEntity> productos) async {
+    final isar = ref.read(isarServiceProvider);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-        final exitoLocal = await isar.eliminarProveedor(proveedor.id);
-        if (exitoLocal) {
-          if (proveedor.supabaseId != null && proveedor.supabaseId!.isNotEmpty) {
-            await syncService.eliminarProveedorEnSupabase(proveedor.supabaseId!);
-          }
-          ref.invalidate(proveedoresConFiltroProvider((
-            query: _queryBusqueda,
-            mostrarInactivos: _mostrarInactivos,
-            productoId: _productoFiltroId,
-          )));
+    try {
+      // 1. Desvincular productos (proveedorId = null)
+      for (var producto in productos) {
+        producto.proveedorId = null;
+        await isar.guardarProducto(producto);
+      }
 
-          if (!currentContext.mounted) return;
+      // 2. Eliminar proveedor
+      final exito = await isar.eliminarProveedor(proveedor.id);
+      if (exito) {
+        if (proveedor.supabaseId != null && proveedor.supabaseId!.isNotEmpty) {
+          await SyncService().eliminarProveedorEnSupabase(proveedor.supabaseId!);
+        }
+        ref.invalidate(proveedoresConFiltroProvider((
+          query: _queryBusqueda,
+          mostrarInactivos: _mostrarInactivos,
+          productoId: _productoFiltroId,
+        )));
+        if (mounted) {
           scaffoldMessenger.showSnackBar(
             const SnackBar(
-              content: Text('✅ Proveedor eliminado correctamente'),
+              content: Text('✅ Proveedor eliminado. Productos desvinculados.'),
               backgroundColor: Color(0xFF10B981),
             ),
           );
-        } else {
-          if (!currentContext.mounted) return;
+        }
+      } else {
+        if (mounted) {
           scaffoldMessenger.showSnackBar(
             const SnackBar(
-              content: Text('❌ No se pudo eliminar: tiene productos asociados'),
-              backgroundColor: Colors.orange,
+              content: Text('❌ Error al eliminar el proveedor'),
+              backgroundColor: Colors.red,
             ),
           );
         }
-      } catch (e) {
-        if (!currentContext.mounted) return;
+      }
+    } catch (e) {
+      if (mounted) {
         scaffoldMessenger.showSnackBar(
           SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
         );
@@ -216,6 +291,149 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     }
   }
 
+  // Reasignar productos a otro proveedor y luego eliminar
+  Future<void> _reasignarYEliminar(ProveedorEntity proveedor, List<ProductoEntity> productos) async {
+    final isar = ref.read(isarServiceProvider);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    // Obtener otros proveedores activos (excluyendo el actual)
+    final otrosProveedores = await isar.obtenerProveedores(soloActivos: true);
+    otrosProveedores.removeWhere((p) => p.id == proveedor.id);
+
+    if (otrosProveedores.isEmpty) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('No hay otros proveedores activos para reasignar.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Mostrar selector de proveedor destino
+    final proveedorDestino = await showDialog<ProveedorEntity>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Seleccionar proveedor destino'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 250,
+          child: ListView.builder(
+            itemCount: otrosProveedores.length,
+            itemBuilder: (context, index) {
+              final p = otrosProveedores[index];
+              return ListTile(
+                title: Text(p.nombre),
+                subtitle: Text(p.empresa ?? ''),
+                leading: const Icon(Icons.business_center_rounded),
+                onTap: () => Navigator.pop(context, p),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
+
+    if (proveedorDestino == null) return;
+
+    // Reasignar productos
+    try {
+      for (var producto in productos) {
+        producto.proveedorId = proveedorDestino.id;
+        await isar.guardarProducto(producto);
+      }
+
+      // Eliminar proveedor original
+      final exito = await isar.eliminarProveedor(proveedor.id);
+      if (exito) {
+        if (proveedor.supabaseId != null && proveedor.supabaseId!.isNotEmpty) {
+          await SyncService().eliminarProveedorEnSupabase(proveedor.supabaseId!);
+        }
+        ref.invalidate(proveedoresConFiltroProvider((
+          query: _queryBusqueda,
+          mostrarInactivos: _mostrarInactivos,
+          productoId: _productoFiltroId,
+        )));
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text('✅ Productos reasignados a "${proveedorDestino.nombre}" y proveedor eliminado'),
+              backgroundColor: const Color(0xFF10B981),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              content: Text('❌ Error al eliminar el proveedor'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  // Ejecutar eliminación simple (sin productos asociados)
+  Future<void> _ejecutarEliminacion(ProveedorEntity proveedor) async {
+    final isar = ref.read(isarServiceProvider);
+    final syncService = SyncService();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    try {
+      final exitoLocal = await isar.eliminarProveedor(proveedor.id);
+      if (exitoLocal) {
+        if (proveedor.supabaseId != null && proveedor.supabaseId!.isNotEmpty) {
+          await syncService.eliminarProveedorEnSupabase(proveedor.supabaseId!);
+        }
+        ref.invalidate(proveedoresConFiltroProvider((
+          query: _queryBusqueda,
+          mostrarInactivos: _mostrarInactivos,
+          productoId: _productoFiltroId,
+        )));
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              content: Text('✅ Proveedor eliminado correctamente'),
+              backgroundColor: Color(0xFF10B981),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              content: Text('❌ No se pudo eliminar: tiene productos asociados'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  // ==================== BUILD Y UI ====================
   @override
   Widget build(BuildContext context) {
     final proveedoresAsync = ref.watch(proveedoresConFiltroProvider((
@@ -281,7 +499,6 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
       elevation: 2,
       foregroundColor: Colors.white,
       actions: [
-        // Botón de sincronización forzada
         Stack(
           alignment: Alignment.center,
           children: [

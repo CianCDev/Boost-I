@@ -22,7 +22,6 @@ import '../../data/Local/entities/local_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/codigo_barra_alia_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
 
-
 class SyncService {
   final IsarService _isarService = IsarService();
   final Connectivity _connectivity = Connectivity();
@@ -154,6 +153,7 @@ class SyncService {
     final ventas = await isar.ventaEntitys
         .filter()
         .empleadoEqualTo(empleado)
+        .and()
         .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
         .findAll();
 
@@ -177,7 +177,6 @@ class SyncService {
       return false;
     }
   }
-
 
   // ==========================================
   // SINCRONIZACIÓN DE VENTAS
@@ -1277,34 +1276,129 @@ Future<void> sincronizarProveedoresForzada() async {
   }
 
   // ============================================================
-  // SINCRONIZACIÓN DE PEDIDOS (PROVEEDORES)
+  // SINCRONIZACIÓN DE PEDIDOS (PROVEEDORES) - CORREGIDA
   // ============================================================
+  
+  /// Obtiene el ID entero del producto en Supabase (no el UUID, sino el 'id' de la tabla 'productos').
+  /// Si el producto no existe en Supabase, lo crea y retorna su ID.
+  Future<int?> _obtenerOCrearProductoEnSupabase(int productoLocalId) async {
+    // 1. Obtener el producto local
+    final productoLocal = await _isarService.obtenerProductoPorId(productoLocalId);
+    if (productoLocal == null) {
+      debugPrint('⚠️ Producto local $productoLocalId no encontrado en Isar');
+      return null;
+    }
+    
+    // 2. Verificar si ya tiene supabaseId (que ahora es el ID entero)
+    if (productoLocal.supabaseId != null && productoLocal.supabaseId!.isNotEmpty) {
+      final idInt = int.tryParse(productoLocal.supabaseId!);
+      if (idInt != null && idInt > 0) {
+        // Verificar que realmente existe en Supabase
+        final response = await _supabase
+            .from('productos')
+            .select('id')
+            .eq('id', idInt)
+            .maybeSingle();
+        if (response != null) {
+          return idInt;
+        } else {
+          // El ID ya no existe en Supabase, limpiar y recrear
+          productoLocal.supabaseId = null;
+          await _isarService.guardarProducto(productoLocal);
+        }
+      }
+    }
+    
+    // 3. Buscar el producto en Supabase por código de barras
+    if (productoLocal.codigoBarras.isNotEmpty) {
+      final response = await _supabase
+          .from('productos')
+          .select('id')
+          .eq('codigo_barras', productoLocal.codigoBarras)
+          .maybeSingle();
+      
+      if (response != null) {
+        final id = response['id'] as int?;
+        if (id != null && id > 0) {
+          // Actualizar el supabaseId local
+          productoLocal.supabaseId = id.toString();
+          productoLocal.sincronizado = true;
+          productoLocal.fechaSincronizacion = DateTime.now();
+          await _isarService.guardarProducto(productoLocal);
+          return id;
+        }
+      }
+    }
+    
+    // 4. Si no existe en Supabase, crearlo
+    try {
+      final data = {
+        'id_isar': productoLocal.id,
+        'codigo_barras': productoLocal.codigoBarras,
+        'nombre': productoLocal.nombre,
+        'precio_unidad': productoLocal.precioUnidad,
+        'stock': productoLocal.stock,
+        'stock_minimo': productoLocal.stockMinimo,
+        'es_pesado': productoLocal.esPesado,
+        'categoria': productoLocal.categoria,
+        'proveedor_nombre': productoLocal.proveedorNombre,
+        'proveedor_telefono': productoLocal.proveedorTelefono,
+        'imagen_url': productoLocal.imagenUrl,
+        'sync_status': 'synced',
+      };
+      
+      final response = await _supabase
+          .from('productos')
+          .insert(data)
+          .select('id')
+          .single();
+      
+      final newId = response['id'] as int?;
+      if (newId != null && newId > 0) {
+        productoLocal.supabaseId = newId.toString();
+        productoLocal.sincronizado = true;
+        productoLocal.fechaSincronizacion = DateTime.now();
+        await _isarService.guardarProducto(productoLocal);
+        debugPrint('✅ Producto "${productoLocal.nombre}" creado en Supabase con ID: $newId');
+        return newId;
+      }
+    } catch (e) {
+      debugPrint('❌ Error creando producto ${productoLocal.nombre} en Supabase: $e');
+    }
+    
+    return null;
+  }
+
   Future<void> sincronizarPedidosPendientes() async {
     try {
+      // 🔥 Asegurar que el local principal existe y tiene UUID
       await _obtenerLocalActualUuid();
-
+      
       final pedidosPendientes = await _isarService.obtenerPedidosPendientesSync();
       if (pedidosPendientes.isEmpty) return;
 
       final supabase = Supabase.instance.client;
 
       for (var pedido in pedidosPendientes) {
+        // Obtener UUIDs con fallback automático
         final String? localOrigenUuid = await _obtenerSupabaseIdLocal(pedido.localOrigenId);
         final String? localDestinoUuid = await _obtenerSupabaseIdLocal(pedido.localDestinoId);
         final String? usuarioUuid = await _obtenerSupabaseIdUsuario(pedido.usuarioId);
 
+        // Si algún UUID es null, intentar resolverlo
         if (localOrigenUuid == null || localDestinoUuid == null || usuarioUuid == null) {
-          debugPrint('⚠️ Pedido ${pedido.id} omitido por falta de mapeo de IDs');
+          debugPrint('⚠️ Pedido ${pedido.id} omitido: localOrigenUuid=$localOrigenUuid, localDestinoUuid=$localDestinoUuid, usuarioUuid=$usuarioUuid');
           continue;
         }
 
+        // Construir JSON SOLO con las columnas que existen en la tabla 'pedidos'
         final pedidoData = {
           'local_id': localOrigenUuid,
           'local_destino_id': localDestinoUuid,
           'usuario_id': usuarioUuid,
           'fecha_pedido': pedido.fechaPedido.toIso8601String(),
           'estado': pedido.estado.name,
-          'proveedor_nombre': '',
+          'proveedor_nombre': pedido.proveedorNombre,
           'proveedor_cedula': pedido.proveedorCedula,
           'proveedor_telefono': pedido.proveedorTelefono,
           'proveedor_empresa': pedido.proveedorEmpresa,
@@ -1314,6 +1408,7 @@ Future<void> sincronizarProveedoresForzada() async {
           'sync_status': 'synced',
         };
 
+        // Insertar el pedido y obtener el UUID generado
         final response = await supabase
             .from('pedidos')
             .insert(pedidoData)
@@ -1322,12 +1417,20 @@ Future<void> sincronizarProveedoresForzada() async {
 
         final supabasePedidoId = response['id'] as String;
 
+        // Procesar detalles del pedido
         final detalles = await _isarService.obtenerDetallesPorPedido(pedido.id);
         for (var detalle in detalles) {
-          final String? productoUuid = await _obtenerSupabaseIdProducto(detalle.productoId);
+          // 🔥 Obtener o crear el producto en Supabase
+          final int? supabaseProductoId = await _obtenerOCrearProductoEnSupabase(detalle.productoId);
+          
+          if (supabaseProductoId == null) {
+            debugPrint('⚠️ Detalle omitido: no se pudo obtener/crear producto ${detalle.productoId}');
+            continue;
+          }
+          
           await supabase.from('detalles_pedido').insert({
             'pedido_id': supabasePedidoId,
-            'producto_id': productoUuid,
+            'producto_id': supabaseProductoId,
             'nombre_producto': detalle.nombreProducto,
             'cantidad': detalle.cantidad,
             'precio_unidad': detalle.precioUnidad,
@@ -1335,18 +1438,19 @@ Future<void> sincronizarProveedoresForzada() async {
           });
         }
 
+        // Procesar recepción (si existe)
         final recepcion = await _isarService.obtenerRecepcionPorPedido(pedido.id);
         if (recepcion != null) {
-          final String? usuarioRecepcionUuid = await _obtenerSupabaseIdUsuario(recepcion.usuarioId);
           await supabase.from('recepciones').insert({
             'pedido_id': supabasePedidoId,
             'fecha_recepcion': recepcion.fechaRecepcion.toIso8601String(),
-            'usuario_id': usuarioRecepcionUuid,
+            'usuario_id': recepcion.usuarioId,
             'observaciones': recepcion.observaciones,
           });
           await _isarService.actualizarSyncStatusRecepcion(recepcion.id, true);
         }
 
+        // Marcar pedido como sincronizado
         await _isarService.actualizarSyncStatusPedido(pedido.id, true);
       }
     } catch (e) {
@@ -1389,7 +1493,6 @@ Future<void> sincronizarProveedoresForzada() async {
             .findFirst();
         if (existing != null) continue;
 
-        // 🔥 CORREGIDO: usar .toString() en lugar de as String?
         final String? localOrigenUuid = pedidoJson['local_id']?.toString();
         final String? localDestinoUuid = pedidoJson['local_destino_id']?.toString();
         final String? usuarioUuid = pedidoJson['usuario_id']?.toString();
@@ -1468,14 +1571,82 @@ Future<void> sincronizarProveedoresForzada() async {
   }
 
   // ============================================================
-  // MÉTODOS AUXILIARES (CORREGIDOS)
+  // MÉTODOS AUXILIARES (CORREGIDOS - PROFESIONAL)
   // ============================================================
+  
+  /// Obtiene el UUID de un local por su ID de Isar.
+  /// Si no existe, busca cualquier local con supabaseId.
+  /// Si no hay, intenta obtener de Supabase o crea uno.
   Future<String?> _obtenerSupabaseIdLocal(int isarId) async {
-    final local = await _isarService.obtenerLocalPorId(isarId);
-    if (local == null || local.supabaseId == null || local.supabaseId!.isEmpty) {
-      return null;
+    final isar = await _isarService.db;
+    
+    // 1. Intentar obtener el local por ID
+    LocalEntity? local = await isar.localEntitys.get(isarId);
+    
+    // 2. Si el local existe y tiene supabaseId, devolverlo
+    if (local != null && local.supabaseId != null && local.supabaseId!.isNotEmpty) {
+      return local.supabaseId;
     }
-    return local.supabaseId;
+    
+    // 3. Si no tiene supabaseId, buscar cualquier local con supabaseId
+    if (local != null) {
+      final localesConUuid = await isar.localEntitys
+          .filter()
+          .supabaseIdIsNotNull()
+          .findAll();
+      
+      if (localesConUuid.isNotEmpty) {
+        final localExistente = localesConUuid.first;
+        // Si el local actual no tiene UUID, asignarle el del primero encontrado
+        // Esto es un fallback, no es ideal pero evita errores
+        if (local.supabaseId == null || local.supabaseId!.isEmpty) {
+          local.supabaseId = localExistente.supabaseId;
+          await isar.writeTxn(() async {
+            await isar.localEntitys.put(local);
+          });
+          debugPrint('🔄 Asignado UUID del local ${localExistente.id} al local ${local.id} (fallback)');
+        }
+        return localExistente.supabaseId;
+      }
+    }
+    
+    // 4. Si no hay locales con UUID, obtener de Supabase o crear
+    try {
+      final response = await _supabase
+          .from('locales')
+          .select('id')
+          .eq('id_isar', isarId)
+          .maybeSingle();
+      
+      if (response != null) {
+        final supabaseId = response['id'] as String?;
+        if (supabaseId != null && supabaseId.isNotEmpty) {
+          if (local != null) {
+            local.supabaseId = supabaseId;
+            await isar.writeTxn(() async {
+              await isar.localEntitys.put(local);
+            });
+            debugPrint('✅ UUID del local $isarId obtenido de Supabase: $supabaseId');
+          } else {
+            // Crear el local en Isar con el UUID obtenido
+            final nuevoLocal = LocalEntity()
+              ..id = isarId
+              ..nombre = 'Local Principal'
+              ..supabaseId = supabaseId;
+            await isar.writeTxn(() async {
+              await isar.localEntitys.put(nuevoLocal);
+            });
+            debugPrint('✅ Local $isarId creado en Isar con UUID: $supabaseId');
+          }
+          return supabaseId;
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error obteniendo UUID del local $isarId desde Supabase: $e');
+    }
+    
+    // 5. Si todo falla, intentar obtener el UUID del local actual
+    return await _obtenerLocalActualUuid();
   }
 
   Future<String?> _obtenerSupabaseIdUsuario(int isarId) async {
@@ -1509,27 +1680,36 @@ Future<void> sincronizarProveedoresForzada() async {
     return producto?.id ?? 0;
   }
 
+  /// Obtiene el UUID del local principal (ID 1).
+  /// Si no existe, lo crea en Isar y en Supabase.
   Future<String?> _obtenerLocalActualUuid() async {
     final isar = await _isarService.db;
+    
+    // 1. Intentar obtener el local con ID 1
     LocalEntity? localIsar = await isar.localEntitys.get(1);
-
+    
+    // 2. Si no existe, crearlo con ID 1
     if (localIsar == null) {
-      final nuevoLocal = LocalEntity()..nombre = 'Local Principal';
+      final nuevoLocal = LocalEntity()
+        ..id = 1
+        ..nombre = 'Local Principal';
       await isar.writeTxn(() async {
         await isar.localEntitys.put(nuevoLocal);
       });
       localIsar = nuevoLocal;
       debugPrint('✅ Local Principal (ID 1) creado en Isar porque no existía.');
     }
-
+    
+    // 3. Si ya tiene supabaseId, devolverlo
     if (localIsar.supabaseId != null && localIsar.supabaseId!.isNotEmpty) {
       return localIsar.supabaseId;
     }
-
+    
+    // 4. Buscar en Supabase o crear
     try {
       final supabase = Supabase.instance.client;
       final data = await supabase.from('locales').select('id').eq('id_isar', 1).maybeSingle();
-
+      
       String uuid;
       if (data != null) {
         uuid = data['id'] as String;
@@ -1542,12 +1722,13 @@ Future<void> sincronizarProveedoresForzada() async {
         uuid = newData['id'] as String;
         debugPrint('✅ Local creado en Supabase con id_isar = 1. UUID: $uuid');
       }
-
+      
+      // Guardar en Isar
       localIsar.supabaseId = uuid;
       await isar.writeTxn(() async {
         await isar.localEntitys.put(localIsar!);
       });
-
+      
       return uuid;
     } catch (e) {
       debugPrint('⚠️ Error crítico en _obtenerLocalActualUuid: $e');
@@ -1612,7 +1793,7 @@ Future<void> sincronizarProveedoresForzada() async {
           proveedor.supabaseId = supabaseId;
           proveedor.sincronizado = true;
           proveedor.fechaSincronizacion = DateTime.now();
-          proveedor.updatedAt = DateTime.now(); // 🔥 Actualizar fecha local
+          proveedor.updatedAt = DateTime.now();
           await _isarService.guardarProveedor(proveedor);
           debugPrint('✅ Proveedor ${proveedor.nombre} sincronizado con ID: $supabaseId');
         } else {
@@ -1629,6 +1810,7 @@ Future<void> sincronizarProveedoresForzada() async {
     rethrow;
   }
 }
+
 Future<void> descargarProveedoresDesdeSupabase() async {
   try {
     final supabase = Supabase.instance.client;

@@ -19,6 +19,7 @@ class DetalleProveedorDialog extends ConsumerWidget {
     final esAdmin = usuario?.rol == 'admin';
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -108,31 +109,45 @@ class DetalleProveedorDialog extends ConsumerWidget {
             const Divider(),
             const SizedBox(height: 8),
 
-            // Productos asociados
+            // ✅ SECCIÓN PRODUCTOS ASOCIADOS - CORREGIDA
             Row(
               children: [
                 Icon(Icons.shopping_bag_rounded, color: colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Productos asociados',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
+                Expanded(
+                  child: Text(
+                    'Productos asociados',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 if (esAdmin)
-                  ElevatedButton.icon(
-                    onPressed: () => _mostrarDialogoAsignarProductos(context, ref),
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Asignar'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF8B5CF6),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      textStyle: const TextStyle(fontSize: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _mostrarDialogoAsignarProductos(context, ref),
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('Asignar'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF8B5CF6),
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 8 : 12,
+                          vertical: isMobile ? 6 : 8,
+                        ),
+                        textStyle: TextStyle(
+                          fontSize: isMobile ? 11 : 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        minimumSize: const Size(60, 32),
+                      ),
                     ),
                   ),
               ],
@@ -186,17 +201,22 @@ class DetalleProveedorDialog extends ConsumerWidget {
     );
   }
 
+  // ✅ CORREGIDO: Ahora usa Flexible para el label y Expanded para el valor
   Widget _buildInfoRow(BuildContext context, IconData icon, String label, String value) {
     final colorScheme = Theme.of(context).colorScheme;
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 18, color: colorScheme.onSurfaceVariant),
         const SizedBox(width: 12),
-        Text(
-          '$label: ',
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: colorScheme.onSurfaceVariant,
+        Flexible(
+          child: Text(
+            '$label: ',
+            style: TextStyle(
+              fontWeight: FontWeight.w500,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         Expanded(
@@ -228,7 +248,6 @@ class DetalleProveedorDialog extends ConsumerWidget {
     }
 
     final seleccionados = await showDialog<List<ProductoEntity>>(
-      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) => MultiSelectDialog(
         items: productosSinProveedor,
@@ -241,8 +260,7 @@ class DetalleProveedorDialog extends ConsumerWidget {
         producto.proveedorId = proveedor.id;
         await isar.guardarProducto(producto);
       }
-      // ignore: unused_result
-      ref.refresh(productosPorProveedorProvider(proveedor.id));
+      ref.invalidate(productosPorProveedorProvider(proveedor.id));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
