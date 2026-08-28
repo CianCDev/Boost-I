@@ -19,8 +19,10 @@ import '../../data/Local/entities/recepcion_entity.dart';
 import '../../data/Local/entities/pedido_entity.dart';
 import '../../data/Local/entities/detalle_pedido_entity.dart';
 import '../../data/Local/entities/local_entity.dart';
+import '../../data/Local/entities/departamento_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/codigo_barra_alia_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/telegram_config_entity.dart';
 
 class SyncService {
   final IsarService _isarService = IsarService();
@@ -649,24 +651,32 @@ class SyncService {
 
   /// 🔥 Orden de sincronización CORRECTO: productos primero, luego lotes y alias
   Future<void> sincronizarTodo() async {
-    await sincronizarVentasPendientes();
-    await sincronizarMovimientosInventario();
-    await sincronizarProductosASupabase();
-    await sincronizarCategoriasASupabase();
-    await sincronizarTurnos();
-    await sincronizarUsuariosASupabase();
-    await sincronizarUsuariosDesdeSupabase();
-    await sincronizarGastosPendientes();
+  await sincronizarVentasPendientes();
+  await sincronizarMovimientosInventario();
+  await sincronizarProductosASupabase();
+  await sincronizarCategoriasASupabase();
+  await sincronizarTurnos();
+  await sincronizarUsuariosASupabase();
+  await sincronizarUsuariosDesdeSupabase();
+  await sincronizarGastosPendientes();
+  
+  // 🔥 NUEVOS
+  await sincronizarLocalesPendientes();
+  await descargarLocalesDesdeSupabase();
+  await sincronizarDepartamentosPendientes();
+  await descargarDepartamentosDesdeSupabase();
 
-    await _obtenerLocalActualUuid();
-    await sincronizarPedidosPendientes();
-    await descargarPedidosDesdeSupabase();
-    await descargarProductosDesdeSupabase();
-    await sincronizarProveedoresPendientes();
-    await descargarProveedoresDesdeSupabase();
-    await sincronizarAliasPendientes();
-    await sincronizarLotesPendientes();
-  }
+  await _obtenerLocalActualUuid();
+  await sincronizarPedidosPendientes();
+  await descargarPedidosDesdeSupabase();
+  await descargarProductosDesdeSupabase();
+  await sincronizarProveedoresPendientes();
+  await descargarProveedoresDesdeSupabase();
+  await sincronizarAliasPendientes();
+  await sincronizarLotesPendientes();
+  await sincronizarTelegramConfigPendientes();
+  await descargarTelegramConfigDesdeSupabase();
+}
 
   // ==========================================
   // STREAM DE USUARIOS EN TIEMPO REAL (MONITOR)
@@ -1873,6 +1883,7 @@ Future<void> descargarProveedoresDesdeSupabase() async {
 
 Future<Map<String, int>> sincronizarTodoConResumen() async {
   int ventas = 0, productos = 0, proveedores = 0, gastos = 0, pedidos = 0, lotes = 0;
+  int locales = 0, departamentos = 0, telegram = 0; // 🔥 NUEVOS
 
   try {
     // Ventas
@@ -1917,10 +1928,34 @@ Future<Map<String, int>> sincronizarTodoConResumen() async {
       lotes = lotesPend.length;
     }
 
+    // 🔥 LOCALES
+    final localesPend = await _isarService.obtenerLocalesPendientesSync();
+    if (localesPend.isNotEmpty) {
+      await sincronizarLocalesPendientes();
+      locales = localesPend.length;
+    }
+
+    // 🔥 DEPARTAMENTOS
+    final departamentosPend = await _isarService.obtenerDepartamentosPendientesSync();
+    if (departamentosPend.isNotEmpty) {
+      await sincronizarDepartamentosPendientes();
+      departamentos = departamentosPend.length;
+    }
+
+    // 🔥 TELEGRAM
+    final telegramPend = await _isarService.obtenerTelegramConfigsPendientesSync();
+    if (telegramPend.isNotEmpty) {
+      await sincronizarTelegramConfigPendientes();
+      telegram = telegramPend.length;
+    }
+
     // Finalmente descargar todo lo nuevo
     await descargarVentasDesdeSupabase();
     await descargarProductosDesdeSupabase();
     await descargarProveedoresDesdeSupabase();
+    await descargarLocalesDesdeSupabase();        // 🔥
+    await descargarDepartamentosDesdeSupabase(); // 🔥
+    await descargarTelegramConfigDesdeSupabase(); // 🔥
 
     return {
       'ventas': ventas,
@@ -1929,13 +1964,15 @@ Future<Map<String, int>> sincronizarTodoConResumen() async {
       'gastos': gastos,
       'pedidos': pedidos,
       'lotes': lotes,
+      'locales': locales,
+      'departamentos': departamentos,
+      'telegram': telegram,
     };
   } catch (e) {
     debugPrint('❌ Error en sincronización completa: $e');
     rethrow;
   }
 }
-
   // ==================== SINCRONIZACIÓN DE ALIAS ====================
 
   Future<void> sincronizarAliasPendientes() async {
@@ -2035,6 +2072,391 @@ Future<Map<String, int>> sincronizarTodoConResumen() async {
   Future<List<LoteEntity>> obtenerLotesPendientesSync() async {
     return await _isarService.obtenerLotesPendientesSync();
   }
+
+  // ==================== SINCRONIZACIÓN DE LOCALES ====================
+
+Future<void> sincronizarLocalesPendientes() async {
+  try {
+    final pendientes = await _isarService.obtenerLocalesPendientesSync();
+    if (pendientes.isEmpty) {
+      debugPrint('ℹ️ No hay locales pendientes para sincronizar');
+      return;
+    }
+
+    debugPrint('🔄 Sincronizando ${pendientes.length} locales con Supabase...');
+
+    for (var local in pendientes) {
+      final data = {
+        'id_isar': local.id,
+        'nombre': local.nombre,
+        'direccion': local.direccion,
+        'telefono': local.telefono,
+        'email': local.email,
+        'activo': local.activo,
+        'sync_status': 'synced',
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      try {
+        final response = await _supabase
+            .from('locales')
+            .upsert(data, onConflict: 'id_isar')
+            .select('id')
+            .maybeSingle();
+
+        String? supabaseId = response?['id'] as String?;
+        if (supabaseId == null) {
+          final findResponse = await _supabase
+              .from('locales')
+              .select('id')
+              .eq('id_isar', local.id)
+              .maybeSingle();
+          supabaseId = findResponse?['id'] as String?;
+        }
+
+        if (supabaseId != null) {
+          local.supabaseId = supabaseId;
+          local.sincronizado = true;
+          local.fechaSincronizacion = DateTime.now();
+          await _isarService.guardarLocal(local);
+          debugPrint('✅ Local ${local.nombre} sincronizado con ID: $supabaseId');
+        }
+      } catch (e) {
+        debugPrint('❌ Error al sincronizar local ${local.nombre}: $e');
+      }
+    }
+  } catch (e) {
+    debugPrint('❌ Error general en sincronizarLocalesPendientes: $e');
+    rethrow;
+  }
+}
+
+Future<void> descargarLocalesDesdeSupabase() async {
+  try {
+    final response = await _supabase
+        .from('locales')
+        .select()
+        .order('nombre', ascending: true);
+
+    debugPrint('🔄 Descargando ${response.length} locales desde Supabase...');
+
+    final localesLocales = await _isarService.obtenerLocales(soloActivos: false);
+    final Map<String, LocalEntity> localesPorSupabaseId = {
+      for (var l in localesLocales) if (l.supabaseId != null) l.supabaseId!: l
+    };
+    final Map<int, LocalEntity> localesPorId = {
+      for (var l in localesLocales) l.id: l
+    };
+
+    for (var data in response) {
+      final supabaseId = data['id'] as String?;
+      if (supabaseId == null) continue;
+
+      final idIsar = data['id_isar'] as int?;
+      LocalEntity? local = localesPorSupabaseId[supabaseId];
+      if (local == null && idIsar != null) {
+        local = localesPorId[idIsar];
+      }
+
+      final localNube = LocalEntity()
+        ..supabaseId = supabaseId
+        ..nombre = data['nombre'] ?? ''
+        ..direccion = data['direccion'] as String?
+        ..telefono = data['telefono'] as String?
+        ..email = data['email'] as String?
+        ..activo = data['activo'] ?? true
+        ..sincronizado = true
+        ..fechaSincronizacion = DateTime.now();
+
+      if (local != null) {
+        localNube.id = local.id;
+        await _isarService.guardarLocal(localNube);
+        debugPrint('🔄 Local ${localNube.nombre} actualizado');
+      } else {
+        await _isarService.guardarLocal(localNube);
+        debugPrint('📥 Local ${localNube.nombre} creado');
+      }
+    }
+  } catch (e) {
+    debugPrint('❌ Error descargando locales: $e');
+    rethrow;
+  }
+}
+
+// ==================== SINCRONIZACIÓN DE DEPARTAMENTOS ====================
+
+Future<void> sincronizarDepartamentosPendientes() async {
+  try {
+    final pendientes = await _isarService.obtenerDepartamentosPendientesSync();
+    if (pendientes.isEmpty) {
+      debugPrint('ℹ️ No hay departamentos pendientes para sincronizar');
+      return;
+    }
+
+    debugPrint('🔄 Sincronizando ${pendientes.length} departamentos con Supabase...');
+
+    for (var departamento in pendientes) {
+      // 🔥 OBTENER EL UUID DEL LOCAL ASOCIADO
+      String? localUuid;
+      if (departamento.localId != null) {
+        localUuid = await _obtenerSupabaseIdLocal(departamento.localId!);
+      }
+
+      final data = {
+        'id_isar': departamento.id,
+        'nombre': departamento.nombre,
+        'descripcion': departamento.descripcion,
+        // 🔥 ENVIAR UUID, NO EL ID ENTERO
+        'local_id': localUuid, // Puede ser null si no tiene local asociado
+        'activo': departamento.activo,
+        'sync_status': 'synced',
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      // Si no tiene local, enviar null (la columna acepta null en Supabase)
+      // Si localUuid es null, Supabase pondrá NULL en la columna (si está permitido)
+
+      try {
+        final response = await _supabase
+            .from('departamentos')
+            .upsert(data, onConflict: 'id_isar')
+            .select('id')
+            .maybeSingle();
+
+        String? supabaseId = response?['id'] as String?;
+        if (supabaseId == null) {
+          final findResponse = await _supabase
+              .from('departamentos')
+              .select('id')
+              .eq('id_isar', departamento.id)
+              .maybeSingle();
+          supabaseId = findResponse?['id'] as String?;
+        }
+
+        if (supabaseId != null) {
+          departamento.supabaseId = supabaseId;
+          departamento.sincronizado = true;
+          departamento.fechaSincronizacion = DateTime.now();
+          await _isarService.guardarDepartamento(departamento);
+          debugPrint('✅ Departamento ${departamento.nombre} sincronizado con ID: $supabaseId');
+        }
+      } catch (e) {
+        debugPrint('❌ Error al sincronizar departamento ${departamento.nombre}: $e');
+      }
+    }
+  } catch (e) {
+    debugPrint('❌ Error general en sincronizarDepartamentosPendientes: $e');
+    rethrow;
+  }
+}
+
+Future<void> descargarDepartamentosDesdeSupabase() async {
+  try {
+    final response = await _supabase
+        .from('departamentos')
+        .select()
+        .order('nombre', ascending: true);
+
+    debugPrint('🔄 Descargando ${response.length} departamentos desde Supabase...');
+
+    if (response.isEmpty) return;
+
+    // Obtener locales locales para mapear UUID -> id_isar
+    final localesLocales = await _isarService.obtenerLocales(soloActivos: false);
+    final Map<String, int> uuidToIsarId = {};
+    for (var local in localesLocales) {
+      if (local.supabaseId != null) {
+        uuidToIsarId[local.supabaseId!] = local.id;
+      }
+    }
+
+    final departamentosLocales = await _isarService.obtenerDepartamentos(soloActivos: false);
+    final Map<String, DepartamentoEntity> localesPorSupabaseId = {
+      for (var d in departamentosLocales) if (d.supabaseId != null) d.supabaseId!: d
+    };
+    final Map<int, DepartamentoEntity> localesPorId = {
+      for (var d in departamentosLocales) d.id: d
+    };
+
+    for (var data in response) {
+      final supabaseId = data['id'] as String?;
+      if (supabaseId == null) continue;
+
+      final idIsar = data['id_isar'] as int?;
+      DepartamentoEntity? departamento = localesPorSupabaseId[supabaseId];
+      if (departamento == null && idIsar != null) {
+        departamento = localesPorId[idIsar];
+      }
+
+      // 🔥 Obtener el local_id (UUID) de Supabase y mapear a entero (id_isar)
+      final localUuid = data['local_id'] as String?;
+      int? localIsarId;
+      if (localUuid != null && uuidToIsarId.containsKey(localUuid)) {
+        localIsarId = uuidToIsarId[localUuid];
+      }
+
+      final departamentoNube = DepartamentoEntity()
+        ..supabaseId = supabaseId
+        ..nombre = data['nombre'] ?? ''
+        ..descripcion = data['descripcion'] as String?
+        ..localId = localIsarId // 🔥 Asignamos el ID de Isar del local
+        ..activo = data['activo'] ?? true
+        ..sincronizado = true
+        ..fechaSincronizacion = DateTime.now();
+
+      if (departamento != null) {
+        departamentoNube.id = departamento.id;
+        await _isarService.guardarDepartamento(departamentoNube);
+        debugPrint('🔄 Departamento ${departamentoNube.nombre} actualizado');
+      } else {
+        await _isarService.guardarDepartamento(departamentoNube);
+        debugPrint('📥 Departamento ${departamentoNube.nombre} creado');
+      }
+    }
+  } catch (e) {
+    debugPrint('❌ Error descargando departamentos: $e');
+    rethrow;
+  }
+}
+
+// ==================== TELEGRAM CONFIG ====================
+
+Future<void> sincronizarTelegramConfigPendientes() async {
+  try {
+    final pendientes = await _isarService.obtenerTelegramConfigsPendientesSync();
+    if (pendientes.isEmpty) {
+      debugPrint('ℹ️ No hay configuraciones de Telegram pendientes para sincronizar');
+      return;
+    }
+
+    debugPrint('🔄 Sincronizando ${pendientes.length} configuraciones de Telegram con Supabase...');
+
+    for (var config in pendientes) {
+      // 🔥 Asegurar que comandos_permitidos sea una lista no nula
+      final comandos = config.comandosPermitidos ?? ['/ventas', '/stock', '/ayuda'];
+      
+      final data = {
+        'id_isar': config.id,
+        'bot_token': config.botToken ?? '',
+        'chat_id': config.chatId ?? '',
+        'nombre_chat': config.nombreChat ?? '',
+        'enabled': config.enabled,
+        'notificar_stock_bajo': config.notificarStockBajo,
+        'notificar_ventas': config.notificarVentas,
+        'notificar_pedidos': config.notificarPedidos,
+        // 🔥 Enviar como JSON string porque Supabase espera JSONB
+        'comandos_permitidos': jsonEncode(comandos),
+        'sync_status': 'synced',
+        'sincronizado': true,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      try {
+        final response = await _supabase
+            .from('telegram_config')
+            .upsert(data, onConflict: 'id_isar')
+            .select('id')
+            .maybeSingle();
+
+        final supabaseId = response?['id'] as String?;
+        if (supabaseId != null) {
+          config.supabaseId = supabaseId;
+          config.sincronizado = true;
+          config.fechaSincronizacion = DateTime.now();
+          await _isarService.guardarTelegramConfig(config);
+          debugPrint('✅ Configuración de Telegram sincronizada con ID: $supabaseId');
+        }
+      } catch (e) {
+        debugPrint('❌ Error al sincronizar configuración de Telegram: $e');
+      }
+    }
+  } catch (e) {
+    debugPrint('❌ Error general en sincronizarTelegramConfigPendientes: $e');
+  }
+}
+
+Future<void> descargarTelegramConfigDesdeSupabase() async {
+  try {
+    final response = await _supabase
+        .from('telegram_config')
+        .select()
+        .order('id_isar', ascending: true);
+
+    debugPrint('🔄 Descargando ${response.length} configuraciones de Telegram desde Supabase...');
+
+    if (response.isEmpty) return;
+
+    // Obtener configuraciones locales existentes
+    final locales = await _isarService.obtenerTelegramConfigs(); // ✅ Necesitas este método
+    final Map<int, TelegramConfigEntity> localesPorId = {
+      for (var c in locales) c.id: c
+    };
+
+    for (var data in response) {
+      final idIsar = data['id_isar'] as int?;
+      if (idIsar == null) continue;
+
+      // Buscar si ya existe localmente
+      TelegramConfigEntity? local = localesPorId[idIsar];
+
+      // Si no existe por id_isar, intentar por supabaseId
+      if (local == null) {
+        final supabaseId = data['id'] as String?;
+        if (supabaseId != null) {
+          local = locales.firstWhere(
+            (c) => c.supabaseId == supabaseId,
+            orElse: () => null as TelegramConfigEntity,
+          );
+        }
+      }
+
+      final configNube = TelegramConfigEntity()
+        ..id = idIsar
+        ..supabaseId = data['id']
+        ..botToken = data['bot_token'] as String? ?? ''
+        ..chatId = data['chat_id'] as String? ?? ''
+        ..nombreChat = data['nombre_chat'] as String? ?? ''
+        ..enabled = data['enabled'] ?? true
+        ..notificarStockBajo = data['notificar_stock_bajo'] ?? true
+        ..notificarVentas = data['notificar_ventas'] ?? false
+        ..notificarPedidos = data['notificar_pedidos'] ?? false
+        ..comandosPermitidos = data['comandos_permitidos'] is List
+            ? List<String>.from(data['comandos_permitidos'])
+            : ['/ventas', '/stock', '/ayuda']
+        ..sincronizado = true
+        ..fechaSincronizacion = DateTime.now()
+        ..createdAt = data['created_at'] != null ? DateTime.parse(data['created_at']) : null
+        ..updatedAt = data['updated_at'] != null ? DateTime.parse(data['updated_at']) : null;
+
+      if (local != null) {
+        // Actualizar existente
+        configNube.id = local.id;
+        await _isarService.guardarTelegramConfig(configNube);
+        debugPrint('🔄 Configuración de Telegram actualizada localmente (ID Isar: ${local.id})');
+      } else {
+        // Crear nueva (solo si no existe)
+        await _isarService.guardarTelegramConfig(configNube);
+        debugPrint('📥 Configuración de Telegram creada localmente (ID Isar: $idIsar)');
+      }
+    }
+
+    // 🔥 ELIMINAR configuraciones locales que ya no existen en Supabase
+    final supabaseIds = response.map((d) => d['id'] as String).toSet();
+    final localesParaEliminar = locales.where((c) => 
+      c.supabaseId != null && !supabaseIds.contains(c.supabaseId)
+    ).toList();
+
+    for (var c in localesParaEliminar) {
+      await _isarService.eliminarTelegramConfig(c.id); // ✅ Ahora existe
+      debugPrint('🗑️ Configuración de Telegram eliminada localmente (ID: ${c.id})');
+    }
+
+    debugPrint('✅ Descarga de configuraciones de Telegram completada');
+  } catch (e) {
+    debugPrint('❌ Error descargando configuraciones de Telegram: $e');
+  }
+}
+
 
   // ==========================================
   // LIMPIEZA DE RECURSOS

@@ -21,6 +21,8 @@ import '../entities/movimiento_inventario_entity.dart';
 import '../entities/recepcion_entity.dart';
 import 'codigo_barra_alia_entity.dart';
 import '../entities/lote_entity.dart';
+import '../entities/departamento_entity.dart';
+import '../entities/telegram_config_entity.dart';
 import 'gasto_entity.dart';
 
 class IsarService {
@@ -62,14 +64,16 @@ class IsarService {
           MovimientoInventarioEntitySchema,
           GastoEntitySchema,
           LogEntitySchema,
-          PedidoEntitySchema, // ← DEBE ESTAR
-          DetallePedidoEntitySchema, // ← DEBE ESTAR
+          PedidoEntitySchema,
+          DetallePedidoEntitySchema,
           RecepcionEntitySchema,
           TurnoEntitySchema,
           LocalEntitySchema,
           ProveedorEntitySchema,
-          CodigoBarrasAliasEntitySchema, // NUEVO
+          CodigoBarrasAliasEntitySchema,
           LoteEntitySchema,
+          DepartamentoEntitySchema,
+          TelegramConfigEntitySchema, // ✅ Añadido
         ],
         directory: dbPath,
         inspector: true,
@@ -207,19 +211,18 @@ class IsarService {
   }
 
   Future<void> resetearSupabaseIdsIncorrectos() async {
-  final isar = await db;
-  final productos = await isar.productoEntitys.where().findAll();
-  for (var p in productos) {
-    // Si el supabaseId no es un número entero (o no parece válido), lo borramos
-    if (p.supabaseId != null && int.tryParse(p.supabaseId!) == null) {
-      p.supabaseId = null;
-      p.sincronizado = false;
+    final isar = await db;
+    final productos = await isar.productoEntitys.where().findAll();
+    for (var p in productos) {
+      if (p.supabaseId != null && int.tryParse(p.supabaseId!) == null) {
+        p.supabaseId = null;
+        p.sincronizado = false;
+      }
     }
+    await isar.writeTxn(() async {
+      await isar.productoEntitys.putAll(productos);
+    });
   }
-  await isar.writeTxn(() async {
-    await isar.productoEntitys.putAll(productos);
-  });
-}
 
   // ==================== MÉTODOS EXISTENTES (GESTIÓN USUARIOS) ====================
   Future<double> obtenerTotalVentasPorEmpleadoYRango(
@@ -274,7 +277,6 @@ class IsarService {
     return usuario;
   }
 
-  // ✅ Buscar por dynamicId (UUID)
   Future<UsuarioEntity?> obtenerUsuarioPorDynamicId(String dynamicId) async {
     final isar = await db;
     return await isar.usuarioEntitys
@@ -369,7 +371,6 @@ class IsarService {
   // 🆕 NUEVOS MÉTODOS PARA DASHBOARD Y ESTADÍSTICAS
   // ============================================================
 
-  /// Obtiene las ventas en un rango de fechas
   Future<List<VentaEntity>> obtenerVentasPorRango(
     DateTime inicio,
     DateTime fin,
@@ -382,7 +383,6 @@ class IsarService {
         .findAll();
   }
 
-  /// Obtiene las últimas N ventas
   Future<List<VentaEntity>> obtenerUltimasVentas(int cantidad) async {
     final isar = await db;
     return await isar.ventaEntitys
@@ -392,20 +392,16 @@ class IsarService {
         .findAll();
   }
 
-  /// Obtiene los productos más vendidos (por cantidad) con sus nombres
   Future<List<Map<String, dynamic>>> obtenerProductosMasVendidos(
     int limite,
   ) async {
     final isar = await db;
-    // Obtener todos los detalles de venta
     final detalles = await isar.detalleVentaEntitys.where().findAll();
-    // Agrupar por nombreProducto y sumar cantidades
     final Map<String, double> acumulado = {};
     for (var d in detalles) {
       acumulado[d.nombreProducto] =
           (acumulado[d.nombreProducto] ?? 0) + d.cantidad;
     }
-    // Convertir a lista y ordenar
     final lista = acumulado.entries.map((e) {
       return {'nombre': e.key, 'cantidad': e.value};
     }).toList();
@@ -418,7 +414,6 @@ class IsarService {
     return lista;
   }
 
-  /// Obtiene ventas agrupadas por empleado en un rango de fechas
   Future<Map<String, double>> obtenerVentasPorEmpleado(
     DateTime inicio,
     DateTime fin,
@@ -435,7 +430,6 @@ class IsarService {
     return resultado;
   }
 
-  /// Obtiene total de ventas agrupado por día (últimos N días)
   Future<List<Map<String, dynamic>>> obtenerVentasPorDia(
     int cantidadDias,
   ) async {
@@ -447,14 +441,12 @@ class IsarService {
         .filter()
         .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
         .findAll();
-    // Agrupar por día (sin hora)
     final Map<String, double> agrupado = {};
     for (var v in ventas) {
       final dia = DateTime(v.fecha.year, v.fecha.month, v.fecha.day);
-      final key = dia.toIso8601String().substring(0, 10); // 'YYYY-MM-DD'
+      final key = dia.toIso8601String().substring(0, 10);
       agrupado[key] = (agrupado[key] ?? 0) + v.total;
     }
-    // Ordenar por fecha ascendente
     final keys = agrupado.keys.toList()..sort();
     final List<Map<String, dynamic>> resultado = [];
     for (var key in keys) {
@@ -463,7 +455,6 @@ class IsarService {
     return resultado;
   }
 
-  /// Suma total de ventas en un rango
   Future<double> obtenerTotalVentasPorRango(
     DateTime inicio,
     DateTime fin,
@@ -480,7 +471,6 @@ class IsarService {
     return total;
   }
 
-  /// Suma total de gastos en un rango
   Future<double> obtenerTotalGastosPorRango(
     DateTime inicio,
     DateTime fin,
@@ -497,16 +487,14 @@ class IsarService {
     return total;
   }
 
-  /// Obtiene el resumen completo para el dashboard (llama a varios métodos)
   Future<Map<String, dynamic>> obtenerResumenDashboard() async {
-    final isar = await db; // <-- OBTENEMOS LA INSTANCIA
+    final isar = await db;
     final hoy = DateTime.now();
     final inicioHoy = DateTime(hoy.year, hoy.month, hoy.day);
     final inicioSemana = inicioHoy.subtract(Duration(days: hoy.weekday - 1));
     final inicioMes = DateTime(hoy.year, hoy.month, 1);
     final finDia = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59, 999);
 
-    // Totales
     final totalHoy = await obtenerTotalVentasPorRango(inicioHoy, finDia);
     final totalSemana = await obtenerTotalVentasPorRango(inicioSemana, finDia);
     final totalMes = await obtenerTotalVentasPorRango(inicioMes, finDia);
@@ -519,25 +507,15 @@ class IsarService {
         ? ((totalHoy - totalVentasAyer) / totalVentasAyer) * 100
         : 0.0;
 
-    // Últimas 5 ventas
     final ultimasVentas = await obtenerUltimasVentas(5);
-
-    // Top 5 productos
     final topProductos = await obtenerProductosMasVendidos(5);
-
-    // Stock bajo
     final stockBajo = await obtenerProductosStockBajo();
-
-    // Ventas por empleado (esta semana)
     final ventasPorEmpleado = await obtenerVentasPorEmpleado(
       inicioSemana,
       finDia,
     );
-
-    // Ventas por día (últimos 7 días)
     final ventasPorDia = await obtenerVentasPorDia(7);
 
-    // Contar ventas hoy - CORREGIDO: isar.ventaEntitys
     final ventasHoy = await isar.ventaEntitys
         .filter()
         .fechaBetween(inicioHoy, finDia, includeLower: true, includeUpper: true)
@@ -961,7 +939,6 @@ class IsarService {
   // MÉTODOS PARA PEDIDOS (PROVEEDORES)
   // ============================================================
 
-  /// Guarda un pedido (crea o actualiza)
   Future<int> guardarPedido(PedidoEntity pedido) async {
     final isar = await db;
     return isar.writeTxn<int>(() async {
@@ -969,16 +946,14 @@ class IsarService {
     });
   }
 
-  /// Obtiene todos los pedidos por local destino
   Future<List<PedidoEntity>> obtenerPedidosPorLocalDestino(int localDestinoId) async {
-  final isar = await db;
-  return await isar.pedidoEntitys
-      .where()
-      .localDestinoIdEqualTo(localDestinoId)
-      .findAll();
-}
+    final isar = await db;
+    return await isar.pedidoEntitys
+        .where()
+        .localDestinoIdEqualTo(localDestinoId)
+        .findAll();
+  }
 
-  /// Obtiene pedidos por estado (y opcionalmente por local destino)
   Future<List<PedidoEntity>> obtenerPedidosPorEstado(
     EstadoPedido estado, {
     int? localDestinoId,
@@ -1000,13 +975,11 @@ class IsarService {
     }
   }
 
-  /// Obtiene un pedido por su ID de Isar
   Future<PedidoEntity?> obtenerPedidoPorId(int id) async {
     final isar = await db;
     return await isar.pedidoEntitys.get(id);
   }
 
-  /// Obtiene un pedido por su UUID de Supabase
   Future<PedidoEntity?> obtenerPedidoPorSupabaseId(String supabaseId) async {
     final isar = await db;
     if (supabaseId.isEmpty) return null;
@@ -1016,7 +989,6 @@ class IsarService {
         .findFirst();
   }
 
-  /// Actualiza el estado de un pedido
   Future<void> actualizarEstadoPedido(int id, EstadoPedido nuevoEstado) async {
     final isar = await db;
     await isar.writeTxn(() async {
@@ -1028,7 +1000,6 @@ class IsarService {
     });
   }
 
-  /// Actualiza el estado de sincronización de un pedido
   Future<void> actualizarSyncStatusPedido(int id, bool sincronizado) async {
     final isar = await db;
     await isar.writeTxn(() async {
@@ -1041,7 +1012,6 @@ class IsarService {
     });
   }
 
-  /// Obtiene pedidos pendientes de sincronizar
   Future<List<ProductoEntity>> obtenerProductosPendientesSync() async {
     final isar = await db;
     return await isar.productoEntitys
@@ -1054,8 +1024,6 @@ class IsarService {
   // MÉTODOS PARA DETALLES DE PEDIDO
   // ============================================================
 
-
-  /// Guarda un detalle de pedido
   Future<int> guardarDetallePedido(DetallePedidoEntity detalle) async {
     final isar = await db;
     return isar.writeTxn<int>(() async {
@@ -1064,14 +1032,13 @@ class IsarService {
   }
 
   Future<List<PedidoEntity>> obtenerPedidosPendientesSync() async {
-  final isar = await db;
-  return await isar.pedidoEntitys
-      .where()
-      .sincronizadoEqualTo(false)
-      .findAll();
-}
+    final isar = await db;
+    return await isar.pedidoEntitys
+        .where()
+        .sincronizadoEqualTo(false)
+        .findAll();
+  }
 
-  /// Obtiene todos los detalles de un pedido
   Future<List<DetallePedidoEntity>> obtenerDetallesPorPedido(
     int pedidoId,
   ) async {
@@ -1082,7 +1049,6 @@ class IsarService {
         .findAll();
   }
 
-  /// Elimina todos los detalles de un pedido
   Future<void> eliminarDetallesPorPedido(int pedidoId) async {
     final isar = await db;
     await isar.writeTxn(() async {
@@ -1100,7 +1066,6 @@ class IsarService {
   // MÉTODOS PARA RECEPCIONES
   // ============================================================
 
-  /// Guarda una recepción
   Future<int> guardarRecepcion(RecepcionEntity recepcion) async {
     final isar = await db;
     return isar.writeTxn<int>(() async {
@@ -1108,7 +1073,6 @@ class IsarService {
     });
   }
 
-  /// Obtiene la recepción de un pedido
   Future<RecepcionEntity?> obtenerRecepcionPorPedido(int pedidoId) async {
     final isar = await db;
     return await isar.recepcionEntitys
@@ -1117,7 +1081,6 @@ class IsarService {
         .findFirst();
   }
 
-  /// Actualiza el estado de sincronización de una recepción
   Future<void> actualizarSyncStatusRecepcion(int id, bool sincronizado) async {
     final isar = await db;
     await isar.writeTxn(() async {
@@ -1208,13 +1171,12 @@ class IsarService {
 
   Future<bool> eliminarProveedor(int id) async {
     final isar = await db;
-    // Verificar si tiene productos asociados
     final productos = await isar.productoEntitys
         .filter()
         .proveedorIdEqualTo(id)
         .findAll();
     if (productos.isNotEmpty) {
-      return false; // No se puede eliminar si tiene productos
+      return false;
     }
     return await isar.writeTxn(() async {
       return await isar.proveedorEntitys.delete(id);
@@ -1235,13 +1197,11 @@ class IsarService {
 
   // ==================== GESTIÓN DE LOCALES ====================
 
-  /// Obtiene un local por su ID de Isar
   Future<LocalEntity?> obtenerLocalPorId(int id) async {
     final isar = await db;
     return await isar.localEntitys.get(id);
   }
 
-  /// Obtiene un local por su UUID de Supabase
   Future<LocalEntity?> obtenerLocalPorSupabaseId(String supabaseId) async {
     final isar = await db;
     if (supabaseId.isEmpty) return null;
@@ -1249,6 +1209,129 @@ class IsarService {
         .filter()
         .supabaseIdEqualTo(supabaseId)
         .findFirst();
+  }
+
+  Future<int> guardarLocal(LocalEntity local) async {
+    final isar = await db;
+    return isar.writeTxn<int>(() async {
+      local.updatedAt = DateTime.now();
+      if (local.createdAt == null) {
+        local.createdAt = DateTime.now();
+      }
+      return await isar.localEntitys.put(local);
+    });
+  }
+
+  Future<List<LocalEntity>> obtenerLocales({bool soloActivos = true}) async {
+    final isar = await db;
+    if (soloActivos) {
+      return await isar.localEntitys.filter().activoEqualTo(true).findAll();
+    }
+    return await isar.localEntitys.where().findAll();
+  }
+
+  Future<bool> eliminarLocal(int id) async {
+    final isar = await db;
+    final pedidos = await isar.pedidoEntitys
+        .filter()
+        .localOrigenIdEqualTo(id)
+        .or()
+        .localDestinoIdEqualTo(id)
+        .findAll();
+    if (pedidos.isNotEmpty) {
+      return false;
+    }
+    return await isar.writeTxn(() async {
+      return await isar.localEntitys.delete(id);
+    });
+  }
+
+  Future<void> actualizarSyncStatusLocal(int id, bool sincronizado) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final local = await isar.localEntitys.get(id);
+      if (local != null) {
+        local.sincronizado = sincronizado;
+        local.fechaSincronizacion = DateTime.now();
+        await isar.localEntitys.put(local);
+      }
+    });
+  }
+
+  Future<List<LocalEntity>> obtenerLocalesPendientesSync() async {
+    final isar = await db;
+    return await isar.localEntitys
+        .filter()
+        .sincronizadoEqualTo(false)
+        .findAll();
+  }
+
+  // ==================== DEPARTAMENTOS ====================
+
+  Future<int> guardarDepartamento(DepartamentoEntity departamento) async {
+    final isar = await db;
+    return isar.writeTxn<int>(() async {
+      departamento.updatedAt = DateTime.now();
+      if (departamento.createdAt == null) {
+        departamento.createdAt = DateTime.now();
+      }
+      return await isar.departamentoEntitys.put(departamento);
+    });
+  }
+
+  Future<List<DepartamentoEntity>> obtenerDepartamentos({
+    bool soloActivos = true,
+    int? localId,
+  }) async {
+    final isar = await db;
+    List<DepartamentoEntity> departamentos;
+    if (localId != null) {
+      departamentos = await isar.departamentoEntitys
+          .filter()
+          .localIdEqualTo(localId)
+          .findAll();
+    } else {
+      departamentos = await isar.departamentoEntitys
+          .where()
+          .findAll();
+    }
+    if (soloActivos) {
+      departamentos = departamentos.where((d) => d.activo).toList();
+    }
+    return departamentos;
+  }
+
+  Future<DepartamentoEntity?> obtenerDepartamentoPorId(int id) async {
+    final isar = await db;
+    return await isar.departamentoEntitys.get(id);
+  }
+
+  Future<bool> eliminarDepartamento(int id) async {
+    final isar = await db;
+    // No verificamos usuarios porque no tienen campo departamentoId
+    return await isar.writeTxn(() async {
+      return await isar.departamentoEntitys.delete(id);
+    });
+  }
+
+  Future<void> actualizarSyncStatusDepartamento(int id, bool sincronizado) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final departamento = await isar.departamentoEntitys.get(id);
+      if (departamento != null) {
+        departamento.sincronizado = sincronizado;
+        departamento.fechaSincronizacion = DateTime.now();
+        await isar.departamentoEntitys.put(departamento);
+      }
+    });
+  }
+
+  Future<List<DepartamentoEntity>> obtenerDepartamentosPendientesSync() async {
+    final isar = await db;
+    return await isar.departamentoEntitys
+        .filter()
+        .sincronizadoEqualTo(false)
+        .findAll();
   }
 
   // ==================== CÓDIGOS DE BARRAS ALIAS ====================
@@ -1301,19 +1384,16 @@ class IsarService {
     });
   }
 
-  /// Obtiene el stock total sumando la cantidadRestante de todos los lotes activos de un producto
   Future<double> obtenerStockTotalPorProducto(int productoId) async {
-  final isar = await db;
-  final lotes = await isar.loteEntitys
-      .filter()
-      .productoIdEqualTo(productoId)
-      .estadoEqualTo('activo')
-      .findAll();
-  
-  return lotes.fold<double>(0.0, (sum, lote) => sum + lote.cantidadRestante);
-}
+    final isar = await db;
+    final lotes = await isar.loteEntitys
+        .filter()
+        .productoIdEqualTo(productoId)
+        .estadoEqualTo('activo')
+        .findAll();
+    return lotes.fold<double>(0.0, (sum, lote) => sum + lote.cantidadRestante);
+  }
 
-  /// Obtiene lotes activos ordenados por fecha de vencimiento (FEFO) o por ingreso (FIFO)
   Future<List<LoteEntity>> obtenerLotesActivos(
     int productoId, {
     bool priorizarVencimiento = true,
@@ -1329,13 +1409,11 @@ class IsarService {
 
     if (priorizarVencimiento) {
       lotes.sort((a, b) {
-        // Los que tienen fecha de vencimiento primero
         if (a.fechaVencimiento != null && b.fechaVencimiento != null) {
           return a.fechaVencimiento!.compareTo(b.fechaVencimiento!);
         }
         if (a.fechaVencimiento != null) return -1;
         if (b.fechaVencimiento != null) return 1;
-        // Si ninguno tiene, por fecha de ingreso (FIFO)
         return a.fechaIngreso.compareTo(b.fechaIngreso);
       });
     } else {
@@ -1344,7 +1422,6 @@ class IsarService {
     return lotes;
   }
 
-  /// Descuenta una cantidad de un lote específico
   Future<bool> descontarLote(int loteId, double cantidad) async {
     final isar = await db;
     return await isar.writeTxn(() async {
@@ -1363,7 +1440,6 @@ class IsarService {
     });
   }
 
-  /// Obtiene el lote que debe usarse para una venta (FIFO/FEFO)
   Future<LoteEntity?> obtenerLoteParaVenta(
     int productoId, {
     bool priorizarVencimiento = true,
@@ -1377,56 +1453,47 @@ class IsarService {
 
   // ==================== CÓDIGOS DE BARRAS ALIAS - PENDIENTES DE SINCRONIZACIÓN ====================
 
-/// Obtiene todos los alias que no han sido sincronizados (sincronizado == false)
-Future<List<CodigoBarrasAliasEntity>> obtenerAliasPendientesSync() async {
-  final isar = await db;
-  return await isar.codigoBarrasAliasEntitys
-      .filter()
-      .sincronizadoEqualTo(false)
-      .findAll();
-}
+  Future<List<CodigoBarrasAliasEntity>> obtenerAliasPendientesSync() async {
+    final isar = await db;
+    return await isar.codigoBarrasAliasEntitys
+        .filter()
+        .sincronizadoEqualTo(false)
+        .findAll();
+  }
 
-// ==================== LOTES - PENDIENTES DE SINCRONIZACIÓN ====================
+  // ==================== LOTES - PENDIENTES DE SINCRONIZACIÓN ====================
 
-/// Obtiene todos los lotes que no han sido sincronizados (sincronizado == false)
-Future<List<LoteEntity>> obtenerLotesPendientesSync() async {
-  final isar = await db;
-  return await isar.loteEntitys
-      .filter()
-      .sincronizadoEqualTo(false)
-      .findAll();
-}
+  Future<List<LoteEntity>> obtenerLotesPendientesSync() async {
+    final isar = await db;
+    return await isar.loteEntitys
+        .filter()
+        .sincronizadoEqualTo(false)
+        .findAll();
+  }
 
-/// Crea un lote inicial para cada producto usando el stock actual
+  // ==================== LOTES - MÉTODOS ADICIONALES ====================
 
-// ==================== LOTES - MÉTODOS ADICIONALES ====================
+  Future<List<LoteEntity>> obtenerTodosLosLotes() async {
+    final isar = await db;
+    return await isar.loteEntitys.where().findAll();
+  }
 
-/// Obtiene todos los lotes (para diagnóstico)
-Future<List<LoteEntity>> obtenerTodosLosLotes() async {
-  final isar = await db;
-  return await isar.loteEntitys.where().findAll();
-}
+  Future<List<ProductoEntity>> obtenerTodosLosProductos() async {
+    final isar = await db;
+    return await isar.productoEntitys.where().findAll();
+  }
 
-/// Obtiene todos los productos (para diagnóstico)
-Future<List<ProductoEntity>> obtenerTodosLosProductos() async {
-  final isar = await db;
-  return await isar.productoEntitys.where().findAll();
-}
+  Future<int> contarLotes() async {
+    final isar = await db;
+    return await isar.loteEntitys.where().count();
+  }
 
-/// Cuenta todos los lotes
-Future<int> contarLotes() async {
-  final isar = await db;
-  return await isar.loteEntitys.where().count();
-}
+  Future<int> contarProductos() async {
+    final isar = await db;
+    return await isar.productoEntitys.where().count();
+  }
 
-/// Cuenta todos los productos
-Future<int> contarProductos() async {
-  final isar = await db;
-  return await isar.productoEntitys.where().count();
-}
-
-/// Ejecuta la migración de stock a lotes (devuelve resultado detallado)
-Future<Map<String, dynamic>> migrarStockExistenteALotes() async {
+  Future<Map<String, dynamic>> migrarStockExistenteALotes() async {
     try {
       final isar = await db;
       final productos = await isar.productoEntitys.where().findAll();
@@ -1486,59 +1553,113 @@ Future<Map<String, dynamic>> migrarStockExistenteALotes() async {
     }
   }
 
-Future<int> asignarSupabaseIdsAFaltantes() async {
+  Future<int> asignarSupabaseIdsAFaltantes() async {
+    final isar = await db;
+    final supabase = Supabase.instance.client;
+
+    final productosSinId = await isar.productoEntitys
+        .filter()
+        .supabaseIdIsNull()
+        .findAll();
+
+    if (productosSinId.isEmpty) {
+      debugPrint('✅ Todos los productos ya tienen supabaseId.');
+      return 0;
+    }
+
+    debugPrint('🔄 Asignando supabaseId a ${productosSinId.length} productos...');
+
+    final idsIsar = productosSinId.map((p) => p.id).toList();
+    final response = await supabase
+        .from('productos')
+        .select('id, id_isar')
+        .inFilter('id_isar', idsIsar);
+
+    final Map<int, String> mapa = {};
+    for (var row in response) {
+      final idIsarStr = row['id_isar']?.toString() ?? '';
+      final idIsar = int.tryParse(idIsarStr);
+      final supabaseId = row['id']?.toString();
+
+      if (idIsar != null && supabaseId != null && supabaseId.isNotEmpty) {
+        mapa[idIsar] = supabaseId;
+      }
+    }
+
+    int actualizados = 0;
+    for (var p in productosSinId) {
+      final uuid = mapa[p.id];
+      if (uuid != null) {
+        p.supabaseId = uuid;
+        p.sincronizado = true;
+        p.fechaSincronizacion = DateTime.now();
+        await isar.writeTxn(() async {
+          await isar.productoEntitys.put(p);
+        });
+        actualizados++;
+        debugPrint('✅ Producto ${p.nombre} (ID: ${p.id}) → supabaseId: $uuid');
+      } else {
+        debugPrint('⚠️ Producto ${p.nombre} (ID: ${p.id}) no encontrado en Supabase.');
+      }
+    }
+
+    debugPrint('✅ $actualizados productos actualizados con supabaseId.');
+    return actualizados;
+  }
+
+// ==================== TELEGRAM CONFIG ====================
+
+Future<int> guardarTelegramConfig(TelegramConfigEntity config) async {
   final isar = await db;
-  final supabase = Supabase.instance.client;
+  return isar.writeTxn<int>(() async {
+    config.updatedAt = DateTime.now();
+    if (config.createdAt == null) {
+      config.createdAt = DateTime.now();
+    }
+    return await isar.telegramConfigEntitys.put(config);
+  });
+}
 
-  final productosSinId = await isar.productoEntitys
+Future<TelegramConfigEntity?> obtenerTelegramConfig() async {
+  final isar = await db;
+  return await isar.telegramConfigEntitys.where().findFirst();
+}
+
+Future<void> actualizarSyncStatusTelegramConfig(int id, bool sincronizado) async {
+  final isar = await db;
+  await isar.writeTxn(() async {
+    final config = await isar.telegramConfigEntitys.get(id);
+    if (config != null) {
+      config.sincronizado = sincronizado;
+      config.fechaSincronizacion = DateTime.now();
+      await isar.telegramConfigEntitys.put(config);
+    }
+  });
+}
+
+Future<List<TelegramConfigEntity>> obtenerTelegramConfigsPendientesSync() async {
+  final isar = await db;
+  return await isar.telegramConfigEntitys
       .filter()
-      .supabaseIdIsNull()
+      .sincronizadoEqualTo(false)
       .findAll();
-
-  if (productosSinId.isEmpty) {
-    debugPrint('✅ Todos los productos ya tienen supabaseId.');
-    return 0;
-  }
-
-  debugPrint('🔄 Asignando supabaseId a ${productosSinId.length} productos...');
-
-  final idsIsar = productosSinId.map((p) => p.id).toList();
-  final response = await supabase
-      .from('productos')
-      .select('id, id_isar')
-      .inFilter('id_isar', idsIsar);
-
-  final Map<int, String> mapa = {};
-  for (var row in response) {
-    // 🔥 LECTURA SEGURA: todo a String, luego parseamos
-    final idIsarStr = row['id_isar']?.toString() ?? '';
-    final idIsar = int.tryParse(idIsarStr);
-    final supabaseId = row['id']?.toString();
-
-    if (idIsar != null && supabaseId != null && supabaseId.isNotEmpty) {
-      mapa[idIsar] = supabaseId;
-    }
-  }
-
-  int actualizados = 0;
-  for (var p in productosSinId) {
-    final uuid = mapa[p.id];
-    if (uuid != null) {
-      p.supabaseId = uuid;
-      p.sincronizado = true;
-      p.fechaSincronizacion = DateTime.now();
-      await isar.writeTxn(() async {
-        await isar.productoEntitys.put(p);
-      });
-      actualizados++;
-      debugPrint('✅ Producto ${p.nombre} (ID: ${p.id}) → supabaseId: $uuid');
-    } else {
-      debugPrint('⚠️ Producto ${p.nombre} (ID: ${p.id}) no encontrado en Supabase.');
-    }
-  }
-
-  debugPrint('✅ $actualizados productos actualizados con supabaseId.');
-  return actualizados;
-}
 }
 
+// Obtener TODAS las configuraciones (no solo la primera)
+Future<List<TelegramConfigEntity>> obtenerTelegramConfigs() async {
+  final isar = await db;
+  return await isar.telegramConfigEntitys.where().findAll();
+}
+
+// Eliminar una configuración por ID
+Future<void> eliminarTelegramConfig(int id) async {
+  final isar = await db;
+  await isar.writeTxn(() async {
+    await isar.telegramConfigEntitys.delete(id);
+  });
+}
+
+// ==================== TELEGRAM CONFIG - ELIMINAR ====================
+
+
+}

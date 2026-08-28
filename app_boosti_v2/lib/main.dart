@@ -1,5 +1,5 @@
 import 'package:app_boosti_v2/features/pos/presentation/providers/themes/theme.dart';
-import 'package:app_boosti_v2/features/pos/presentation/providers/themes/theme_provider.dart'; // ✅ NUEVO
+import 'package:app_boosti_v2/features/pos/presentation/providers/themes/theme_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +16,7 @@ import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:app_boosti_v2/features/pos/presentation/services/telegram/telegram_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,12 +58,21 @@ void main() async {
   // 2.2. Migración de stock a lotes (solo una vez)
   await isarService.migrarStockExistenteALotes();
 
-  // 🔥 2.3. ASIGNAR SUPABASE ID A PRODUCTOS QUE NO TENGAN
+  // 2.3. Inicializar Telegram (con manejo de errores)
+  try {
+    final telegramService = TelegramService();
+    await telegramService.inicializar();
+    debugPrint('✅ Servicio de Telegram inicializado');
+  } catch (e) {
+    debugPrint('⚠️ Error al inicializar Telegram: $e');
+  }
+
+  // 2.4. ASIGNAR SUPABASE ID A PRODUCTOS (con manejo de errores)
   try {
     final actualizados = await isarService.asignarSupabaseIdsAFaltantes();
     debugPrint('✅ Migración de supabaseId: $actualizados productos actualizados.');
     if (actualizados == 0) {
-      debugPrint('⚠️ Ningún producto actualizado. Verifica que la columna "id_isar" exista en Supabase y que los productos locales estén sincronizados.');
+      debugPrint('⚠️ Ningún producto actualizado. Verifica la columna "id_isar" en Supabase.');
     }
   } catch (e) {
     debugPrint('❌ Error en migración de supabaseId: $e');
@@ -97,11 +107,11 @@ class BoostiPOS extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isLocked = ref.watch(lockProvider);
-    final themeMode = ref.watch(themeProvider); // ✅ AHORA FUNCIONA
+    final themeMode = ref.watch(themeProvider);
 
     return MaterialApp(
       title: 'BoostI POS - JAH Lab',
-      debugShowCheckedModeBanner: false,
+      debugShowCheckedModeBanner: false, // ✅ CORREGIDO
       theme: lightTheme(),
       darkTheme: darkTheme(),
       themeMode: themeMode,

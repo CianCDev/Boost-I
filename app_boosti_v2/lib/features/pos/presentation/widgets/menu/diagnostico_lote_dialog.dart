@@ -115,6 +115,7 @@ class _DiagnosticoLotesDialogState extends ConsumerState<DiagnosticoLotesDialog>
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -209,8 +210,10 @@ class _DiagnosticoLotesDialogState extends ConsumerState<DiagnosticoLotesDialog>
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Tarjetas de métricas
-                      Row(
+                      // Tarjetas de métricas con Wrap
+                      Wrap(
+                        spacing: isMobile ? 8 : 12,
+                        runSpacing: isMobile ? 8 : 12,
                         children: [
                           _buildMetricCard(
                             context,
@@ -218,27 +221,29 @@ class _DiagnosticoLotesDialogState extends ConsumerState<DiagnosticoLotesDialog>
                             '$totalProductos',
                             Icons.inventory_2_rounded,
                             Colors.blue,
+                            isMobile,
                           ),
-                          const SizedBox(width: 12),
                           _buildMetricCard(
                             context,
                             'Lotes',
                             '$totalLotes',
                             Icons.production_quantity_limits_rounded,
                             Colors.purple,
+                            isMobile,
                           ),
-                          const SizedBox(width: 12),
                           _buildMetricCard(
                             context,
                             'Cobertura',
                             porcentaje,
                             Icons.pie_chart_rounded,
                             cobertura >= 80 ? Colors.green : (cobertura >= 50 ? Colors.orange : Colors.red),
+                            isMobile,
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
-                      // Productos sin lote
+                      
+                      // Productos sin lote - CASO CON PRODUCTOS
                       if (productosSinLoteCount > 0) ...[
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -291,6 +296,7 @@ class _DiagnosticoLotesDialogState extends ConsumerState<DiagnosticoLotesDialog>
                           ),
                         ),
                       ] else ...[
+                        // 🔥 PRODUCTOS SIN LOTE - CASO VACÍO (ALERTA VERDE CORREGIDA)
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -302,11 +308,16 @@ class _DiagnosticoLotesDialogState extends ConsumerState<DiagnosticoLotesDialog>
                             children: [
                               Icon(Icons.check_circle_rounded, color: Colors.green.shade700, size: 20),
                               const SizedBox(width: 8),
-                              Text(
-                                'Todos los productos tienen lote asignado',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green.shade800,
+                              Expanded( // ✅ Esto evita que el texto se desborde
+                                child: Text(
+                                  '✅ Todos los productos tienen lote asignado',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green.shade800,
+                                    fontSize: 13,
+                                  ),
+                                  softWrap: true,
+                                  overflow: TextOverflow.visible,
                                 ),
                               ),
                             ],
@@ -314,10 +325,15 @@ class _DiagnosticoLotesDialogState extends ConsumerState<DiagnosticoLotesDialog>
                         ),
                       ],
                       const SizedBox(height: 16),
+                      
                       // Botones de acción
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.end,
                         children: [
-                          Expanded(
+                          SizedBox(
+                            width: isMobile ? double.infinity : 140,
                             child: OutlinedButton.icon(
                               onPressed: () {
                                 _cargarDiagnostico();
@@ -331,8 +347,8 @@ class _DiagnosticoLotesDialogState extends ConsumerState<DiagnosticoLotesDialog>
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
+                          SizedBox(
+                            width: isMobile ? double.infinity : 160,
                             child: ElevatedButton.icon(
                               onPressed: _isMigrating ? null : _ejecutarMigracion,
                               icon: _isMigrating
@@ -363,37 +379,46 @@ class _DiagnosticoLotesDialogState extends ConsumerState<DiagnosticoLotesDialog>
     );
   }
 
-  Widget _buildMetricCard(BuildContext context, String label, String value, IconData icon, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 24, color: color),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: color,
-              ),
+  Widget _buildMetricCard(
+    BuildContext context,
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+    bool isMobile,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final ancho = isMobile ? (MediaQuery.of(context).size.width / 3.4) : 160.0;
+
+    return Container(
+      width: ancho,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 24, color: color),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: color,
             ),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurfaceVariant,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

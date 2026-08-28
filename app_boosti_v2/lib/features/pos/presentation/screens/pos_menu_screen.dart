@@ -28,6 +28,14 @@ import '../widgets/printer_selection_widget.dart';
 import 'user_settings_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/proveedores/proveedores_screen.dart';
+import '../screens/departamentos/departamentos_screen.dart';
+import '../screens/locales/locales_screen.dart';
+import '../screens/telegram/telegram_config_screen.dart';
+import 'package:app_boosti_v2/features/pos/presentation/screens/departamentos/departamentos_screen.dart';
+
+// y usas DepartamentosScreen
+
+
 
 // ✅ IMPORT DEL NUEVO DIÁLOGO DE DIAGNÓSTICO
 
@@ -174,15 +182,17 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
 
       Navigator.pop(context);
 
-      final mensaje = StringBuffer('✅ Sincronización completada\n');
-      if (result['ventas']! > 0) mensaje.writeln('• ${result['ventas']} ventas');
-      if (result['productos']! > 0) mensaje.writeln('• ${result['productos']} productos');
-      if (result['proveedores']! > 0) mensaje.writeln('• ${result['proveedores']} proveedores');
-      if (result['gastos']! > 0) mensaje.writeln('• ${result['gastos']} gastos');
-      if (result['pedidos']! > 0) mensaje.writeln('• ${result['pedidos']} pedidos');
-      if (result['lotes']! > 0) mensaje.writeln('• ${result['lotes']} lotes');
-      if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizado ✅');
-
+    final mensaje = StringBuffer('✅ Sincronización completada\n');
+if (result['ventas']! > 0) mensaje.writeln('• ${result['ventas']} ventas');
+if (result['productos']! > 0) mensaje.writeln('• ${result['productos']} productos');
+if (result['proveedores']! > 0) mensaje.writeln('• ${result['proveedores']} proveedores');
+if (result['gastos']! > 0) mensaje.writeln('• ${result['gastos']} gastos');
+if (result['pedidos']! > 0) mensaje.writeln('• ${result['pedidos']} pedidos');
+if (result['lotes']! > 0) mensaje.writeln('• ${result['lotes']} lotes');
+if (result['locales']! > 0) mensaje.writeln('• ${result['locales']} locales');
+if (result['departamentos']! > 0) mensaje.writeln('• ${result['departamentos']} departamentos');
+if (result['telegram']! > 0) mensaje.writeln('• ${result['telegram']} configuraciones de Telegram');
+if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizado ✅');
       if (!currentContext.mounted) return;
       scaffoldMessenger.showSnackBar(
         SnackBar(
@@ -572,6 +582,28 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         isAdminOnly: true,
       ),
       MenuOption(
+  title: 'Gestión de Locales',
+  subtitle: 'Crear y administrar sedes/tiendas',
+  icon: Icons.storefront_rounded,
+  color: const Color(0xFF3B82F6),
+  onTap: () => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const LocalesScreen()),
+  ),
+  isAdminOnly: true,
+),
+MenuOption(
+  title: 'Gestión de Departamentos',
+  subtitle: 'Crear y administrar departamentos',
+  icon: Icons.business_center_rounded,
+  color: const Color(0xFF8B5CF6),
+  onTap: () => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const DepartamentosScreen()),
+  ),
+  isAdminOnly: true,
+),
+      MenuOption(
         title: 'Proveedores',
         subtitle: 'Gestionar proveedores',
         icon: Icons.business_center_rounded,
@@ -626,6 +658,17 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         ),
         isAdminOnly: true,
       ),
+      MenuOption(
+  title: 'Configurar Telegram',
+  subtitle: 'Bot de notificaciones y comandos',
+  icon: Icons.telegram,
+  color: const Color(0xFF10B981),
+  onTap: () => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const TelegramConfigScreen()),
+  ),
+  isAdminOnly: true,
+),
     ];
 
     final opcionesConfiguracion = [
