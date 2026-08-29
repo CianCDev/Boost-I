@@ -1,3 +1,4 @@
+// local_entity.dart (ampliado)
 import 'package:isar/isar.dart';
 
 part 'local_entity.g.dart';
@@ -6,9 +7,20 @@ part 'local_entity.g.dart';
 class LocalEntity {
   Id id = Isar.autoIncrement;
   String? supabaseId;
-  String nombre = '';
+
+  late String nombre;
   String? direccion;
   String? telefono;
+  String? email;
+
+  // Nuevos campos
+  bool activo = true;
+  bool sincronizado = false;
+  DateTime? fechaSincronizacion;
+
+  // Auditoría
   DateTime? createdAt;
   DateTime? updatedAt;
+
+  LocalEntity();
 }

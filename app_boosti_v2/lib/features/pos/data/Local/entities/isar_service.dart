@@ -22,6 +22,8 @@ import '../entities/recepcion_entity.dart';
 import 'categoria_entity.dart';
 import 'codigo_barra_alia_entity.dart';
 import '../entities/lote_entity.dart';
+import '../entities/departamento_entity.dart';
+import '../entities/telegram_config_entity.dart';
 import 'gasto_entity.dart';
 import 'marca_entity.dart'; // ✅ Importación de MarcaEntity
 
@@ -72,6 +74,8 @@ class IsarService {
           ProveedorEntitySchema,
           CodigoBarrasAliasEntitySchema,
           LoteEntitySchema,
+          DepartamentoEntitySchema,
+          TelegramConfigEntitySchema, // ✅ Añadido
           CategoriaEntitySchema,
           MarcaEntitySchema, // ✅ AGREGADO
         ],
@@ -619,6 +623,7 @@ class IsarService {
       finDia,
     );
     final ventasPorDia = await obtenerVentasPorDia(7);
+
     final ventasHoy = await isar.ventaEntitys
         .filter()
         .fechaBetween(inicioHoy, finDia, includeLower: true, includeUpper: true)
@@ -1342,6 +1347,7 @@ class IsarService {
   }
 
   // ==================== GESTIÓN DE LOCALES ====================
+
   Future<LocalEntity?> obtenerLocalPorId(int id) async {
     final isar = await db;
     return await isar.localEntitys.get(id);
@@ -1354,6 +1360,129 @@ class IsarService {
         .filter()
         .supabaseIdEqualTo(supabaseId)
         .findFirst();
+  }
+
+  Future<int> guardarLocal(LocalEntity local) async {
+    final isar = await db;
+    return isar.writeTxn<int>(() async {
+      local.updatedAt = DateTime.now();
+      if (local.createdAt == null) {
+        local.createdAt = DateTime.now();
+      }
+      return await isar.localEntitys.put(local);
+    });
+  }
+
+  Future<List<LocalEntity>> obtenerLocales({bool soloActivos = true}) async {
+    final isar = await db;
+    if (soloActivos) {
+      return await isar.localEntitys.filter().activoEqualTo(true).findAll();
+    }
+    return await isar.localEntitys.where().findAll();
+  }
+
+  Future<bool> eliminarLocal(int id) async {
+    final isar = await db;
+    final pedidos = await isar.pedidoEntitys
+        .filter()
+        .localOrigenIdEqualTo(id)
+        .or()
+        .localDestinoIdEqualTo(id)
+        .findAll();
+    if (pedidos.isNotEmpty) {
+      return false;
+    }
+    return await isar.writeTxn(() async {
+      return await isar.localEntitys.delete(id);
+    });
+  }
+
+  Future<void> actualizarSyncStatusLocal(int id, bool sincronizado) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final local = await isar.localEntitys.get(id);
+      if (local != null) {
+        local.sincronizado = sincronizado;
+        local.fechaSincronizacion = DateTime.now();
+        await isar.localEntitys.put(local);
+      }
+    });
+  }
+
+  Future<List<LocalEntity>> obtenerLocalesPendientesSync() async {
+    final isar = await db;
+    return await isar.localEntitys
+        .filter()
+        .sincronizadoEqualTo(false)
+        .findAll();
+  }
+
+  // ==================== DEPARTAMENTOS ====================
+
+  Future<int> guardarDepartamento(DepartamentoEntity departamento) async {
+    final isar = await db;
+    return isar.writeTxn<int>(() async {
+      departamento.updatedAt = DateTime.now();
+      if (departamento.createdAt == null) {
+        departamento.createdAt = DateTime.now();
+      }
+      return await isar.departamentoEntitys.put(departamento);
+    });
+  }
+
+  Future<List<DepartamentoEntity>> obtenerDepartamentos({
+    bool soloActivos = true,
+    int? localId,
+  }) async {
+    final isar = await db;
+    List<DepartamentoEntity> departamentos;
+    if (localId != null) {
+      departamentos = await isar.departamentoEntitys
+          .filter()
+          .localIdEqualTo(localId)
+          .findAll();
+    } else {
+      departamentos = await isar.departamentoEntitys
+          .where()
+          .findAll();
+    }
+    if (soloActivos) {
+      departamentos = departamentos.where((d) => d.activo).toList();
+    }
+    return departamentos;
+  }
+
+  Future<DepartamentoEntity?> obtenerDepartamentoPorId(int id) async {
+    final isar = await db;
+    return await isar.departamentoEntitys.get(id);
+  }
+
+  Future<bool> eliminarDepartamento(int id) async {
+    final isar = await db;
+    // No verificamos usuarios porque no tienen campo departamentoId
+    return await isar.writeTxn(() async {
+      return await isar.departamentoEntitys.delete(id);
+    });
+  }
+
+  Future<void> actualizarSyncStatusDepartamento(int id, bool sincronizado) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final departamento = await isar.departamentoEntitys.get(id);
+      if (departamento != null) {
+        departamento.sincronizado = sincronizado;
+        departamento.fechaSincronizacion = DateTime.now();
+        await isar.departamentoEntitys.put(departamento);
+      }
+    });
+  }
+
+  Future<List<DepartamentoEntity>> obtenerDepartamentosPendientesSync() async {
+    final isar = await db;
+    return await isar.departamentoEntitys
+        .filter()
+        .sincronizadoEqualTo(false)
+        .findAll();
   }
 
   // ==================== CÓDIGOS DE BARRAS ALIAS ====================
@@ -1471,6 +1600,8 @@ class IsarService {
     return lotes.isNotEmpty ? lotes.first : null;
   }
 
+  // ==================== CÓDIGOS DE BARRAS ALIAS - PENDIENTES DE SINCRONIZACIÓN ====================
+
   Future<List<CodigoBarrasAliasEntity>> obtenerAliasPendientesSync() async {
     final isar = await db;
     return await isar.codigoBarrasAliasEntitys
@@ -1479,6 +1610,8 @@ class IsarService {
         .findAll();
   }
 
+  // ==================== LOTES - PENDIENTES DE SINCRONIZACIÓN ====================
+
   Future<List<LoteEntity>> obtenerLotesPendientesSync() async {
     final isar = await db;
     return await isar.loteEntitys
@@ -1486,6 +1619,8 @@ class IsarService {
         .sincronizadoEqualTo(false)
         .findAll();
   }
+
+  // ==================== LOTES - MÉTODOS ADICIONALES ====================
 
   Future<List<LoteEntity>> obtenerTodosLosLotes() async {
     final isar = await db;
@@ -1616,6 +1751,66 @@ class IsarService {
         debugPrint('⚠️ Producto ${p.nombre} (ID: ${p.id}) no encontrado en Supabase.');
       }
     }
+
+    debugPrint('✅ $actualizados productos actualizados con supabaseId.');
+    return actualizados;
+  }
+
+// ==================== TELEGRAM CONFIG ====================
+
+Future<int> guardarTelegramConfig(TelegramConfigEntity config) async {
+  final isar = await db;
+  return isar.writeTxn<int>(() async {
+    config.updatedAt = DateTime.now();
+    if (config.createdAt == null) {
+      config.createdAt = DateTime.now();
+    }
+    return await isar.telegramConfigEntitys.put(config);
+  });
+}
+
+Future<TelegramConfigEntity?> obtenerTelegramConfig() async {
+  final isar = await db;
+  return await isar.telegramConfigEntitys.where().findFirst();
+}
+
+Future<void> actualizarSyncStatusTelegramConfig(int id, bool sincronizado) async {
+  final isar = await db;
+  await isar.writeTxn(() async {
+    final config = await isar.telegramConfigEntitys.get(id);
+    if (config != null) {
+      config.sincronizado = sincronizado;
+      config.fechaSincronizacion = DateTime.now();
+      await isar.telegramConfigEntitys.put(config);
+    }
+  });
+}
+
+Future<List<TelegramConfigEntity>> obtenerTelegramConfigsPendientesSync() async {
+  final isar = await db;
+  return await isar.telegramConfigEntitys
+      .filter()
+      .sincronizadoEqualTo(false)
+      .findAll();
+}
+
+// Obtener TODAS las configuraciones (no solo la primera)
+Future<List<TelegramConfigEntity>> obtenerTelegramConfigs() async {
+  final isar = await db;
+  return await isar.telegramConfigEntitys.where().findAll();
+}
+
+// Eliminar una configuración por ID
+Future<void> eliminarTelegramConfig(int id) async {
+  final isar = await db;
+  await isar.writeTxn(() async {
+    await isar.telegramConfigEntitys.delete(id);
+  });
+}
+
+// ==================== TELEGRAM CONFIG - ELIMINAR ====================
+
+
 
     debugPrint('✅ $actualizados productos actualizados con supabaseId.');
     return actualizados;

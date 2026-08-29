@@ -13,11 +13,71 @@ import 'features/pos/presentation/screens/login_screen.dart';
 import 'features/pos/presentation/screens/inventory_catalog_screen.dart';
 import 'features/pos/presentation/providers/lock_provider.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:app_boosti_v2/features/pos/presentation/services/telegram/telegram_service.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ============================================================
+  // 1. INICIALIZAR SUPABASE
+  // ============================================================
+  final prefs = await SharedPreferences.getInstance();
+  String? url = prefs.getString('supabase_url');
+  final anonKey = prefs.getString('supabase_anon_key');
+
+  if (url != null && url.isNotEmpty) {
+    if (url.endsWith('/')) url = url.substring(0, url.length - 1);
+    final uri = Uri.tryParse(url);
+    if (uri != null) {
+      url = '${uri.scheme}://${uri.host}';
+    }
+  }
+
+  if (url != null && anonKey != null && url.isNotEmpty && anonKey.isNotEmpty) {
+    try {
+      await Supabase.initialize(url: url, publishableKey: anonKey);
+      debugPrint('✅ Supabase inicializado para la empresa');
+    } catch (e) {
+      debugPrint('⚠️ Error inicializando Supabase: $e');
+    }
+  } else {
+    debugPrint('⚠️ No hay configuración de Supabase, esperando configuración');
+  }
+
+  // ============================================================
+  // 2. INICIALIZAR ISAR Y MIGRACIONES
+  // ============================================================
+  final isarService = IsarService();
+
+  // 2.1. Usuario admin por defecto
+  await isarService.inicializarUsuarioAdminPorDefecto();
+
+  // 2.2. Migración de stock a lotes (solo una vez)
+  await isarService.migrarStockExistenteALotes();
+
+  // 2.3. Inicializar Telegram (con manejo de errores)
+  try {
+    final telegramService = TelegramService();
+    await telegramService.inicializar();
+    debugPrint('✅ Servicio de Telegram inicializado');
+  } catch (e) {
+    debugPrint('⚠️ Error al inicializar Telegram: $e');
+  }
+
+  // 2.4. ASIGNAR SUPABASE ID A PRODUCTOS (con manejo de errores)
+  try {
+    final actualizados = await isarService.asignarSupabaseIdsAFaltantes();
+    debugPrint('✅ Migración de supabaseId: $actualizados productos actualizados.');
+    if (actualizados == 0) {
+      debugPrint('⚠️ Ningún producto actualizado. Verifica la columna "id_isar" en Supabase.');
+    }
+  } catch (e) {
+    debugPrint('❌ Error en migración de supabaseId: $e');
+    debugPrint('⚠️ Los lotes no se sincronizarán hasta que los productos tengan supabaseId.');
+  }
   // 🔥 LEER CREDENCIALES E INICIALIZAR SUPABASE ANTES DE runApp
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -55,7 +115,7 @@ class BoostiPOS extends ConsumerWidget {
 
     return MaterialApp(
       title: 'BoostI POS - JAH Lab',
-      debugShowCheckedModeBanner: false,
+      debugShowCheckedModeBanner: false, // ✅ CORREGIDO
       theme: lightTheme(),
       darkTheme: darkTheme(),
       themeMode: themeMode,
