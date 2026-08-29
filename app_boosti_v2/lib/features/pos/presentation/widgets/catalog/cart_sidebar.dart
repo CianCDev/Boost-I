@@ -1,5 +1,6 @@
 // lib/features/pos/presentation/widgets/catalog/cart_sidebar.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../controllers/cart_controller.dart';
 import '../../providers/bcv_provider.dart';
@@ -23,13 +24,12 @@ class CartSidebar extends ConsumerWidget {
     final isTablet = ResponsiveHelper.isTablet(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // ✅ Colores según modo (bordes con mayor opacidad)
     final backgroundColor = isDark ? darkBlue : cardLight;
     final textColor = isDark ? Colors.white : textDark;
     final textSecondaryColor = isDark ? Colors.white70 : textMuted;
     final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.15)   // antes 0.05
-        : primaryGreen.withValues(alpha: 0.30);  // antes 0.15
+        ? Colors.white.withValues(alpha: 0.15)
+        : primaryGreen.withValues(alpha: 0.30);
     final itemBgColor = isDark ? Colors.white.withValues(alpha: 0.05) : textMuted.withValues(alpha: 0.05);
 
     return Container(
@@ -57,7 +57,7 @@ class CartSidebar extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          // Header (sin cambios)
+          // Header
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -88,12 +88,12 @@ class CartSidebar extends ConsumerWidget {
                 if (cartState.items.isNotEmpty)
                   TextButton.icon(
                     onPressed: onLimpiar,
-                    icon: Icon(Icons.delete_outline, size: 16, color: pumpkinSpice),
-                    label: Text(
+                    icon: const Icon(Icons.delete_outline, size: 16, color: redError),
+                    label: const Text(
                       'Limpiar',
                       style: TextStyle(
                         fontSize: 12,
-                        color: pumpkinSpice,
+                        color: redError,
                       ),
                     ),
                     style: TextButton.styleFrom(
@@ -106,7 +106,7 @@ class CartSidebar extends ConsumerWidget {
             ),
           ),
 
-          // Lista de items con Dismissible
+          // Lista de items con Dismissible y mayor separación en el precio
           Expanded(
             child: cartState.items.isEmpty
                 ? Center(
@@ -138,83 +138,105 @@ class CartSidebar extends ConsumerWidget {
                       final subtotal = item.producto.precioUnidad * item.cantidad;
                       final key = '${item.producto.id}_$index';
 
-                      return Dismissible(
-                        key: ValueKey(key),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 16),
-                          decoration: BoxDecoration(
-                            color: pumpkinSpice, // rojo anaranjado
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            Icons.delete_outline,
-                            color: Colors.white,
-                            size: 22,
+                      return Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: borderColor,
+                            width: 1,
                           ),
                         ),
-                        onDismissed: (direction) {
-                          ref.read(cartProvider.notifier).eliminarItem(index);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: itemBgColor,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: borderColor,
-                              width: 1,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(9),
+                          child: Dismissible(
+                            key: ValueKey(key),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 16),
+                              color: redError,
+                              child: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.white,
+                                size: 22,
+                              ),
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.producto.nombre,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: isTablet ? 15 : 13,
-                                        color: textColor,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                            confirmDismiss: (direction) async {
+                              HapticFeedback.lightImpact();
+                              return await _confirmarEliminarProducto(
+                                context,
+                                item.producto.nombre,
+                              );
+                            },
+                            onDismissed: (direction) {
+                              ref.read(cartProvider.notifier).eliminarItem(index);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              color: itemBgColor,
+                              child: Row(
+                                children: [
+                                  // Nombre y cantidad
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.producto.nombre,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: isTablet ? 15 : 13,
+                                            color: textColor,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)} x \$${item.producto.precioUnidad.toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: textSecondaryColor,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)} x \$${item.producto.precioUnidad.toStringAsFixed(2)}',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: textSecondaryColor,
-                                      ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Precio Subtotal
+                                  Text(
+                                    '\$${subtotal.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: isTablet ? 16 : 14,
+                                      color: primaryGreen,
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                  // Espaciado directo entre el precio y el botón eliminar
+                                  const SizedBox(width: 12),
+                                  // Botón eliminar
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.close_rounded,
+                                      color: redError,
+                                      size: 18,
+                                    ),
+                                    onPressed: () async {
+                                      HapticFeedback.lightImpact();
+                                      final confirmado = await _confirmarEliminarProducto(
+                                        context,
+                                        item.producto.nombre,
+                                      );
+                                      if (confirmado == true) {
+                                        ref.read(cartProvider.notifier).eliminarItem(index);
+                                      }
+                                    },
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
                               ),
-                              Text(
-                                '\$${subtotal.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: isTablet ? 16 : 14,
-                                  color: primaryGreen,
-                                ),
-                              ),
-                              IconButton(
-                                icon: Icon(
-                                  Icons.close_rounded,
-                                  color: pumpkinSpice,
-                                  size: 18,
-                                ),
-                                onPressed: () {
-                                  ref.read(cartProvider.notifier).eliminarItem(index);
-                                },
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       );
@@ -222,7 +244,7 @@ class CartSidebar extends ConsumerWidget {
                   ),
           ),
 
-          // Totales y botón pagar (sin cambios)
+          // Totales y botón pagar
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -293,7 +315,7 @@ class CartSidebar extends ConsumerWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.payments_outlined, size: 18),
+                        const Icon(Icons.payments_outlined, size: 18),
                         const SizedBox(width: 8),
                         Text(
                           'COBRAR ORDEN',
@@ -312,6 +334,36 @@ class CartSidebar extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  // ---------- DIÁLOGO: CONFIRMAR ELIMINAR PRODUCTO ----------
+  Future<bool?> _confirmarEliminarProducto(BuildContext context, String nombre) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Eliminar producto'),
+          content: Text('¿Seguro que deseas eliminar "$nombre" del carrito?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
+              ),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: redError,
+              ),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

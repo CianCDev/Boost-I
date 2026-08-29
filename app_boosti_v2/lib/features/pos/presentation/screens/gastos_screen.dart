@@ -7,10 +7,12 @@ import '../../data/Local/entities/isar_service.dart';
 import '../providers/bcv_provider.dart';
 import '../providers/usuario_provider.dart';
 import '../utils/responsive_helper.dart';
+import '../widgets/appbar.dart';
 import '../widgets/gastos/gastos_filter_bar.dart';
 import '../widgets/gastos/gastos_summary_cards.dart';
 import '../widgets/gastos/gastos_search_bar.dart';
 import '../widgets/gastos/gastos_list.dart';
+import '../widgets/gastos/gastos_detail_dialog.dart';
 
 class GastosScreen extends ConsumerStatefulWidget {
   final bool showAppBar;
@@ -197,7 +199,7 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
       ..descripcion = descripcion
       ..monto = monto
       ..moneda = _monedaSeleccionada
-      ..tasaBcv = _monedaSeleccionada == 'Bs' ? tasaBcv : null
+      ..tasaBcv = _monedaSeleccionada == 'USD' ? tasaBcv : null
       ..categoria = _categoriaSeleccionada
       ..usuarioId = usuario.id
       ..usuarioNombre = usuario.nombre
@@ -209,14 +211,14 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
     _montoController.clear();
     await _cargarGastos();
     await _isarService.guardarLog(
-  LogEntity()
-    ..accion = 'GASTO_REGISTRADO'
-    ..usuarioNombre = usuario.nombre
-    ..usuarioRol = usuario.rol
-    ..detalles = '${gasto.descripcion} - Monto: ${gasto.monto} ${gasto.moneda}'
-    ..fecha = DateTime.now()
-    ..sincronizado = false,
-);
+      LogEntity()
+        ..accion = 'GASTO_REGISTRADO'
+        ..usuarioNombre = usuario.nombre
+        ..usuarioRol = usuario.rol
+        ..detalles = '${gasto.descripcion} - Monto: ${gasto.monto} ${gasto.moneda}'
+        ..fecha = DateTime.now()
+        ..sincronizado = false,
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -225,6 +227,20 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
         ),
       );
     }
+  }
+
+  // ============================================================
+  // MOSTRAR DETALLE DE GASTO
+  // ============================================================
+  void _mostrarDetalleGasto(GastoEntity gasto) {
+    showDialog(
+      context: context,
+      builder: (_) => GastosDetailDialog(
+        title: 'Detalle del Gasto',
+        gastos: [gasto],
+        color: const Color(0xFFEF4444),
+      ),
+    );
   }
 
   // ============================================================
@@ -239,7 +255,6 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
 
     final double hPadding = isTablet ? 32.0 : 12.0;
     final double vPadding = isTablet ? 24.0 : 12.0;
-    final double fontSizeTitle = isTablet ? 26 : 18;
     final double fontSizeResumen = isMobile ? 13 : 16;
     final double fontSizeResumenValor = isMobile ? 16 : (isTablet ? 26 : 22);
     final double spacingWrap = isMobile ? 8 : (isTablet ? 18 : 14);
@@ -247,16 +262,16 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
     final body = _isLoading
         ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
         : Center(
-            child: Container(
+            child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1200),
               child: SingleChildScrollView(
                 padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
                 physics: const BouncingScrollPhysics(),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     _buildRegistroForm(colorScheme, isMobile, isTablet),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     GastosFilterBar(
                       selectedPeriod: _periodoSeleccionado,
@@ -279,7 +294,7 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
                         _aplicarFiltros();
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
@@ -307,7 +322,7 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
                         fontSizeResumenValor: fontSizeResumenValor,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
                     GastosSearchBar(
                       searchQuery: _searchQuery,
@@ -324,31 +339,17 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
                       isMobile: isMobile,
                       isTablet: isTablet,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 350),
-                      transitionBuilder: (child, animation) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 0.05),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: GastosList(
-                        key: _listKey,
-                        gastos: _gastosFiltrados,
-                        isMobile: isMobile,
-                        isTablet: isTablet,
-                        shrinkWrap: true,
-                      ),
+                    GastosList(
+                      key: _listKey,
+                      gastos: _gastosFiltrados,
+                      isMobile: isMobile,
+                      isTablet: isTablet,
+                      shrinkWrap: true,
+                      onGastoTap: _mostrarDetalleGasto,
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -356,45 +357,34 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
           );
 
     if (widget.showAppBar) {
+      final gradient = isDark
+          ? LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                colorScheme.primaryContainer.withValues(alpha: 0.9),
+                colorScheme.primary,
+              ],
+            )
+          : const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color.fromRGBO(239, 68, 68, 1), Color.fromARGB(255, 185, 28, 28)],
+            );
+
       return Scaffold(
         backgroundColor: colorScheme.surfaceContainerLow,
-        appBar: AppBar(
-          title: Text(
-            'Registro de Gastos',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: fontSizeTitle,
-              color: colorScheme.onPrimary,
-            ),
-          ),
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-              gradient: isDark
-                  ? LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        colorScheme.primaryContainer.withValues(alpha: 0.9),
-                        colorScheme.primary,
-                      ],
-                    )
-                  : const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color.fromRGBO(239, 68, 68, 1), Color.fromARGB(255, 185, 28, 28)],
-                    ),
-            ),
-          ),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          foregroundColor: colorScheme.onPrimary,
+        appBar: CustomAppBar(
+          title: 'Registro de Gastos',
+          showBackButton: true,
           actions: [
             IconButton(
-              icon: Icon(Icons.refresh, color: colorScheme.onPrimary),
+              icon: const Icon(Icons.refresh, color: Colors.white),
               tooltip: 'Actualizar',
               onPressed: _cargarGastos,
             ),
           ],
+          gradient: gradient,
         ),
         body: body,
       );
@@ -403,7 +393,7 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
     }
   }
 
-  // ---- FORMULARIO DE REGISTRO ----
+  // ---- FORMULARIO DE REGISTRO (sin cambios) ----
   Widget _buildRegistroForm(ColorScheme colorScheme, bool isMobile, bool isTablet) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 

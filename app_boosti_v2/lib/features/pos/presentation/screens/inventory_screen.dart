@@ -1,14 +1,16 @@
 // inventory_screen.dart
-// Con estilo unificado al catálogo, modo oscuro y animaciones
+// Con estilo unificado y CustomAppBar
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/Local/entities/isar_service.dart';
+import 'package:lottie/lottie.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/inventory_provider.dart';
+import '../providers/productos_provider.dart';
 import '../providers/esc_pos_provider.dart';
+import '../providers/themes/app_colors.dart';
 import '../services/sync_service.dart';
 import '../services/printer_service.dart';
 import '../services/label_generator.dart';
@@ -17,11 +19,13 @@ import '../widgets/inventory/inventory_product_card_skeleton.dart';
 import '../widgets/inventory/inventory_search_bar.dart';
 import '../widgets/inventory/inventory_category_chips.dart';
 import '../widgets/inventory/barcode_generator_dialog.dart';
+import '../widgets/inventory/marcas_managment_dialog.dart';
 import '../widgets/shared/barcode_scanner_dialog.dart';
 import '../utils/responsive_helper.dart';
-import 'inventory_catalog_screen.dart';
 import '../widgets/inventory/product_form_dialog.dart';
 import '../widgets/inventory/product_detail_dialog.dart';
+import '../widgets/appbar.dart';
+import '../widgets/inventory/categorias_management_dialog.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   final UsuarioEntity usuarioLogueado;
@@ -64,6 +68,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     super.dispose();
   }
 
+  // ============================================================
+  // MÉTODOS DE ACCIÓN
+  // ============================================================
   Future<void> _scanBarcode() async {
     final codigo = await showDialog<String>(
       context: context,
@@ -72,7 +79,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     );
     if (codigo == null || codigo.isEmpty) return;
 
-    final productos = ref.read(inventoryProvider).productos;
+    final productos = ref.read(productosProvider).items;
     final producto = productos.firstWhere(
       (p) => p.codigoBarras == codigo,
       orElse: () => ProductoEntity(),
@@ -111,11 +118,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       context: context,
       builder: (context) => ProductFormDialog(
         producto: productoAEditar,
+        usuarioActual: widget.usuarioLogueado,
         onGuardar: (producto) async {
-          final isar = IsarService();
-          await isar.guardarProducto(producto);
-          await SyncService().sincronizarProductosASupabase();
-          await ref.read(inventoryProvider.notifier).cargarInventario();
+          final productosNotifier = ref.read(productosProvider.notifier);
+          if (productoAEditar == null) {
+            await productosNotifier.guardarProducto(producto, widget.usuarioLogueado, esNuevo: true);
+          } else {
+            await productosNotifier.guardarProducto(producto, widget.usuarioLogueado, esNuevo: false);
+          }
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -141,14 +151,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
           _mostrarFormularioProducto(productoAEditar: producto);
         },
         onEliminar: () async {
-          final isar = IsarService();
-          await isar.eliminarProducto(producto.id);
-          try {
-            await SyncService().eliminarProductoEnSupabase(producto.codigoBarras.trim());
-          } catch (e) {
-            // Error silencioso
-          }
-          await ref.read(inventoryProvider.notifier).cargarInventario();
+          final productosNotifier = ref.read(productosProvider.notifier);
+          await productosNotifier.eliminarProducto(producto.id, widget.usuarioLogueado);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Producto eliminado correctamente'), backgroundColor: Color(0xFF10B981)),
@@ -161,7 +165,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
   void _mostrarDialogoCantidadEtiquetas() async {
     final state = ref.read(inventoryProvider);
-    final productosSeleccionados = state.productos
+    final productosSeleccionados = state.productosFiltrados
         .where((p) => state.productosSeleccionados.contains(p.id))
         .toList();
 
@@ -265,7 +269,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     final state = ref.read(inventoryProvider);
     final labels = <LabelItem>[];
     for (final entry in cantidades.entries) {
-      final producto = state.productos.firstWhere((p) => p.id == entry.key);
+      final producto = state.productosFiltrados.firstWhere((p) => p.id == entry.key);
       labels.add(LabelItem(
         nombre: producto.nombre,
         precio: producto.precioUnidad,
@@ -306,14 +310,143 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     }
   }
 
+  // ============================================================
+  // BUILD
+  // ============================================================
   @override
   Widget build(BuildContext context) {
+    debugPrint('🔵 [InventoryScreen] build ejecutado');
+    // ignore: unused_local_variable
+    final isTablet = ResponsiveHelper.isTablet(context);
     final contenido = _buildBody(context);
 
     if (widget.showAppBar) {
+      final isMobile = ResponsiveHelper.isMobile(context);
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final isAdmin = widget.usuarioLogueado.rol == 'admin';
+      final state = ref.watch(inventoryProvider);
+
+      // Gradiente consistente con el catálogo
+      final gradient = isDark
+          ? const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xFF10B981), Color(0xFF059669)],
+            )
+          : const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xFF5352ED), Color(0xFF4840E8), Color(0xFF5955EE)],
+            );
+
       return Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-        appBar: _buildAppBar(context),
+        appBar: CustomAppBar(
+          title: isMobile ? 'Inventario' : 'Gestión de Inventario',
+          logoAsset: 'assets/logo.svg', // ✅ Ruta del logo SVG
+          logoSize: 28,  
+          showBackButton: true,
+          centerTitle: isMobile,
+          gradient: gradient,
+          actions: [
+
+            _buildActionButton(
+              context,
+              icon: Icons.branding_watermark_rounded,
+              tooltip: 'Gestionar marcas',
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => const MarcasManagementDialog(),
+              ),
+              isTablet: ResponsiveHelper.isTablet(context), // ✅ Usar el helper directamente
+),
+            // Botón de reparar imágenes (solo admin)
+            if (isAdmin)
+              _buildActionButton(
+                context,
+                icon: Icons.image_search_outlined,
+                tooltip: 'Reparar imágenes faltantes',
+                onPressed: () async {
+                  final count = await SyncService().repararImagenesFaltantes();
+                  if (!mounted) return;
+                  showDialog(
+                    context: context,
+                    barrierDismissible: true,
+                    builder: (context) => AlertDialog(
+                      title: Text(count > 0 ? '✅ Imágenes reparadas' : ' Sin cambios'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (count > 0)
+                            Lottie.asset(
+                              'assets/animations/success.json',
+                              width: 100,
+                              height: 100,
+                              repeat: false,
+                            )
+                          else
+                            const Icon(Icons.info_outline, size: 60, color: Colors.orange),
+                          const SizedBox(height: 12),
+                          Text(
+                            count > 0
+                                ? 'Se repararon $count imágenes correctamente.'
+                                : 'No se encontraron imágenes faltantes.',
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Aceptar'),
+                        ),
+                      ],
+                    ),
+                  );
+                  await ref.read(productosProvider.notifier).cargarProductos();
+                },
+                isTablet: ResponsiveHelper.isTablet(context),
+              ),
+            // Botón de gestionar categorías (solo admin)
+            if (isAdmin)
+              _buildActionButton(
+                context,
+                icon: Icons.category_outlined,
+                tooltip: 'Gestionar categorías',
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const CategoriasManagementDialog(),
+                  );
+                },
+                isTablet: ResponsiveHelper.isTablet(context),
+              ),
+            // Botón de generar código de barras
+            _buildActionButton(
+              context,
+              icon: Icons.qr_code,
+              tooltip: 'Generar Código de Barras',
+              onPressed: () => showDialog(context: context, builder: (_) => const BarcodeGeneratorDialog()),
+              isTablet: ResponsiveHelper.isTablet(context),
+            ),
+            const SizedBox(width: 8),
+            // Indicador de selección múltiple
+            if (state.seleccionMultiple) ...[
+              Row(
+                children: [
+                  Text(
+                    '${state.cantidadSeleccionados} seleccionados',
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => ref.read(inventoryProvider.notifier).limpiarSeleccion(),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
         floatingActionButton: _buildFAB(context),
         body: contenido,
       );
@@ -323,7 +456,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   Widget _buildBody(BuildContext context) {
-    final state = ref.watch(inventoryProvider);
+    final productosState = ref.watch(productosProvider);
+    final inventoryState = ref.watch(inventoryProvider);
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final screenWidth = MediaQuery.of(context).size.width;
@@ -333,15 +467,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     double childAspectRatio;
     if (screenWidth < 600) {
       crossAxisCount = 2;
-      childAspectRatio = 0.65;
+      childAspectRatio = 0.60;
     } else if (screenWidth < 900) {
-      crossAxisCount = 2;
+      crossAxisCount = 3;
       childAspectRatio = 0.65;
     } else if (screenWidth < 1200) {
-      crossAxisCount = 3;
+      crossAxisCount = 4;
       childAspectRatio = 0.70;
     } else {
-      crossAxisCount = 4;
+      crossAxisCount = 5;
       childAspectRatio = 0.75;
     }
     if (isMobile && MediaQuery.of(context).orientation == Orientation.landscape) {
@@ -349,9 +483,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       childAspectRatio = 0.60;
     }
 
-    final productosFiltrados = state.productosFiltrados;
+    final productosFiltrados = inventoryState.productosFiltrados;
 
-    return state.isLoading
+    return productosState.isLoading
         ? GridView.builder(
             padding: const EdgeInsets.all(16),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -370,14 +504,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 InventorySearchBar(
                   onScanPressed: _scanBarcode,
                   onSearchChanged: (value) => ref.read(inventoryProvider.notifier).setFiltroBusqueda(value),
-                  onStockBajoToggled: (value) => ref.read(inventoryProvider.notifier).setSoloStockBajo(value),
-                  soloStockBajo: state.soloStockBajo,
                 ),
                 const SizedBox(height: 12),
-                // Chips de categorías (estilo unificado con el catálogo)
                 const InventoryCategoryChips(),
                 const SizedBox(height: 12),
-                // Contador de productos
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -394,7 +524,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 const SizedBox(height: 4),
                 Expanded(
                   child: RefreshIndicator(
-                    onRefresh: () => ref.read(inventoryProvider.notifier).recargarDesdeSupabase(),
+                    onRefresh: () => ref.read(productosProvider.notifier).recargarDesdeSupabase(),
                     color: colorScheme.primary,
                     child: productosFiltrados.isEmpty
                         ? Center(
@@ -423,14 +553,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                             itemCount: productosFiltrados.length,
                             itemBuilder: (context, index) {
                               final p = productosFiltrados[index];
-                              final isSelected = state.seleccionMultiple && state.productosSeleccionados.contains(p.id);
+                              final isSelected = inventoryState.seleccionMultiple && inventoryState.productosSeleccionados.contains(p.id);
 
                               return InventoryProductCard(
                                 key: ValueKey(p.id),
                                 producto: p,
                                 stockBajo: p.stock <= p.stockMinimo,
                                 onTap: () {
-                                  if (state.seleccionMultiple) {
+                                  if (inventoryState.seleccionMultiple) {
                                     ref.read(inventoryProvider.notifier).toggleSeleccionProducto(p.id);
                                   } else {
                                     _mostrarDetalleProducto(p);
@@ -454,106 +584,63 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
           );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final state = ref.watch(inventoryProvider);
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  // ============================================================
+  // BOTONES DE ACCIÓN DEL APPBAR
+  // ============================================================
+  Widget _buildActionButton(
+    BuildContext context, {
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    required bool isTablet,
+  }) {
+    final size = isTablet ? 48.0 : 40.0;
+    final iconSize = isTablet ? 26.0 : 22.0;
+    bool isActionHovered = false;
 
-    return AppBar(
-      leadingWidth: 90,
-      leading: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: Icon(Icons.arrow_back_ios_new, color: colorScheme.onPrimary, size: 20),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-            onPressed: () {
-              if (Navigator.canPop(context)) {
-                Navigator.pop(context);
-              } else {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const InventoryCatalogScreen()),
-                );
-              }
-            },
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 4.0),
-            child: Image.asset(
-              'assets/logo.png',
-              width: 30,
-              fit: BoxFit.contain,
-              errorBuilder: (_, _, _) => Icon(Icons.storefront, color: colorScheme.onPrimary, size: 24),
+    return Tooltip(
+      message: tooltip,
+      child: StatefulBuilder(
+        builder: (context, setState) {
+          return MouseRegion(
+            cursor: SystemMouseCursors.click,
+            onEnter: (_) => setState(() => isActionHovered = true),
+            onExit: (_) => setState(() => isActionHovered = false),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: isActionHovered ? 0.15 : 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                icon: Icon(icon, color: Colors.white, size: iconSize),
+                onPressed: onPressed,
+                padding: EdgeInsets.zero,
+                splashRadius: isTablet ? 28 : 22,
+                mouseCursor: SystemMouseCursors.click,
+              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
-      title: Text(
-        isMobile ? 'Inventario' : 'Gestión de Inventario',
-        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: colorScheme.onPrimary),
-      ),
-      centerTitle: isMobile,
-      flexibleSpace: Container(
-        decoration: BoxDecoration(
-          gradient: isDark
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    colorScheme.primaryContainer.withValues(alpha: 0.9),
-                    colorScheme.primary,
-                  ],
-                )
-              : const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color.fromRGBO(68, 109, 241, 1), Color.fromARGB(255, 85, 59, 235)],
-                ),
-        ),
-      ),
-      foregroundColor: colorScheme.onPrimary,
-      elevation: 0,
-      actions: [
-        IconButton(
-          icon: Icon(Icons.qr_code, color: colorScheme.onPrimary),
-          tooltip: 'Generar Código de Barras',
-          onPressed: () => showDialog(context: context, builder: (_) => const BarcodeGeneratorDialog()),
-        ),
-        const SizedBox(width: 8),
-        if (state.seleccionMultiple) ...[
-          Row(
-            children: [
-              Text(
-                '${state.cantidadSeleccionados} seleccionados',
-                style: TextStyle(color: colorScheme.onPrimary, fontSize: 14),
-              ),
-              IconButton(
-                icon: Icon(Icons.close, color: colorScheme.onPrimary),
-                onPressed: () => ref.read(inventoryProvider.notifier).limpiarSeleccion(),
-              ),
-            ],
-          ),
-        ] else ...[
-          const SizedBox(width: 8),
-        ],
-      ],
     );
   }
 
+  // ============================================================
+  // FAB
+  // ============================================================
   Widget? _buildFAB(BuildContext context) {
     final isAdmin = widget.usuarioLogueado.rol == 'admin';
     if (!isAdmin) return null;
 
     final state = ref.watch(inventoryProvider);
-    final colorScheme = Theme.of(context).colorScheme;
 
     if (state.seleccionMultiple && state.productosSeleccionados.isNotEmpty) {
       return FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF8B5CF6),
-        foregroundColor: colorScheme.onPrimary,
+        backgroundColor: pumpkinSpice,
+        foregroundColor: Colors.white,
         elevation: 8,
         onPressed: _mostrarDialogoCantidadEtiquetas,
         icon: const Icon(Icons.local_offer_outlined, size: 24),
@@ -564,8 +651,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       );
     } else {
       return FloatingActionButton.extended(
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
+        backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
         elevation: 8,
         onPressed: () => _mostrarFormularioProducto(),
         icon: const Icon(Icons.add, size: 24),

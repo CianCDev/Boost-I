@@ -34,14 +34,15 @@ class SalesHistoryFilterBar extends StatelessWidget {
 
     return Column(
       children: [
-        // Botones de período
+        // Botones de período - centrados y con scroll horizontal
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(vertical: 4),
+          physics: const BouncingScrollPhysics(),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               _PeriodButton(
-                key: const ValueKey('dia'),
                 selected: selectedPeriod == 'dia',
                 icon: Icons.today,
                 label: 'Hoy',
@@ -51,7 +52,6 @@ class SalesHistoryFilterBar extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               _PeriodButton(
-                key: const ValueKey('semana'),
                 selected: selectedPeriod == 'semana',
                 icon: Icons.date_range,
                 label: 'Semana',
@@ -61,7 +61,6 @@ class SalesHistoryFilterBar extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               _PeriodButton(
-                key: const ValueKey('mes'),
                 selected: selectedPeriod == 'mes',
                 icon: Icons.calendar_month,
                 label: 'Mes',
@@ -71,7 +70,6 @@ class SalesHistoryFilterBar extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               _PeriodButton(
-                key: const ValueKey('anio'),
                 selected: selectedPeriod == 'anio',
                 icon: Icons.calendar_today,
                 label: 'Año',
@@ -81,7 +79,6 @@ class SalesHistoryFilterBar extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               _PeriodButton(
-                key: const ValueKey('todos'),
                 selected: selectedPeriod == 'todos',
                 icon: Icons.all_inclusive,
                 label: 'Todas',
@@ -93,17 +90,20 @@ class SalesHistoryFilterBar extends StatelessWidget {
           ),
         ),
 
-        // Selectores de mes/año (con transición)
+        // Selectores de mes/año (con transición suave)
         AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 450),
           transitionBuilder: (child, animation) {
             return FadeTransition(
               opacity: animation,
               child: SlideTransition(
                 position: Tween<Offset>(
-                  begin: const Offset(0, -0.1),
+                  begin: const Offset(0, -0.15),
                   end: Offset.zero,
-                ).animate(animation),
+                ).animate(CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                )),
                 child: child,
               ),
             );
@@ -243,7 +243,7 @@ class SalesHistoryFilterBar extends StatelessWidget {
   }
 }
 
-// ✅ Widget separado para manejar su propio estado de hover
+// Widget separado para manejar hover y selección
 class _PeriodButton extends StatefulWidget {
   final bool selected;
   final IconData icon;
@@ -253,6 +253,7 @@ class _PeriodButton extends StatefulWidget {
   final bool isTablet;
 
   const _PeriodButton({
+    // ignore: unused_element_parameter
     super.key,
     required this.selected,
     required this.icon,

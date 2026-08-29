@@ -1,6 +1,7 @@
 // lib/features/pos/presentation/widgets/catalog/catalog_app_bar.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // ✅ Agregar import
 import '../../providers/bcv_provider.dart';
 import '../../providers/catalog_provider.dart';
 import '../../utils/responsive_helper.dart';
@@ -42,7 +43,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final bcvTextColor = Colors.white;
     final bcvIconColor = Colors.white;
 
-    // Variables de estado para el hover (Declaradas fuera de los builders para que mantengan su estado)
+    // Variables de estado para el hover
     bool isInventoryHovered = false;
     bool isBcvHovered = false;
 
@@ -71,14 +72,20 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
           color: Colors.white,
         ),
       ),
+      // 🔥 LOGO SVG EN BLANCO (reemplaza Image.asset)
       leading: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Padding(
           padding: const EdgeInsets.all(10.0),
-          child: Image.asset(
-            'assets/logo.png',
+          child: SvgPicture.asset(
+            'assets/logo.svg',
+            width: isTablet ? 36 : 32,
+            height: isTablet ? 36 : 32,
             fit: BoxFit.contain,
-            errorBuilder: (_, _, _) =>
+            // ✅ Forzar color blanco
+            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+            // Fallback en caso de error
+            placeholderBuilder: (context) =>
                 Icon(Icons.storefront, color: Colors.white, size: isTablet ? 36 : 32),
           ),
         ),
@@ -97,7 +104,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
         ),
         const SizedBox(width: 6),
 
-        // Botón de inventario (Con estado de hover corregido)
+        // Botón de inventario
         Tooltip(
           message: 'Ir a Gestión de Inventario',
           child: StatefulBuilder(
@@ -114,7 +121,6 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
                       width: isTablet ? 48 : 40,
                       height: isTablet ? 48 : 40,
                       decoration: BoxDecoration(
-                        // ✅ Ahora el fondo sí cambia al hacer hover
                         color: Colors.white.withValues(alpha: isInventoryHovered ? 0.15 : 0.08),
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -131,7 +137,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
                         ),
                         padding: EdgeInsets.zero,
                         splashRadius: isTablet ? 28 : 22,
-                        mouseCursor: SystemMouseCursors.click, // Asegura el cursor en el IconButton
+                        mouseCursor: SystemMouseCursors.click,
                       ),
                     ),
                     if (lowStockCount > 0)
@@ -164,7 +170,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
         ),
         const SizedBox(width: 4),
 
-        // ✅ Badge BCV con animación natural (Fade + Size) y hover corregido
+        // Badge BCV
         Tooltip(
           message: 'Tasa oficial BCV (Haz clic para actualizar)',
           child: StatefulBuilder(
@@ -183,7 +189,6 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
                     ),
                     margin: const EdgeInsets.only(left: 4, right: 8),
                     decoration: BoxDecoration(
-                      // Efecto hover sutil para el badge
                       color: isBcvHovered 
                           ? Colors.white.withValues(alpha: 0.1) 
                           : (bcvState.cargando ? Colors.white.withValues(alpha: 0.15) : bcvBackgroundColor),
@@ -195,13 +200,11 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
                         width: 1.5,
                       ),
                     ),
-                    // ✅ Animación de tamaño suave en lugar de encogerse abruptamente
                     child: AnimatedSize(
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeInOut,
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
-                        // ✅ Transición suave de opacidad (fade in/out)
                         transitionBuilder: (Widget child, Animation<double> animation) {
                           return FadeTransition(
                             opacity: animation,
@@ -261,7 +264,6 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final size = isTablet ? 48.0 : 40.0;
     final iconSize = isTablet ? 26.0 : 22.0;
     
-    // Variable fuera del builder
     bool isActionHovered = false;
 
     return Tooltip(
@@ -277,7 +279,6 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
               width: size,
               height: size,
               decoration: BoxDecoration(
-                // ✅ Se aclara al hacer hover
                 color: Colors.white.withValues(alpha: isActionHovered ? 0.15 : 0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -286,7 +287,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 onPressed: onPressed,
                 padding: EdgeInsets.zero,
                 splashRadius: isTablet ? 28 : 22,
-                mouseCursor: SystemMouseCursors.click, // Asegura el cursor
+                mouseCursor: SystemMouseCursors.click,
               ),
             ),
           );

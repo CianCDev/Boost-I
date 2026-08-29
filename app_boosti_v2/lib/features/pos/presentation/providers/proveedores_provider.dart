@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
@@ -42,6 +43,12 @@ final proveedoresConFiltroProvider = FutureProvider.family<List<ProveedorEntity>
   }
   
   return resultado;
+});
+
+final proveedorPorIdProvider = FutureProvider.family<ProveedorEntity?, int>((ref, id) async {
+  final isar = ref.watch(isarServiceProvider);
+  final todos = await isar.obtenerProveedores(soloActivos: false);
+  return todos.firstWhereOrNull((p) => p.id == id);
 });
 
 // ✅ Provider único para guardar (crea o actualiza según el ID)

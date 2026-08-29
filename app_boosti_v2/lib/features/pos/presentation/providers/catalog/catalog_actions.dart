@@ -1,3 +1,4 @@
+// lib/features/pos/presentation/providers/catalog/catalog_actions.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,10 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/codigo_barra_alia_entity.dart';
-import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
 import 'package:app_boosti_v2/features/pos/domain/models/product_item.dart';
 import 'package:app_boosti_v2/features/pos/presentation/controllers/cart_controller.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/bcv_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/productos_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/venta_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/catalog/quantity_dialog.dart';
@@ -17,23 +19,19 @@ import 'package:app_boosti_v2/features/pos/presentation/widgets/inventory/produc
 import 'package:app_boosti_v2/features/pos/presentation/providers/catalog_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
 
-// Provider para almacenar el último factor de escaneo
 final ultimoFactorProvider = StateProvider<double>((ref) => 1.0);
 
-/// Servicio que agrupa todas las acciones de negocio del catálogo.
 class CatalogActions {
   final IsarService _isar;
+  // ignore: unused_field
   final SyncService _sync;
   final Ref _ref;
 
   CatalogActions(this._isar, this._sync, this._ref);
 
-  // ------------------------------------------------------------------------
   // Buscar producto por código (alias + principal)
-  // ------------------------------------------------------------------------
   Future<ProductoEntity?> buscarProductoPorCodigo(String codigo) async {
     final codigoLimpio = codigo.trim();
-    // 1. Buscar en alias
     final alias = await _isar.obtenerAliasPorCodigo(codigoLimpio);
     if (alias != null) {
       final producto = await _isar.obtenerProductoPorId(alias.productoId);
@@ -42,7 +40,6 @@ class CatalogActions {
         return producto;
       }
     }
-    // 2. Buscar en campo principal
     final producto = await _isar.obtenerProductoPorCodigoBarrasExacto(codigoLimpio);
     if (producto != null) {
       _ref.read(ultimoFactorProvider.notifier).state = 1.0;
@@ -51,9 +48,7 @@ class CatalogActions {
     return null;
   }
 
-  // ------------------------------------------------------------------------
   // Afiliar código a producto existente
-  // ------------------------------------------------------------------------
   Future<void> afiliarCodigo(String codigo, BuildContext context) async {
     final productos = await _isar.obtenerProductos();
     if (productos.isEmpty) {
@@ -121,31 +116,33 @@ class CatalogActions {
           ),
         );
       }
-      await _ref.read(catalogProvider.notifier).recargarDesdeSupabase();
+      // Refrescar el catálogo (opcional, ya que catalogProvider escucha cambios)
+      _ref.read(catalogProvider.notifier).setBusqueda('');
     }
   }
 
-  // ------------------------------------------------------------------------
   // Crear nuevo producto
-  // ------------------------------------------------------------------------
   Future<void> crearProducto(String codigo, BuildContext context) async {
+    final usuario = _ref.read(usuarioActualProvider);
+    if (usuario == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Usuario no autenticado. No se puede crear producto.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
     await showDialog(
       context: context,
       builder: (context) => ProductFormDialog(
         codigoBarrasPrecargado: codigo,
         onGuardar: (producto) async {
-          await _isar.guardarProducto(producto);
-          // Lote inicial
-          final loteInicial = LoteEntity()
-            ..productoId = producto.id
-            ..cantidadInicial = producto.stock
-            ..cantidadRestante = producto.stock
-            ..fechaIngreso = DateTime.now()
-            ..estado = 'activo'
-            ..sincronizado = false;
-          await _isar.guardarLote(loteInicial);
-          await _sync.sincronizarProductosASupabase();
-          await _ref.read(catalogProvider.notifier).recargarDesdeSupabase();
+          final productosNotifier = _ref.read(productosProvider.notifier);
+          await productosNotifier.guardarProducto(producto, usuario, esNuevo: true);
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -155,13 +152,12 @@ class CatalogActions {
             );
           }
         },
+        usuarioActual: usuario,
       ),
     );
   }
 
-  // ------------------------------------------------------------------------
   // Mostrar diálogo de cantidad y agregar al carrito
-  // ------------------------------------------------------------------------
   void mostrarModalCantidad(
     ProductoEntity producto,
     BuildContext context, {
@@ -180,7 +176,20 @@ class CatalogActions {
   }
 
   void agregarAlCarrito(ProductoEntity producto, double cantidad, BuildContext context) {
-    _isar.obtenerStockTotalPorProducto(producto.id).then((stockTotal) {
+    final usuario = _ref.read(usuarioActualProvider);
+    if (usuario == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Usuario no autenticado. No se puede agregar al carrito.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    _isar.obtenerStockTotalPorProducto(producto.id).then((stockTotal) async {
       if (stockTotal < cantidad && !producto.esPesado) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -192,6 +201,18 @@ class CatalogActions {
         }
         return;
       }
+
+      // Descontar stock y registrar movimiento
+      final productosNotifier = _ref.read(productosProvider.notifier);
+      final nuevoStock = stockTotal - cantidad;
+      await productosNotifier.actualizarStock(
+        producto.id,
+        nuevoStock,
+        usuario,
+        motivo: 'Venta',
+      );
+
+      // Agregar al carrito
       HapticFeedback.lightImpact();
       final productItem = ProductItem(
         id: producto.id.toString(),
@@ -204,7 +225,7 @@ class CatalogActions {
       _ref.read(cartProvider.notifier).agregarProducto(
             productItem,
             cantidad: cantidad,
-            stockMaximo: stockTotal,
+            stockMaximo: nuevoStock,
           );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -228,9 +249,7 @@ class CatalogActions {
     });
   }
 
-  // ------------------------------------------------------------------------
-  // Procesar cobro (delega en VentaService)
-  // ------------------------------------------------------------------------
+  // Procesar cobro
   Future<void> mostrarModalCobro(BuildContext context, UsuarioEntity? usuarioLogueado) async {
     final cartState = _ref.read(cartProvider);
     if (cartState.total <= 0) return;
@@ -251,8 +270,7 @@ class CatalogActions {
       final String metodoPago = resultado['metodoPago'] ?? 'Efectivo';
       final double montoRecibido = resultado['montoRecibido'] ?? cartState.total;
       final double cambio = resultado['vuelto'] ?? 0.0;
-      
-      // Delegar en VentaService
+
       final ventaService = _ref.read(ventaServiceProvider);
       await ventaService.procesarVenta(
         context,
@@ -266,7 +284,6 @@ class CatalogActions {
   }
 }
 
-// Provider del servicio
 final catalogActionsProvider = Provider<CatalogActions>((ref) {
   final isar = IsarService();
   final sync = SyncService();

@@ -3,29 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LockStateNotifier extends StateNotifier<bool> {
-  Timer? _idleTimer;
-  final int timeoutMinutes = 3;
-
-  LockStateNotifier() : super(false) {
-    _startTimer();
-  }
-
-  void _startTimer() {
-    _idleTimer?.cancel();
-    if (!state) {
-      _idleTimer = Timer(Duration(minutes: timeoutMinutes), () => _lockScreen(reason: 'inactivity'));
-    }
-  }
-
-  void resetTimer() {
-    if (!state) {
-      _startTimer();
-    }
-  }
+  LockStateNotifier() : super(false);
 
   Future<void> _lockScreen({required String reason}) async {
+    if (state) return; // Si ya está bloqueado, evitamos múltiples registros
     state = true;
-    _idleTimer?.cancel();
 
     try {
       final supabase = Supabase.instance.client;
@@ -44,6 +26,12 @@ class LockStateNotifier extends StateNotifier<bool> {
     }
   }
 
+  // Se activa por inactividad desde el UserActivityDetector
+  void lock() {
+    _lockScreen(reason: 'inactivity');
+  }
+
+  // Se activa manualmente desde el botón de la UI
   void manualRest() {
     _lockScreen(reason: 'manual');
   }
@@ -63,35 +51,6 @@ class LockStateNotifier extends StateNotifier<bool> {
       // Error silencioso
     }
     state = false;
-    _startTimer();
-  }
-
-  Future<void> unlockScreen(String pin) async {
-    if (pin == "1234") {
-      try {
-        final supabase = Supabase.instance.client;
-        final userId = supabase.auth.currentUser?.id;
-        if (userId != null) {
-          await supabase.from('cashier_logs').insert({
-            'user_id': userId,
-            'event_type': 'rest_end',
-            'timestamp': DateTime.now().toIso8601String(),
-          });
-        }
-      } catch (e) {
-        // Error silencioso
-      }
-      state = false;
-      _startTimer();
-    } else {
-      throw Exception("PIN Incorrecto");
-    }
-  }
-
-  @override
-  void dispose() {
-    _idleTimer?.cancel();
-    super.dispose();
   }
 }
 

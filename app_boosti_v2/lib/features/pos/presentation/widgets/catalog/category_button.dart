@@ -23,14 +23,14 @@ class _CategoryButtonState extends State<CategoryButton> {
 
   @override
   Widget build(BuildContext context) {
-    final bool esStockBajo = widget.categoria == 'Stock Bajo';
+    final bool esStockBajo = widget.categoria.trim().toLowerCase() == 'stock bajo';
     final bool isTablet = ResponsiveHelper.isTablet(context);
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final bool seleccionado = widget.esSeleccionada;
 
-    // 1. Colores de Fondo y Texto
+    // Colores
     final Color baseColor = esStockBajo ? pumpkinSpice : primaryGreen;
-    
+
     final Color backgroundColor = seleccionado
         ? baseColor
         : (_isHovered
@@ -41,32 +41,40 @@ class _CategoryButtonState extends State<CategoryButton> {
         ? Colors.white
         : (isDark ? Colors.white : textDark);
 
-    // 2. Bordes: Mismo grosor siempre para evitar saltos de layout
     final Color borderColor = seleccionado
         ? Colors.transparent
         : (_isHovered
             ? (isDark ? Colors.white.withValues(alpha: 0.15) : textMuted.withValues(alpha: 0.15))
             : (isDark ? Colors.white.withValues(alpha: 0.05) : textMuted.withValues(alpha: 0.2)));
 
-    // 3. Sombras dinámicas mediante opacidad (Evita crear/destruir el BoxShadow)
     final Color shadowColor = seleccionado
         ? baseColor.withValues(alpha: 0.35)
         : (_isHovered
             ? (isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.04))
             : Colors.transparent);
 
+    // Tamaños responsivos
     final double fontSize = isTablet ? 15.0 : 13.0;
     final EdgeInsets padding = isTablet
-        ? const EdgeInsets.symmetric(horizontal: 20, vertical: 0)
-        : const EdgeInsets.symmetric(horizontal: 16, vertical: 0);
+        ? const EdgeInsets.symmetric(horizontal: 20, vertical: 6)
+        : const EdgeInsets.symmetric(horizontal: 16, vertical: 4);
 
-    // 4. Lógica del Icono
-    final bool showIcon = seleccionado || esStockBajo;
-    IconData iconData = Icons.warning_amber_rounded;
-    Color iconColor = pumpkinSpice;
+    // Lógica del Icono: solo en Stock Bajo (siempre) o en chips seleccionados
+    final bool mostrarIcono = seleccionado || esStockBajo;
+    IconData iconData;
+    Color iconColor;
 
     if (seleccionado) {
+      // Si está seleccionado, mostrar check (o advertencia si es Stock Bajo)
       iconData = esStockBajo ? Icons.warning_amber_rounded : Icons.check_circle_rounded;
+      iconColor = Colors.white;
+    } else if (esStockBajo) {
+      // Si es Stock Bajo pero no seleccionado, mostrar advertencia naranja
+      iconData = Icons.warning_amber_rounded;
+      iconColor = pumpkinSpice;
+    } else {
+      // No debería llegar aquí, pero por seguridad
+      iconData = Icons.check_circle_rounded;
       iconColor = Colors.white;
     }
 
@@ -76,13 +84,13 @@ class _CategoryButtonState extends State<CategoryButton> {
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic, // Curva suave estándar de Material 3
+        curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: borderColor,
-            width: 1.0, // Grosor fijo
+            width: 1.0,
           ),
           boxShadow: [
             BoxShadow(
@@ -92,7 +100,6 @@ class _CategoryButtonState extends State<CategoryButton> {
             ),
           ],
         ),
-        // Envolvemos en Material para un InkWell (efecto ripple) nativo y contenido
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -103,40 +110,36 @@ class _CategoryButtonState extends State<CategoryButton> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Animación de expansión del Icono (Desliza el texto sin saltos)
+                  // ✅ Icono con animación de ancho + opacidad
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeOutCubic,
-                    width: showIcon ? 18.0 : 0.0,
-                    alignment: Alignment.centerLeft,
-                    clipBehavior: Clip.hardEdge,
-                    decoration: const BoxDecoration(), // ✅ Aserción corregida
-                    child: Icon(
-                      iconData,
-                      size: 18,
-                      color: iconColor,
-                    ),
-                  ),
-                  // Espaciado dinámico
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    width: showIcon ? 6.0 : 0.0,
-                  ),
-                  // Texto estático en layout, animado en color
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOutCubic,
-                      style: TextStyle(
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.w500, // Mismo peso para evitar saltos
-                        color: textColor,
-                        letterSpacing: 0.3,
+                    width: mostrarIcono ? 24.0 : 0.0,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 300),
+                        opacity: mostrarIcono ? 1.0 : 0.0,
+                        child: Icon(
+                          iconData,
+                          size: 18,
+                          color: iconColor,
+                        ),
                       ),
-                      child: Text(widget.categoria),
                     ),
+                  ),
+                  // ✅ Texto con animación de color
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutCubic,
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w500,
+                      color: textColor,
+                      letterSpacing: 0.3,
+                      height: 1.0,
+                    ),
+                    child: Text(widget.categoria),
                   ),
                 ],
               ),

@@ -4,7 +4,7 @@ import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../presentation/providers/usuario_provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/themes/theme_provider.dart'; // ✅ IMPORT AGREGADO
+import '../providers/themes/theme_provider.dart';
 import '../utils/responsive_helper.dart';
 import '../widgets/admin_validation_dialog.dart';
 import '../widgets/cambiar_pin_dialog.dart';
@@ -19,21 +19,28 @@ class UserSettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<UserSettingsScreen> createState() => _UserSettingsScreenState();
 }
 
-class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
+class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
+    with SingleTickerProviderStateMixin {
   final IsarService _isarService = IsarService();
   final TextEditingController _nombreController = TextEditingController();
   bool _editandoNombre = false;
   bool _guardandoNombre = false;
+  late AnimationController _themeAnimationController;
 
   @override
   void initState() {
     super.initState();
     _nombreController.text = widget.usuarioLogueado.nombre;
+    _themeAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
   }
 
   @override
   void dispose() {
     _nombreController.dispose();
+    _themeAnimationController.dispose();
     super.dispose();
   }
 
@@ -49,16 +56,16 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     try {
       widget.usuarioLogueado.nombre = nuevoNombre;
       await _isarService.guardarUsuario(widget.usuarioLogueado);
+
+      if (!mounted) return;
       ref.read(usuarioActualProvider.notifier).setUsuario(widget.usuarioLogueado);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Nombre actualizado correctamente'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Nombre actualizado correctamente'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -112,6 +119,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Cerrar Sesión'),
         content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
         actions: [
@@ -123,6 +131,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFEF4444),
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Cerrar Sesión'),
@@ -133,14 +144,14 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
 
     if (confirm == true) {
       await ref.read(authProvider.notifier).logout();
+      if (!mounted) return;
+
       ref.read(usuarioActualProvider.notifier).clearUsuario();
 
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
-      }
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
     }
   }
 
@@ -151,45 +162,18 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final color = const Color(0xFF8B5CF6);
     final theme = Theme.of(context);
 
-    final themeMode = ref.watch(themeProvider); // ✅ AHORA FUNCIONA
+    final themeMode = ref.watch(themeProvider);
     final isDark = themeMode == ThemeMode.dark;
 
-    final double maxWidth = isMobile
-        ? double.infinity
-        : (isTablet ? 900 : 1200);
-
-    final double paddingHorizontal = isMobile
-        ? 16
-        : (isTablet ? 60 : 80);
-
-    final double paddingVertical = isMobile
-        ? 16
-        : (isTablet ? 36 : 48);
-
-    final double avatarRadius = isMobile
-        ? 32
-        : (isTablet ? 56 : 72);
-
-    final double fontSizeTitle = isMobile
-        ? 18
-        : (isTablet ? 26 : 32);
-
-    final double fontSizeBody = isMobile
-        ? 14
-        : (isTablet ? 17 : 20);
-
-    final double fontSizeSubtitle = isMobile
-        ? 12
-        : (isTablet ? 15 : 18);
-
-    final double cardPadding = isMobile
-        ? 16
-        : (isTablet ? 24 : 32);
-
-    final double sectionSpacing = isMobile
-        ? 24
-        : (isTablet ? 36 : 48);
-
+    final double maxWidth = isMobile ? double.infinity : (isTablet ? 900 : 1200);
+    final double paddingHorizontal = isMobile ? 16 : (isTablet ? 60 : 80);
+    final double paddingVertical = isMobile ? 16 : (isTablet ? 36 : 48);
+    final double avatarRadius = isMobile ? 32 : (isTablet ? 56 : 72);
+    final double fontSizeTitle = isMobile ? 18 : (isTablet ? 26 : 32);
+    final double fontSizeBody = isMobile ? 14 : (isTablet ? 17 : 20);
+    final double fontSizeSubtitle = isMobile ? 12 : (isTablet ? 15 : 18);
+    final double cardPadding = isMobile ? 16 : (isTablet ? 24 : 32);
+    final double sectionSpacing = isMobile ? 24 : (isTablet ? 36 : 48);
     final double iconSize = isMobile ? 24 : (isTablet ? 28 : 32);
     final double switchScale = isMobile ? 1.0 : (isTablet ? 1.2 : 1.4);
 
@@ -229,17 +213,18 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        color.withValues(alpha: 0.05),
-                        color.withValues(alpha: 0.15),
+                        color.withValues(alpha: 0.08),
+                        color.withValues(alpha: 0.2),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
+                    border: Border.all(color: color.withValues(alpha: 0.25), width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
+                        color: color.withValues(alpha: 0.15),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 6),
                       ),
                     ],
                   ),
@@ -258,8 +243,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: color.withValues(alpha: 0.3),
-                              blurRadius: 20,
+                              color: color.withValues(alpha: 0.4),
+                              blurRadius: 24,
                               spreadRadius: 4,
                             ),
                           ],
@@ -289,7 +274,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: fontSizeTitle,
-                                color: theme.textTheme.bodyLarge?.color,
+                                color: theme.colorScheme.onSurface,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -320,7 +305,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                     '• ${widget.usuarioLogueado.cajaAsignada}',
                                     style: TextStyle(
                                       fontSize: isMobile ? 12 : 14,
-                                      color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                                     ),
                                   ),
                                 ],
@@ -341,148 +326,155 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                   Icons.person_outline_rounded,
                   theme,
                   isMobile,
-                  fontSizeTitle,
                 ),
                 const SizedBox(height: 12),
 
-                Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(
-                      color: theme.dividerColor.withValues(alpha: 0.1),
-                      width: 1,
+                // Card de nombre
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(
+                        color: theme.dividerColor.withValues(alpha: 0.1),
+                        width: 1,
+                      ),
                     ),
-                  ),
-                  color: theme.cardTheme.color,
-                  child: _editandoNombre
-                      ? Padding(
-                          padding: EdgeInsets.all(cardPadding),
-                          child: Column(
-                            children: [
-                              TextField(
-                                controller: _nombreController,
-                                autofocus: true,
+                    color: theme.cardTheme.color,
+                    child: _editandoNombre
+                        ? Padding(
+                            padding: EdgeInsets.all(cardPadding),
+                            child: Column(
+                              children: [
+                                TextField(
+                                  controller: _nombreController,
+                                  autofocus: true,
+                                  style: TextStyle(
+                                    fontSize: fontSizeBody,
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                  decoration: InputDecoration(
+                                    labelText: 'Nuevo nombre',
+                                    labelStyle: TextStyle(
+                                      fontSize: fontSizeBody,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    prefixIcon: Icon(
+                                      Icons.person_outline_rounded,
+                                      size: iconSize,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  onSubmitted: (_) => _cambiarNombre(),
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    TextButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _editandoNombre = false;
+                                          _nombreController.text = widget.usuarioLogueado.nombre;
+                                        });
+                                      },
+                                      child: Text(
+                                        'Cancelar',
+                                        style: TextStyle(
+                                          fontSize: fontSizeBody,
+                                          color: theme.colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    ElevatedButton(
+                                      onPressed: _guardandoNombre ? null : _cambiarNombre,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF10B981),
+                                        foregroundColor: Colors.white,
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: isMobile ? 20 : 32,
+                                          vertical: isMobile ? 12 : 16,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      child: _guardandoNombre
+                                          ? const SizedBox(
+                                              width: 28,
+                                              height: 28,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : Text(
+                                              'Guardar',
+                                              style: TextStyle(
+                                                fontSize: fontSizeBody,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          )
+                        : MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.symmetric(horizontal: cardPadding, vertical: 8),
+                              leading: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.person_outline_rounded,
+                                  color: const Color(0xFF3B82F6),
+                                  size: iconSize,
+                                ),
+                              ),
+                              title: Text(
+                                'Nombre de usuario',
                                 style: TextStyle(
                                   fontSize: fontSizeBody,
-                                  color: theme.textTheme.bodyLarge?.color,
+                                  fontWeight: FontWeight.w500,
+                                  color: theme.colorScheme.onSurface,
                                 ),
-                                decoration: InputDecoration(
-                                  labelText: 'Nuevo nombre',
-                                  labelStyle: TextStyle(
-                                    fontSize: fontSizeBody,
-                                    color: theme.textTheme.bodyMedium?.color,
-                                  ),
-                                  border: const OutlineInputBorder(),
-                                  prefixIcon: Icon(
-                                    Icons.person_outline_rounded,
-                                    size: iconSize,
-                                    color: theme.textTheme.bodyMedium?.color,
-                                  ),
+                              ),
+                              subtitle: Text(
+                                widget.usuarioLogueado.nombre,
+                                style: TextStyle(
+                                  fontSize: fontSizeSubtitle,
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                                 ),
-                                onSubmitted: (_) => _cambiarNombre(),
                               ),
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  TextButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _editandoNombre = false;
-                                        _nombreController.text = widget.usuarioLogueado.nombre;
-                                      });
-                                    },
-                                    child: Text(
-                                      'Cancelar',
-                                      style: TextStyle(
-                                        fontSize: fontSizeBody,
-                                        color: theme.textTheme.bodyMedium?.color,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  ElevatedButton(
-                                    onPressed: _guardandoNombre ? null : _cambiarNombre,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF10B981),
-                                      foregroundColor: Colors.white,
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: isMobile ? 20 : 32,
-                                        vertical: isMobile ? 12 : 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                    child: _guardandoNombre
-                                        ? const SizedBox(
-                                            width: 28,
-                                            height: 28,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : Text(
-                                            'Guardar',
-                                            style: TextStyle(
-                                              fontSize: fontSizeBody,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                  ),
-                                ],
+                              trailing: IconButton(
+                                icon: Icon(
+                                  Icons.edit_rounded,
+                                  color: const Color(0xFF3B82F6),
+                                  size: iconSize,
+                                ),
+                                onPressed: () => setState(() => _editandoNombre = true),
                               ),
-                            ],
+                              onTap: () => setState(() => _editandoNombre = true),
+                              dense: false,
+                            ),
                           ),
-                        )
-                      : MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: ListTile(
-                            contentPadding: EdgeInsets.symmetric(horizontal: cardPadding, vertical: 8),
-                            leading: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.person_outline_rounded,
-                                color: const Color(0xFF3B82F6),
-                                size: iconSize,
-                              ),
-                            ),
-                            title: Text(
-                              'Nombre de usuario',
-                              style: TextStyle(
-                                fontSize: fontSizeBody,
-                                fontWeight: FontWeight.w500,
-                                color: theme.textTheme.bodyLarge?.color,
-                              ),
-                            ),
-                            subtitle: Text(
-                              widget.usuarioLogueado.nombre,
-                              style: TextStyle(
-                                fontSize: fontSizeSubtitle,
-                                color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
-                              ),
-                            ),
-                            trailing: IconButton(
-                              icon: Icon(
-                                Icons.edit_rounded,
-                                color: const Color(0xFF3B82F6),
-                                size: iconSize,
-                              ),
-                              onPressed: () => setState(() => _editandoNombre = true),
-                            ),
-                            onTap: () => setState(() => _editandoNombre = true),
-                            dense: false,
-                          ),
-                        ),
+                  ),
                 ),
                 const SizedBox(height: 12),
 
+                // Card de cambiar PIN
                 Card(
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -514,20 +506,20 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         style: TextStyle(
                           fontSize: fontSizeBody,
                           fontWeight: FontWeight.w500,
-                          color: theme.textTheme.bodyLarge?.color,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                       subtitle: Text(
                         'Actualizar tu PIN de ${widget.usuarioLogueado.rol}',
                         style: TextStyle(
                           fontSize: fontSizeSubtitle,
-                          color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
                       trailing: Icon(
                         Icons.arrow_forward_ios_rounded,
                         size: iconSize * 0.6,
-                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                       ),
                       onTap: _cambiarPin,
                     ),
@@ -535,80 +527,130 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
+                // ========== TEMA OSCURO ==========
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeInOut,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFFF59E0B).withValues(alpha: 0.08)
+                        : const Color(0xFFF59E0B).withValues(alpha: 0.03),
                     borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(
-                      color: theme.dividerColor.withValues(alpha: 0.1),
+                    border: Border.all(
+                      color: isDark
+                          ? const Color(0xFFF59E0B).withValues(alpha: 0.3)
+                          : const Color(0xFFF59E0B).withValues(alpha: 0.1),
                       width: 1,
                     ),
                   ),
-                  color: theme.cardTheme.color,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: cardPadding, vertical: 10),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            child: Icon(
-                              isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                              key: ValueKey(isDark),
-                              color: const Color(0xFFF59E0B),
-                              size: iconSize,
+                  child: Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    color: Colors.transparent,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: cardPadding, vertical: 10),
+                      child: Row(
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 400),
+                            curve: Curves.easeInOut,
+                            transform: isDark
+                                ? (Matrix4.identity()..rotateZ(0.2))
+                                : Matrix4.identity(),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 400),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, animation) {
+                                return ScaleTransition(
+                                  scale: animation,
+                                  child: FadeTransition(
+                                    opacity: animation,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: Icon(
+                                isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                                key: ValueKey(isDark),
+                                color: const Color(0xFFF59E0B),
+                                size: iconSize,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 18),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Tema oscuro',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: fontSizeBody,
-                                  color: theme.textTheme.bodyLarge?.color,
-                                ),
-                              ),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 300),
-                                child: Text(
-                                  isDark ? 'Activado' : 'Desactivado',
-                                  key: ValueKey(isDark),
+                          const SizedBox(width: 18),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Tema oscuro',
                                   style: TextStyle(
-                                    fontSize: fontSizeSubtitle,
-                                    color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: fontSizeBody,
+                                    color: theme.colorScheme.onSurface,
                                   ),
                                 ),
-                              ),
-                            ],
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 400),
+                                  switchInCurve: Curves.easeOutCubic,
+                                  switchOutCurve: Curves.easeInCubic,
+                                  transitionBuilder: (child, animation) {
+                                    return FadeTransition(
+                                      opacity: animation,
+                                      child: SlideTransition(
+                                        position: Tween<Offset>(
+                                          begin: const Offset(0, -0.2),
+                                          end: Offset.zero,
+                                        ).animate(animation),
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    isDark ? 'Activado' : 'Desactivado',
+                                    key: ValueKey(isDark),
+                                    style: TextStyle(
+                                      fontSize: fontSizeSubtitle,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark
+                                          ? const Color(0xFFF59E0B)
+                                          : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        Transform.scale(
-                          scale: switchScale,
-                          child: Switch(
-                            value: isDark,
-                            onChanged: (value) {
-                              ref.read(themeProvider.notifier).setTheme(
-                                value ? ThemeMode.dark : ThemeMode.light,
-                              );
-                            },
-                            activeThumbColor: const Color(0xFFF59E0B),
-                            activeTrackColor: const Color(0xFFF59E0B).withValues(alpha: 0.4),
-                            inactiveThumbColor: Colors.grey.shade400,
-                            inactiveTrackColor: Colors.grey.shade300,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          Transform.scale(
+                            scale: switchScale,
+                            child: Switch(
+                              value: isDark,
+                              onChanged: (value) {
+                                _themeAnimationController.forward(from: 0.0);
+                                ref.read(themeProvider.notifier).setTheme(
+                                  value ? ThemeMode.dark : ThemeMode.light,
+                                );
+                                Future.delayed(const Duration(milliseconds: 500), () {
+                                  _themeAnimationController.reverse();
+                                });
+                              },
+                              activeThumbColor: const Color(0xFFF59E0B),
+                              activeTrackColor: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                              inactiveThumbColor: Colors.grey.shade400,
+                              inactiveTrackColor: Colors.grey.shade300,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -621,7 +663,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                   Icons.settings_rounded,
                   theme,
                   isMobile,
-                  fontSizeTitle,
                 ),
                 const SizedBox(height: 12),
 
@@ -662,13 +703,13 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         'Salir de la aplicación',
                         style: TextStyle(
                           fontSize: fontSizeSubtitle,
-                          color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
                       trailing: Icon(
                         Icons.arrow_forward_ios_rounded,
                         size: iconSize * 0.6,
-                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                       ),
                       onTap: _cerrarSesion,
                     ),
@@ -687,7 +728,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     IconData icon,
     ThemeData theme,
     bool isMobile,
-    double fontSizeTitle,
   ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -696,7 +736,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
           Icon(
             icon,
             size: isMobile ? 20 : 28,
-            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
           const SizedBox(width: 12),
           Text(
@@ -704,15 +744,24 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: isMobile ? 16 : 22,
-              color: theme.textTheme.bodyMedium?.color,
+              color: theme.colorScheme.onSurface,
               letterSpacing: 0.5,
             ),
           ),
           Expanded(
             child: Container(
-              height: 1,
+              height: 1.5,
               margin: const EdgeInsets.only(left: 20),
-              color: theme.dividerColor.withValues(alpha: 0.2),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    theme.dividerColor.withValues(alpha: 0.3),
+                    theme.dividerColor.withValues(alpha: 0.05),
+                  ],
+                ),
+              ),
             ),
           ),
         ],

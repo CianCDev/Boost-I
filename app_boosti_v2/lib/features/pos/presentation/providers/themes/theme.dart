@@ -9,10 +9,10 @@ ThemeData lightTheme() {
     colorScheme: ColorScheme.light(
       primary: primaryGreen,
       secondary: primaryGreen,
-      surface: cardLight,          // #FFFFFF
-      onSurface: textDark,         // #0F172A
+      surface: cardLight,
+      onSurface: textDark,
       surfaceContainerHighest: const Color(0xFFF1F5F9),
-      surfaceContainerLow: bgLight, // #F8FAFC
+      surfaceContainerLow: bgLight,
       outline: textMuted.withValues(alpha: 0.3),
       onSurfaceVariant: textMuted,
       error: redError,
@@ -65,30 +65,28 @@ ThemeData lightTheme() {
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     ),
+    // ✅ CORREGIDO: ElevatedButton con mouseCursor mediante ButtonStyle
     elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primaryGreen,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+      style: ButtonStyle(
+        backgroundColor: WidgetStatePropertyAll(primaryGreen),
+        foregroundColor: WidgetStatePropertyAll(Colors.white),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        elevation: 0,
+        elevation: WidgetStatePropertyAll(0),
+        mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
       ),
     ),
-    
-    // CORRECCIÓN APLICADA AQUÍ 👇
-    textButtonTheme: const TextButtonThemeData(
+    textButtonTheme: TextButtonThemeData(
       style: ButtonStyle(
         mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
       ),
     ),
-    iconButtonTheme: const IconButtonThemeData(
+    iconButtonTheme: IconButtonThemeData(
       style: ButtonStyle(
         mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
       ),
     ),
-    // 👆 HASTA AQUÍ
-
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: primaryGreen,
       foregroundColor: Colors.white,
@@ -104,19 +102,19 @@ ThemeData darkTheme() {
     colorScheme: ColorScheme.dark(
       primary: primaryGreen,
       secondary: primaryGreen,
-      surface: bgDark,              // #1E293B
+      surface: bgDark,
       onSurface: Colors.white,
       onPrimary: Colors.white,
-      surfaceContainerHighest: deepSpaceBlueLight, // #2D3748
+      surfaceContainerHighest: deepSpaceBlueLight,
       surfaceContainerLow: bgDark,
       outline: Colors.white.withValues(alpha: 0.1),
-      onSurfaceVariant: slateGreyLight, // #94A3B8
+      onSurfaceVariant: slateGreyLight,
       error: redError,
       onError: Colors.white,
     ),
-    scaffoldBackgroundColor: darkBlue,  // #0F2A44 (azul más vivo para fondo)
+    scaffoldBackgroundColor: darkBlue,
     cardTheme: CardThemeData(
-      color: cardDark,              // #334155
+      color: cardDark,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
@@ -161,30 +159,28 @@ ThemeData darkTheme() {
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     ),
+    // ✅ CORREGIDO: ElevatedButton con mouseCursor mediante ButtonStyle
     elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primaryGreen,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+      style: ButtonStyle(
+        backgroundColor: WidgetStatePropertyAll(primaryGreen),
+        foregroundColor: WidgetStatePropertyAll(Colors.white),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        elevation: 0,
+        elevation: WidgetStatePropertyAll(0),
+        mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
       ),
     ),
-
-    // CORRECCIÓN APLICADA AQUÍ 👇
-    textButtonTheme: const TextButtonThemeData(
+    textButtonTheme: TextButtonThemeData(
       style: ButtonStyle(
         mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
       ),
     ),
-    iconButtonTheme: const IconButtonThemeData(
+    iconButtonTheme: IconButtonThemeData(
       style: ButtonStyle(
         mouseCursor: WidgetStatePropertyAll(SystemMouseCursors.click),
       ),
     ),
-    // 👆 HASTA AQUÍ
-
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: primaryGreen,
       foregroundColor: Colors.white,

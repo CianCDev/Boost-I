@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  
 
   supabase_flutter: ^2.15.2
   isar: ^3.1.0+1
@@ -46,6 +46,10 @@ dependencies:
   intl: ^0.20.2
   lottie: ^3.0.0
   flutter_svg: ^2.0.0
+  image_cropper: ^5.0.0 # Para recortar imágenes
+  flutter_slidable: ^3.0.0  # Opcional para mejor UI
+  flutter_typeahead: ^4.3.0 # Para autocompletado
+  collection: ^1.19.1
 
 dev_dependencies:
   flutter_test:
@@ -59,3 +63,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/config.json  # 👈 Agrega esta línea
+    - assets/animations/succes.json
+    - assets/animations/error.json
+    - assets/animations/clock.json
+    - assets/logo.svg

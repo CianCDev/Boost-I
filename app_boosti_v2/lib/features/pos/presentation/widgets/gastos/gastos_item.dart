@@ -5,12 +5,14 @@ class GastosItem extends StatefulWidget {
   final GastoEntity gasto;
   final bool isMobile;
   final bool isTablet;
+  final VoidCallback onTap;
 
   const GastosItem({
     super.key,
     required this.gasto,
     required this.isMobile,
     required this.isTablet,
+    required this.onTap,
   });
 
   @override
@@ -18,24 +20,7 @@ class GastosItem extends StatefulWidget {
 }
 
 class _GastosItemState extends State<GastosItem> {
-  bool isHovering = false;
-
-  // ✅ Mapa de iconos por categoría
-  IconData _getIconForCategory(String categoria) {
-    switch (categoria.toLowerCase()) {
-      case 'alimentación':
-        return Icons.restaurant_rounded;
-      case 'transporte':
-        return Icons.directions_car_rounded;
-      case 'servicios':
-        return Icons.construction_rounded;
-      case 'general':
-        return Icons.category_rounded;
-      case 'otros':
-      default:
-        return Icons.more_horiz_rounded;
-    }
-  }
+  bool _isHovering = false;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +37,6 @@ class _GastosItemState extends State<GastosItem> {
 
     final Color colorMonto = const Color(0xFFEF4444);
 
-    // Tamaños responsivos
     final double horizontalPadding = widget.isTablet ? 28 : 14;
     final double verticalPadding = widget.isTablet ? 20 : 14;
     final double iconSize = widget.isTablet ? 56 : 40;
@@ -63,134 +47,105 @@ class _GastosItemState extends State<GastosItem> {
     final double chevronSize = widget.isTablet ? 36 : 20;
     final double categoryIconSize = widget.isTablet ? 18 : 14;
 
-    // ✅ Icono de categoría
-    final IconData categoryIcon = _getIconForCategory(gasto.categoria);
+    IconData categoryIcon;
+    switch (gasto.categoria.toLowerCase()) {
+      case 'alimentación':
+        categoryIcon = Icons.restaurant_rounded;
+        break;
+      case 'transporte':
+        categoryIcon = Icons.directions_car_rounded;
+        break;
+      case 'servicios':
+        categoryIcon = Icons.construction_rounded;
+        break;
+      default:
+        categoryIcon = Icons.category_rounded;
+    }
 
     return MouseRegion(
-      onEnter: (_) => setState(() => isHovering = true),
-      onExit: (_) => setState(() => isHovering = false),
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
       cursor: SystemMouseCursors.click,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        transform: isHovering
-            ? Matrix4.diagonal3Values(1.02, 1.02, 1.0)
-            : Matrix4.identity(),
-        padding: EdgeInsets.symmetric(
-          horizontal: horizontalPadding,
-          vertical: verticalPadding,
-        ),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isHovering
-                ? const Color(0xFFEF4444).withValues(alpha: 0.4)
-                : colorScheme.outline.withValues(alpha: 0.2),
-            width: isHovering ? 2.0 : 1.0,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          transform: _isHovering
+              ? Matrix4.diagonal3Values(1.02, 1.02, 1.0)
+              : Matrix4.identity(),
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: verticalPadding,
           ),
-          boxShadow: isHovering
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.2),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: isDark ? Colors.black.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-        ),
-        child: Row(
-          children: [
-            // ---- Icono principal de gasto (rojo) ----
-            Container(
-              width: iconSize,
-              height: iconSize,
-              decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.money_off_rounded,
-                color: const Color(0xFFEF4444),
-                size: iconInnerSize,
-              ),
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _isHovering
+                  ? const Color(0xFFEF4444).withValues(alpha: 0.4)
+                  : colorScheme.outline.withValues(alpha: 0.2),
+              width: _isHovering ? 2.0 : 1.0,
             ),
-            const SizedBox(width: 16),
-
-            // ---- Información principal ----
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Descripción
-                  Text(
-                    gasto.descripcion,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: fontSizeDesc,
-                      color: colorScheme.onSurface,
+            boxShadow: _isHovering
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                  const SizedBox(height: 4),
-
-                  // ---- Fila de información (fecha, categoría, usuario) ----
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 2,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      // Fecha
-                      Text(
-                        fechaStr,
-                        style: TextStyle(
-                          fontSize: fontSizeFecha,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: isDark ? Colors.black.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: iconSize,
+                height: iconSize,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.money_off_rounded,
+                  color: const Color(0xFFEF4444),
+                  size: iconInnerSize,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      gasto.descripcion,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: fontSizeDesc,
+                        color: colorScheme.onSurface,
                       ),
-
-                      // Separador
-                      Text(
-                        '•',
-                        style: TextStyle(
-                          fontSize: fontSizeFecha,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-
-                      // Categoría: en móvil solo icono, en tablet icono + texto
-                      if (widget.isTablet) ...[
-                        Icon(
-                          categoryIcon,
-                          size: categoryIconSize,
-                          color: const Color(0xFFEF4444),
-                        ),
-                        const SizedBox(width: 4),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
                         Text(
-                          gasto.categoria,
+                          fechaStr,
                           style: TextStyle(
                             fontSize: fontSizeFecha,
-                            fontWeight: FontWeight.w500,
                             color: colorScheme.onSurfaceVariant,
                           ),
                         ),
-                      ] else ...[
-                        Icon(
-                          categoryIcon,
-                          size: categoryIconSize,
-                          color: const Color(0xFFEF4444),
-                        ),
-                      ],
-
-                      // Separador (si hay usuario)
-                      if (gasto.usuarioNombre.isNotEmpty) ...[
                         Text(
                           '•',
                           style: TextStyle(
@@ -198,54 +153,80 @@ class _GastosItemState extends State<GastosItem> {
                             color: colorScheme.onSurfaceVariant,
                           ),
                         ),
-                        Text(
-                          gasto.usuarioNombre,
-                          style: TextStyle(
-                            fontSize: fontSizeFecha,
-                            color: colorScheme.onSurfaceVariant,
+                        if (widget.isTablet) ...[
+                          Icon(
+                            categoryIcon,
+                            size: categoryIconSize,
+                            color: const Color(0xFFEF4444),
                           ),
-                        ),
+                          const SizedBox(width: 4),
+                          Text(
+                            gasto.categoria,
+                            style: TextStyle(
+                              fontSize: fontSizeFecha,
+                              fontWeight: FontWeight.w500,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ] else ...[
+                          Icon(
+                            categoryIcon,
+                            size: categoryIconSize,
+                            color: const Color(0xFFEF4444),
+                          ),
+                        ],
+                        if (gasto.usuarioNombre.isNotEmpty) ...[
+                          Text(
+                            '•',
+                            style: TextStyle(
+                              fontSize: fontSizeFecha,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Text(
+                            gasto.usuarioNombre,
+                            style: TextStyle(
+                              fontSize: fontSizeFecha,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    montoStr,
+                    style: TextStyle(
+                      fontSize: fontSizeMonto,
+                      fontWeight: FontWeight.w800,
+                      color: colorMonto,
+                    ),
+                  ),
+                  Text(
+                    gasto.moneda == 'USD' ? 'USD' : 'Bs.',
+                    style: TextStyle(
+                      fontSize: widget.isTablet ? 14 : 10,
+                      fontWeight: FontWeight.w500,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // ---- Monto ----
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  montoStr,
-                  style: TextStyle(
-                    fontSize: fontSizeMonto,
-                    fontWeight: FontWeight.w800,
-                    color: colorMonto,
-                  ),
-                ),
-                Text(
-                  gasto.moneda == 'USD' ? 'USD' : 'Bs.',
-                  style: TextStyle(
-                    fontSize: widget.isTablet ? 14 : 10,
-                    fontWeight: FontWeight.w500,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(width: 8),
-
-            Icon(
-              Icons.chevron_right,
-              color: colorScheme.onSurfaceVariant,
-              size: chevronSize,
-            ),
-          ],
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right,
+                color: colorScheme.onSurfaceVariant,
+                size: chevronSize,
+              ),
+            ],
+          ),
         ),
       ),
     );
