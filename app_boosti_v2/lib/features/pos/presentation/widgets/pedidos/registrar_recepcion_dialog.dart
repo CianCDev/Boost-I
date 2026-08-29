@@ -58,7 +58,7 @@ class _RegistrarRecepcionDialogState extends ConsumerState<RegistrarRecepcionDia
               : () async {
                   setState(() => _isLoading = true);
                   try {
-                    final userId = 1; // TODO: obtener usuario actual
+                    final userId = 1; 
                     await ref.read(registrarRecepcionProvider(
                       (
                         pedidoId: widget.pedidoId,

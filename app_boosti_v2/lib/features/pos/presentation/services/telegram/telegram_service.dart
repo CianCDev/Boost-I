@@ -13,7 +13,6 @@ class TelegramService {
   TelegramConfigEntity? _config;
   Timer? _pollingTimer;
   int _lastUpdateId = 0;
-  bool _isRunning = false;
 
   // Singleton
   static final TelegramService _instance = TelegramService._internal();
@@ -44,10 +43,8 @@ class TelegramService {
 
   void _startPolling() {
     _pollingTimer?.cancel();
-    _isRunning = true;
     _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
       if (_config == null || !_config!.enabled) {
-        _isRunning = false;
         timer.cancel();
         return;
       }
@@ -242,7 +239,7 @@ $lista
 
   String _ayuda() {
     final comandos = _config?.comandosPermitidos ?? [];
-    final listaComandos = comandos.map((c) => '$c').join('\n');
+    final listaComandos = comandos.map((c) => c).join('\n');
     return '''
 🤖 COMANDOS DISPONIBLES:
 $listaComandos
@@ -389,7 +386,6 @@ $lista
       debugPrint('🤖 Bot de Telegram reiniciado con nueva configuración');
     } else {
       _pollingTimer?.cancel();
-      _isRunning = false;
       debugPrint('⏹️ Bot de Telegram detenido');
     }
   }
@@ -424,7 +420,6 @@ $lista
 
   void dispose() {
     _pollingTimer?.cancel();
-    _isRunning = false;
     debugPrint('🤖 Bot de Telegram detenido');
   }
 }

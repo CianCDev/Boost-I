@@ -7,14 +7,13 @@ import 'package:device_preview/device_preview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'features/pos/data/Local/entities/isar_service.dart';
 import 'features/pos/presentation/screens/splash_screen.dart';
 import 'features/pos/presentation/screens/configuracion_empresa_screen.dart';
 import 'features/pos/presentation/screens/login_screen.dart';
 import 'features/pos/presentation/screens/inventory_catalog_screen.dart';
 import 'features/pos/presentation/providers/lock_provider.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
-import 'dart:convert';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:app_boosti_v2/features/pos/presentation/services/telegram/telegram_service.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 

@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 // ========== NUEVA PALETA ==========
 const Color primaryGreen = Color(0xFF10B981);  // Acción principal
 const Color secondaryBlue = Color(0xFF59B1E4); // Marca / acento
-const Color darkBlue = Color(0xFF0F2A44);      // Fondo modo oscuro (más azul)
+const Color darkBlue = Color.fromARGB(255, 2, 12, 31);      // Fondo modo oscuro (más azul)
 
-const Color bgDark = Color(0xFF1E293B);        // Fondo oscuro alternativo (cards)
+const Color bgDark =  Color.fromARGB(255, 3, 26, 44);        // Fondo oscuro alternativo (cards)
 const Color bgLight = Color(0xFFF8FAFC);       // Fondo claro general
-const Color cardDark = Color(0xFF334155);      // Superficie card oscura
+const Color cardDark = Color.fromARGB(255, 11, 22, 43);      // Superficie card oscura
 const Color cardLight = Color(0xFFFFFFFF);     // Superficie card clara
 
 const Color textDark = Color(0xFF0F172A);      // Texto principal oscuro

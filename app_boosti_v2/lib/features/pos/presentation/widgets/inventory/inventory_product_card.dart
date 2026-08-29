@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../providers/marca_provider.dart';
-import '../../providers/themes/app_colors.dart'; 
+import '../../providers/themes/app_colors.dart';
 import '../../utils/responsive_helper.dart';
 
+/// Tarjeta de producto para la pantalla de inventario.
+/// Muestra imagen, nombre, marca, precio, stock y badges.
+/// Soporta selección múltiple y animación de entrada.
 class InventoryProductCard extends ConsumerStatefulWidget {
   final ProductoEntity producto;
   final bool stockBajo;
@@ -30,7 +33,8 @@ class InventoryProductCard extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<InventoryProductCard> createState() => _InventoryProductCardState();
+  ConsumerState<InventoryProductCard> createState() =>
+      _InventoryProductCardState();
 }
 
 class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
@@ -42,18 +46,23 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isTablet = ResponsiveHelper.isTablet(context);
 
-    // ✅ Obtener el nombre de la marca usando el provider
-    final marcaNombreAsync = widget.producto.marcaSupabaseId != null
-        ? ref.watch(marcaNombrePorSupabaseIdProvider(widget.producto.marcaSupabaseId!))
-        : null;
+    // ✅ Colores mejorados para modo oscuro
+    final Color cardBackground = isDark
+        ? const Color.fromARGB(255, 9, 17, 32)// Fondo oscuro con contraste
+        : Colors.white;
 
-    // Colores responsivos (igual que antes)
-    final cardBackground = isDark ? cardDark : cardLight;
-    final cardBorderColor = isDark
-        ? Colors.white.withValues(alpha: 0.1)
+    final Color cardBorderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
         : Colors.black.withValues(alpha: 0.1);
+
     final List<BoxShadow> cardShadow = isDark
-        ? []
+        ? [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ]
         : [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
@@ -62,6 +71,13 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
             ),
           ];
 
+    // ✅ Obtener el nombre de la marca usando el provider
+    final marcaNombreAsync = widget.producto.marcaSupabaseId != null
+        ? ref.watch(marcaNombrePorSupabaseIdProvider(
+            widget.producto.marcaSupabaseId!))
+        : null;
+
+    // Cálculo de tamaños responsivos
     final double stockValue = widget.producto.stock;
     final String stockDisplay = stockValue % 1 == 0
         ? stockValue.toInt().toString()
@@ -181,7 +197,9 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
                             ],
                           ),
                           child: Text(
-                            widget.producto.stock <= 0 ? 'Sin Stock' : '¡Stock bajo!',
+                            widget.producto.stock <= 0
+                                ? 'Sin Stock'
+                                : '¡Stock bajo!',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: badgeFontSize,
@@ -301,11 +319,12 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
                               child: SizedBox(
                                 width: 12,
                                 height: 12,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               ),
                             ),
                           ),
-                          error: (_, __) => const SizedBox.shrink(),
+                          error: (_, _) => const SizedBox.shrink(),
                         )
                       else
                         const SizedBox.shrink(),
@@ -342,7 +361,8 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
                               borderRadius: BorderRadius.circular(6),
                               border: widget.stockBajo
                                   ? Border.all(
-                                      color: pumpkinSpice.withValues(alpha: 0.3),
+                                      color:
+                                          pumpkinSpice.withValues(alpha: 0.3),
                                       width: 1,
                                     )
                                   : null,
@@ -370,6 +390,7 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
       ),
     );
 
+    // Animación de entrada con escala
     if (widget.animationController != null) {
       return AnimatedBuilder(
         animation: widget.animationController!,

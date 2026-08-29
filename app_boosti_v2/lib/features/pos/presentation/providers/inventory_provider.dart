@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 
 class InventoryState {
   final String filtroBusqueda;
-  final int? categoriaSeleccionadaId; // ✅ int? (coherente con ProductoEntity.categoriaId)
+  final String categoriaSeleccionadaNombre; // "Todas" por defecto
   final bool soloStockBajo;
   final bool seleccionMultiple;
   final Set<int> productosSeleccionados;
@@ -15,7 +15,7 @@ class InventoryState {
 
   const InventoryState({
     this.filtroBusqueda = '',
-    this.categoriaSeleccionadaId,
+    this.categoriaSeleccionadaNombre = 'Todas', // 🔥 Siempre String
     this.soloStockBajo = false,
     this.seleccionMultiple = false,
     this.productosSeleccionados = const {},
@@ -25,7 +25,7 @@ class InventoryState {
 
   InventoryState copyWith({
     String? filtroBusqueda,
-    int? categoriaSeleccionadaId, // ✅ int?
+    String? categoriaSeleccionadaNombre,
     bool? soloStockBajo,
     bool? seleccionMultiple,
     Set<int>? productosSeleccionados,
@@ -34,7 +34,8 @@ class InventoryState {
   }) {
     return InventoryState(
       filtroBusqueda: filtroBusqueda ?? this.filtroBusqueda,
-      categoriaSeleccionadaId: categoriaSeleccionadaId ?? this.categoriaSeleccionadaId,
+      categoriaSeleccionadaNombre:
+          categoriaSeleccionadaNombre ?? this.categoriaSeleccionadaNombre,
       soloStockBajo: soloStockBajo ?? this.soloStockBajo,
       seleccionMultiple: seleccionMultiple ?? this.seleccionMultiple,
       productosSeleccionados: productosSeleccionados ?? this.productosSeleccionados,
@@ -48,6 +49,7 @@ class InventoryState {
 
 class InventoryNotifier extends StateNotifier<InventoryState> {
   final Ref ref;
+  // ignore: unused_field
   late final ProviderSubscription _subscription;
 
   InventoryNotifier(this.ref) : super(const InventoryState()) {
@@ -62,18 +64,20 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
   void _aplicarFiltros(bool isLoading) {
     final productos = ref.read(productosProvider).items;
     final query = state.filtroBusqueda.toLowerCase().trim();
-    final categoriaId = state.categoriaSeleccionadaId;
+    final categoriaNombre = state.categoriaSeleccionadaNombre; // String
     final soloStockBajo = state.soloStockBajo;
 
     final filtrados = productos.where((p) {
       final coincideTexto = p.nombre.toLowerCase().contains(query) ||
           p.codigoBarras.toLowerCase().contains(query);
 
+      // Si la categoría es "Todas", mostrar todos
       bool coincideCategoria;
-      if (categoriaId == null) {
+      if (categoriaNombre == 'Todas') {
         coincideCategoria = true;
       } else {
-        coincideCategoria = p.categoriaId == categoriaId;
+        coincideCategoria = p.categoria.trim().toLowerCase() ==
+            categoriaNombre.trim().toLowerCase();
       }
 
       final coincideStockBajo = !soloStockBajo || (p.stock <= p.stockMinimo);
@@ -96,8 +100,8 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
     _aplicarFiltros(state.isLoading);
   }
 
-  void setCategoria(int? categoriaId) {
-    state = state.copyWith(categoriaSeleccionadaId: categoriaId);
+  void setCategoria(String categoriaNombre) {
+    state = state.copyWith(categoriaSeleccionadaNombre: categoriaNombre);
     _aplicarFiltros(state.isLoading);
   }
 

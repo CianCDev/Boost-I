@@ -5,20 +5,24 @@ import '../../providers/categorias_provider.dart';
 import '../../utils/responsive_helper.dart';
 import '../catalog/category_button.dart';
 
+/// Widget que muestra los chips de categorías para el inventario.
+/// Ahora usa "Todas" como valor especial en lugar de null.
 class InventoryCategoryChips extends ConsumerWidget {
   const InventoryCategoryChips({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final categoriasAsync = ref.watch(categoriasProvider);
-    final categoriaSeleccionadaId = ref.watch(inventoryProvider.select((s) => s.categoriaSeleccionadaId));
+    final categoriaSeleccionadaNombre =
+        ref.watch(inventoryProvider.select((s) => s.categoriaSeleccionadaNombre));
     final isTablet = ResponsiveHelper.isTablet(context);
 
     return categoriasAsync.when(
       data: (categorias) {
-        final items = <({int? id, String nombre})>[
-          (id: null, nombre: 'Todas'),
-          ...categorias.map((cat) => (id: cat.id, nombre: cat.nombre)),
+        // Construimos la lista: "Todas" + nombres de categorías activas
+        final items = <String>[
+          'Todas',
+          ...categorias.map((cat) => cat.nombre),
         ];
 
         return Container(
@@ -28,16 +32,17 @@ class InventoryCategoryChips extends ConsumerWidget {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
-              final item = items[index];
-              final esSeleccionada = item.id == categoriaSeleccionadaId;
+              final nombre = items[index];
+              final esSeleccionada = nombre == categoriaSeleccionadaNombre;
+
               return CategoryButton(
-                key: ValueKey(item.id ?? 'todas'),
-                categoria: item.nombre,
+                key: ValueKey(nombre),
+                categoria: nombre,
                 esSeleccionada: esSeleccionada,
                 onTap: () {
-                  ref.read(inventoryProvider.notifier).setCategoria(item.id);
+                  ref.read(inventoryProvider.notifier).setCategoria(nombre);
                 },
               );
             },
@@ -49,7 +54,7 @@ class InventoryCategoryChips extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: const Center(child: CircularProgressIndicator()),
       ),
-      error: (_, __) => Container(
+      error: (_, _) => Container(
         height: isTablet ? 60 : 48,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: const Center(child: Text('Error al cargar categorías')),

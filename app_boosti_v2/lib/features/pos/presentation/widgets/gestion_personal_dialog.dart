@@ -54,7 +54,7 @@ class _PersonnelManagementDialogState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('Error al cargar usuarios: $e'),
-              backgroundColor: Colors.red),
+              backgroundColor: Theme.of(context).colorScheme.error),
         );
       }
     }
@@ -77,14 +77,14 @@ class _PersonnelManagementDialogState
       await _isarService.guardarUsuario(nuevoUsuario);
       await _syncService.sincronizarUsuariosASupabase();
       await _isarService.guardarLog(
-      LogEntity()
-        ..accion = 'CREAR_USUARIO'
-        ..usuarioNombre = 'Admin' // o el admin actual
-        ..usuarioRol = 'admin'
-        ..detalles = 'Usuario: ${_nombreController.text} - Rol: $_rolSeleccionado'
-        ..fecha = DateTime.now()
-        ..sincronizado = false,
-    );
+        LogEntity()
+          ..accion = 'CREAR_USUARIO'
+          ..usuarioNombre = 'Admin'
+          ..usuarioRol = 'admin'
+          ..detalles = 'Usuario: ${_nombreController.text} - Rol: $_rolSeleccionado'
+          ..fecha = DateTime.now()
+          ..sincronizado = false,
+      );
 
       setState(() {
         _nombreController.clear();
@@ -109,7 +109,7 @@ class _PersonnelManagementDialogState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('❌ Error al crear usuario: $e'),
-              backgroundColor: Colors.red),
+              backgroundColor: Theme.of(context).colorScheme.error),
         );
       }
     }
@@ -128,7 +128,10 @@ class _PersonnelManagementDialogState
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Eliminar'),
           ),
@@ -139,17 +142,18 @@ class _PersonnelManagementDialogState
     if (confirm == true) {
       try {
         await _isarService.eliminarUsuario(usuario.id);
+        // ✅ Usar el método existente en SyncService
         await _syncService.eliminarUsuarioEnSupabase(usuario.id);
         await _cargarUsuarios();
         await _isarService.guardarLog(
-        LogEntity()
-          ..accion = 'ELIMINAR_USUARIO'
-          ..usuarioNombre = 'Admin'
-          ..usuarioRol = 'admin'
-          ..detalles = 'Usuario: ${usuario.nombre} (ID: ${usuario.id})'
-          ..fecha = DateTime.now()
-          ..sincronizado = false,
-      );
+          LogEntity()
+            ..accion = 'ELIMINAR_USUARIO'
+            ..usuarioNombre = 'Admin'
+            ..usuarioRol = 'admin'
+            ..detalles = 'Usuario: ${usuario.nombre} (ID: ${usuario.id})'
+            ..fecha = DateTime.now()
+            ..sincronizado = false,
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -163,8 +167,7 @@ class _PersonnelManagementDialogState
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
                 content: Text('❌ Error al eliminar: $e'),
-                backgroundColor: Colors.red),
-                
+                backgroundColor: Theme.of(context).colorScheme.error),
           );
         }
       }
@@ -175,7 +178,9 @@ class _PersonnelManagementDialogState
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final color = const Color(0xFF8B5CF6); // Morado para gestión
+    final isDark = theme.brightness == Brightness.dark;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
@@ -191,11 +196,13 @@ class _PersonnelManagementDialogState
         ),
         padding: EdgeInsets.all(isMobile ? 16 : 24),
         decoration: BoxDecoration(
-          color: theme.dialogTheme.backgroundColor ?? theme.cardColor,
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.5)
+                  : Colors.black.withValues(alpha: 0.08),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -224,14 +231,14 @@ class _PersonnelManagementDialogState
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       fontSize: isMobile ? 20 : 24,
-                      color: theme.textTheme.bodyLarge?.color,
+                      color: colorScheme.onSurface,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
                   icon: Icon(Icons.close_rounded,
-                      size: 28, color: theme.iconTheme.color),
+                      size: 28, color: colorScheme.onSurfaceVariant),
                   onPressed: () => Navigator.pop(context),
                 ),
               ],
@@ -240,15 +247,15 @@ class _PersonnelManagementDialogState
             Text(
               'Administración de accesos al sistema POS',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                color: colorScheme.onSurfaceVariant,
                 fontSize: isMobile ? 14 : 16,
               ),
             ),
             const SizedBox(height: 16),
-            const Divider(),
+            Divider(color: colorScheme.outline.withValues(alpha: 0.1)),
             const SizedBox(height: 16),
 
-            // ========== FORMULARIO (siempre visible) ==========
+            // ========== FORMULARIO ==========
             Form(
               key: _formKey,
               child: Column(
@@ -257,10 +264,13 @@ class _PersonnelManagementDialogState
                   TextFormField(
                     controller: _nombreController,
                     enabled: !_guardando,
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: colorScheme.onSurface),
+                    decoration: InputDecoration(
                       labelText: 'Nombre del nuevo empleado *',
+                      labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person_outline_rounded),
+                      prefixIcon:
+                          Icon(Icons.person_outline_rounded, color: color),
                     ),
                     validator: (v) =>
                         v?.trim().isNotEmpty == true ? null : 'Requerido',
@@ -269,10 +279,12 @@ class _PersonnelManagementDialogState
                   TextFormField(
                     controller: _pinController,
                     enabled: !_guardando,
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: colorScheme.onSurface),
+                    decoration: InputDecoration(
                       labelText: 'PIN de acceso (4 dígitos) *',
+                      labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.lock_outline_rounded),
+                      prefixIcon: Icon(Icons.lock_outline_rounded, color: color),
                     ),
                     keyboardType: TextInputType.number,
                     maxLength: 4,
@@ -284,10 +296,13 @@ class _PersonnelManagementDialogState
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     initialValue: _rolSeleccionado,
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: colorScheme.onSurface),
+                    decoration: InputDecoration(
                       labelText: 'Rol / Permisos',
+                      labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.assignment_ind_rounded),
+                      prefixIcon:
+                          Icon(Icons.assignment_ind_rounded, color: color),
                     ),
                     items: const [
                       DropdownMenuItem(value: 'admin', child: Text('Administrador')),
@@ -303,21 +318,30 @@ class _PersonnelManagementDialogState
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.amber.shade50,
+                      color: isDark
+                          ? colorScheme.primaryContainer.withValues(alpha: 0.3)
+                          : Colors.amber.shade50,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.amber.shade200),
+                      border: Border.all(
+                        color: isDark
+                            ? colorScheme.primary.withValues(alpha: 0.3)
+                            : Colors.amber.shade200,
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline_rounded,
-                            color: Colors.amber.shade800, size: 20),
+                        Icon(
+                          Icons.info_outline_rounded,
+                          color: isDark ? colorScheme.primary : Colors.amber.shade800,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Para editar roles existentes o eliminar usuarios, ve a Configuración de Usuarios.',
                             style: TextStyle(
                               fontSize: isMobile ? 12 : 14,
-                              color: Colors.amber.shade800,
+                              color: isDark ? colorScheme.primary : Colors.amber.shade800,
                             ),
                           ),
                         ),
@@ -337,7 +361,8 @@ class _PersonnelManagementDialogState
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 12),
                         ),
-                        child: const Text('Cerrar'),
+                        child: Text('Cerrar',
+                            style: TextStyle(color: colorScheme.onSurfaceVariant)),
                       ),
                       ElevatedButton(
                         onPressed: _guardando ? null : _crearUsuario,
@@ -348,7 +373,6 @@ class _PersonnelManagementDialogState
                               horizontal: 24, vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                            
                           ),
                         ),
                         child: _guardando
@@ -376,20 +400,20 @@ class _PersonnelManagementDialogState
             ),
 
             const SizedBox(height: 12),
-            const Divider(),
+            Divider(color: colorScheme.outline.withValues(alpha: 0.1)),
 
-            // ========== LISTA DE USUARIOS (expanded) ==========
+            // ========== LISTA DE USUARIOS ==========
             Expanded(
               child: _cargando
-                  ? const Center(
-                      child: CircularProgressIndicator(color: Color(0xFF8B5CF6)))
+                  ? Center(
+                      child: CircularProgressIndicator(color: color),
+                    )
                   : _usuarios.isEmpty
                       ? Center(
                           child: Text(
                             'No hay usuarios registrados',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.textTheme.bodyMedium?.color
-                                  ?.withValues(alpha: 0.6),
+                              color: colorScheme.onSurfaceVariant,
                             ),
                           ),
                         )
@@ -420,15 +444,14 @@ class _PersonnelManagementDialogState
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: isMobile ? 14 : 16,
-                                  color: theme.textTheme.bodyLarge?.color,
+                                  color: colorScheme.onSurface,
                                 ),
                               ),
                               subtitle: Text(
                                 '${usuario.rol.toUpperCase()} • ${usuario.estado}',
                                 style: TextStyle(
                                   fontSize: isMobile ? 12 : 14,
-                                  color: theme.textTheme.bodyMedium?.color
-                                      ?.withValues(alpha: 0.6),
+                                  color: colorScheme.onSurfaceVariant,
                                 ),
                               ),
                               trailing: IconButton(

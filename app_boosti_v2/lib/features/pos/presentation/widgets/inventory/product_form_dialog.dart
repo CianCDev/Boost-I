@@ -21,6 +21,7 @@ import '../../services/sync_service.dart';
 import '../../utils/responsive_helper.dart';
 import '../proveedores/crear_proveedor_dialog.dart';
 
+// ignore: constant_identifier_names
 const String _DRAFT_KEY = 'product_form_draft';
 
 class ProductFormDialog extends ConsumerStatefulWidget {
@@ -1224,7 +1225,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
                         width: 24,
                         height: 24,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
+                        errorBuilder: (_, _, _) => Icon(
                           Icons.branding_watermark_rounded,
                           size: 20,
                           color: colorScheme.primary,
@@ -1283,7 +1284,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
         }
 
         return DropdownButtonFormField<CategoriaEntity>(
-          value: categoriaSeleccionada,
+          initialValue: categoriaSeleccionada,
           isExpanded: true,
           decoration: InputDecoration(
             labelText: 'Categoría *',
@@ -1831,6 +1832,7 @@ class _ProveedoresPanelDialogState extends State<_ProveedoresPanelDialog> {
   final TextEditingController _busquedaController = TextEditingController();
   final TextEditingController _filtroMarcaController = TextEditingController();
   String _busqueda = '';
+  // ignore: unused_field
   String _filtroMarca = '';
 
   List<ProveedorEntity> get _proveedoresFiltrados {
@@ -1950,7 +1952,7 @@ class _ProveedoresPanelDialogState extends State<_ProveedoresPanelDialog> {
                       )
                     : ListView.separated(
                         itemCount: _proveedoresFiltrados.length,
-                        separatorBuilder: (_, __) => Divider(
+                        separatorBuilder: (_, _) => Divider(
                           color: colorScheme.outline.withValues(alpha: 0.2),
                           height: 1,
                         ),

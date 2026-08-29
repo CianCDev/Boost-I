@@ -112,6 +112,7 @@ class _MarcaFormDialogState extends ConsumerState<MarcaFormDialog> {
   // ==================== IMAGEN ====================
   Future<void> _seleccionarImagen(ImageSource source) async {
     if (!await _checkPermission()) {
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Se necesita permiso para acceder a la galería/cámara')),
       );
@@ -506,7 +507,7 @@ class _MarcaFormDialogState extends ConsumerState<MarcaFormDialog> {
                     ? Image.network(
                         _logoUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
+                        errorBuilder: (_, _, _) => Icon(
                           Icons.branding_watermark_rounded,
                           size: 64,
                           color: colorScheme.onSurfaceVariant,

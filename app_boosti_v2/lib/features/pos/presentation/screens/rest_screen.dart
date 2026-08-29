@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/lock_provider.dart';
-// TODO: Asegúrate de importar tu provider de sesión actual si lo tienes
-// import '../providers/auth_provider.dart'; 
 import '../../data/Local/entities/isar_service.dart';
 import '../utils/responsive_helper.dart';
 

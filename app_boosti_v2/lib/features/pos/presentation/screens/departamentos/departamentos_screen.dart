@@ -158,7 +158,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
           localesAsync.when(
             data: (locales) {
               return DropdownButtonFormField<int?>(
-                value: _localFiltroId,
+                initialValue: _localFiltroId,
                 hint: Text(
                   'Filtrar por local',
                   style: TextStyle(color: colorScheme.onSurfaceVariant),
@@ -311,7 +311,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
                               'Cargando...',
                               style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                             ),
-                            error: (_, __) => Text(
+                            error: (_, _) => Text(
                               'Error',
                               style: TextStyle(fontSize: 12, color: colorScheme.error),
                             ),
@@ -429,6 +429,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
       ),
     ).then((result) {
       if (result == true && mounted) {
+        // ignore: unused_result
         ref.refresh(departamentosConFiltroProvider(
           (query: _queryBusqueda, soloActivos: !_mostrarInactivos, localId: _localFiltroId)
         ));
@@ -446,6 +447,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
       ),
     ).then((result) {
       if (result == true && mounted) {
+        // ignore: unused_result
         ref.refresh(departamentosConFiltroProvider(
           (query: _queryBusqueda, soloActivos: !_mostrarInactivos, localId: _localFiltroId)
         ));
@@ -479,6 +481,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
       )));
       setState(() {});
     } catch (e) {
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
@@ -514,6 +517,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
         )));
         setState(() {});
       } catch (e) {
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );

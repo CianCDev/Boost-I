@@ -142,7 +142,7 @@ class DetalleDepartamentoDialog extends ConsumerWidget {
                       localAsync.when(
                         data: (local) => local?.nombre ?? 'Sin local asignado',
                         loading: () => 'Cargando...',
-                        error: (_, __) => 'Error al cargar',
+                        error: (_, _) => 'Error al cargar',
                       ),
                       colorScheme,
                     ),

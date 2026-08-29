@@ -24,7 +24,7 @@ class CartSidebar extends ConsumerWidget {
     final isTablet = ResponsiveHelper.isTablet(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final backgroundColor = isDark ? darkBlue : cardLight;
+    final backgroundColor = isDark ? const Color.fromARGB(255, 9, 17, 32) : cardLight;
     final textColor = isDark ? Colors.white : textDark;
     final textSecondaryColor = isDark ? Colors.white70 : textMuted;
     final borderColor = isDark

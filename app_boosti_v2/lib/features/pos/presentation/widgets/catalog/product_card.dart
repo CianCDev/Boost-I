@@ -36,14 +36,23 @@ class _ProductCardState extends ConsumerState<ProductCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isTablet = ResponsiveHelper.isTablet(context);
 
-    // Colores según el modo
-    final cardBackground = isDark ? cardDark : cardLight;
-    final cardBorderColor = isDark
-        ? Colors.white.withValues(alpha: 0.1)
+    // ✅ MISMO ESTILO QUE INVENTORY_PRODUCT_CARD
+    final Color cardBackground = isDark
+        ? const Color.fromARGB(255, 9, 17, 32) // Fondo oscuro con contraste
+        : Colors.white;
+
+    final Color cardBorderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
         : Colors.black.withValues(alpha: 0.1);
 
     final List<BoxShadow> cardShadow = isDark
-        ? []
+        ? [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ]
         : [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
@@ -57,7 +66,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
         ? stockValue.toInt().toString()
         : stockValue.toStringAsFixed(1);
 
-    // Tamaños responsivos
+    // Tamaños responsivos (se mantienen igual que antes)
     final double fontSizeNombre = widget.isMobile ? 13 : (isTablet ? 15 : 16);
     final double fontSizeMarca = widget.isMobile ? 11 : (isTablet ? 13 : 14);
     final double fontSizeCodigo = widget.isMobile ? 10 : (isTablet ? 12 : 13);
@@ -308,7 +317,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                                 ),
                               ),
                             ),
-                            error: (_, __) => const SizedBox.shrink(),
+                            error: (_, _) => const SizedBox.shrink(),
                           )
                         else
                           const SizedBox.shrink(),

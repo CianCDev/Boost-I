@@ -32,15 +32,8 @@ import '../screens/proveedores/proveedores_screen.dart';
 import '../screens/departamentos/departamentos_screen.dart';
 import '../screens/locales/locales_screen.dart';
 import '../screens/telegram/telegram_config_screen.dart';
-import 'package:app_boosti_v2/features/pos/presentation/screens/departamentos/departamentos_screen.dart';
-
-// y usas DepartamentosScreen
-
-
-
-// ✅ IMPORT DEL NUEVO DIÁLOGO DE DIAGNÓSTICO
 import '../widgets/appbar.dart';
-import '../widgets/menu/turno_closing_dialog.dart'; // Importar el nuevo diálogo
+import '../widgets/menu/turno_closing_dialog.dart';
 
 class MenuOption {
   final String title;
@@ -130,7 +123,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   }
 
   // ============================================================
-  // DIÁLOGO DE ÉXITO CON LOTTIE (AGRANDADO)
+  // DIÁLOGO DE ÉXITO CON LOTTIE
   // ============================================================
   void _mostrarDialogoExito(String titulo, String mensaje) {
     showDialog(
@@ -159,7 +152,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Lottie con fallback
             _buildLottieWithFallback('assets/animations/Clock Alarm Animation.json'),
             const SizedBox(height: 20),
             Text(
@@ -197,52 +189,21 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     );
   }
 
-  // Helper para cargar Lottie con fallback
+  // ✅ Helper para cargar Lottie con fallback (SIN lógica de sincronización)
   Widget _buildLottieWithFallback(String assetPath) {
-    try {
-      await _actualizarProgreso('Sincronizando ventas...');
-      final result = await _syncService.sincronizarTodoConResumen();
-
-      Navigator.pop(context);
-
-    final mensaje = StringBuffer('✅ Sincronización completada\n');
-if (result['ventas']! > 0) mensaje.writeln('• ${result['ventas']} ventas');
-if (result['productos']! > 0) mensaje.writeln('• ${result['productos']} productos');
-if (result['proveedores']! > 0) mensaje.writeln('• ${result['proveedores']} proveedores');
-if (result['gastos']! > 0) mensaje.writeln('• ${result['gastos']} gastos');
-if (result['pedidos']! > 0) mensaje.writeln('• ${result['pedidos']} pedidos');
-if (result['lotes']! > 0) mensaje.writeln('• ${result['lotes']} lotes');
-if (result['locales']! > 0) mensaje.writeln('• ${result['locales']} locales');
-if (result['departamentos']! > 0) mensaje.writeln('• ${result['departamentos']} departamentos');
-if (result['telegram']! > 0) mensaje.writeln('• ${result['telegram']} configuraciones de Telegram');
-if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizado ✅');
-      if (!currentContext.mounted) return;
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text(mensaje.toString()),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 4),
-        ),
-      return Lottie.asset(
-        assetPath,
-        width: 200,
-        height: 200,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) {
-          return Icon(
-            Icons.timer,
-            size: 100,
-            color: const Color(0xFF10B981),
-          );
-        },
-      );
-    } catch (e) {
-      return Icon(
-        Icons.timer,
-        size: 100,
-        color: const Color(0xFF10B981),
-      );
-    }
+    return Lottie.asset(
+      assetPath,
+      width: 200,
+      height: 200,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return Icon(
+          Icons.timer,
+          size: 100,
+          color: const Color(0xFF10B981),
+        );
+      },
+    );
   }
 
   // ============================================================
@@ -323,7 +284,6 @@ if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizad
       return;
     }
 
-    // Descargar ventas de Supabase para tener datos actualizados
     try {
       await _syncService.descargarVentasDesdeSupabase();
     } catch (e) {
@@ -336,7 +296,6 @@ if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizad
       DateTime.now(),
     );
 
-    // ✅ Usar el diálogo personalizado moderno
     final confirm = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -349,7 +308,6 @@ if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizad
     );
 
     if (confirm == true) {
-      // Cerrar turno
       turnoAbierto.montoFinal = montoFinal;
       turnoAbierto.fechaCierre = DateTime.now();
       turnoAbierto.estado = 'cerrado';
@@ -446,6 +404,9 @@ if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizad
       if (result['gastos']! > 0) mensaje.writeln('• ${result['gastos']} gastos');
       if (result['pedidos']! > 0) mensaje.writeln('• ${result['pedidos']} pedidos');
       if (result['lotes']! > 0) mensaje.writeln('• ${result['lotes']} lotes');
+      if (result['locales']! > 0) mensaje.writeln('• ${result['locales']} locales');
+      if (result['departamentos']! > 0) mensaje.writeln('• ${result['departamentos']} departamentos');
+      if (result['telegram']! > 0) mensaje.writeln('• ${result['telegram']} configuraciones de Telegram');
       if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizado ✅');
 
       if (!currentContext.mounted) return;
@@ -695,27 +656,27 @@ if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizad
         isAdminOnly: true,
       ),
       MenuOption(
-  title: 'Gestión de Locales',
-  subtitle: 'Crear y administrar sedes/tiendas',
-  icon: Icons.storefront_rounded,
-  color: const Color(0xFF3B82F6),
-  onTap: () => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const LocalesScreen()),
-  ),
-  isAdminOnly: true,
-),
-MenuOption(
-  title: 'Gestión de Departamentos',
-  subtitle: 'Crear y administrar departamentos',
-  icon: Icons.business_center_rounded,
-  color: const Color(0xFF8B5CF6),
-  onTap: () => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const DepartamentosScreen()),
-  ),
-  isAdminOnly: true,
-),
+        title: 'Gestión de Locales',
+        subtitle: 'Crear y administrar sedes/tiendas',
+        icon: Icons.storefront_rounded,
+        color: const Color(0xFF3B82F6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const LocalesScreen()),
+        ),
+        isAdminOnly: true,
+      ),
+      MenuOption(
+        title: 'Gestión de Departamentos',
+        subtitle: 'Crear y administrar departamentos',
+        icon: Icons.business_center_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const DepartamentosScreen()),
+        ),
+        isAdminOnly: true,
+      ),
       MenuOption(
         title: 'Proveedores',
         subtitle: 'Gestionar proveedores',
@@ -771,16 +732,16 @@ MenuOption(
         isAdminOnly: true,
       ),
       MenuOption(
-  title: 'Configurar Telegram',
-  subtitle: 'Bot de notificaciones y comandos',
-  icon: Icons.telegram,
-  color: const Color(0xFF10B981),
-  onTap: () => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const TelegramConfigScreen()),
-  ),
-  isAdminOnly: true,
-),
+        title: 'Configurar Telegram',
+        subtitle: 'Bot de notificaciones y comandos',
+        icon: Icons.telegram,
+        color: const Color(0xFF10B981),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const TelegramConfigScreen()),
+        ),
+        isAdminOnly: true,
+      ),
     ];
 
     final opcionesConfiguracion = [
@@ -1118,7 +1079,7 @@ MenuOption(
     final bool isDark = theme.brightness == Brightness.dark;
 
     return MouseRegion(
-      cursor: SystemMouseCursors.click, // ✅ Cursor pointer
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => isHovered.value = true,
       onExit: (_) => isHovered.value = false,
       child: ValueListenableBuilder(

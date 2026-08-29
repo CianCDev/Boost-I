@@ -1,4 +1,11 @@
 // lib/features/pos/presentation/widgets/departamentos/crear_departamento_dialog.dart
+
+/// Diálogo para crear o editar un departamento.
+/// Permite seleccionar un local asociado (opcional) y activar/desactivar.
+/// Se integra con el provider de departamentos y locales para persistencia local y sincronización con Supabase.
+library;
+
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/departamento_entity.dart';
@@ -6,7 +13,6 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart
 import 'package:app_boosti_v2/features/pos/presentation/providers/departamentos_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/input_decoration_helper.dart';
-import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 
 class CrearDepartamentoDialog extends ConsumerStatefulWidget {
   final DepartamentoEntity? departamento;
@@ -19,10 +25,12 @@ class CrearDepartamentoDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<CrearDepartamentoDialog> createState() => _CrearDepartamentoDialogState();
+  ConsumerState<CrearDepartamentoDialog> createState() =>
+      _CrearDepartamentoDialogState();
 }
 
-class _CrearDepartamentoDialogState extends ConsumerState<CrearDepartamentoDialog> {
+class _CrearDepartamentoDialogState
+    extends ConsumerState<CrearDepartamentoDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nombreController;
   late TextEditingController _descripcionController;
@@ -49,6 +57,7 @@ class _CrearDepartamentoDialogState extends ConsumerState<CrearDepartamentoDialo
     super.dispose();
   }
 
+  /// Guarda el departamento (crea o actualiza) y cierra el diálogo.
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -107,7 +116,6 @@ class _CrearDepartamentoDialogState extends ConsumerState<CrearDepartamentoDialo
     final esEdicion = widget.departamento != null;
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isMobile = ResponsiveHelper.isMobile(context);
 
     final localesAsync = ref.watch(localesProvider);
 
@@ -126,7 +134,9 @@ class _CrearDepartamentoDialogState extends ConsumerState<CrearDepartamentoDialo
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: isDark ? Colors.black.withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.08),
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.5)
+                  : Colors.black.withValues(alpha: 0.08),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -143,7 +153,9 @@ class _CrearDepartamentoDialogState extends ConsumerState<CrearDepartamentoDialo
                 Row(
                   children: [
                     Icon(
-                      esEdicion ? Icons.edit_rounded : Icons.add_business_rounded,
+                      esEdicion
+                          ? Icons.edit_rounded
+                          : Icons.add_business_rounded,
                       color: const Color(0xFF8B5CF6),
                       size: 28,
                     ),
@@ -159,7 +171,8 @@ class _CrearDepartamentoDialogState extends ConsumerState<CrearDepartamentoDialo
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.close_rounded, color: colorScheme.onSurfaceVariant),
+                      icon: Icon(Icons.close_rounded,
+                          color: colorScheme.onSurfaceVariant),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -200,10 +213,12 @@ class _CrearDepartamentoDialogState extends ConsumerState<CrearDepartamentoDialo
                     if (_esDesdeLocal) {
                       final local = locales.firstWhere(
                         (l) => l.id == _localIdSeleccionado,
-                        orElse: () => LocalEntity()..nombre = 'Local no encontrado',
+                        orElse: () => LocalEntity()
+                          ..nombre = 'Local no encontrado',
                       );
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
                         decoration: BoxDecoration(
                           color: colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(12),
@@ -211,7 +226,8 @@ class _CrearDepartamentoDialogState extends ConsumerState<CrearDepartamentoDialo
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.storefront_rounded, color: colorScheme.primary),
+                            Icon(Icons.storefront_rounded,
+                                color: colorScheme.primary),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -235,14 +251,15 @@ class _CrearDepartamentoDialogState extends ConsumerState<CrearDepartamentoDialo
                                 ],
                               ),
                             ),
-                            Icon(Icons.lock_outline_rounded, color: colorScheme.onSurfaceVariant),
+                            Icon(Icons.lock_outline_rounded,
+                                color: colorScheme.onSurfaceVariant),
                           ],
                         ),
                       );
                     }
 
                     return DropdownButtonFormField<int?>(
-                      value: _localIdSeleccionado,
+                      initialValue: _localIdSeleccionado,
                       hint: Text(
                         'Seleccionar local (opcional)',
                         style: TextStyle(color: colorScheme.onSurfaceVariant),
@@ -275,7 +292,7 @@ class _CrearDepartamentoDialogState extends ConsumerState<CrearDepartamentoDialo
                       style: TextStyle(color: colorScheme.onSurface),
                     );
                   },
-                  loading: () => const Center(child: CircularProgressIndicator()),
+                  loading: () => const Text('Cargando locales...'),
                   error: (err, _) => Text(
                     'Error al cargar locales: $err',
                     style: TextStyle(color: colorScheme.error),
@@ -325,7 +342,10 @@ class _CrearDepartamentoDialogState extends ConsumerState<CrearDepartamentoDialo
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : Text(esEdicion ? 'Actualizar' : 'Crear'),
                       ),

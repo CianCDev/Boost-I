@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/departamento_entity.dart';
+// ignore: unused_import
 import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/departamentos_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/departamentos/crear_departamento_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/departamentos/detalle_departamento_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
-import 'package:app_boosti_v2/features/pos/presentation/widgets/departamentos/crear_departamento_dialog.dart';
 
 class DetalleLocalDialog extends ConsumerStatefulWidget {
   final LocalEntity local;

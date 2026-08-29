@@ -61,6 +61,7 @@ class _LocalesScreenState extends ConsumerState<LocalesScreen> {
   Widget build(BuildContext context) {
     final localesAsync = ref.watch(localesProvider);
     final colorScheme = Theme.of(context).colorScheme;
+    // ignore: unused_local_variable
     final isMobile = ResponsiveHelper.isMobile(context);
 
     // Filtrar locales
@@ -281,6 +282,7 @@ void _mostrarCrear() {
   ).then((result) {
     if (result == true && mounted) {
       // Forzar recarga completa
+      // ignore: unused_result
       ref.refresh(localesProvider);
       // Forzar rebuild del widget
       setState(() {});
@@ -294,6 +296,7 @@ void _mostrarEditar(LocalEntity local) {
     builder: (_) => CrearLocalDialog(local: local),
   ).then((result) {
     if (result == true && mounted) {
+      // ignore: unused_result
       ref.refresh(localesProvider);
       setState(() {});
     }
