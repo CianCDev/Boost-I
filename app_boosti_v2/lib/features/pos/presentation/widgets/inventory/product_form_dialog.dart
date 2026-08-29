@@ -17,6 +17,7 @@ import '../../../data/Local/entities/usuario_entity.dart';
 import '../../../data/Local/entities/marca_entity.dart';
 import '../../../data/Local/entities/isar_service.dart';
 import '../../providers/categorias_provider.dart';
+import '../../services/sync_service.dart';
 import '../../utils/responsive_helper.dart';
 import '../proveedores/crear_proveedor_dialog.dart';
 
@@ -168,10 +169,14 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   Future<void> _cargarProveedores() async {
     setState(() => _cargandoProveedores = true);
     try {
+      final syncService = SyncService();
+      await syncService.descargarProveedoresDesdeSupabase();
       final isar = IsarService();
       final proveedores = await isar.obtenerProveedores(soloActivos: true);
+      debugPrint('📦 [ProductForm] Proveedores cargados: ${proveedores.length}');
       setState(() {
         _proveedores = proveedores;
+        // Si el producto tiene un proveedor asignado, seleccionarlo
         if (widget.producto?.proveedorId != null) {
           _proveedorSeleccionado = proveedores.firstWhereOrNull(
             (p) => p.id == widget.producto!.proveedorId,
@@ -179,6 +184,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
           if (_proveedorSeleccionado != null) {
             _proveedorNombreController.text = _proveedorSeleccionado!.nombre;
             _proveedorTelController.text = _proveedorSeleccionado!.telefono ?? '';
+            _proveedorBusquedaController.text = _proveedorSeleccionado!.nombre;
           }
         }
       });
@@ -201,6 +207,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
         _proveedorSeleccionado = nuevo;
         _proveedorNombreController.text = nuevo.nombre;
         _proveedorTelController.text = nuevo.telefono ?? '';
+        _proveedorBusquedaController.text = nuevo.nombre;
         setState(() {});
       }
     }
@@ -212,9 +219,11 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       if (proveedor != null) {
         _proveedorNombreController.text = proveedor.nombre;
         _proveedorTelController.text = proveedor.telefono ?? '';
+        _proveedorBusquedaController.text = proveedor.nombre;
       } else {
         _proveedorNombreController.clear();
         _proveedorTelController.clear();
+        _proveedorBusquedaController.clear();
       }
     });
   }
@@ -405,9 +414,14 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       producto.categoriaId = _categoriaIdSeleccionada;
       producto.categoria = _categoriaSeleccionada;
       producto.esPesado = _esPesado;
+
+      // ✅ Asignar proveedor
       producto.proveedorId = _proveedorSeleccionado?.id;
       producto.proveedorNombre = _proveedorSeleccionado?.nombre ?? '';
       producto.proveedorTelefono = _proveedorSeleccionado?.telefono ?? '';
+      producto.proveedorEmail = _proveedorSeleccionado?.email ?? '';
+      producto.proveedorDireccion = _proveedorSeleccionado?.direccion ?? '';
+
       producto.updatedAt = DateTime.now();
 
       await widget.onGuardar(producto);
@@ -781,12 +795,13 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   // ==================== SELECTOR DE PROVEEDOR ====================
   Widget _buildSelectorProveedor(ColorScheme colorScheme, bool isDark, bool isMobile) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: colorScheme.outline.withValues(alpha: 0.1),
+          color: colorScheme.outline.withValues(alpha: 0.2),
+          width: 1,
         ),
       ),
       child: Column(
@@ -809,6 +824,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
                 icon: Icon(Icons.view_list_rounded, color: colorScheme.primary),
                 tooltip: 'Ver todos',
                 onPressed: _abrirPanelProveedores,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
             ],
           ),
@@ -816,108 +833,120 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
           _cargandoProveedores
               ? const Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
-                  child: CircularProgressIndicator(),
+                  child: Center(child: CircularProgressIndicator()),
                 )
-              : Autocomplete<ProveedorEntity>(
-                  optionsBuilder: (textEditingValue) {
-                    if (textEditingValue.text.isEmpty) {
-                      return _proveedores;
-                    }
-                    final query = textEditingValue.text.toLowerCase();
-                    return _proveedores.where((p) =>
-                        p.nombre.toLowerCase().contains(query) ||
-                        (p.empresa ?? '').toLowerCase().contains(query));
-                  },
-                  displayStringForOption: (proveedor) => proveedor.nombre,
-                  fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                    _proveedorBusquedaController.text = controller.text;
-                    return TextFormField(
-                      controller: controller,
-                      focusNode: focusNode,
-                      decoration: InputDecoration(
-                        hintText: 'Buscar proveedor...',
-                        prefixIcon: Icon(Icons.search, color: colorScheme.primary),
-                        filled: true,
-                        fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colorScheme.outline),
+              : _proveedores.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'No hay proveedores activos. Crea uno desde "Crear nuevo proveedor".',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colorScheme.onSurfaceVariant,
                         ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colorScheme.primary, width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                       ),
-                      onChanged: (value) {
-                        controller.text = value;
-                        if (_proveedorSeleccionado != null &&
-                            _proveedorSeleccionado!.nombre != value) {
-                          _seleccionarProveedor(null);
+                    )
+                  : Autocomplete<ProveedorEntity>(
+                      optionsBuilder: (textEditingValue) {
+                        if (textEditingValue.text.isEmpty) {
+                          return _proveedores;
                         }
+                        final query = textEditingValue.text.toLowerCase();
+                        return _proveedores.where((p) =>
+                            p.nombre.toLowerCase().contains(query) ||
+                            (p.empresa ?? '').toLowerCase().contains(query));
                       },
-                    );
-                  },
-                  onSelected: (proveedor) {
-                    _seleccionarProveedor(proveedor);
-                    _proveedorBusquedaController.text = proveedor.nombre;
-                  },
-                  optionsViewBuilder: (context, onSelected, options) {
-                    return Align(
-                      alignment: Alignment.topLeft,
-                      child: Material(
-                        elevation: 4,
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.transparent,
-                        child: Container(
-                          constraints: const BoxConstraints(maxHeight: 200),
-                          child: ListView.builder(
-                            padding: EdgeInsets.zero,
-                            shrinkWrap: true,
-                            itemCount: options.length,
-                            itemBuilder: (context, index) {
-                              final option = options.elementAt(index);
-                              return Material(
-                                color: Colors.transparent,
-                                child: ListTile(
-                                  title: Text(option.nombre),
-                                  subtitle: option.empresa != null && option.empresa!.isNotEmpty
-                                      ? Text(option.empresa!, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))
-                                      : null,
-                                  onTap: () => onSelected(option),
-                                  leading: Icon(Icons.business, color: colorScheme.primary),
-                                  tileColor: option == _proveedorSeleccionado
-                                      ? colorScheme.primary.withValues(alpha: 0.1)
-                                      : null,
-                                ),
-                              );
-                            },
+                      displayStringForOption: (proveedor) => proveedor.nombre,
+                      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                        _proveedorBusquedaController.text = controller.text;
+                        return TextFormField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          decoration: InputDecoration(
+                            hintText: 'Buscar proveedor...',
+                            prefixIcon: Icon(Icons.search, color: colorScheme.primary),
+                            filled: true,
+                            fillColor: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: colorScheme.outline),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                          onChanged: (value) {
+                            controller.text = value;
+                            if (_proveedorSeleccionado != null &&
+                                _proveedorSeleccionado!.nombre != value) {
+                              _seleccionarProveedor(null);
+                            }
+                          },
+                        );
+                      },
+                      onSelected: (proveedor) {
+                        _seleccionarProveedor(proveedor);
+                      },
+                      optionsViewBuilder: (context, onSelected, options) {
+                        return Align(
+                          alignment: Alignment.topLeft,
+                          child: Material(
+                            elevation: 4,
+                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.transparent,
+                            child: Container(
+                              constraints: const BoxConstraints(maxHeight: 200),
+                              child: ListView.builder(
+                                padding: EdgeInsets.zero,
+                                shrinkWrap: true,
+                                itemCount: options.length,
+                                itemBuilder: (context, index) {
+                                  final option = options.elementAt(index);
+                                  return Material(
+                                    color: Colors.transparent,
+                                    child: ListTile(
+                                      title: Text(option.nombre),
+                                      subtitle: option.empresa != null && option.empresa!.isNotEmpty
+                                          ? Text(option.empresa!, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))
+                                          : null,
+                                      onTap: () => onSelected(option),
+                                      leading: Icon(Icons.business, color: colorScheme.primary),
+                                      tileColor: option == _proveedorSeleccionado
+                                          ? colorScheme.primary.withValues(alpha: 0.1)
+                                          : null,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
         ],
       ),
     );
   }
 
-  // ==================== TARJETA DE PROVEEDOR SELECCIONADO ====================
+  // ==================== TARJETA DE PROVEEDOR SELECCIONADO (CORREGIDA) ====================
   Widget _buildProveedorSeleccionadoCard(ColorScheme colorScheme) {
     final proveedor = _proveedorSeleccionado!;
     final isActivo = proveedor.activo;
+
     return Card(
       elevation: 0,
-      color: colorScheme.primary.withValues(alpha: 0.05),
+      color: colorScheme.primary.withValues(alpha: 0.04),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: colorScheme.primary.withValues(alpha: 0.2),
+          color: colorScheme.primary.withValues(alpha: 0.15),
+          width: 1,
         ),
       ),
       child: Padding(
@@ -925,54 +954,81 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Proveedor seleccionado',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              proveedor.nombre,
-              style: TextStyle(fontSize: 16, color: colorScheme.onSurface),
-            ),
-            if (proveedor.telefono != null && proveedor.telefono!.isNotEmpty)
-              Row(
-                children: [
-                  Icon(Icons.phone, size: 14, color: colorScheme.primary),
-                  const SizedBox(width: 4),
-                  Text(
-                    proveedor.telefono!,
-                    style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
-                  ),
-                ],
-              ),
-            if (proveedor.email != null && proveedor.email!.isNotEmpty)
-              Row(
-                children: [
-                  Icon(Icons.email, size: 14, color: colorScheme.primary),
-                  const SizedBox(width: 4),
-                  Text(
-                    proveedor.email!,
-                    style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
-                  ),
-                ],
-              ),
-            const SizedBox(height: 4),
+            // Título
             Row(
               children: [
                 Icon(
-                  isActivo ? Icons.check_circle : Icons.cancel,
+                  Icons.check_circle_rounded,
                   size: 16,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Proveedor seleccionado',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            // Nombre
+            Text(
+              proveedor.nombre,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+
+            const SizedBox(height: 4),
+
+            // Teléfono
+            if (proveedor.telefono != null && proveedor.telefono!.isNotEmpty)
+              _buildDetailRow(
+                icon: Icons.phone_rounded,
+                text: proveedor.telefono!,
+                colorScheme: colorScheme,
+              ),
+
+            // Email
+            if (proveedor.email != null && proveedor.email!.isNotEmpty)
+              _buildDetailRow(
+                icon: Icons.email_rounded,
+                text: proveedor.email!,
+                colorScheme: colorScheme,
+              ),
+
+            // Dirección
+            if (proveedor.direccion != null && proveedor.direccion!.isNotEmpty)
+              _buildDetailRow(
+                icon: Icons.location_on_rounded,
+                text: proveedor.direccion!,
+                colorScheme: colorScheme,
+              ),
+
+            const SizedBox(height: 4),
+
+            // Estado activo/inactivo
+            Row(
+              children: [
+                Icon(
+                  isActivo ? Icons.circle : Icons.circle_outlined,
+                  size: 12,
                   color: isActivo ? Colors.green : Colors.grey,
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 6),
                 Text(
                   isActivo ? 'Activo' : 'Inactivo',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: isActivo ? Colors.green : Colors.grey,
                   ),
@@ -981,6 +1037,39 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Método auxiliar para construir cada fila de detalle
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String text,
+    required ColorScheme colorScheme,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 14,
+            color: colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurfaceVariant,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1119,10 +1208,10 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.05),
+                color: colorScheme.primary.withValues(alpha: 0.04),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: colorScheme.primary.withValues(alpha: 0.2),
+                  color: colorScheme.primary.withValues(alpha: 0.15),
                 ),
               ),
               child: Row(
@@ -1154,8 +1243,10 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
                       _marcaSeleccionada!.nombre,
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
-                        color: colorScheme.primary,
+                        color: colorScheme.onSurface,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   IconButton(
@@ -1173,7 +1264,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     );
   }
 
-  // ==================== SELECTOR DE CATEGORÍAS (CORREGIDO) ====================
+  // ==================== SELECTOR DE CATEGORÍAS ====================
   Widget _campoCategoriaSelector(ColorScheme colorScheme, bool isDark) {
     final categoriasAsync = ref.watch(todasLasCategoriasProvider);
 

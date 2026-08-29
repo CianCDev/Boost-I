@@ -491,47 +491,44 @@ class SyncService {
   }
 
   Future<bool> _enviarMarcaAlServidor(MarcaEntity marca) async {
-    try {
-      // Si no tiene supabaseId, se genera uno local (opcional, pero mejor dejar que Supabase lo asigne)
-      if (marca.supabaseId == null || marca.supabaseId!.isEmpty) {
-        marca.supabaseId = const Uuid().v4();
-      }
-
-      final data = {
-        'id': marca.supabaseId,
-        'nombre': marca.nombre,
-        'descripcion': marca.descripcion,
-        'logo_url': marca.logoUrl,
-        'proveedor_id': marca.proveedorId, // UUID del proveedor (si existe)
-        'activo': marca.activo,
-        'created_at': marca.createdAt.toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      };
-
-      await _supabase
-          .from('marcas')
-          .upsert(data, onConflict: 'id')
-          .select();
-
-      // Actualizar el supabaseId local (si no se había asignado)
-      if (marca.supabaseId == null) {
-        // Buscar por nombre para obtener el id real (opcional)
-        final result = await _supabase
-            .from('marcas')
-            .select('id')
-            .eq('nombre', marca.nombre)
-            .maybeSingle();
-        if (result != null) {
-          marca.supabaseId = result['id'] as String?;
-        }
-      }
-
-      return true;
-    } catch (e) {
-      debugPrint('🚫 Error enviando marca ${marca.nombre}: $e');
-      return false;
+  try {
+    // ✅ Validar que sea un UUID válido, si no, regenerar
+    final uuidRegex = RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    );
+    if (marca.supabaseId == null ||
+        marca.supabaseId!.isEmpty ||
+        !uuidRegex.hasMatch(marca.supabaseId!)) {
+      // Generar nuevo UUID y actualizar localmente
+      final nuevoUuid = const Uuid().v4();
+      marca.supabaseId = nuevoUuid;
+      // Guardar cambio en Isar
+      final isar = await _isarService.db;
+      await isar.writeTxn(() async {
+        await isar.marcaEntitys.put(marca);
+      });
+      debugPrint('🔄 [SyncService] ID de marca "${marca.nombre}" regenerado a UUID: $nuevoUuid');
     }
+
+    final data = {
+      'id': marca.supabaseId,
+      'nombre': marca.nombre,
+      'descripcion': marca.descripcion,
+      'logo_url': marca.logoUrl,
+      'proveedor_id': marca.proveedorId,
+      'activo': marca.activo,
+      'created_at': marca.createdAt.toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    await _supabase.from('marcas').upsert(data, onConflict: 'id').select();
+    return true;
+  } catch (e) {
+    debugPrint('🚫 Error enviando marca ${marca.nombre}: $e');
+    return false;
   }
+}
 
   Future<void> descargarMarcasDesdeSupabase() async {
     try {
@@ -628,9 +625,7 @@ class SyncService {
           'created_at': p.createdAt?.toIso8601String(),
           'updated_at': p.updatedAt?.toIso8601String(),
           'created_by': p.createdBy,
-          'updated_by': p.updatedBy,
-          'created_by_name': p.createdByName ?? '',
-          'updated_by_name': p.updatedByName ?? '',
+          
         };
         if (p.imagenUrl != null && p.imagenUrl!.isNotEmpty) {
           payload['imagen_url'] = p.imagenUrl;
@@ -641,6 +636,18 @@ class SyncService {
       await _supabase
           .from('productos')
           .upsert(payloadList, onConflict: 'codigo_barras');
+
+          final isar = await IsarService().db;
+
+          final marcasFailed = await isar.marcaEntitys
+              .filter()
+              .syncStatusEqualTo('failed')
+              .findAll();
+
+          for (var m in marcasFailed) {
+            m.syncStatus = 'pending';
+            await isar.marcaEntitys.put(m);
+          }
 
       // Actualizar supabaseId local
       final idsIsar = productosLocales.map((p) => p.id).toList();
@@ -677,6 +684,9 @@ class SyncService {
       return false;
     }
   }
+
+
+  
 
   Future<bool> eliminarProductoEnSupabase(String codigoBarras) async {
     try {

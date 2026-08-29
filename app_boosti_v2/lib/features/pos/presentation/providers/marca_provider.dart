@@ -1,10 +1,16 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
+import 'package:uuid/uuid.dart'; // ✅ Agregar import
 
 import '../../data/Local/entities/marca_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
-import 'pedidos_provider.dart';
+import '../services/sync_service.dart';
+
+// ============================================================
+// PROVIDERS DE LECTURA
+// ============================================================
 
 /// Provider para leer marcas activas (solo lectura)
 final marcasProvider = FutureProvider<List<MarcaEntity>>((ref) async {
@@ -22,7 +28,10 @@ final todasLasMarcasProvider = FutureProvider<List<MarcaEntity>>((ref) async {
   return await isar.marcaEntitys.where().findAll();
 });
 
-/// Notifier para gestionar marcas (CRUD + sincronización)
+// ============================================================
+// NOTIFIER PRINCIPAL (CRUD + SINCRONIZACIÓN)
+// ============================================================
+
 final marcasNotifierProvider =
     StateNotifierProvider<MarcasNotifier, AsyncValue<List<MarcaEntity>>>(
   (ref) => MarcasNotifier(ref),
@@ -51,8 +60,8 @@ class MarcasNotifier extends StateNotifier<AsyncValue<List<MarcaEntity>>> {
   Future<void> crearMarca(MarcaEntity marca) async {
     try {
       final isar = await IsarService().db;
-      // Si no tiene supabaseId, generamos uno temporal
-      marca.supabaseId ??= DateTime.now().millisecondsSinceEpoch.toString();
+      // ✅ Generar UUID válido para Supabase
+      marca.supabaseId ??= const Uuid().v4(); // 🔥 Cambio clave: usar UUID real
       marca.syncStatus = 'pending';
       marca.createdAt = DateTime.now();
       marca.updatedAt = DateTime.now();
@@ -61,10 +70,7 @@ class MarcasNotifier extends StateNotifier<AsyncValue<List<MarcaEntity>>> {
         await isar.marcaEntitys.put(marca);
       });
 
-      // Recargar lista
       await cargarMarcas();
-
-      // Sincronizar con Supabase en segundo plano
       _sincronizarEnSegundoPlano();
     } catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
@@ -98,14 +104,12 @@ class MarcasNotifier extends StateNotifier<AsyncValue<List<MarcaEntity>>> {
       final marca = await isar.marcaEntitys.get(id);
       if (marca == null) return false;
 
-      // Verificar si tiene productos asociados
       final productos = await isar.productoEntitys
           .filter()
           .marcaSupabaseIdEqualTo(marca.supabaseId ?? '')
           .findAll();
 
       if (productos.isNotEmpty) {
-        // Tiene productos → solo desactivar
         marca.activo = false;
         marca.syncStatus = 'pending';
         await isar.writeTxn(() async {
@@ -113,9 +117,8 @@ class MarcasNotifier extends StateNotifier<AsyncValue<List<MarcaEntity>>> {
         });
         await cargarMarcas();
         _sincronizarEnSegundoPlano();
-        return false; // no se eliminó, solo desactivó
+        return false;
       } else {
-        // No tiene productos → eliminar físicamente
         await isar.writeTxn(() async {
           await isar.marcaEntitys.delete(id);
         });
@@ -129,7 +132,7 @@ class MarcasNotifier extends StateNotifier<AsyncValue<List<MarcaEntity>>> {
     }
   }
 
-  /// Busca marcas por nombre (para autocomplete en formularios)
+  /// Busca marcas por nombre
   Future<List<MarcaEntity>> buscarMarcas(String query) async {
     if (query.trim().isEmpty) return [];
     try {
@@ -158,32 +161,41 @@ class MarcasNotifier extends StateNotifier<AsyncValue<List<MarcaEntity>>> {
     }
   }
 
-  /// Sincroniza marcas pendientes con Supabase (en segundo plano)
+  // ============================================================
+  // SINCRONIZACIÓN EN SEGUNDO PLANO
+  // ============================================================
+
   void _sincronizarEnSegundoPlano() {
     Future.microtask(() async {
       try {
         final syncService = ref.read(syncServiceProvider);
         await syncService.sincronizarMarcasPendientes();
+        debugPrint('✅ [MarcasNotifier] Sincronización en segundo plano completada.');
       } catch (e) {
-        // Silenciar errores en segundo plano
+        debugPrint('❌ [MarcasNotifier] Error en sincronización en segundo plano: $e');
       }
     });
   }
 
-  /// Fuerza la sincronización completa (subir + descargar)
+  /// Fuerza la sincronización completa
   Future<void> sincronizarCompleto() async {
     try {
       final syncService = ref.read(syncServiceProvider);
       await syncService.descargarMarcasDesdeSupabase();
       await syncService.sincronizarMarcasPendientes();
       await cargarMarcas();
+      debugPrint('✅ [MarcasNotifier] Sincronización completa finalizada.');
     } catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
+      debugPrint('❌ [MarcasNotifier] Error en sincronización completa: $e');
     }
   }
 }
 
-/// Provider de solo lectura para obtener el nombre de una marca por su ID
+// ============================================================
+// PROVIDERS AUXILIARES
+// ============================================================
+
 final marcaNombrePorIdProvider = FutureProvider.family<String?, int>(
   (ref, marcaId) async {
     if (marcaId <= 0) return null;
@@ -193,7 +205,6 @@ final marcaNombrePorIdProvider = FutureProvider.family<String?, int>(
   },
 );
 
-/// Provider de solo lectura para obtener el nombre de una marca por su UUID
 final marcaNombrePorSupabaseIdProvider = FutureProvider.family<String?, String>(
   (ref, supabaseId) async {
     if (supabaseId.isEmpty) return null;
@@ -205,3 +216,11 @@ final marcaNombrePorSupabaseIdProvider = FutureProvider.family<String?, String>(
     return marca?.nombre;
   },
 );
+
+// ============================================================
+// PROVIDER DEL SERVICIO DE SINCRONIZACIÓN
+// ============================================================
+
+final syncServiceProvider = Provider<SyncService>((ref) {
+  return SyncService();
+});

@@ -316,8 +316,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   @override
   Widget build(BuildContext context) {
     debugPrint('🔵 [InventoryScreen] build ejecutado');
-    // ignore: unused_local_variable
-    final isTablet = ResponsiveHelper.isTablet(context);
     final contenido = _buildBody(context);
 
     if (widget.showAppBar) {
@@ -343,13 +341,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
         appBar: CustomAppBar(
           title: isMobile ? 'Inventario' : 'Gestión de Inventario',
-          logoAsset: 'assets/logo.svg', // ✅ Ruta del logo SVG
-          logoSize: 28,  
           showBackButton: true,
-          centerTitle: isMobile,
+          centerTitle: false, // Centrado desactivado para apegar el título a la izquierda
           gradient: gradient,
           actions: [
-
             _buildActionButton(
               context,
               icon: Icons.branding_watermark_rounded,
@@ -358,10 +353,12 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 context: context,
                 builder: (_) => const MarcasManagementDialog(),
               ),
-              isTablet: ResponsiveHelper.isTablet(context), // ✅ Usar el helper directamente
-),
+              isTablet: ResponsiveHelper.isTablet(context),
+            ),
+            const SizedBox(width: 8), // Gap entre botones
+
             // Botón de reparar imágenes (solo admin)
-            if (isAdmin)
+            if (isAdmin) ...[
               _buildActionButton(
                 context,
                 icon: Icons.image_search_outlined,
@@ -407,8 +404,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 },
                 isTablet: ResponsiveHelper.isTablet(context),
               ),
+              const SizedBox(width: 8), // Gap entre botones
+            ],
+
             // Botón de gestionar categorías (solo admin)
-            if (isAdmin)
+            if (isAdmin) ...[
               _buildActionButton(
                 context,
                 icon: Icons.category_outlined,
@@ -421,6 +421,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 },
                 isTablet: ResponsiveHelper.isTablet(context),
               ),
+              const SizedBox(width: 8), // Gap entre botones
+            ],
+
             // Botón de generar código de barras
             _buildActionButton(
               context,
@@ -429,7 +432,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               onPressed: () => showDialog(context: context, builder: (_) => const BarcodeGeneratorDialog()),
               isTablet: ResponsiveHelper.isTablet(context),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
+
             // Indicador de selección múltiple
             if (state.seleccionMultiple) ...[
               Row(

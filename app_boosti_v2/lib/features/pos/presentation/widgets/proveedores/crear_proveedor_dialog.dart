@@ -6,7 +6,7 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/proveedores_pr
 import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
 
 class CrearProveedorDialog extends ConsumerStatefulWidget {
-  final ProveedorEntity? proveedor; // null = nuevo, con valor = edición
+  final ProveedorEntity? proveedor;
 
   const CrearProveedorDialog({super.key, this.proveedor});
 
@@ -34,6 +34,8 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
     _direccionController = TextEditingController(text: p?.direccion ?? '');
     _emailController = TextEditingController(text: p?.email ?? '');
     _activo = p?.activo ?? true;
+
+    debugPrint('📧 [Init] Email cargado: "${_emailController.text}"');
   }
 
   @override
@@ -47,7 +49,6 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
   }
 
   Future<void> _guardar() async {
-    // Validación del formulario
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -61,69 +62,72 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
 
     setState(() => _isSaving = true);
 
+    final email = _emailController.text.trim();
+    final direccion = _direccionController.text.trim();
+    debugPrint('📧 [Guardar] Email ingresado: "$email"');
+    debugPrint('📍 [Guardar] Dirección ingresada: "$direccion"');
+
     final nombre = _nombreController.text.trim();
     final proveedor = ProveedorEntity()
       ..nombre = nombre
       ..cedula = _cedulaController.text.trim().isNotEmpty ? _cedulaController.text.trim() : null
       ..telefono = _telefonoController.text.trim().isNotEmpty ? _telefonoController.text.trim() : null
-      ..direccion = _direccionController.text.trim().isNotEmpty ? _direccionController.text.trim() : null
-      ..email = _emailController.text.trim().isNotEmpty ? _emailController.text.trim() : null
+      ..direccion = direccion.isNotEmpty ? direccion : null
+      ..email = email.isNotEmpty ? email : null
       ..empresa = nombre
       ..activo = _activo
       ..supabaseId = widget.proveedor?.supabaseId
-      ..sincronizado = false;
+      ..sincronizado = false // 🔥 FORZAR pendiente
+      ..fechaSincronizacion = null;
 
     if (widget.proveedor != null) {
       proveedor.id = widget.proveedor!.id;
     }
 
     try {
-      // 1. Guardar en Isar (operación local)
+      debugPrint('💾 Guardando proveedor en Isar...');
+      // 1. Guardar en Isar
       await ref.read(guardarProveedorProvider(proveedor).future);
 
-      // 2. Éxito: cerrar diálogo y mostrar mensaje
+      // Verificar que se guardó correctamente
+      final isar = ref.read(isarServiceProvider);
+      final verificado = await isar.obtenerProveedorPorId(proveedor.id);
+      debugPrint('📦 [Verificación] Proveedor guardado: ${verificado?.nombre}, Email: ${verificado?.email}, Sincronizado: ${verificado?.sincronizado}');
+
+      // 2. Sincronizar AHORA (no en segundo plano)
+      debugPrint('🔄 Iniciando sincronización de proveedores pendientes...');
+      final syncService = SyncService();
+      await syncService.sincronizarProveedoresPendientes();
+      debugPrint('✅ Sincronización completada.');
+
+      // 3. Cerrar con éxito
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(widget.proveedor == null
-                ? '✅ Proveedor creado correctamente'
-                : '✅ Proveedor actualizado correctamente'),
+            content: Text(
+              widget.proveedor == null
+                  ? '✅ Proveedor creado y sincronizado'
+                  : '✅ Proveedor actualizado y sincronizado',
+            ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
         );
         Navigator.pop(context, true);
       }
-
-      // 3. Sincronizar con Supabase en segundo plano (no bloquear)
-      _sincronizarEnSegundoPlano();
-
     } catch (e) {
-      // Error al guardar localmente: mostrar error y mantener diálogo abierto
+      debugPrint('❌ Error al guardar/sincronizar: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Error al guardar: $e'),
+            content: Text('❌ Error: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 4),
           ),
         );
-        // Reactivar el botón para que el usuario pueda reintentar
         setState(() => _isSaving = false);
       }
     }
-  }
-
-  // Sincronización en segundo plano (sin bloquear la UI)
-  void _sincronizarEnSegundoPlano() {
-    Future.microtask(() async {
-      try {
-        await SyncService().sincronizarProveedoresPendientes();
-        debugPrint('✅ Proveedores sincronizados con Supabase en segundo plano');
-      } catch (e) {
-        debugPrint('⚠️ Error al sincronizar proveedores en segundo plano: $e');
-      }
-    });
   }
 
   @override

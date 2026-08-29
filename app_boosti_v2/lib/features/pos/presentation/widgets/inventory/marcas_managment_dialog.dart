@@ -34,9 +34,6 @@ class _MarcasManagementDialogState
     final isMobile = ResponsiveHelper.isMobile(context);
     final colorScheme = Theme.of(context).colorScheme;
 
-    final marcasLista = marcasAsync.value ?? [];
-    final totalFiltradas = _marcasFiltradas(marcasLista).length;
-
     return Dialog(
       insetPadding: EdgeInsets.symmetric(
         horizontal: isMobile ? 16 : 40,
@@ -64,7 +61,7 @@ class _MarcasManagementDialogState
           children: [
             _buildHeader(colorScheme, isMobile),
             const SizedBox(height: 16),
-            _buildSearchAndFilters(colorScheme, isMobile, totalFiltradas),
+            _buildSearchAndFilters(colorScheme, isMobile),
             const SizedBox(height: 16),
             Expanded(
               child: marcasAsync.when(
@@ -137,7 +134,7 @@ class _MarcasManagementDialogState
   }
 
   // ==================== BÚSQUEDA Y FILTROS ====================
-  Widget _buildSearchAndFilters(ColorScheme colorScheme, bool isMobile, int totalFiltradas) {
+  Widget _buildSearchAndFilters(ColorScheme colorScheme, bool isMobile) {
     return Column(
       children: [
         TextField(
@@ -171,14 +168,6 @@ class _MarcasManagementDialogState
             _buildFilterChip('Activas', 'activas', colorScheme),
             const SizedBox(width: 8),
             _buildFilterChip('Inactivas', 'inactivas', colorScheme),
-            const Spacer(),
-            Text(
-              '$totalFiltradas marcas',
-              style: TextStyle(
-                fontSize: 14,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
           ],
         ),
       ],
@@ -192,28 +181,32 @@ class _MarcasManagementDialogState
       selected: isSelected,
       onSelected: (_) => setState(() => _filter = value),
       backgroundColor: colorScheme.surfaceContainerHighest,
-      selectedColor: colorScheme.primary.withValues(alpha: 0.2),
-      checkmarkColor: colorScheme.primary,
+      selectedColor: colorScheme.primary,
+      checkmarkColor: Colors.white,
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : colorScheme.onSurfaceVariant,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(
           color: isSelected ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.3),
+          width: isSelected ? 1.5 : 1,
         ),
       ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     );
   }
 
   List<MarcaEntity> _marcasFiltradas(List<MarcaEntity> marcas) {
     var filtered = marcas;
 
-    // Filtro por estado
     if (_filter == 'activas') {
       filtered = filtered.where((m) => m.activo).toList();
     } else if (_filter == 'inactivas') {
       filtered = filtered.where((m) => !m.activo).toList();
     }
 
-    // Filtro por búsqueda
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       filtered = filtered.where((m) =>
@@ -398,10 +391,7 @@ class _MarcasManagementDialogState
 
   void _toggleActivo(MarcaEntity marca) async {
     final notifier = ref.read(marcasNotifierProvider.notifier);
-    
-    // Cambiar estado activo
     marca.activo = !marca.activo;
-    
     await notifier.actualizarMarca(marca);
     await notifier.cargarMarcas();
   }
@@ -425,7 +415,7 @@ class _MarcasManagementDialogState
               Navigator.pop(context);
               final isar = IsarService();
               final eliminada = await isar.eliminarMarca(marca.id);
-              
+
               if (!mounted) return;
 
               if (eliminada) {

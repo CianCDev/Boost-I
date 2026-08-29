@@ -972,8 +972,6 @@ MenuOption(
         backgroundColor: theme.scaffoldBackgroundColor,
         appBar: CustomAppBar(
           title: 'Panel de Control',
-          logoAsset: 'assets/logo.svg',
-          logoSize: 28,
           gradient: gradient,
           showBackButton: true,
           actions: [
