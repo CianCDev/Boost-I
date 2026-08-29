@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/producto_entity.dart';
-import '../../utils/responsive_helper.dart';
+import '../../providers/marca_provider.dart';
 import '../../providers/themes/app_colors.dart';
+import '../../utils/responsive_helper.dart';
 
-class ProductCard extends StatefulWidget {
+class ProductCard extends ConsumerStatefulWidget {
   final ProductoEntity producto;
   final bool stockBajo;
   final VoidCallback onTap;
@@ -22,24 +24,24 @@ class ProductCard extends StatefulWidget {
   });
 
   @override
-  State<ProductCard> createState() => _ProductCardState();
+  ConsumerState<ProductCard> createState() => _ProductCardState();
 }
 
-class _ProductCardState extends State<ProductCard> {
+class _ProductCardState extends ConsumerState<ProductCard> {
   bool _isHovering = false;
 
   @override
   Widget build(BuildContext context) {
-    final isTablet = ResponsiveHelper.isTablet(context);
-    final isMobile = ResponsiveHelper.isMobile(context);
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isTablet = ResponsiveHelper.isTablet(context);
 
-    // ✅ Colores según el modo
-    final cardBackground = isDark ? cardDark : cardLight; // #334155 o #FFFFFF
+    // Colores según el modo
+    final cardBackground = isDark ? cardDark : cardLight;
     final cardBorderColor = isDark
         ? Colors.white.withValues(alpha: 0.1)
-        : const Color.fromARGB(255, 190, 195, 201); // Borde más visible en claro
+        : Colors.black.withValues(alpha: 0.1);
+
     final List<BoxShadow> cardShadow = isDark
         ? []
         : [
@@ -55,8 +57,21 @@ class _ProductCardState extends State<ProductCard> {
         ? stockValue.toInt().toString()
         : stockValue.toStringAsFixed(1);
 
-    // Layout: en móvil columna (imagen arriba), en tablet/desktop fila (imagen izquierda)
-    final bool useRowLayout = !isMobile && (isTablet || !isMobile);
+    // Tamaños responsivos
+    final double fontSizeNombre = widget.isMobile ? 13 : (isTablet ? 15 : 16);
+    final double fontSizeMarca = widget.isMobile ? 11 : (isTablet ? 13 : 14);
+    final double fontSizeCodigo = widget.isMobile ? 10 : (isTablet ? 12 : 13);
+    final double fontSizePrecio = widget.isMobile ? 16 : (isTablet ? 18 : 20);
+    final double fontSizeStock = widget.isMobile ? 10 : (isTablet ? 12 : 13);
+    final double badgeFontSize = widget.isMobile ? 10 : (isTablet ? 12 : 13);
+    final double badgePadding = widget.isMobile ? 4 : (isTablet ? 6 : 8);
+    final double typeBadgeFontSize = widget.isMobile ? 9 : (isTablet ? 11 : 12);
+    final double typeBadgePadding = widget.isMobile ? 4 : (isTablet ? 6 : 8);
+
+    // ✅ Obtener el nombre de la marca usando el provider
+    final marcaNombreAsync = widget.producto.marcaSupabaseId != null
+        ? ref.watch(marcaNombrePorSupabaseIdProvider(widget.producto.marcaSupabaseId!))
+        : null;
 
     return AnimatedBuilder(
       animation: widget.animationController,
@@ -78,6 +93,7 @@ class _ProductCardState extends State<ProductCard> {
         );
       },
       child: MouseRegion(
+        cursor: SystemMouseCursors.click,
         onEnter: (_) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) setState(() => _isHovering = true);
@@ -88,7 +104,6 @@ class _ProductCardState extends State<ProductCard> {
             if (mounted) setState(() => _isHovering = false);
           });
         },
-        cursor: SystemMouseCursors.click,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
@@ -102,7 +117,7 @@ class _ProductCardState extends State<ProductCard> {
               color: widget.stockBajo
                   ? pumpkinSpice.withValues(alpha: 0.5)
                   : cardBorderColor,
-              width: widget.stockBajo ? 2.0 : 1.0,
+              width: widget.stockBajo ? 1.5 : 1.0,
             ),
             boxShadow: _isHovering
                 ? [
@@ -119,252 +134,236 @@ class _ProductCardState extends State<ProductCard> {
           child: InkWell(
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(16),
-            child: useRowLayout
-                ? _buildRowLayout(colorScheme, isDark, isTablet, isMobile, stockDisplay)
-                : _buildColumnLayout(colorScheme, isDark, isTablet, isMobile, stockDisplay),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Layout en fila (imagen izquierda, info derecha) para tablet/desktop
-  Widget _buildRowLayout(ColorScheme colorScheme, bool isDark, bool isTablet, bool isMobile, String stockDisplay) {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Imagen
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Stack(
-                children: [
-                  Center(
-                    child: widget.producto.imagenUrl.isNotEmpty
-                        ? Image.network(
-                            widget.producto.imagenUrl,
-                            fit: BoxFit.cover,
-                            width: 100,
-                            height: 100,
-                            errorBuilder: (_, _, _) =>
-                                Icon(Icons.inventory_2, size: 32, color: colorScheme.primary),
-                          )
-                        : Icon(Icons.inventory_2, size: 32, color: colorScheme.primary),
-                  ),
-                  if (widget.stockBajo)
-                    Positioned(
-                      top: 4,
-                      left: 4,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: pumpkinSpice,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '¡Stock bajo!',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Información
-          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  widget.producto.nombre,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: isTablet ? 16 : 14,
-                    color: isDark ? Colors.white : textDark,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Cód: ${widget.producto.codigoBarras}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: textMuted,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      widget.producto.esPesado ? Icons.monitor_weight : Icons.inventory_2,
-                      size: 12,
-                      color: textMuted,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      widget.producto.esPesado ? 'Balanza' : 'Unidad',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        color: textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '\$${widget.producto.precioUnidad.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: isTablet ? 20 : 17,
-                        fontWeight: FontWeight.bold,
-                        color: primaryGreen,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: widget.stockBajo
-                              ? pumpkinSpice
-                              : textMuted.withValues(alpha: 0.3),
-                          width: 1.0,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.inventory_2_rounded, size: 10, color: textMuted),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Stock: $stockDisplay',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: widget.stockBajo ? pumpkinSpice : textMuted,
+                // ----- 1. SECCIÓN SUPERIOR: IMAGEN Y BADGES (55%) -----
+                Expanded(
+                  flex: 55,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.03)
+                                : colorScheme.surfaceContainerHighest,
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(15),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Layout en columna (imagen arriba, info abajo) para móvil
-  Widget _buildColumnLayout(ColorScheme colorScheme, bool isDark, bool isTablet, bool isMobile, String stockDisplay) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Imagen
-        Expanded(
-          flex: 5,
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              children: [
-                Center(
-                  child: widget.producto.imagenUrl.isNotEmpty
-                      ? Image.network(
-                          widget.producto.imagenUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                          errorBuilder: (_, _, _) =>
-                              Icon(Icons.inventory_2, size: 40, color: colorScheme.primary),
-                        )
-                      : Icon(Icons.inventory_2, size: 40, color: colorScheme.primary),
-                ),
-                if (widget.stockBajo)
-                  Positioned(
-                    top: 10,
-                    left: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: pumpkinSpice,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: widget.producto.imagenUrl != null &&
+                                    widget.producto.imagenUrl!.isNotEmpty
+                                ? Image.network(
+                                    widget.producto.imagenUrl!,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, _, _) => Icon(
+                                      Icons.inventory_2,
+                                      size: 40,
+                                      color: colorScheme.outline,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.inventory_2,
+                                    size: 40,
+                                    color: colorScheme.outline,
+                                  ),
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        'Stock bajo',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
                         ),
                       ),
-                    ),
+                      // Badge de Stock (flotante superior izquierda)
+                      if (widget.stockBajo)
+                        Positioned(
+                          top: widget.isMobile ? 8 : 10,
+                          left: widget.isMobile ? 8 : 10,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: badgePadding,
+                              vertical: badgePadding * 0.8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: pumpkinSpice,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              widget.producto.stock <= 0 ? 'Sin Stock' : '¡Stock bajo!',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: badgeFontSize,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      // Badge de tipo (flotante inferior derecha)
+                      Positioned(
+                        bottom: widget.isMobile ? 8 : 10,
+                        right: widget.isMobile ? 8 : 10,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: typeBadgePadding,
+                            vertical: typeBadgePadding * 0.7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.black.withValues(alpha: 0.75)
+                                : Colors.white.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                widget.producto.esPesado
+                                    ? Icons.monitor_weight
+                                    : Icons.inventory_2,
+                                size: typeBadgeFontSize + 2,
+                                color: primaryGreen,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                widget.producto.esPesado ? 'Balanza' : 'Unidad',
+                                style: TextStyle(
+                                  fontSize: typeBadgeFontSize,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white : textDark,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.black.withValues(alpha: 0.7) : Colors.white.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                ),
+
+                // ----- LÍNEA SUTIL -----
+                Container(
+                  height: 1,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.black.withValues(alpha: 0.05),
+                ),
+
+                // ----- 2. SECCIÓN INFERIOR: INFORMACIÓN (45%) -----
+                Expanded(
+                  flex: 45,
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(
-                          widget.producto.esPesado ? Icons.monitor_weight : Icons.inventory_2,
-                          size: 12,
-                          color: primaryGreen,
-                        ),
-                        const SizedBox(width: 4),
+                        // Nombre del producto
                         Text(
-                          widget.producto.esPesado ? 'Balanza' : 'Unidad',
+                          widget.producto.nombre,
                           style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.bold,
+                            fontSize: fontSizeNombre,
                             color: isDark ? Colors.white : textDark,
+                            height: 1.2,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        // ✅ Marca (si existe)
+                        if (marcaNombreAsync != null)
+                          marcaNombreAsync.when(
+                            data: (nombre) => nombre != null
+                                ? Text(
+                                    'Marca: $nombre',
+                                    style: TextStyle(
+                                      fontSize: fontSizeMarca,
+                                      color: colorScheme.primary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  )
+                                : const SizedBox.shrink(),
+                            loading: () => const SizedBox(
+                              height: 16,
+                              child: Center(
+                                child: SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                            ),
+                            error: (_, __) => const SizedBox.shrink(),
+                          )
+                        else
+                          const SizedBox.shrink(),
+                        // Código
+                        Text(
+                          'Cód: ${widget.producto.codigoBarras}',
+                          style: TextStyle(
+                            fontSize: fontSizeCodigo,
+                            color: isDark ? Colors.white60 : textMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        // Fila inferior: Precio y stock
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              '\$${widget.producto.precioUnidad.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: fontSizePrecio,
+                                color: primaryGreen,
+                              ),
+                            ),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: widget.isMobile ? 6 : 10,
+                                vertical: widget.isMobile ? 2 : 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.1)
+                                    : Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(6),
+                                border: widget.stockBajo
+                                    ? Border.all(
+                                        color: pumpkinSpice.withValues(alpha: 0.3),
+                                        width: 1,
+                                      )
+                                    : null,
+                              ),
+                              child: Text(
+                                'Stock: $stockDisplay',
+                                style: TextStyle(
+                                  fontSize: fontSizeStock,
+                                  fontWeight: FontWeight.w600,
+                                  color: widget.stockBajo
+                                      ? pumpkinSpice
+                                      : (isDark ? Colors.white70 : textDark),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -374,77 +373,7 @@ class _ProductCardState extends State<ProductCard> {
             ),
           ),
         ),
-        // Información
-        Expanded(
-          flex: 4,
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 10.0 : 12.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.producto.nombre,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: isMobile ? 13 : (isTablet ? 16 : 14),
-                    color: isDark ? Colors.white : textDark,
-                  ),
-                ),
-                Text(
-                  'Cód: ${widget.producto.codigoBarras}',
-                  style: TextStyle(
-                    fontSize: isMobile ? 9 : (isTablet ? 11 : 10),
-                    color: textMuted,
-                  ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '\$${widget.producto.precioUnidad.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: isMobile ? 16 : (isTablet ? 20 : 18),
-                        fontWeight: FontWeight.bold,
-                        color: primaryGreen,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: widget.stockBajo
-                              ? pumpkinSpice
-                              : textMuted.withValues(alpha: 0.3),
-                          width: 1.0,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.inventory_2_rounded, size: 10, color: textMuted),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Stock: $stockDisplay',
-                            style: TextStyle(
-                              fontSize: isMobile ? 9 : (isTablet ? 12 : 10),
-                              fontWeight: FontWeight.w600,
-                              color: widget.stockBajo ? pumpkinSpice : textMuted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'configuracion_empresa_screen.dart';
@@ -17,23 +18,18 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Esperar a que el widget esté montado antes de pedir permisos y cargar configuración
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _inicializarApp();
     });
   }
 
   Future<void> _inicializarApp() async {
-    // 1. Pedir permisos (opcional, pero se hace después del primer frame)
     await _pedirPermisos();
-
-    // 2. Verificar configuración
     await _verificarConfiguracion();
   }
 
   Future<void> _pedirPermisos() async {
     try {
-      // Permisos que necesita la app (ajústalos según tus necesidades)
       final permisos = [
         Permission.camera,
         Permission.bluetooth,
@@ -41,23 +37,8 @@ class _SplashScreenState extends State<SplashScreen> {
         Permission.bluetoothScan,
         Permission.storage,
       ];
-
-      // Solo pedir permisos en Android 6.0+ (API 23+)
-      final statuses = await permisos.request();
-      
-      // Verificar si algún permiso fue denegado permanentemente
-      final deniedPermanently = statuses.entries
-          .where((entry) => entry.value.isPermanentlyDenied)
-          .map((entry) => entry.key)
-          .toList();
-
-      if (deniedPermanently.isNotEmpty) {
-        // Opcional: mostrar un diálogo para que el usuario vaya a ajustes
-        // Pero no bloqueamos la app
-        debugPrint('⚠️ Permisos denegados permanentemente: $deniedPermanently');
-      }
+      await permisos.request();
     } catch (e) {
-      // Si falla la solicitud de permisos, continuar de todas formas
       debugPrint('⚠️ Error al pedir permisos: $e');
     }
   }
@@ -68,7 +49,6 @@ class _SplashScreenState extends State<SplashScreen> {
       final url = prefs.getString('supabase_url');
       final anonKey = prefs.getString('supabase_anon_key');
 
-      // Esperar un momento para mostrar el splash (opcional)
       await Future.delayed(const Duration(milliseconds: 500));
 
       if (mounted) {
@@ -77,13 +57,11 @@ class _SplashScreenState extends State<SplashScreen> {
         });
 
         if (url != null && anonKey != null && url.isNotEmpty && anonKey.isNotEmpty) {
-          // Configuración existe, ir al login
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const LoginScreen()),
           );
         } else {
-          // No hay configuración, ir a la pantalla de configuración
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const ConfiguracionEmpresaScreen()),
@@ -91,7 +69,6 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
     } catch (e) {
-      // Si hay error, ir a configuración por seguridad
       debugPrint('❌ Error en _verificarConfiguracion: $e');
       if (mounted) {
         setState(() {
@@ -113,20 +90,19 @@ class _SplashScreenState extends State<SplashScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0F172A),
-              Color(0xFF1E293B),
-            ],
+            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
           ),
         ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.storefront,
-                size: 100,
-                color: Color(0xFF10B981),
+             SvgPicture.asset(
+                'assets/logo.svg',
+                width: 120,
+                height: 120,
+                fit: BoxFit.contain,
+                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
               ),
               const SizedBox(height: 20),
               const Text(

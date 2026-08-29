@@ -13,6 +13,7 @@ import '../widgets/sales/sales_history_filter_bar.dart';
 import '../widgets/sales/sales_history_summary_cards.dart';
 import '../widgets/sales/sales_history_search_bar.dart';
 import '../widgets/sales/sales_history_list.dart';
+import '../widgets/appbar.dart'; // Importación del CustomAppBar
 
 class SalesHistoryScreen extends StatefulWidget {
   final bool showAppBar;
@@ -60,7 +61,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   // ============================================================
-  // CARGA Y FILTRADO
+  // CARGA Y FILTRADO (sin cambios)
   // ============================================================
   Future<void> _cargarVentas() async {
     setState(() => _isLoading = true);
@@ -165,7 +166,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   // ============================================================
-  // EXPORTAR CSV
+  // EXPORTAR CSV (sin cambios)
   // ============================================================
   Future<void> _exportarCSV() async {
     if (_ventasFiltradas.isEmpty) {
@@ -230,29 +231,26 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
     final double hPadding = isTablet ? 32.0 : 12.0;
     final double vPadding = isTablet ? 24.0 : 12.0;
+    // ignore: unused_local_variable
     final double fontSizeTitle = isTablet ? 26 : 18;
-    final double fontSizeResumen = isMobile ? 13 : 16;
-    final double fontSizeResumenValor = isMobile ? 16 : (isTablet ? 26 : 22);
-    final double spacingWrap = isMobile ? 8 : (isTablet ? 18 : 14);
 
     final body = _isLoading
         ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
         : Center(
-            child: Container(
+            child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1200),
-              child: SingleChildScrollView(
-                padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
-                physics: const BouncingScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SalesHistoryFilterBar(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Filtros de período
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
+                    child: SalesHistoryFilterBar(
                       selectedPeriod: _periodoSeleccionado,
                       onPeriodChanged: (periodo) {
                         setState(() => _periodoSeleccionado = periodo);
@@ -273,9 +271,13 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                         _aplicarFiltros();
                       },
                     ),
-                    const SizedBox(height: 16),
+                  ),
+                  const SizedBox(height: 8),
 
-                    AnimatedSwitcher(
+                  // Tarjetas de resumen
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: hPadding),
+                    child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 300),
                       transitionBuilder: (child, animation) {
                         return FadeTransition(
@@ -296,14 +298,15 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                         totalBs: _totalBs,
                         isMobile: isMobile,
                         isTablet: isTablet,
-                        spacingWrap: spacingWrap,
-                        fontSizeResumen: fontSizeResumen,
-                        fontSizeResumenValor: fontSizeResumenValor,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                  ),
+                  const SizedBox(height: 12),
 
-                    SalesHistorySearchBar(
+                  // Buscador + Filtros de método (centrados)
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: hPadding),
+                    child: SalesHistorySearchBar(
                       searchQuery: _searchQuery,
                       onSearchChanged: (value) {
                         setState(() => _searchQuery = value);
@@ -318,33 +321,39 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                       isMobile: isMobile,
                       isTablet: isTablet,
                     ),
-                    const SizedBox(height: 16),
+                  ),
+                  const SizedBox(height: 12),
 
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 350),
-                      transitionBuilder: (child, animation) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 0.05),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: SalesHistoryList(
-                        key: _listKey,
-                        ventas: _ventasFiltradas,
-                        isMobile: isMobile,
-                        isTablet: isTablet,
-                        shrinkWrap: true,
+                  // Lista de ventas (ocupa el espacio restante)
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: hPadding),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 350),
+                        transitionBuilder: (child, animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.05),
+                                end: Offset.zero,
+                              ).animate(animation),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: SalesHistoryList(
+                          key: _listKey,
+                          ventas: _ventasFiltradas,
+                          isMobile: isMobile,
+                          isTablet: isTablet,
+                          shrinkWrap: false,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 24),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
               ),
             ),
           );
@@ -352,44 +361,16 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
     if (widget.showAppBar) {
       return Scaffold(
         backgroundColor: colorScheme.surfaceContainerLow,
-        appBar: AppBar(
-          title: Text(
-            'Historial de Transacciones',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: fontSizeTitle,
-              color: colorScheme.onPrimary,
-            ),
-          ),
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-              gradient: isDark
-                  ? LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        colorScheme.primaryContainer.withValues(alpha: 0.9),
-                        colorScheme.primary,
-                      ],
-                    )
-                  : const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color.fromRGBO(81, 120, 252, 1), Color.fromARGB(255, 62, 40, 189)],
-                    ),
-            ),
-          ),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          foregroundColor: colorScheme.onPrimary,
+        appBar: CustomAppBar(
+          title: 'Historial de Transacciones',
           actions: [
             IconButton(
-              icon: Icon(Icons.download_rounded, color: colorScheme.onPrimary),
+              icon: const Icon(Icons.download_rounded, color: Colors.white),
               tooltip: 'Exportar CSV de ventas',
               onPressed: _exportarCSV,
             ),
             IconButton(
-              icon: Icon(Icons.refresh, color: colorScheme.onPrimary),
+              icon: const Icon(Icons.refresh, color: Colors.white),
               tooltip: 'Actualizar Historial',
               onPressed: _cargarVentas,
             ),

@@ -19,11 +19,13 @@ import '../entities/pedido_entity.dart';
 import '../entities/proveedor_entity.dart';
 import '../entities/movimiento_inventario_entity.dart';
 import '../entities/recepcion_entity.dart';
+import 'categoria_entity.dart';
 import 'codigo_barra_alia_entity.dart';
 import '../entities/lote_entity.dart';
 import '../entities/departamento_entity.dart';
 import '../entities/telegram_config_entity.dart';
 import 'gasto_entity.dart';
+import 'marca_entity.dart'; // ✅ Importación de MarcaEntity
 
 class IsarService {
   static final IsarService _instance = IsarService._internal();
@@ -74,6 +76,8 @@ class IsarService {
           LoteEntitySchema,
           DepartamentoEntitySchema,
           TelegramConfigEntitySchema, // ✅ Añadido
+          CategoriaEntitySchema,
+          MarcaEntitySchema, // ✅ AGREGADO
         ],
         directory: dbPath,
         inspector: true,
@@ -102,6 +106,8 @@ class IsarService {
           GastoEntitySchema,
           LogEntitySchema,
           TurnoEntitySchema,
+          CategoriaEntitySchema,
+          MarcaEntitySchema, // ✅ AGREGADO TAMBIÉN EN FALLBACK
         ],
         directory: fallbackPath,
         inspector: true,
@@ -368,6 +374,108 @@ class IsarService {
   }
 
   // ============================================================
+  // 🔥 NUEVOS MÉTODOS PARA MARCAS
+  // ============================================================
+
+  /// Guarda una marca (crea o actualiza)
+  Future<void> guardarMarca(MarcaEntity marca) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.marcaEntitys.put(marca);
+    });
+  }
+
+  /// Obtiene todas las marcas, opcionalmente solo activas
+  Future<List<MarcaEntity>> obtenerMarcas({bool soloActivas = true}) async {
+    final isar = await db;
+    if (soloActivas) {
+      return await isar.marcaEntitys.filter().activoEqualTo(true).findAll();
+    } else {
+      return await isar.marcaEntitys.where().findAll();
+    }
+  }
+
+  /// Obtiene una marca por su ID de Isar
+  Future<MarcaEntity?> obtenerMarcaPorId(int id) async {
+    final isar = await db;
+    return await isar.marcaEntitys.get(id);
+  }
+
+  /// Obtiene una marca por su UUID de Supabase
+  Future<MarcaEntity?> obtenerMarcaPorSupabaseId(String supabaseId) async {
+    final isar = await db;
+    if (supabaseId.isEmpty) return null;
+    return await isar.marcaEntitys
+        .filter()
+        .supabaseIdEqualTo(supabaseId)
+        .findFirst();
+  }
+
+  /// Obtiene marcas pendientes de sincronización (syncStatus = 'pending' o 'failed')
+  Future<List<MarcaEntity>> obtenerMarcasPendientesSync() async {
+    final isar = await db;
+    return await isar.marcaEntitys
+        .filter()
+        .syncStatusEqualTo('pending')
+        .or()
+        .syncStatusEqualTo('failed')
+        .findAll();
+  }
+
+  /// Actualiza el estado de sincronización de una marca
+  Future<void> actualizarSyncStatusMarca(int id, String nuevoEstado) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final marca = await isar.marcaEntitys.get(id);
+      if (marca != null) {
+        marca.syncStatus = nuevoEstado;
+        await isar.marcaEntitys.put(marca);
+      }
+    });
+  }
+
+  /// Busca marcas por nombre (para autocomplete o búsqueda)
+  Future<List<MarcaEntity>> buscarMarcas(String query) async {
+    final isar = await db;
+    if (query.trim().isEmpty) return [];
+    final q = query.trim().toLowerCase();
+    return await isar.marcaEntitys
+        .filter()
+        .nombreContains(q, caseSensitive: false)
+        .findAll();
+  }
+
+  /// Elimina una marca (borrado físico solo si no tiene productos asociados)
+  Future<bool> eliminarMarca(int id) async {
+    final isar = await db;
+
+    // 1. Obtener la marca
+    final marca = await isar.marcaEntitys.get(id);
+    if (marca == null) return false;
+
+    // 2. Verificar si tiene productos asociados (por marcaSupabaseId)
+    final productos = await isar.productoEntitys
+        .filter()
+        .marcaSupabaseIdEqualTo(marca.supabaseId ?? '')
+        .findAll();
+
+    if (productos.isNotEmpty) {
+      // No se puede eliminar porque tiene productos, la desactivamos
+      marca.activo = false;
+      await isar.writeTxn(() async {
+        await isar.marcaEntitys.put(marca);
+      });
+      debugPrint('⚠️ Marca ${marca.nombre} desactivada (tiene productos asociados)');
+      return false; // indica que no se eliminó, pero se desactivó
+    }
+
+    // Si no tiene productos, la eliminamos físicamente
+    return await isar.writeTxn(() async {
+      return await isar.marcaEntitys.delete(id);
+    });
+  }
+
+  // ============================================================
   // 🆕 NUEVOS MÉTODOS PARA DASHBOARD Y ESTADÍSTICAS
   // ============================================================
 
@@ -534,6 +642,49 @@ class IsarService {
       'ventasPorEmpleado': ventasPorEmpleado,
       'ventasPorDia': ventasPorDia,
     };
+  }
+
+  // ==================== CATEGORÍAS ====================
+  Future<void> guardarCategoria(CategoriaEntity categoria) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.categoriaEntitys.put(categoria);
+    });
+  }
+
+  Future<List<CategoriaEntity>> obtenerCategorias({
+    bool soloActivas = true,
+  }) async {
+    final isar = await db;
+    if (soloActivas) {
+      return await isar.categoriaEntitys.filter().activoEqualTo(true).findAll();
+    } else {
+      return await isar.categoriaEntitys.where().findAll();
+    }
+  }
+
+  Future<CategoriaEntity?> obtenerCategoriaPorId(int id) async {
+    final isar = await db;
+    return await isar.categoriaEntitys.get(id);
+  }
+
+  Future<CategoriaEntity?> obtenerCategoriaPorSupabaseId(String supabaseId) async {
+    final isar = await db;
+    if (supabaseId.isEmpty) return null;
+    return await isar.categoriaEntitys
+        .filter()
+        .supabaseIdEqualTo(supabaseId)
+        .findFirst();
+  }
+
+  Future<List<CategoriaEntity>> obtenerCategoriasPendientesSync() async {
+    final isar = await db;
+    return await isar.categoriaEntitys
+        .filter()
+        .syncStatusEqualTo('pending')
+        .or()
+        .syncStatusEqualTo('failed')
+        .findAll();
   }
 
   // ==================== GESTIÓN DE GASTOS ====================
@@ -1335,7 +1486,6 @@ class IsarService {
   }
 
   // ==================== CÓDIGOS DE BARRAS ALIAS ====================
-
   Future<void> guardarCodigoAlias(CodigoBarrasAliasEntity alias) async {
     final isar = await db;
     await isar.writeTxn(() async {
@@ -1376,7 +1526,6 @@ class IsarService {
   }
 
   // ==================== LOTES ====================
-
   Future<void> guardarLote(LoteEntity lote) async {
     final isar = await db;
     await isar.writeTxn(() async {
@@ -1662,4 +1811,8 @@ Future<void> eliminarTelegramConfig(int id) async {
 // ==================== TELEGRAM CONFIG - ELIMINAR ====================
 
 
+
+    debugPrint('✅ $actualizados productos actualizados con supabaseId.');
+    return actualizados;
+  }
 }

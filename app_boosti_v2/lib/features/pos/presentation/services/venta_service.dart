@@ -9,7 +9,9 @@ import 'package:app_boosti_v2/features/pos/presentation/controllers/cart_control
 import 'package:app_boosti_v2/features/pos/presentation/providers/esc_pos_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/ticket_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/ticket_generator.dart';
+// ignore: unused_import
 import 'package:app_boosti_v2/features/pos/presentation/providers/catalog_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/productos_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
 
 class VentaService {
@@ -28,13 +30,15 @@ class VentaService {
     final isar = _ref.read(isarServiceProvider);
     final cartState = _ref.read(cartProvider);
     final cartNotifier = _ref.read(cartProvider.notifier);
-    final catalogNotifier = _ref.read(catalogProvider.notifier);
 
     try {
-      // Descontar lotes
+      // 🔥 Descontar lotes y actualizar stock del producto principal
+      final productosAfectados = <int>{}; // IDs de productos afectados
+
       for (var cartItem in cartState.items) {
         final productoId = int.tryParse(cartItem.producto.id);
         if (productoId == null) continue;
+
         double cantidadPorDescontar = cartItem.cantidad;
         while (cantidadPorDescontar > 0.001) {
           final lote = await isar.obtenerLoteParaVenta(productoId, priorizarVencimiento: true);
@@ -50,6 +54,21 @@ class VentaService {
           }
           cantidadPorDescontar -= descontar;
         }
+
+        // ✅ Marcar producto para actualizar stock
+        productosAfectados.add(productoId);
+      }
+
+      // ✅ Actualizar stock del producto principal (suma de lotes activos)
+      for (var productoId in productosAfectados) {
+        final producto = await isar.obtenerProductoPorId(productoId);
+        if (producto == null) continue;
+
+        final stockTotal = await isar.obtenerStockTotalPorProducto(productoId);
+        producto.stock = stockTotal;
+        await isar.guardarProducto(producto);
+
+        // Registrar movimiento de inventario (ya se hizo en descontarLote)
       }
 
       // Guardar venta
@@ -82,11 +101,12 @@ class VentaService {
 
       await isar.guardarVenta(nuevaVenta);
 
+      // ✅ Recargar productosProvider para actualizar stock en UI
+      final productosNotifier = _ref.read(productosProvider.notifier);
+      await productosNotifier.cargarProductos();
+
       // Limpiar carrito
       cartNotifier.limpiarCarrito();
-
-      // Recargar catálogo (método corregido)
-      await catalogNotifier.recargarDesdeSupabase();
 
       // Imprimir ticket
       try {

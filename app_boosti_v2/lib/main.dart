@@ -3,20 +3,20 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/themes/theme_p
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:device_preview/device_preview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:device_preview/device_preview.dart';
+
 import 'features/pos/presentation/screens/splash_screen.dart';
 import 'features/pos/presentation/screens/configuracion_empresa_screen.dart';
 import 'features/pos/presentation/screens/login_screen.dart';
 import 'features/pos/presentation/screens/inventory_catalog_screen.dart';
-import 'features/pos/data/Local/entities/isar_service.dart';
 import 'features/pos/presentation/providers/lock_provider.dart';
-import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:app_boosti_v2/features/pos/presentation/services/telegram/telegram_service.dart';
+import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -78,21 +78,25 @@ void main() async {
     debugPrint('❌ Error en migración de supabaseId: $e');
     debugPrint('⚠️ Los lotes no se sincronizarán hasta que los productos tengan supabaseId.');
   }
-
-  // ============================================================
-  // 3. CARGAR CONFIGURACIÓN ADICIONAL
-  // ============================================================
+  // 🔥 LEER CREDENCIALES E INICIALIZAR SUPABASE ANTES DE runApp
   try {
-    final configJson = await rootBundle.loadString('assets/config.json');
-    jsonDecode(configJson);
-    // Configuración adicional si es necesaria
+    final prefs = await SharedPreferences.getInstance();
+    final url = prefs.getString('supabase_url');
+    final anonKey = prefs.getString('supabase_anon_key');
+
+    if (url != null && anonKey != null && url.isNotEmpty && anonKey.isNotEmpty) {
+      await Supabase.initialize(
+        url: url,
+        publishableKey: anonKey,
+      );
+      debugPrint('✅ Supabase inicializado desde main.dart');
+    } else {
+      debugPrint('⚠️ No hay credenciales, se inicializará después');
+    }
   } catch (e) {
-    debugPrint('⚠️ Error cargando config.json: $e');
+    debugPrint('⚠️ Error inicializando Supabase en main: $e');
   }
 
-  // ============================================================
-  // 4. EJECUTAR APP
-  // ============================================================
   runApp(
     DevicePreview(
       enabled: !kReleaseMode,
@@ -122,7 +126,7 @@ class BoostiPOS extends ConsumerWidget {
         '/catalogo': (context) => const InventoryCatalogScreen(),
       },
       builder: (context, child) {
-        return IdleDetector(
+        return UserActivityDetector(
           child: Stack(
             children: [
               child!,

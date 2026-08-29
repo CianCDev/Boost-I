@@ -1,172 +1,127 @@
-import 'dart:async';
+// lib/features/pos/presentation/providers/catalog_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/Local/entities/isar_service.dart';
+import 'productos_provider.dart';
 import '../../data/Local/entities/producto_entity.dart';
-import '../services/sync_service.dart';
+import 'package:flutter/foundation.dart';
 
-// Estado del catálogo
 class CatalogState {
-  final List<ProductoEntity> productos;
-  final List<String> categorias;
-  final String categoriaSeleccionada;
   final String busqueda;
+  final String categoriaSeleccionada;
   final List<ProductoEntity> productosFiltrados;
+  final List<String> categorias;
   final bool isLoading;
 
-  CatalogState({
-    this.productos = const [],
-    this.categorias = const ['Todas', 'Stock Bajo'],
-    this.categoriaSeleccionada = 'Todas',
+  const CatalogState({
     this.busqueda = '',
+    this.categoriaSeleccionada = 'Todas',
     this.productosFiltrados = const [],
+    this.categorias = const ['Todas', 'Stock Bajo'],
     this.isLoading = true,
   });
 
   CatalogState copyWith({
-    List<ProductoEntity>? productos,
-    List<String>? categorias,
-    String? categoriaSeleccionada,
     String? busqueda,
+    String? categoriaSeleccionada,
     List<ProductoEntity>? productosFiltrados,
+    List<String>? categorias,
     bool? isLoading,
   }) {
     return CatalogState(
-      productos: productos ?? this.productos,
-      categorias: categorias ?? this.categorias,
-      categoriaSeleccionada: categoriaSeleccionada ?? this.categoriaSeleccionada,
       busqueda: busqueda ?? this.busqueda,
+      categoriaSeleccionada: categoriaSeleccionada ?? this.categoriaSeleccionada,
       productosFiltrados: productosFiltrados ?? this.productosFiltrados,
+      categorias: categorias ?? this.categorias,
       isLoading: isLoading ?? this.isLoading,
     );
   }
 }
 
 class CatalogNotifier extends StateNotifier<CatalogState> {
-  final IsarService _isarService = IsarService();
-  final SyncService _syncService = SyncService();
+  final Ref ref;
+  // ignore: unused_field
+  late final ProviderSubscription _subscription;
 
-  CatalogNotifier() : super(CatalogState()) {
-    _cargarProductos();
+  CatalogNotifier(this.ref) : super(const CatalogState()) {
+    _subscription = ref.listen(productosProvider, (_, next) {
+      debugPrint('📢 [CatalogNotifier] ProductosProvider cambió, actualizando filtros');
+      _actualizarCategorias(next.items);
+      _aplicarFiltros(next.isLoading);
+    });
+    final productosState = ref.read(productosProvider);
+    _actualizarCategorias(productosState.items);
+    _aplicarFiltros(productosState.isLoading);
   }
 
-  // Cargar productos desde Isar (primera carga o recarga manual con loading)
-  Future<void> _cargarProductos() async {
-    try {
-      state = state.copyWith(isLoading: true);
-      final productos = await _isarService.obtenerProductos();
-      final setCategorias = productos
-          .map((p) => p.categoria.trim())
-          .where((c) => c.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
-      final categorias = ['Todas', ...setCategorias, 'Stock Bajo'];
-
-      state = state.copyWith(
-        productos: productos,
-        categorias: categorias,
-        isLoading: false,
-      );
-      _aplicarFiltros();
-    } catch (e) {
-      state = state.copyWith(isLoading: false);
-      rethrow;
-    }
+  void _actualizarCategorias(List<ProductoEntity> productos) {
+    final setCategorias = productos
+        .map((p) => p.categoria.trim())
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    state = state.copyWith(categorias: ['Todas', ...setCategorias, 'Stock Bajo']);
   }
 
-  // Cargar en segundo plano (sin cambiar isLoading) para polling y actualizaciones silenciosas
-  Future<void> _cargarProductosEnSegundoPlano() async {
-    try {
-      final productos = await _isarService.obtenerProductos();
-      final setCategorias = productos
-          .map((p) => p.categoria.trim())
-          .where((c) => c.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
-      final categorias = ['Todas', ...setCategorias, 'Stock Bajo'];
-
-      // Actualizar estado sin tocar isLoading
-      state = state.copyWith(
-        productos: productos,
-        categorias: categorias,
-        // isLoading se mantiene como estaba
-      );
-      _aplicarFiltros();
-    } catch (e) {
-      // Error silencioso en segundo plano
-    }
-  }
-
-  // Filtrar productos según búsqueda y categoría
-  void _aplicarFiltros() {
+  void _aplicarFiltros(bool isLoading) {
+    final productos = ref.read(productosProvider).items;
     final query = state.busqueda.toLowerCase().trim();
-    final filtrados = state.productos.where((prod) {
-      final coincideNombre = prod.nombre.toLowerCase().contains(query);
-      final coincideCodigo = prod.codigoBarras.toLowerCase().contains(query);
-      bool coincideCategoria = true;
-      if (state.categoriaSeleccionada == 'Stock Bajo') {
-        coincideCategoria = prod.stock <= prod.stockMinimo;
-      } else if (state.categoriaSeleccionada != 'Todas') {
-        coincideCategoria = prod.categoria.trim().toLowerCase() ==
-            state.categoriaSeleccionada.toLowerCase();
+    final categoria = state.categoriaSeleccionada;
+
+    final filtrados = productos.where((p) {
+      final coincideTexto = p.nombre.toLowerCase().contains(query) ||
+          p.codigoBarras.toLowerCase().contains(query);
+
+      bool coincideCategoria;
+      if (categoria == 'Stock Bajo') {
+        coincideCategoria = p.stock <= p.stockMinimo;
+      } else if (categoria == 'Todas') {
+        coincideCategoria = true;
+      } else {
+        coincideCategoria = p.categoria.trim().toLowerCase() == categoria.toLowerCase();
       }
-      return (coincideNombre || coincideCodigo) && coincideCategoria;
+
+      return coincideTexto && coincideCategoria;
     }).toList();
 
-    state = state.copyWith(productosFiltrados: filtrados);
+    if (state.productosFiltrados.length != filtrados.length) {
+      debugPrint('🔄 [CatalogNotifier] Filtros aplicados: ${filtrados.length} productos');
+    }
+
+    state = state.copyWith(
+      productosFiltrados: filtrados,
+      isLoading: isLoading,
+    );
   }
 
-  // Cambiar categoría
-  void setCategoria(String categoria) {
-    if (state.categoriaSeleccionada == categoria) return;
-    state = state.copyWith(categoriaSeleccionada: categoria);
-    _aplicarFiltros();
-  }
-
-  // Cambiar búsqueda
   void setBusqueda(String busqueda) {
     state = state.copyWith(busqueda: busqueda);
-    _aplicarFiltros();
+    _aplicarFiltros(state.isLoading);
   }
 
-  // 🔄 Recarga manual (con loading) – usado al hacer pull-to-refresh o después de una venta
-Future<void> recargarDesdeSupabase() async {
-  try {
-    // Sincronizar con Supabase
-    await _syncService.descargarProductosDesdeSupabase();
-    // Recargar desde Isar para obtener cambios locales
-    await _cargarProductos(); // <-- asegúrate de que este método actualice el estado
-  } catch (e) {
-    rethrow;
+  void setCategoria(String categoria) {
+    state = state.copyWith(categoriaSeleccionada: categoria);
+    _aplicarFiltros(state.isLoading);
   }
-}
 
-  // 🔄 Recarga en segundo plano (sin loading) – usado en polling automático
+  Future<void> recargarDesdeSupabase() async {
+    final notifier = ref.read(productosProvider.notifier);
+    await notifier.recargarDesdeSupabase();
+    // El listener actualizará el estado automáticamente
+  }
+
   Future<void> recargarEnSegundoPlano() async {
-    // Si es la primera carga, usar la normal con loading
-    if (state.productos.isEmpty) {
+    final notifier = ref.read(productosProvider.notifier);
+    if (ref.read(productosProvider).items.isEmpty) {
       await recargarDesdeSupabase();
       return;
     }
-
-    try {
-      await _syncService.descargarProductosDesdeSupabase();
-      await _cargarProductosEnSegundoPlano();
-    } catch (e) {
-      // Error silencioso en segundo plano
-    }
+    await notifier.recargarDesdeSupabase();
   }
 
-  // Obtener conteo de stock bajo
-  int get lowStockCount {
-    return state.productos.where((p) => p.stock <= p.stockMinimo).length;
-  }
+  int get lowStockCount =>
+      ref.read(productosProvider).items.where((p) => p.stock <= p.stockMinimo).length;
 }
 
-final refreshCatalogCounterProvider = StateProvider<int>((ref) => 0);
-
-// Provider final
 final catalogProvider = StateNotifierProvider<CatalogNotifier, CatalogState>((ref) {
-  return CatalogNotifier();
+  return CatalogNotifier(ref);
 });

@@ -27,13 +27,12 @@ class GastosSummaryCards extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // ✅ Sin altura fija, el contenido define el tamaño
     final double cardMinWidth = isTablet ? 200 : 150;
 
     return Wrap(
       spacing: spacingWrap,
       runSpacing: spacingWrap,
-      alignment: WrapAlignment.start,
+      alignment: WrapAlignment.center,
       children: [
         _buildCard(
           'Gastos',

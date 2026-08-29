@@ -1,126 +1,117 @@
+// lib/features/pos/presentation/providers/inventory_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/Local/entities/isar_service.dart';
+import 'productos_provider.dart';
 import '../../data/Local/entities/producto_entity.dart';
-import '../services/sync_service.dart';
+import 'package:flutter/foundation.dart';
 
 class InventoryState {
-  final List<ProductoEntity> productos;
   final String filtroBusqueda;
-  final String categoriaSeleccionada; // ✅ Ahora es String no nulo
+  final int? categoriaSeleccionadaId; // ✅ int? (coherente con ProductoEntity.categoriaId)
   final bool soloStockBajo;
   final bool seleccionMultiple;
   final Set<int> productosSeleccionados;
+  final List<ProductoEntity> productosFiltrados;
   final bool isLoading;
 
   const InventoryState({
-    this.productos = const [],
     this.filtroBusqueda = '',
-    this.categoriaSeleccionada = 'Todas', // Valor por defecto
+    this.categoriaSeleccionadaId,
     this.soloStockBajo = false,
     this.seleccionMultiple = false,
     this.productosSeleccionados = const {},
+    this.productosFiltrados = const [],
     this.isLoading = true,
-  // ignore: unnecessary_null_comparison
-  }) : assert(categoriaSeleccionada != null, 'categoriaSeleccionada no puede ser null');
+  });
 
   InventoryState copyWith({
-    List<ProductoEntity>? productos,
     String? filtroBusqueda,
-    String? categoriaSeleccionada,
+    int? categoriaSeleccionadaId, // ✅ int?
     bool? soloStockBajo,
     bool? seleccionMultiple,
     Set<int>? productosSeleccionados,
+    List<ProductoEntity>? productosFiltrados,
     bool? isLoading,
   }) {
     return InventoryState(
-      productos: productos ?? this.productos,
       filtroBusqueda: filtroBusqueda ?? this.filtroBusqueda,
-      // ✅ Forzamos 'Todas' si se pasa null
-      categoriaSeleccionada: categoriaSeleccionada ?? this.categoriaSeleccionada,
+      categoriaSeleccionadaId: categoriaSeleccionadaId ?? this.categoriaSeleccionadaId,
       soloStockBajo: soloStockBajo ?? this.soloStockBajo,
       seleccionMultiple: seleccionMultiple ?? this.seleccionMultiple,
       productosSeleccionados: productosSeleccionados ?? this.productosSeleccionados,
+      productosFiltrados: productosFiltrados ?? this.productosFiltrados,
       isLoading: isLoading ?? this.isLoading,
     );
-  }
-
-  List<String> get categorias {
-    final setCategorias = productos
-        .map((p) => (p.categoria).trim())
-        .where((c) => c.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
-    return ['Todas', ...setCategorias, 'Stock Bajo'];
-  }
-
-  List<ProductoEntity> get productosFiltrados {
-    // ✅ categoriaSeleccionada nunca es null, pero por seguridad usamos 'Todas' si acaso
-    final categoriaActual = categoriaSeleccionada;
-
-    return productos.where((p) {
-      final nombre = (p.nombre).toLowerCase();
-      final codigo = (p.codigoBarras).toLowerCase();
-      final busqueda = filtroBusqueda.toLowerCase().trim();
-      final coincideTexto = nombre.contains(busqueda) || codigo.contains(busqueda);
-
-      final categoriaProducto = (p.categoria).trim();
-      final coincideCategoria = categoriaActual == 'Todas' ||
-          (categoriaActual == 'Stock Bajo' && p.stock <= p.stockMinimo) ||
-          (categoriaActual != 'Stock Bajo' && categoriaProducto == categoriaActual);
-
-      final coincideStockBajo = !soloStockBajo || (p.stock <= p.stockMinimo);
-
-      return coincideTexto && coincideCategoria && coincideStockBajo;
-    }).toList();
   }
 
   int get cantidadSeleccionados => productosSeleccionados.length;
 }
 
 class InventoryNotifier extends StateNotifier<InventoryState> {
-  final IsarService _isarService = IsarService();
-  final SyncService _syncService = SyncService();
+  final Ref ref;
+  late final ProviderSubscription _subscription;
 
-  InventoryNotifier() : super(const InventoryState()) {
-    cargarInventario();
+  InventoryNotifier(this.ref) : super(const InventoryState()) {
+    _subscription = ref.listen(productosProvider, (_, next) {
+      debugPrint('📢 [InventoryNotifier] ProductosProvider cambió');
+      _aplicarFiltros(next.isLoading);
+    });
+    final productosState = ref.read(productosProvider);
+    _aplicarFiltros(productosState.isLoading);
   }
 
-  Future<void> cargarInventario() async {
-    state = state.copyWith(isLoading: true);
-    try {
-      final productos = await _isarService.obtenerProductos();
-      state = state.copyWith(
-        productos: productos,
-        isLoading: false,
-      );
-    } catch (e) {
-      state = state.copyWith(isLoading: false);
-      rethrow;
+  void _aplicarFiltros(bool isLoading) {
+    final productos = ref.read(productosProvider).items;
+    final query = state.filtroBusqueda.toLowerCase().trim();
+    final categoriaId = state.categoriaSeleccionadaId;
+    final soloStockBajo = state.soloStockBajo;
+
+    final filtrados = productos.where((p) {
+      final coincideTexto = p.nombre.toLowerCase().contains(query) ||
+          p.codigoBarras.toLowerCase().contains(query);
+
+      bool coincideCategoria;
+      if (categoriaId == null) {
+        coincideCategoria = true;
+      } else {
+        coincideCategoria = p.categoriaId == categoriaId;
+      }
+
+      final coincideStockBajo = !soloStockBajo || (p.stock <= p.stockMinimo);
+
+      return coincideTexto && coincideCategoria && coincideStockBajo;
+    }).toList();
+
+    if (state.productosFiltrados.length != filtrados.length) {
+      debugPrint('🔄 [InventoryNotifier] Filtros aplicados: ${filtrados.length} productos');
     }
-  }
 
-  void setFiltroBusqueda(String filtro) {
-    state = state.copyWith(filtroBusqueda: filtro);
-  }
-
-  void setCategoria(String categoria) {
-    // ✅ Aseguramos que nunca sea null o vacío
     state = state.copyWith(
-      categoriaSeleccionada: (categoria).trim().isEmpty ? 'Todas' : categoria.trim(),
+      productosFiltrados: filtrados,
+      isLoading: isLoading,
     );
   }
 
-  void setSoloStockBajo(bool valor) {
-    state = state.copyWith(soloStockBajo: valor);
+  void setFiltroBusqueda(String query) {
+    state = state.copyWith(filtroBusqueda: query);
+    _aplicarFiltros(state.isLoading);
   }
 
-  void toggleSeleccionProducto(int productoId) {
+  void setCategoria(int? categoriaId) {
+    state = state.copyWith(categoriaSeleccionadaId: categoriaId);
+    _aplicarFiltros(state.isLoading);
+  }
+
+  void setSoloStockBajo(bool value) {
+    state = state.copyWith(soloStockBajo: value);
+    _aplicarFiltros(state.isLoading);
+  }
+
+  void toggleSeleccionProducto(int id) {
     final nuevos = Set<int>.from(state.productosSeleccionados);
-    if (nuevos.contains(productoId)) {
-      nuevos.remove(productoId);
+    if (nuevos.contains(id)) {
+      nuevos.remove(id);
     } else {
-      nuevos.add(productoId);
+      nuevos.add(id);
     }
     state = state.copyWith(
       productosSeleccionados: nuevos,
@@ -129,26 +120,15 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
   }
 
   void limpiarSeleccion() {
-    state = state.copyWith(
-      productosSeleccionados: {},
-      seleccionMultiple: false,
-    );
+    state = state.copyWith(productosSeleccionados: {}, seleccionMultiple: false);
   }
 
   Future<void> recargarDesdeSupabase() async {
-    try {
-      await _syncService.descargarProductosDesdeSupabase();
-      await cargarInventario();
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  List<ProductoEntity> getProductosSeleccionados() {
-    return state.productos.where((p) => state.productosSeleccionados.contains(p.id)).toList();
+    final notifier = ref.read(productosProvider.notifier);
+    await notifier.recargarDesdeSupabase();
   }
 }
 
 final inventoryProvider = StateNotifierProvider<InventoryNotifier, InventoryState>((ref) {
-  return InventoryNotifier();
+  return InventoryNotifier(ref);
 });

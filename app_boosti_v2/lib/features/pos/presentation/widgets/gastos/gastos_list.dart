@@ -7,6 +7,7 @@ class GastosList extends StatelessWidget {
   final bool isMobile;
   final bool isTablet;
   final bool shrinkWrap;
+  final void Function(GastoEntity) onGastoTap;
 
   const GastosList({
     super.key,
@@ -14,6 +15,7 @@ class GastosList extends StatelessWidget {
     required this.isMobile,
     required this.isTablet,
     this.shrinkWrap = false,
+    required this.onGastoTap,
   });
 
   @override
@@ -46,6 +48,7 @@ class GastosList extends StatelessWidget {
           gasto: gasto,
           isMobile: isMobile,
           isTablet: isTablet,
+          onTap: () => onGastoTap(gasto),
         );
       },
     );

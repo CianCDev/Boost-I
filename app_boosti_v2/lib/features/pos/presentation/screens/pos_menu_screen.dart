@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:lottie/lottie.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/sync_service.dart';
@@ -38,6 +39,8 @@ import 'package:app_boosti_v2/features/pos/presentation/screens/departamentos/de
 
 
 // ✅ IMPORT DEL NUEVO DIÁLOGO DE DIAGNÓSTICO
+import '../widgets/appbar.dart';
+import '../widgets/menu/turno_closing_dialog.dart'; // Importar el nuevo diálogo
 
 class MenuOption {
   final String title;
@@ -60,11 +63,13 @@ class MenuOption {
 class MenuSection {
   final String title;
   final IconData? icon;
+  final Color? sectionColor;
   final List<MenuOption> options;
 
   const MenuSection({
     required this.title,
     this.icon,
+    this.sectionColor,
     required this.options,
   });
 }
@@ -124,7 +129,259 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     }
   }
 
-  // 🔥 SINCRONIZACIÓN CON DIÁLOGO DE PROGRESO
+  // ============================================================
+  // DIÁLOGO DE ÉXITO CON LOTTIE (AGRANDADO)
+  // ============================================================
+  void _mostrarDialogoExito(String titulo, String mensaje) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        titlePadding: const EdgeInsets.fromLTRB(32, 32, 32, 8),
+        contentPadding: const EdgeInsets.fromLTRB(32, 16, 32, 24),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        title: Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: const Color(0xFF10B981), size: 32),
+            const SizedBox(width: 12),
+            Text(
+              titulo,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Lottie con fallback
+            _buildLottieWithFallback('assets/animations/Clock Alarm Animation.json'),
+            const SizedBox(height: 20),
+            Text(
+              mensaje,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Center(
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              child: const Text('Aceptar'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper para cargar Lottie con fallback
+  Widget _buildLottieWithFallback(String assetPath) {
+    try {
+      await _actualizarProgreso('Sincronizando ventas...');
+      final result = await _syncService.sincronizarTodoConResumen();
+
+      Navigator.pop(context);
+
+    final mensaje = StringBuffer('✅ Sincronización completada\n');
+if (result['ventas']! > 0) mensaje.writeln('• ${result['ventas']} ventas');
+if (result['productos']! > 0) mensaje.writeln('• ${result['productos']} productos');
+if (result['proveedores']! > 0) mensaje.writeln('• ${result['proveedores']} proveedores');
+if (result['gastos']! > 0) mensaje.writeln('• ${result['gastos']} gastos');
+if (result['pedidos']! > 0) mensaje.writeln('• ${result['pedidos']} pedidos');
+if (result['lotes']! > 0) mensaje.writeln('• ${result['lotes']} lotes');
+if (result['locales']! > 0) mensaje.writeln('• ${result['locales']} locales');
+if (result['departamentos']! > 0) mensaje.writeln('• ${result['departamentos']} departamentos');
+if (result['telegram']! > 0) mensaje.writeln('• ${result['telegram']} configuraciones de Telegram');
+if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizado ✅');
+      if (!currentContext.mounted) return;
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text(mensaje.toString()),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
+        ),
+      return Lottie.asset(
+        assetPath,
+        width: 200,
+        height: 200,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return Icon(
+            Icons.timer,
+            size: 100,
+            color: const Color(0xFF10B981),
+          );
+        },
+      );
+    } catch (e) {
+      return Icon(
+        Icons.timer,
+        size: 100,
+        color: const Color(0xFF10B981),
+      );
+    }
+  }
+
+  // ============================================================
+  // ABRIR TURNO
+  // ============================================================
+  Future<void> _abrirTurno() async {
+    final usuario = ref.read(usuarioActualProvider);
+    if (usuario == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay usuario autenticado.')),
+        );
+      }
+      return;
+    }
+
+    final turnoExistente = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
+    if (turnoExistente != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ya tienes un turno abierto.')),
+        );
+      }
+      return;
+    }
+
+    final nuevoTurno = TurnoEntity()
+      ..usuarioId = usuario.id
+      ..usuarioNombre = usuario.nombre
+      ..cajaId = ''
+      ..cajaNombre = usuario.cajaAsignada
+      ..montoInicial = 0.0
+      ..fechaApertura = DateTime.now()
+      ..estado = 'abierto'
+      ..syncStatus = 'pending';
+
+    await _isarService.guardarTurno(nuevoTurno);
+    await _isarService.actualizarEstadoUsuario(usuario.id, 'activo');
+    await _syncService.actualizarEstadoUsuarioEnSupabase(usuario.id, 'activo');
+    await _isarService.guardarLog(
+      LogEntity()
+        ..accion = 'APERTURA_TURNO'
+        ..usuarioNombre = usuario.nombre
+        ..usuarioRol = usuario.rol
+        ..detalles = 'Caja: ${usuario.cajaAsignada}'
+        ..fecha = DateTime.now()
+        ..sincronizado = false,
+    );
+
+    await _cargarEstadoTurno();
+
+    if (mounted) {
+      _mostrarDialogoExito('Turno abierto', 'El turno se ha iniciado correctamente.');
+    }
+  }
+
+  // ============================================================
+  // CERRAR TURNO
+  // ============================================================
+  Future<void> _cerrarTurno() async {
+    final usuario = ref.read(usuarioActualProvider);
+    if (usuario == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay usuario autenticado.')),
+        );
+      }
+      return;
+    }
+
+    final turnoAbierto = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
+    if (turnoAbierto == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay turno abierto para este usuario.')),
+        );
+      }
+      return;
+    }
+
+    // Descargar ventas de Supabase para tener datos actualizados
+    try {
+      await _syncService.descargarVentasDesdeSupabase();
+    } catch (e) {
+      debugPrint('⚠️ Error descargando ventas para el turno: $e');
+    }
+
+    final double montoFinal = await _isarService.obtenerTotalVentasPorEmpleadoYRango(
+      usuario.nombre,
+      turnoAbierto.fechaApertura,
+      DateTime.now(),
+    );
+
+    // ✅ Usar el diálogo personalizado moderno
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => TurnoClosingDialog(
+        montoInicial: turnoAbierto.montoInicial,
+        montoFinal: montoFinal,
+        fechaApertura: turnoAbierto.fechaApertura,
+        onConfirm: () => Navigator.pop(context, true),
+      ),
+    );
+
+    if (confirm == true) {
+      // Cerrar turno
+      turnoAbierto.montoFinal = montoFinal;
+      turnoAbierto.fechaCierre = DateTime.now();
+      turnoAbierto.estado = 'cerrado';
+      turnoAbierto.syncStatus = 'pending';
+
+      await _isarService.guardarTurno(turnoAbierto);
+      await _isarService.actualizarEstadoUsuario(usuario.id, 'inactivo');
+      await _syncService.sincronizarTurnos();
+      await _isarService.guardarLog(
+        LogEntity()
+          ..accion = 'CIERRE_TURNO'
+          ..usuarioNombre = usuario.nombre
+          ..usuarioRol = usuario.rol
+          ..detalles = 'Monto final: \$${montoFinal.toStringAsFixed(2)}'
+          ..fecha = DateTime.now()
+          ..sincronizado = false,
+      );
+
+      await _cargarEstadoTurno();
+
+      if (mounted) {
+        _mostrarDialogoExito(
+          'Turno cerrado',
+          'El turno se ha cerrado correctamente.\nMonto final: \$${montoFinal.toStringAsFixed(2)}',
+        );
+      }
+    }
+  }
+
+  // ============================================================
+  // SINCRONIZAR CON PROGRESO
+  // ============================================================
   Future<void> _sincronizarConProgreso() async {
     if (_sincronizando) return;
     setState(() => _sincronizando = true);
@@ -182,17 +439,15 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
 
       Navigator.pop(context);
 
-    final mensaje = StringBuffer('✅ Sincronización completada\n');
-if (result['ventas']! > 0) mensaje.writeln('• ${result['ventas']} ventas');
-if (result['productos']! > 0) mensaje.writeln('• ${result['productos']} productos');
-if (result['proveedores']! > 0) mensaje.writeln('• ${result['proveedores']} proveedores');
-if (result['gastos']! > 0) mensaje.writeln('• ${result['gastos']} gastos');
-if (result['pedidos']! > 0) mensaje.writeln('• ${result['pedidos']} pedidos');
-if (result['lotes']! > 0) mensaje.writeln('• ${result['lotes']} lotes');
-if (result['locales']! > 0) mensaje.writeln('• ${result['locales']} locales');
-if (result['departamentos']! > 0) mensaje.writeln('• ${result['departamentos']} departamentos');
-if (result['telegram']! > 0) mensaje.writeln('• ${result['telegram']} configuraciones de Telegram');
-if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizado ✅');
+      final mensaje = StringBuffer('✅ Sincronización completada\n');
+      if (result['ventas']! > 0) mensaje.writeln('• ${result['ventas']} ventas');
+      if (result['productos']! > 0) mensaje.writeln('• ${result['productos']} productos');
+      if (result['proveedores']! > 0) mensaje.writeln('• ${result['proveedores']} proveedores');
+      if (result['gastos']! > 0) mensaje.writeln('• ${result['gastos']} gastos');
+      if (result['pedidos']! > 0) mensaje.writeln('• ${result['pedidos']} pedidos');
+      if (result['lotes']! > 0) mensaje.writeln('• ${result['lotes']} lotes');
+      if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizado ✅');
+
       if (!currentContext.mounted) return;
       scaffoldMessenger.showSnackBar(
         SnackBar(
@@ -228,151 +483,9 @@ if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizad
     await Future.delayed(const Duration(milliseconds: 300));
   }
 
-  Future<void> _abrirTurno() async {
-    final usuario = ref.read(usuarioActualProvider);
-    if (usuario == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay usuario autenticado.')),
-      );
-      return;
-    }
-
-    final turnoExistente = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
-    if (turnoExistente != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ya tienes un turno abierto.')),
-      );
-      return;
-    }
-
-    final nuevoTurno = TurnoEntity()
-      ..usuarioId = usuario.id
-      ..usuarioNombre = usuario.nombre
-      ..cajaId = ''
-      ..cajaNombre = usuario.cajaAsignada
-      ..montoInicial = 0.0
-      ..fechaApertura = DateTime.now()
-      ..estado = 'abierto'
-      ..syncStatus = 'pending';
-
-    await _isarService.guardarTurno(nuevoTurno);
-    await _isarService.actualizarEstadoUsuario(usuario.id, 'activo');
-    await _syncService.actualizarEstadoUsuarioEnSupabase(usuario.id, 'activo');
-    await _isarService.guardarLog(
-      LogEntity()
-        ..accion = 'APERTURA_TURNO'
-        ..usuarioNombre = usuario.nombre
-        ..usuarioRol = usuario.rol
-        ..detalles = 'Caja: ${usuario.cajaAsignada}'
-        ..fecha = DateTime.now()
-        ..sincronizado = false,
-    );
-
-    await _cargarEstadoTurno();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Turno abierto correctamente'),
-          backgroundColor: Color(0xFF10B981),
-        ),
-      );
-    }
-  }
-
-  Future<void> _cerrarTurno() async {
-    final usuario = ref.read(usuarioActualProvider);
-    if (usuario == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay usuario autenticado.')),
-      );
-      return;
-    }
-
-    final turnoAbierto = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
-    if (turnoAbierto == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay turno abierto para este usuario.')),
-      );
-      return;
-    }
-
-    try {
-      await _syncService.descargarVentasDesdeSupabase();
-    } catch (e) {
-      debugPrint('⚠️ Error descargando ventas para el turno: $e');
-    }
-
-    final double montoFinal = await _isarService.obtenerTotalVentasPorEmpleadoYRango(
-      usuario.nombre,
-      turnoAbierto.fechaApertura,
-      DateTime.now(),
-    );
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cerrar Turno'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Monto inicial: \$${turnoAbierto.montoInicial.toStringAsFixed(2)}'),
-            const SizedBox(height: 8),
-            Text('Total de ventas del turno: \$${montoFinal.toStringAsFixed(2)}'),
-            const SizedBox(height: 8),
-            const Text('¿Deseas cerrar el turno con este monto?'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Cerrar Turno'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      turnoAbierto.montoFinal = montoFinal;
-      turnoAbierto.fechaCierre = DateTime.now();
-      turnoAbierto.estado = 'cerrado';
-      turnoAbierto.syncStatus = 'pending';
-
-      await _isarService.guardarTurno(turnoAbierto);
-      await _isarService.actualizarEstadoUsuario(usuario.id, 'inactivo');
-      await _syncService.sincronizarTurnos();
-      await _isarService.guardarLog(
-        LogEntity()
-          ..accion = 'CIERRE_TURNO'
-          ..usuarioNombre = usuario.nombre
-          ..usuarioRol = usuario.rol
-          ..detalles = 'Monto final: \$${montoFinal.toStringAsFixed(2)}'
-          ..fecha = DateTime.now()
-          ..sincronizado = false,
-      );
-
-      await _cargarEstadoTurno();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Turno cerrado correctamente'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
-      }
-    }
-  }
-
+  // ============================================================
+  // OTRAS ACCIONES
+  // ============================================================
   Future<void> _logout() async {
     final usuario = ref.read(usuarioActualProvider);
     TurnoEntity? turnoAbierto;
@@ -646,7 +759,6 @@ MenuOption(
         onTap: _crearBackup,
         isAdminOnly: true,
       ),
-      // 🔥 NUEVO: Usando el widget refactorizado
       MenuOption(
         title: 'Diagnóstico de Lotes',
         subtitle: 'Verificar estado del inventario por lotes',
@@ -747,6 +859,7 @@ MenuOption(
       MenuSection(
         title: 'Acciones principales',
         icon: Icons.star_rounded,
+        sectionColor: const Color(0xFF3B82F6),
         options: opcionesPrincipales,
       ),
     );
@@ -756,6 +869,7 @@ MenuOption(
         MenuSection(
           title: 'Administración y reportes',
           icon: Icons.analytics_rounded,
+          sectionColor: const Color(0xFF8B5CF6),
           options: opcionesAdmin,
         ),
       );
@@ -766,6 +880,7 @@ MenuOption(
         MenuSection(
           title: 'Configuración y utilidades',
           icon: Icons.tune_rounded,
+          sectionColor: const Color(0xFFF59E0B),
           options: opcionesConfiguracion,
         ),
       );
@@ -775,6 +890,7 @@ MenuOption(
       MenuSection(
         title: 'Cerrar sesión',
         icon: Icons.exit_to_app_rounded,
+        sectionColor: const Color(0xFFEF4444),
         options: [opcionSalir],
       ),
     );
@@ -802,24 +918,12 @@ MenuOption(
           return MenuSection(
             title: section.title,
             icon: section.icon,
+            sectionColor: section.sectionColor,
             options: opcionesFiltradas,
           );
         })
         .where((section) => section.options.isNotEmpty)
         .toList();
-
-    int crossAxisCount;
-    double childAspectRatio;
-    if (isMobile) {
-      crossAxisCount = 1;
-      childAspectRatio = 4.5;
-    } else if (isTablet) {
-      crossAxisCount = 2;
-      childAspectRatio = 5.0;
-    } else {
-      crossAxisCount = 2;
-      childAspectRatio = 5.0;
-    }
 
     final contenido = Column(
       children: [
@@ -831,17 +935,16 @@ MenuOption(
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: Column(
               children: [
                 for (var section in secciones) ...[
-                  _buildSectionTitle(section.title, section.icon, isMobile),
+                  _buildSectionTitle(section.title, section.icon, section.sectionColor, isMobile),
                   const SizedBox(height: 8),
                   _buildOptionsGrid(
                     section.options,
-                    crossAxisCount,
-                    childAspectRatio,
                     isMobile,
+                    isTablet,
                   ),
                   const SizedBox(height: 24),
                 ],
@@ -853,16 +956,26 @@ MenuOption(
     );
 
     if (widget.showAppBar) {
+      final gradient = theme.brightness == Brightness.dark
+          ? const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF10B981), Color(0xFF059669)],
+            )
+          : const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF5352ED), Color(0xFF4840E8), Color(0xFF5955EE)],
+            );
+
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: AppBar(
-          title: const Text(
-            'Panel de Control',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          backgroundColor: theme.appBarTheme.backgroundColor,
-          foregroundColor: theme.appBarTheme.foregroundColor,
-          elevation: 2,
+        appBar: CustomAppBar(
+          title: 'Panel de Control',
+          logoAsset: 'assets/logo.svg',
+          logoSize: 28,
+          gradient: gradient,
+          showBackButton: true,
           actions: [
             if (usuario != null)
               Padding(
@@ -871,13 +984,13 @@ MenuOption(
                   children: [
                     Icon(
                       Icons.person_outline,
-                      color: theme.appBarTheme.foregroundColor?.withValues(alpha: 0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                     ),
                     const SizedBox(width: 6),
                     Text(
                       usuario.nombre,
-                      style: TextStyle(
-                        color: theme.appBarTheme.foregroundColor,
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -895,36 +1008,45 @@ MenuOption(
   }
 
   // ==========================================
-  // TÍTULO DE SECCIÓN CON ESTILO MEJORADO
+  // TÍTULO DE SECCIÓN
   // ==========================================
-  Widget _buildSectionTitle(String title, IconData? icon, bool isMobile) {
+  Widget _buildSectionTitle(String title, IconData? icon, Color? color, bool isMobile) {
     final theme = Theme.of(context);
+    final Color accentColor = color ?? theme.colorScheme.primary;
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
       child: Row(
         children: [
           if (icon != null) ...[
-            Icon(
-              icon,
-              size: isMobile ? 18 : 22,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: isMobile ? 16 : 20,
+                color: accentColor,
+              ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
           ],
           Text(
             title,
             style: TextStyle(
-              fontSize: isMobile ? 15 : 18,
+              fontSize: isMobile ? 14 : 18,
               fontWeight: FontWeight.w700,
               color: theme.colorScheme.onSurface,
-              letterSpacing: 0.5,
+              letterSpacing: 0.3,
             ),
           ),
           const Spacer(),
           Container(
-            height: 1,
-            width: isMobile ? 40 : 80,
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.1),
+            height: 1.5,
+            width: isMobile ? 30 : 60,
+            color: accentColor.withValues(alpha: 0.2),
           ),
         ],
       ),
@@ -936,10 +1058,18 @@ MenuOption(
   // ==========================================
   Widget _buildOptionsGrid(
     List<MenuOption> options,
-    int crossAxisCount,
-    double childAspectRatio,
     bool isMobile,
+    bool isTablet,
   ) {
+    int crossAxisCount;
+    if (isMobile) {
+      crossAxisCount = 1;
+    } else if (isTablet) {
+      crossAxisCount = 2;
+    } else {
+      crossAxisCount = 2;
+    }
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20),
       child: AnimationLimiter(
@@ -948,7 +1078,7 @@ MenuOption(
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
-            childAspectRatio: childAspectRatio,
+            childAspectRatio: isMobile ? 5.0 : 6.0,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
           ),
@@ -960,7 +1090,7 @@ MenuOption(
               duration: const Duration(milliseconds: 400),
               columnCount: crossAxisCount,
               child: ScaleAnimation(
-                scale: 0.8,
+                scale: 0.85,
                 curve: Curves.easeOutCubic,
                 child: FadeInAnimation(
                   curve: Curves.easeOutCubic,
@@ -979,7 +1109,7 @@ MenuOption(
   }
 
   // ==========================================
-  // TARJETA DE MENÚ
+  // TARJETA DE MENÚ CON CURSOR POINTER
   // ==========================================
   Widget _buildMenuCard(BuildContext context, {
     required MenuOption option,
@@ -987,8 +1117,10 @@ MenuOption(
   }) {
     final theme = Theme.of(context);
     final isHovered = ValueNotifier<bool>(false);
+    final bool isDark = theme.brightness == Brightness.dark;
 
     return MouseRegion(
+      cursor: SystemMouseCursors.click, // ✅ Cursor pointer
       onEnter: (_) => isHovered.value = true,
       onExit: (_) => isHovered.value = false,
       child: ValueListenableBuilder(
@@ -998,34 +1130,35 @@ MenuOption(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
             // ignore: deprecated_member_use
-            transform: hovered ? (Matrix4.identity()..scale(1.02)) : Matrix4.identity(),
+            transform: hovered ? (Matrix4.identity()..scale(1.01)) : Matrix4.identity(),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  option.color.withValues(alpha: hovered ? 0.15 : 0.05),
-                  option.color.withValues(alpha: hovered ? 0.25 : 0.08),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: option.color.withValues(alpha: hovered ? 0.6 : 0.15),
-                width: hovered ? 2 : 1,
+                color: hovered
+                    ? option.color.withValues(alpha: 0.6)
+                    : isDark
+                        ? Colors.grey.shade700.withValues(alpha: 0.4)
+                        : Colors.grey.shade300.withValues(alpha: 0.6),
+                width: hovered ? 1.5 : 1.0,
               ),
               boxShadow: hovered
                   ? [
                       BoxShadow(
                         color: option.color.withValues(alpha: 0.2),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
+                        blurRadius: 24,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 8),
                       ),
                     ]
                   : [
                       BoxShadow(
-                        color: theme.colorScheme.shadow.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        color: isDark
+                            ? Colors.black.withValues(alpha: 0.25)
+                            : Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 4),
                       ),
                     ],
             ),
@@ -1033,32 +1166,23 @@ MenuOption(
               color: Colors.transparent,
               child: InkWell(
                 onTap: option.onTap,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 18, vertical: 10),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 14 : 20,
+                    vertical: isMobile ? 10 : 14,
+                  ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                      Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: option.color.withValues(alpha: hovered ? 0.2 : 0.12),
+                          color: option.color.withValues(alpha: hovered ? 0.2 : 0.08),
                           shape: BoxShape.circle,
-                          boxShadow: hovered
-                              ? [
-                                  BoxShadow(
-                                    color: option.color.withValues(alpha: 0.2),
-                                    blurRadius: 10,
-                                    spreadRadius: 2,
-                                  ),
-                                ]
-                              : null,
                         ),
                         child: Icon(
                           option.icon,
-                          size: isMobile ? 24 : 30,
+                          size: isMobile ? 22 : 28,
                           color: option.color,
                         ),
                       ),
@@ -1071,8 +1195,8 @@ MenuOption(
                             Text(
                               option.title,
                               style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                fontSize: isMobile ? 15 : 18,
+                                fontWeight: FontWeight.w600,
+                                fontSize: isMobile ? 15 : 17,
                                 color: theme.colorScheme.onSurface,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -1083,7 +1207,7 @@ MenuOption(
                               option.subtitle,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 fontSize: isMobile ? 11 : 13,
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
                               ),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
@@ -1094,7 +1218,7 @@ MenuOption(
                       Icon(
                         Icons.arrow_forward_ios_rounded,
                         size: isMobile ? 14 : 18,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.15),
                       ),
                     ],
                   ),

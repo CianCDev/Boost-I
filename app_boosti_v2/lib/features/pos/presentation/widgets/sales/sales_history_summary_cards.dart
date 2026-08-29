@@ -6,9 +6,6 @@ class SalesHistorySummaryCards extends StatelessWidget {
   final double totalBs;
   final bool isMobile;
   final bool isTablet;
-  final double spacingWrap;
-  final double fontSizeResumen;
-  final double fontSizeResumenValor;
 
   const SalesHistorySummaryCards({
     super.key,
@@ -17,122 +14,221 @@ class SalesHistorySummaryCards extends StatelessWidget {
     required this.totalBs,
     required this.isMobile,
     required this.isTablet,
-    required this.spacingWrap,
-    required this.fontSizeResumen,
-    required this.fontSizeResumenValor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // ignore: unused_local_variable
+    final colorScheme = Theme.of(context).colorScheme;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Colores más amigables
+    final colorVentas = const Color(0xFF4A90D9); // Azul suave
+    final colorUSD = const Color(0xFF2ECC71);   // Verde menta
+    final colorBs = const Color.fromARGB(255, 198, 99, 255);    // Naranja cálido
+
+    final cards = [
+      _SummaryCard(
+        icon: Icons.receipt_long_rounded,
+        label: 'Ventas',
+        value: '$ventasCount',
+        color: colorVentas,
+        isMobile: isMobile,
+        isTablet: isTablet,
+        screenWidth: screenWidth,
+        onTap: () => _showDetailDialog(context, 'Ventas', '$ventasCount', colorVentas),
+      ),
+      _SummaryCard(
+        icon: Icons.attach_money_rounded,
+        label: 'Total USD',
+        value: '\$${totalUSD.toStringAsFixed(2)}',
+        color: colorUSD,
+        isMobile: isMobile,
+        isTablet: isTablet,
+        screenWidth: screenWidth,
+        onTap: () => _showDetailDialog(context, 'Total USD', '\$${totalUSD.toStringAsFixed(2)}', colorUSD),
+      ),
+      _SummaryCard(
+        icon: Icons.monetization_on_rounded,
+        label: 'Total Bs.',
+        value: 'Bs. ${totalBs.toStringAsFixed(2)}',
+        color: colorBs,
+        isMobile: isMobile,
+        isTablet: isTablet,
+        screenWidth: screenWidth,
+        onTap: () => _showDetailDialog(context, 'Total Bs.', 'Bs. ${totalBs.toStringAsFixed(2)}', colorBs),
+      ),
+    ];
+
+    return Wrap(
+      spacing: isMobile ? 8 : 16,
+      runSpacing: 8,
+      alignment: WrapAlignment.center,
+      children: cards,
+    );
+  }
+
+  void _showDetailDialog(BuildContext context, String label, String value, Color color) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        elevation: 8,
+        title: Row(
+          children: [
+            Icon(Icons.info_outline, color: color, size: 28),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.trending_up,
+              size: 64,
+              color: color.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withValues(alpha: 0.2)),
+              ),
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: color,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+  final bool isMobile;
+  final bool isTablet;
+  final double screenWidth;
+  final VoidCallback onTap;
+
+  const _SummaryCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.isMobile,
+    required this.isTablet,
+    required this.screenWidth,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Ancho fijo en tablet/PC para que no se estiren demasiado
-    final double cardWidth = isTablet ? 240 : (isMobile ? double.infinity : 200);
+    // Calcular ancho máximo según dispositivo
+    double maxWidth;
+    if (isMobile) {
+      maxWidth = screenWidth * 0.45; // Ocupa ~45% del ancho en móvil
+    } else if (isTablet) {
+      maxWidth = 180;
+    } else {
+      maxWidth = 200;
+    }
 
-    return Wrap(
-      spacing: spacingWrap,
-      runSpacing: spacingWrap,
-      alignment: WrapAlignment.start,
-      children: [
-        _buildCard(
-          'Ventas',
-          '$ventasCount',
-          Icons.receipt_long,
-          const Color(0xFF3B82F6),
-          colorScheme,
-          isDark,
-          cardWidth,
-        ),
-        _buildCard(
-          'Total USD',
-          '\$${totalUSD.toStringAsFixed(2)}',
-          Icons.attach_money,
-          const Color(0xFF10B981),
-          colorScheme,
-          isDark,
-          cardWidth,
-        ),
-        _buildCard(
-          'Total Bs.',
-          'Bs. ${totalBs.toStringAsFixed(2)}',
-          Icons.currency_exchange,
-          const Color(0xFF0284C7),
-          colorScheme,
-          isDark,
-          cardWidth,
-        ),
-      ],
-    );
-  }
+    // Asegurar un mínimo
+    final minWidth = isMobile ? 80.0 : 100.0;
 
-  Widget _buildCard(
-    String titulo,
-    String valor,
-    IconData icono,
-    Color color,
-    ColorScheme colorScheme,
-    bool isDark,
-    double width,
-  ) {
-    final double iconSize = isTablet ? 32 : 24;
-    final double fontSizeTitle = isTablet ? 16 : 12;
-    final double fontSizeValue = isTablet ? 28 : 20;
-    final double spacing = 12;
-
-    return SizedBox(
-      width: width,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        constraints: BoxConstraints(
+          minWidth: minWidth,
+          maxWidth: maxWidth,
+        ),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 12 : 20,
+          vertical: isMobile ? 10 : 16,
+        ),
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+          border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: color.withValues(alpha: 0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icono, color: color, size: iconSize),
+              child: Icon(icon, color: color, size: isMobile ? 20 : 24),
             ),
-            SizedBox(width: spacing),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    titulo,
+                    label,
                     style: TextStyle(
-                      fontSize: fontSizeTitle,
+                      fontSize: isTablet ? 14 : (isMobile ? 10 : 12),
                       color: colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w500,
                     ),
-                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    valor,
+                    value,
                     style: TextStyle(
-                      fontSize: fontSizeValue,
+                      fontSize: isTablet ? 20 : (isMobile ? 14 : 18),
                       fontWeight: FontWeight.bold,
                       color: colorScheme.onSurface,
                     ),
-                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ],
               ),
