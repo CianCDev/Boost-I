@@ -499,7 +499,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               mainAxisSpacing: 12,
             ),
             itemCount: 6,
-            itemBuilder: (_, _) => const InventoryProductCardSkeleton(),
+           itemBuilder: (context, index) => const InventoryProductCardSkeleton(),
           )
         : Padding(
             padding: const EdgeInsets.all(12.0),

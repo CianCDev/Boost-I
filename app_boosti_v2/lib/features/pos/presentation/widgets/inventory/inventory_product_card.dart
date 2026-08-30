@@ -46,9 +46,9 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isTablet = ResponsiveHelper.isTablet(context);
 
-    // ✅ Colores mejorados para modo oscuro
+    // Colores mejorados para modo oscuro
     final Color cardBackground = isDark
-        ? const Color.fromARGB(255, 9, 17, 32)// Fondo oscuro con contraste
+        ? const Color.fromARGB(255, 9, 17, 32)
         : Colors.white;
 
     final Color cardBorderColor = isDark
@@ -71,7 +71,7 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
             ),
           ];
 
-    // ✅ Obtener el nombre de la marca usando el provider
+    // Obtener el nombre de la marca usando el provider
     final marcaNombreAsync = widget.producto.marcaSupabaseId != null
         ? ref.watch(marcaNombrePorSupabaseIdProvider(
             widget.producto.marcaSupabaseId!))
@@ -94,13 +94,13 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
     final double typeBadgePadding = widget.isMobile ? 4 : (isTablet ? 8 : 10);
 
     Widget child = MouseRegion(
-      onEnter: (_) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+      onEnter: (event) {
+        WidgetsBinding.instance.addPostFrameCallback((time) {
           if (mounted) setState(() => _isHovering = true);
         });
       },
-      onExit: (_) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+      onExit: (event) {
+        WidgetsBinding.instance.addPostFrameCallback((time) {
           if (mounted) setState(() => _isHovering = false);
         });
       },
@@ -162,11 +162,12 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
                               ? Image.network(
                                   widget.producto.imagenUrl!,
                                   fit: BoxFit.contain,
-                                  errorBuilder: (_, _, _) => Icon(
-                                    Icons.inventory_2,
-                                    size: 40,
-                                    color: colorScheme.outline,
-                                  ),
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Icon(
+                                        Icons.inventory_2,
+                                        size: 40,
+                                        color: colorScheme.outline,
+                                      ),
                                 )
                               : Icon(
                                   Icons.inventory_2,
@@ -298,7 +299,7 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      // ✅ Marca
+                      // Marca
                       if (marcaNombreAsync != null)
                         marcaNombreAsync.when(
                           data: (nombre) => nombre != null
@@ -319,12 +320,13 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
                               child: SizedBox(
                                 width: 12,
                                 height: 12,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                             ),
                           ),
-                          error: (_, _) => const SizedBox.shrink(),
+                          error: (err, stack) => const SizedBox.shrink(),
                         )
                       else
                         const SizedBox.shrink(),
@@ -394,7 +396,7 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
     if (widget.animationController != null) {
       return AnimatedBuilder(
         animation: widget.animationController!,
-        builder: (context, _) {
+        builder: (context, child) {
           final start = 0.05 * widget.index;
           final end = start + 0.1;
           final double scale = Tween<double>(begin: 0.8, end: 1.0)
@@ -408,6 +410,7 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
               .value;
           return Transform.scale(scale: scale, child: child);
         },
+        child: child, // ¡Importante! Añadir el child aquí
       );
     }
 

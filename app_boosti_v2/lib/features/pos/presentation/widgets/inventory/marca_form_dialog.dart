@@ -507,7 +507,7 @@ class _MarcaFormDialogState extends ConsumerState<MarcaFormDialog> {
                     ? Image.network(
                         _logoUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Icon(
+                        errorBuilder: (context, error, stackTrace) => Icon(
                           Icons.branding_watermark_rounded,
                           size: 64,
                           color: colorScheme.onSurfaceVariant,

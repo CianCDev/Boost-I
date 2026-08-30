@@ -160,7 +160,7 @@ class ProductDetailDialog extends ConsumerWidget {
               ? Image.network(
                   producto.imagenUrl!,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => _buildPlaceholder(colorScheme),
+                  errorBuilder: (context, error, stackTrace) => _buildPlaceholder(colorScheme),
                 )
               : _buildPlaceholder(colorScheme),
         ),
@@ -496,7 +496,7 @@ class ProductDetailDialog extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => const SizedBox.shrink(),
+      error: (err, stack) => const SizedBox.shrink(),
     );
   }
 

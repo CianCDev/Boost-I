@@ -99,8 +99,7 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
         child: Image.asset(
           'assets/logo.png',
           fit: BoxFit.contain,
-          errorBuilder: (_, _, _) => const Icon(Icons.storefront, color: Colors.white, size: 32), // ✅ corregido
-        ),
+          errorBuilder: (context, error, stackTrace) => const Icon(Icons.storefront, color: Colors.white, size: 32),        ),
       ),
       title: Text(
         _currentIndex == 1 ? 'Catálogo' : (_currentIndex == 0 ? 'Inventario' : 'Menú POS'),

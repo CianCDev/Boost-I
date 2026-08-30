@@ -1,7 +1,7 @@
 // lib/features/pos/presentation/widgets/catalog/catalog_app_bar.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart'; // ✅ Agregar import
+//import 'package:flutter_svg/flutter_svg.dart'; // ✅ Agregar import
 import '../../providers/bcv_provider.dart';
 import '../../providers/catalog_provider.dart';
 import '../../utils/responsive_helper.dart';
@@ -74,22 +74,15 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
       ),
       // 🔥 LOGO SVG EN BLANCO (reemplaza Image.asset)
       leading: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Padding(
-          padding: const EdgeInsets.all(10.0),
-          child: SvgPicture.asset(
-            'assets/logo.svg',
-            width: isTablet ? 36 : 32,
-            height: isTablet ? 36 : 32,
-            fit: BoxFit.contain,
-            // ✅ Forzar color blanco
-            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-            // Fallback en caso de error
-            placeholderBuilder: (context) =>
-                Icon(Icons.storefront, color: Colors.white, size: isTablet ? 36 : 32),
-          ),
+      child: Padding(
+        padding: const EdgeInsets.all(10.0),
+        child: Icon(
+          Icons.storefront,
+          color: Colors.white,
+          size: isTablet ? 36 : 32,
         ),
       ),
+    ),
       actions: [
         // Panel de Control
         _buildActionButton(

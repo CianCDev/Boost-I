@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// Widget que muestra la actividad de empleados con barras horizontales.
 class EmployeeActivity extends StatelessWidget {
   final Map<String, double> empleados;
 
@@ -9,8 +10,14 @@ class EmployeeActivity extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final maxTotal = empleados.values.isNotEmpty ? empleados.values.reduce((a, b) => a > b ? a : b) : 0;
-    final entries = empleados.entries.toList();
+    
+    // ✅ maxTotal declarado como double explícitamente
+    final double maxTotal = empleados.values.isNotEmpty
+        ? empleados.values.reduce((a, b) => a > b ? a : b)
+        : 0.0;
+
+    final entries = empleados.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 500),
@@ -41,7 +48,7 @@ class EmployeeActivity extends StatelessWidget {
                 Icon(Icons.people_alt_rounded, size: 20, color: Colors.green.shade600),
                 const SizedBox(width: 8),
                 Text(
-                  'Actividad de empleados',
+                  'Rendimiento del equipo',
                   style: TextStyle(
                     fontSize: isMobile ? 14 : 16,
                     fontWeight: FontWeight.bold,
@@ -66,7 +73,7 @@ class EmployeeActivity extends StatelessWidget {
               ),
             ] else ...[
               for (int i = 0; i < entries.length; i++) ...[
-                _buildItem(entries[i], i, isMobile, maxTotal.toDouble(), isDark),
+                _buildItem(entries[i], i, isMobile, maxTotal, isDark),
                 if (i < entries.length - 1) const SizedBox(height: 10),
               ],
             ],
@@ -77,7 +84,9 @@ class EmployeeActivity extends StatelessWidget {
   }
 
   Widget _buildItem(MapEntry<String, double> entry, int index, bool isMobile, double maxTotal, bool isDark) {
-    final porcentaje = maxTotal > 0 ? entry.value / maxTotal : 0;
+    // ✅ porcentaje declarado como double
+    final double porcentaje = maxTotal > 0 ? entry.value / maxTotal : 0.0;
+
     final colores = [
       Colors.green.shade600,
       Colors.blue.shade600,
@@ -145,7 +154,7 @@ class EmployeeActivity extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: porcentaje.toDouble().clamp(0.0, 1.0),
+              value: porcentaje.clamp(0.0, 1.0), // ✅ ahora es double
               backgroundColor: isDark ? Colors.grey.shade700 : Colors.grey.shade100,
               color: color,
               minHeight: 4,

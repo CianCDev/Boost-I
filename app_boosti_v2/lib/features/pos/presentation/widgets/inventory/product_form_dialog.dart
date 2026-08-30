@@ -1225,7 +1225,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
                         width: 24,
                         height: 24,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Icon(
+                        errorBuilder: (context, error, stackTrace) => Icon(
                           Icons.branding_watermark_rounded,
                           size: 20,
                           color: colorScheme.primary,
@@ -1719,7 +1719,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
                     ? Image.network(
                         _imagenUrlPreview,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Icon(
+                        errorBuilder: (context, error, stackTrace) => Icon(
                           Icons.broken_image,
                           size: 48,
                           color: colorScheme.onSurfaceVariant,
@@ -1952,7 +1952,7 @@ class _ProveedoresPanelDialogState extends State<_ProveedoresPanelDialog> {
                       )
                     : ListView.separated(
                         itemCount: _proveedoresFiltrados.length,
-                        separatorBuilder: (_, _) => Divider(
+                        separatorBuilder: (context, index) => Divider(
                           color: colorScheme.outline.withValues(alpha: 0.2),
                           height: 1,
                         ),

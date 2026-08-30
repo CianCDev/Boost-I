@@ -173,7 +173,7 @@ class DetalleProveedorDialog extends ConsumerWidget {
                   return ListView.separated(
                     shrinkWrap: true,
                     itemCount: productos.length,
-                    separatorBuilder: (_, _) => const Divider(),
+                    separatorBuilder: (context, index) => const Divider(),
                     itemBuilder: (context, index) {
                       final p = productos[index];
                       return ListTile(

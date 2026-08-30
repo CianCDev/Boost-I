@@ -253,7 +253,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
           mainAxisSpacing: 12,
         ),
         itemCount: 6,
-        itemBuilder: (_, _) => const ProductCardSkeleton(),
+        itemBuilder: (context, index) => const ProductCardSkeleton(),
       );
     }
 

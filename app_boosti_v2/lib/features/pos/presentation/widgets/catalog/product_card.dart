@@ -36,9 +36,9 @@ class _ProductCardState extends ConsumerState<ProductCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isTablet = ResponsiveHelper.isTablet(context);
 
-    // ✅ MISMO ESTILO QUE INVENTORY_PRODUCT_CARD
+    // Estilo igual que InventoryProductCard
     final Color cardBackground = isDark
-        ? const Color.fromARGB(255, 9, 17, 32) // Fondo oscuro con contraste
+        ? const Color.fromARGB(255, 9, 17, 32)
         : Colors.white;
 
     final Color cardBorderColor = isDark
@@ -66,7 +66,6 @@ class _ProductCardState extends ConsumerState<ProductCard> {
         ? stockValue.toInt().toString()
         : stockValue.toStringAsFixed(1);
 
-    // Tamaños responsivos (se mantienen igual que antes)
     final double fontSizeNombre = widget.isMobile ? 13 : (isTablet ? 15 : 16);
     final double fontSizeMarca = widget.isMobile ? 11 : (isTablet ? 13 : 14);
     final double fontSizeCodigo = widget.isMobile ? 10 : (isTablet ? 12 : 13);
@@ -77,7 +76,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
     final double typeBadgeFontSize = widget.isMobile ? 9 : (isTablet ? 11 : 12);
     final double typeBadgePadding = widget.isMobile ? 4 : (isTablet ? 6 : 8);
 
-    // ✅ Obtener el nombre de la marca usando el provider
+    // ✅ Obtener el nombre de la marca
     final marcaNombreAsync = widget.producto.marcaSupabaseId != null
         ? ref.watch(marcaNombrePorSupabaseIdProvider(widget.producto.marcaSupabaseId!))
         : null;
@@ -103,15 +102,13 @@ class _ProductCardState extends ConsumerState<ProductCard> {
       },
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        onEnter: (_) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) setState(() => _isHovering = true);
-          });
+        onEnter: (event) {
+          // ✅ Solo llamamos a setState una vez
+          setState(() => _isHovering = true);
         },
-        onExit: (_) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) setState(() => _isHovering = false);
-          });
+        onExit: (event) {
+          // ✅ También usamos 'event' para evitar conflicto con el '_'
+          setState(() => _isHovering = false);
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -146,7 +143,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ----- 1. SECCIÓN SUPERIOR: IMAGEN Y BADGES (55%) -----
+                // ----- SECCIÓN SUPERIOR (55%) -----
                 Expanded(
                   flex: 55,
                   child: Stack(
@@ -169,11 +166,13 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                                 ? Image.network(
                                     widget.producto.imagenUrl!,
                                     fit: BoxFit.contain,
-                                    errorBuilder: (_, _, _) => Icon(
-                                      Icons.inventory_2,
-                                      size: 40,
-                                      color: colorScheme.outline,
-                                    ),
+                                    // ✅ Nombres descriptivos para evitar '_'
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        Icon(
+                                          Icons.inventory_2,
+                                          size: 40,
+                                          color: colorScheme.outline,
+                                        ),
                                   )
                                 : Icon(
                                     Icons.inventory_2,
@@ -183,7 +182,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                           ),
                         ),
                       ),
-                      // Badge de Stock (flotante superior izquierda)
+                      // Badge de Stock (superior izquierda)
                       if (widget.stockBajo)
                         Positioned(
                           top: widget.isMobile ? 8 : 10,
@@ -205,7 +204,9 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                               ],
                             ),
                             child: Text(
-                              widget.producto.stock <= 0 ? 'Sin Stock' : '¡Stock bajo!',
+                              widget.producto.stock <= 0
+                                  ? 'Sin Stock'
+                                  : '¡Stock bajo!',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: badgeFontSize,
@@ -214,7 +215,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                             ),
                           ),
                         ),
-                      // Badge de tipo (flotante inferior derecha)
+                      // Badge de tipo (inferior derecha)
                       Positioned(
                         bottom: widget.isMobile ? 8 : 10,
                         right: widget.isMobile ? 8 : 10,
@@ -248,7 +249,9 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                widget.producto.esPesado ? 'Balanza' : 'Unidad',
+                                widget.producto.esPesado
+                                    ? 'Balanza'
+                                    : 'Unidad',
                                 style: TextStyle(
                                   fontSize: typeBadgeFontSize,
                                   fontWeight: FontWeight.w600,
@@ -271,7 +274,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                       : Colors.black.withValues(alpha: 0.05),
                 ),
 
-                // ----- 2. SECCIÓN INFERIOR: INFORMACIÓN (45%) -----
+                // ----- SECCIÓN INFERIOR (45%) -----
                 Expanded(
                   flex: 45,
                   child: Padding(
@@ -280,7 +283,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Nombre del producto
+                        // Nombre
                         Text(
                           widget.producto.nombre,
                           style: TextStyle(
@@ -292,7 +295,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        // ✅ Marca (si existe)
+                        // Marca
                         if (marcaNombreAsync != null)
                           marcaNombreAsync.when(
                             data: (nombre) => nombre != null
@@ -313,11 +316,14 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                                 child: SizedBox(
                                   width: 12,
                                   height: 12,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 ),
                               ),
                             ),
-                            error: (_, _) => const SizedBox.shrink(),
+                            // ✅ Nombres descriptivos
+                            error: (err, stack) => const SizedBox.shrink(),
                           )
                         else
                           const SizedBox.shrink(),

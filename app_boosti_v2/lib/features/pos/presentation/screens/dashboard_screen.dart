@@ -9,6 +9,7 @@ import '../widgets/dashboard/low_stock_list.dart';
 import '../widgets/dashboard/employee_activity.dart';
 import '../widgets/dashboard/recent_sales_list.dart';
 import '../widgets/dashboard/dashboard_skeleton.dart';
+import '../widgets/appbar.dart';
 import '../utils/responsive_helper.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -34,26 +35,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final estado = ref.watch(dashboardProvider);
     final notifier = ref.read(dashboardProvider.notifier);
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final isTablet = ResponsiveHelper.isTablet(context);
     final theme = Theme.of(context);
-
-    // Tamaños adaptativos para desktop/tablet
-    final double paddingHorizontal = isMobile ? 8 : (isTablet ? 24 : 32);
-    final double paddingVertical = isMobile ? 8 : (isTablet ? 24 : 32);
-    final double gridSpacing = isMobile ? 12 : (isTablet ? 16 : 20);
-    final double childAspectRatio = isMobile ? 1.2 : (isTablet ? 1.4 : 1.6);
+    final isMobile = ResponsiveHelper.isMobile(context);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text(
-          'Panel de Control',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: theme.appBarTheme.backgroundColor,
-        foregroundColor: theme.appBarTheme.foregroundColor,
-        elevation: 2,
+      appBar: CustomAppBar(
+        title: isMobile ? 'Estadísticas' : 'Estadísticas Generales',
+        showBackButton: true,
+        centerTitle: false,
         actions: [
           IconButton(
             icon: estado.isLoading
@@ -65,26 +55,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       color: Colors.white,
                     ),
                   )
-                : Icon(
-                    Icons.refresh_rounded,
-                    color: theme.appBarTheme.foregroundColor,
-                  ),
+                : const Icon(Icons.refresh_rounded, color: Colors.white),
             onPressed: estado.isLoading ? null : () => notifier.refrescar(),
             tooltip: 'Refrescar',
           ),
-          if (!isMobile)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Center(
-                child: Text(
-                  'Última actualización: ${_formatFecha(estado.ultimaActualizacion)}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.appBarTheme.foregroundColor?.withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
       body: AnimatedSwitcher(
@@ -99,122 +73,158 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     key: const ValueKey('content'),
                     onRefresh: notifier.refrescar,
                     color: theme.colorScheme.primary,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: paddingHorizontal,
-                        vertical: paddingVertical,
-                      ),
-                      child: Column(
-                        children: [
-                          _buildMetricas(
-                            estado,
-                            notifier,
-                            isMobile,
-                            gridSpacing,
-                            childAspectRatio,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isMobile = constraints.maxWidth < 600;
+                        final isTablet = constraints.maxWidth >= 600 && constraints.maxWidth < 1200;
+                        final isDesktop = constraints.maxWidth >= 1200;
+
+                        final double horizontalPadding = isMobile ? 12 : (isTablet ? 24 : 32);
+                        final double verticalPadding = isMobile ? 8 : (isTablet ? 16 : 24);
+                        final double spacing = isMobile ? 12 : (isTablet ? 16 : 20);
+
+                        return SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: horizontalPadding,
+                            vertical: verticalPadding,
                           ),
-                          const SizedBox(height: 16),
-                          SalesChart(
-                            datos: estado.ventasPorDia,
-                            compacto: isMobile,
-                          ),
-                          const SizedBox(height: 16),
-                          if (isMobile) ...[
-                            TopProductsList(productos: estado.topProductos),
-                            const SizedBox(height: 16),
-                            LowStockList(productos: estado.stockBajo),
-                          ] else ...[
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  flex: 6,
-                                  child: TopProductsList(
-                                    productos: estado.topProductos,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  flex: 5,
-                                  child: LowStockList(
-                                    productos: estado.stockBajo,
-                                  ),
+                          child: Column(
+                            children: [
+                              // ✅ Grid de métricas
+                              _buildMetricas(
+                                estado,
+                                notifier,
+                                isMobile,
+                                isTablet,
+                                isDesktop,
+                                spacing,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // ✅ Gráfico principal
+                              SalesChart(
+                                datos: estado.ventasPorDia,
+                                compacto: isMobile,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // ✅ Grid inferior (2 columnas en escritorio)
+                              if (isMobile) ...[
+                                TopProductsList(productos: estado.topProductos),
+                                const SizedBox(height: 16),
+                                LowStockList(productos: estado.stockBajo),
+                                const SizedBox(height: 16),
+                                EmployeeActivity(empleados: estado.ventasPorEmpleado),
+                                const SizedBox(height: 16),
+                                RecentSalesList(ventas: estado.ultimasVentas),
+                              ] else ...[
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Izquierda: Top productos + Stock crítico
+                                    Expanded(
+                                      flex: isTablet ? 5 : 5,
+                                      child: Column(
+                                        children: [
+                                          TopProductsList(
+                                            productos: estado.topProductos,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          LowStockList(
+                                            productos: estado.stockBajo,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    // Derecha: Empleados + Ventas recientes
+                                    Expanded(
+                                      flex: isTablet ? 5 : 6,
+                                      child: Column(
+                                        children: [
+                                          EmployeeActivity(
+                                            empleados: estado.ventasPorEmpleado,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          RecentSalesList(
+                                            ventas: estado.ultimasVentas,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-                          if (isMobile) ...[
-                            EmployeeActivity(empleados: estado.ventasPorEmpleado),
-                            const SizedBox(height: 16),
-                            RecentSalesList(ventas: estado.ultimasVentas),
-                          ] else ...[
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  flex: 5,
-                                  child: EmployeeActivity(
-                                    empleados: estado.ventasPorEmpleado,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  flex: 6,
-                                  child: RecentSalesList(
-                                    ventas: estado.ultimasVentas,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-                          _buildFooter(),
-                        ],
-                      ),
+                              const SizedBox(height: 16),
+
+                              // ✅ Footer
+                              _buildFooter(),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ),
       ),
     );
   }
 
-  // ==========================================
-  // MÉTRICAS
-  // ==========================================
+  // ============================================================
+  // GRID DE MÉTRICAS
+  // ============================================================
   Widget _buildMetricas(
     DashboardState estado,
     DashboardNotifier notifier,
     bool isMobile,
+    bool isTablet,
+    bool isDesktop,
     double spacing,
-    double aspectRatio,
   ) {
-    final crossAxisCount = isMobile ? 2 : 4;
+    int crossAxisCount;
+    double childAspectRatio;
+
+    if (isMobile) {
+      crossAxisCount = 2;
+      childAspectRatio = 1.2;
+    } else if (isTablet) {
+      crossAxisCount = 3;
+      childAspectRatio = 1.4;
+    } else {
+      crossAxisCount = 4;
+      childAspectRatio = 1.6;
+    }
 
     final metricas = [
       MetricCard(
         titulo: 'Total Hoy',
         valor: notifier.totalHoyFormateado,
         icono: Icons.today_rounded,
-        color: Colors.blue.shade600,
+        color: const Color(0xFF00E5FF),
         subtitulo: '${estado.ventasHoy} ventas',
         index: 0,
+        variacion: notifier.variacionHoy,
+        variacionPositiva: notifier.variacionHoy >= 0,
       ),
       MetricCard(
         titulo: 'Total Semana',
         valor: notifier.totalSemanaFormateado,
         icono: Icons.calendar_view_week_rounded,
-        color: Colors.purple.shade600,
+        color: const Color(0xFFD500F9),
         index: 1,
+        variacion: notifier.variacionSemana,
+        variacionPositiva: notifier.variacionSemana >= 0,
       ),
       MetricCard(
         titulo: 'Total Mes',
         valor: notifier.totalMesFormateado,
         icono: Icons.calendar_month_rounded,
-        color: Colors.teal.shade600,
+        color: const Color(0xFF00E676),
         subtitulo: 'Gastos: ${notifier.totalGastosMesFormateado}',
-        subtituloColor: Colors.red.shade600,
+        subtituloColor: const Color(0xFFFF9100),
         index: 2,
+        variacion: notifier.variacionMes,
+        variacionPositiva: notifier.variacionMes >= 0,
       ),
       MetricCard(
         titulo: 'vs Ayer',
@@ -233,14 +243,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       crossAxisCount: crossAxisCount,
       crossAxisSpacing: spacing,
       mainAxisSpacing: spacing,
-      childAspectRatio: aspectRatio,
+      childAspectRatio: childAspectRatio,
       children: metricas,
     );
   }
 
-  // ==========================================
+  // ============================================================
   // ERROR WIDGET
-  // ==========================================
+  // ============================================================
   Widget _buildErrorWidget(String error, DashboardNotifier notifier) {
     final theme = Theme.of(context);
     return Center(
@@ -289,9 +299,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // ==========================================
+  // ============================================================
   // FOOTER
-  // ==========================================
+  // ============================================================
   Widget _buildFooter() {
     final theme = Theme.of(context);
     return Padding(
@@ -308,9 +318,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // ==========================================
+  // ============================================================
   // UTILIDADES
-  // ==========================================
+  // ============================================================
   String _formatFecha(DateTime fecha) {
     final ahora = DateTime.now();
     final diff = ahora.difference(fecha);

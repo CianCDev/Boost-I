@@ -22,11 +22,11 @@ class DashboardState {
   final double totalSemana;
   final double totalMes;
   final double totalGastosMes;
-  final double variacion;
+  final double variacion; // vs ayer (general)
   final int ventasHoy;
-  final List<VentaEntity> ultimasVentas;        // ✅ Tipado fuerte
+  final List<VentaEntity> ultimasVentas;
   final List<Map<String, dynamic>> topProductos;
-  final List<ProductoEntity> stockBajo;         // ✅ Tipado fuerte
+  final List<ProductoEntity> stockBajo;
   final Map<String, double> ventasPorEmpleado;
   final List<Map<String, dynamic>> ventasPorDia;
   final DateTime ultimaActualizacion;
@@ -92,13 +92,58 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   DashboardNotifier() : super(DashboardState());
 
   // ============================================================
-  // GETTERS PARA FORMATEO
+  // GETTERS PARA FORMATEO DE MONEDA
   // ============================================================
 
   String get totalHoyFormateado => _formatearMoneda(state.totalHoy);
   String get totalSemanaFormateado => _formatearMoneda(state.totalSemana);
   String get totalMesFormateado => _formatearMoneda(state.totalMes);
   String get totalGastosMesFormateado => _formatearMoneda(state.totalGastosMes);
+
+  // ============================================================
+  // 🆕 GETTERS PARA VARIACIONES ESPECÍFICAS
+  // ============================================================
+
+  /// Variación de Ventas Hoy vs Ayer
+  double get variacionHoy {
+    final dias = state.ventasPorDia;
+    if (dias.length < 2) return 0.0;
+    final hoy = dias.last; // último día
+    final ayer = dias[dias.length - 2]; // penúltimo día
+    final totalHoy = (hoy['total'] as num).toDouble();
+    final totalAyer = (ayer['total'] as num).toDouble();
+    if (totalAyer == 0) return 0.0;
+    return ((totalHoy - totalAyer) / totalAyer) * 100;
+  }
+
+  /// Variación de Ventas Semana vs Semana Anterior
+  double get variacionSemana {
+    final dias = state.ventasPorDia;
+    if (dias.length < 14) return 0.0;
+    final semanaActual = dias.sublist(dias.length - 7);
+    final semanaAnterior = dias.sublist(dias.length - 14, dias.length - 7);
+    final totalActual = semanaActual.fold(0.0, (sum, d) => sum + (d['total'] as num).toDouble());
+    final totalAnterior = semanaAnterior.fold(0.0, (sum, d) => sum + (d['total'] as num).toDouble());
+    if (totalAnterior == 0) return 0.0;
+    return ((totalActual - totalAnterior) / totalAnterior) * 100;
+  }
+
+  /// Variación de Ventas Mes vs Mes Anterior
+  double get variacionMes {
+    // Para simplificar, usamos los datos disponibles (suponiendo 30 días)
+    final dias = state.ventasPorDia;
+    if (dias.length < 60) return 0.0;
+    final mesActual = dias.sublist(dias.length - 30);
+    final mesAnterior = dias.sublist(dias.length - 60, dias.length - 30);
+    final totalActual = mesActual.fold(0.0, (sum, d) => sum + (d['total'] as num).toDouble());
+    final totalAnterior = mesAnterior.fold(0.0, (sum, d) => sum + (d['total'] as num).toDouble());
+    if (totalAnterior == 0) return 0.0;
+    return ((totalActual - totalAnterior) / totalAnterior) * 100;
+  }
+
+  // ============================================================
+  // GETTERS PARA ICONOS Y COLORES DE VARIACIÓN
+  // ============================================================
 
   String get variacionFormateada {
     final v = state.variacion;

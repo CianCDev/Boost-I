@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// Lista de productos más vendidos con ranking.
 class TopProductsList extends StatelessWidget {
   final List<Map<String, dynamic>> productos;
 

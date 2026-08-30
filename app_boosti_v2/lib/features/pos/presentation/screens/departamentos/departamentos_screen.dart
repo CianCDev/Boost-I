@@ -202,7 +202,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, _) => Text(
+            error: (err, stack) => Text(
               'Error al cargar locales: $err',
               style: TextStyle(color: colorScheme.error),
             ),
@@ -222,6 +222,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
           soloActivos: !_mostrarInactivos,
           localId: _localFiltroId,
         )));
+        return Future.value();
       },
       child: AnimationLimiter(
         child: ListView.builder(
@@ -311,7 +312,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
                               'Cargando...',
                               style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                             ),
-                            error: (_, _) => Text(
+                            error: (err, stack) => Text(
                               'Error',
                               style: TextStyle(fontSize: 12, color: colorScheme.error),
                             ),
@@ -421,10 +422,14 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
     );
   }
 
+  // ============================================================
+  // ACCIONES (con parámetros `_` renombrados)
+  // ============================================================
+
   void _navegarACrear() {
     showDialog<bool>(
       context: context,
-      builder: (_) => const CrearDepartamentoDialog(
+      builder: (dialogContext) => const CrearDepartamentoDialog(
         localIdPreseleccionado: null,
       ),
     ).then((result) {
@@ -441,7 +446,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
   void _navegarAEditar(DepartamentoEntity departamento) {
     showDialog<bool>(
       context: context,
-      builder: (_) => CrearDepartamentoDialog(
+      builder: (dialogContext) => CrearDepartamentoDialog(
         departamento: departamento,
         localIdPreseleccionado: departamento.localId,
       ),
@@ -459,7 +464,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
   void _mostrarDetalle(DepartamentoEntity departamento) {
     showDialog(
       context: context,
-      builder: (_) => DetalleDepartamentoDialog(departamento: departamento),
+      builder: (dialogContext) => DetalleDepartamentoDialog(departamento: departamento),
     );
   }
 
@@ -491,17 +496,17 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
   Future<void> _eliminarDepartamento(DepartamentoEntity departamento) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Eliminar Departamento'),
         content: Text('¿Estás seguro de eliminar "${departamento.nombre}"?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Eliminar'),
           ),
         ],

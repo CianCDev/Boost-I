@@ -257,7 +257,7 @@ class _MarcasManagementDialogState
 
     return ListView.separated(
       itemCount: marcas.length,
-      separatorBuilder: (_, _) => Divider(
+      separatorBuilder: (context, index) => Divider(
         color: colorScheme.outline.withValues(alpha: 0.1),
         height: 1,
       ),
@@ -282,7 +282,7 @@ class _MarcasManagementDialogState
                   width: 40,
                   height: 40,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Icon(
+                  errorBuilder: (context, error, stackTrace) => Icon(
                     Icons.branding_watermark_rounded,
                     color: isActive ? colorScheme.primary : colorScheme.onSurfaceVariant,
                   ),

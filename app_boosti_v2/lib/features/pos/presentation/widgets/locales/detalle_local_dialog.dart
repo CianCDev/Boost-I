@@ -263,7 +263,7 @@ class _DetalleLocalDialogState extends ConsumerState<DetalleLocalDialog> {
                   return ListView.separated(
                     shrinkWrap: true,
                     itemCount: departamentos.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    separatorBuilder: (context, index) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final d = departamentos[index];
                       return Material(

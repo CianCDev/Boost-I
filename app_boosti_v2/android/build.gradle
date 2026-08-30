@@ -1,21 +1,8 @@
-buildscript {
-    ext.kotlin_version = '2.0.21'
-    repositories {
-        google()
-        mavenCentral()
-    }
-
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.7.2'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21"
-    }
-}
-
 allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' }
+        maven { url = 'https://jitpack.io' }
     }
 }
 
@@ -25,28 +12,4 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(':app')
-}
-
-tasks.register('clean', Delete) {
-    delete rootProject.buildDir
-}
-
-// ✅ Configuración unificada para todos los subproyectos Android
-subprojects { project ->
-    project.plugins.whenPluginAdded { plugin ->
-        def isAppPlugin = plugin.class.name.contains('com.android.build.gradle.AppPlugin')
-        def isLibraryPlugin = plugin.class.name.contains('com.android.build.gradle.LibraryPlugin')
-        
-        if (isAppPlugin || isLibraryPlugin) {
-            project.android {
-                compileSdk 36
-                if (isAppPlugin) {
-                    targetSdk 36
-                }
-                if (project.name == 'isar_flutter_libs') {
-                    namespace 'com.isar.isar_flutter_libs'
-                }
-            }
-        }
-    }
 }

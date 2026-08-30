@@ -32,7 +32,7 @@ class InventoryCategoryChips extends ConsumerWidget {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: items.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            separatorBuilder: (context, index) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
               final nombre = items[index];
               final esSeleccionada = nombre == categoriaSeleccionadaNombre;
@@ -54,7 +54,7 @@ class InventoryCategoryChips extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: const Center(child: CircularProgressIndicator()),
       ),
-      error: (_, _) => Container(
+      error: (err, stack) => Container(
         height: isTablet ? 60 : 48,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: const Center(child: Text('Error al cargar categorías')),

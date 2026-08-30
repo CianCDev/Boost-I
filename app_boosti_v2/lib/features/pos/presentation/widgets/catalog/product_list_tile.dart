@@ -106,11 +106,11 @@ class _ProductListTileState extends State<ProductListTile> {
                             fit: BoxFit.cover,
                             width: imageSize,
                             height: imageSize,
-                            errorBuilder: (_, _, _) => Icon(
-                              Icons.inventory_2,
-                              size: 24,
-                              color: colorScheme.primary,
-                            ),
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                            Icons.inventory_2,
+                            size: 24,
+                            color: colorScheme.primary,
+                          ),
                           )
                         : Icon(
                             Icons.inventory_2,

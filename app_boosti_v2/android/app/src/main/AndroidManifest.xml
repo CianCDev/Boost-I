@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.example.app_boosti_v2"> <!-- Cambia por tu package real -->
+    > <!-- Cambia por tu package real -->
 
 
 <!-- Permisos para balanza USB/serie -->

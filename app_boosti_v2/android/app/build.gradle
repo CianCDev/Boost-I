@@ -11,13 +11,13 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace "com.example.app_boosti_v2"
-    compileSdk 36
-    ndkVersion flutter.ndkVersion
+    namespace = "com.example.app_boosti_v2"
+    compileSdk = 34   // ✅ Cambiado de 36 a 34
+    ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
@@ -29,32 +29,73 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.app_boosti_v2"
-        minSdkVersion flutter.minSdkVersion
-        targetSdk 36
-        versionCode flutter.versionCode
-        versionName flutter.versionName
+        applicationId = "com.example.app_boosti_v2"
+        minSdkVersion = flutter.minSdkVersion
+        targetSdk = 34   // ✅ Cambiado de 36 a 34
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
 
     signingConfigs {
         release {
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-            storePassword keystoreProperties['storePassword']
+            keyAlias = keystoreProperties['keyAlias']
+            keyPassword = keystoreProperties['keyPassword']
+            storeFile = keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword = keystoreProperties['storePassword']
         }
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
-            minifyEnabled true
-            shrinkResources true
+            signingConfig = signingConfigs.release
+            minifyEnabled = true
+            shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
 }
 
+// 🔥 PARCHES PARA PLUGINS (colocados fuera del bloque android)
+
+// 1. Parche para isar_flutter_libs (elimina package del manifest)
+subprojects {
+    afterEvaluate { subproject ->
+        if (subproject.hasProperty('android') && subproject.name == 'isar_flutter_libs') {
+            subproject.android {
+                namespace = 'dev.isar.isar_flutter_libs'
+                sourceSets {
+                    main {
+                        manifest.srcFile 'src/main/AndroidManifest.xml'
+                    }
+                }
+            }
+            subproject.tasks.withType(ProcessLibraryManifest).configureEach { task ->
+                task.doFirst {
+                    def manifestFile = file("${subproject.projectDir}/src/main/AndroidManifest.xml")
+                    if (manifestFile.exists()) {
+                        def manifestContent = manifestFile.text
+                        def cleaned = manifestContent.replaceAll('package="dev.isar.isar_flutter_libs"', '')
+                        manifestFile.text = cleaned
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 2. Parche para otros plugins que no tengan namespace
+subprojects {
+    afterEvaluate { subproject ->
+        if (subproject.hasProperty('android')) {
+            subproject.android {
+                if (namespace == null || namespace.isEmpty()) {
+                    namespace = subproject.group.toString()
+                }
+            }
+        }
+    }
+}
+
 flutter {
-    source "../.."
+    source = "../.."
 }

@@ -283,7 +283,7 @@ class GastosDetailDialog extends ConsumerWidget {
         child: ListView.separated(
           physics: const BouncingScrollPhysics(),
           itemCount: gastos.length,
-          separatorBuilder: (_, _) => Divider(
+          separatorBuilder: (context, index) => Divider(
             color: colorScheme.outline.withValues(alpha: 0.2),
             height: 1,
           ),

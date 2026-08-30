@@ -201,7 +201,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
         );
       },
       loading: () => const SizedBox.shrink(),
-      error: (_, _) => const SizedBox.shrink(),
+      error: (err, stack) => const SizedBox.shrink(),
     );
   }
 
