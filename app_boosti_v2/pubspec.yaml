@@ -10,9 +10,10 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # 🔥 Isar versión estable 3.1.0+1
+  # 🔥 Isar con plugin local (ya tiene namespace)
   isar: ^3.1.0+1
-  isar_flutter_libs: ^3.1.0+1
+  isar_flutter_libs:
+    path: plugins/isar_flutter_libs
 
   supabase_flutter: ^2.15.2
   flutter_riverpod: ^2.5.1
@@ -48,7 +49,6 @@ dependencies:
   lottie: ^3.0.0
   flutter_svg: ^2.0.0
   
-  # 🔥 image_cropper versión estable (sin errores de PluginRegistry.Registrar)
   image_cropper: ^12.2.1
   image_cropper_platform_interface: 8.0.0
   image_cropper_for_web: 7.0.0
@@ -65,9 +65,9 @@ dev_dependencies:
   build_runner: ^2.4.13
   isar_generator: ^3.1.0+1
 
-# 🔥 Fuerza la versión de js para resolver conflictos con image_cropper
-dependency_overrides:
-  js: ^0.7.1
+# 🔥 Elimina esto si lo tenías (ya no es necesario)
+# dependency_overrides:
+#   js: ^0.7.1
 
 flutter:
   uses-material-design: true

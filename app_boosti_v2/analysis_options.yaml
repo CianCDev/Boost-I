@@ -11,6 +11,12 @@ analyzer:
   errors:
     duplicate_ignore: ignore
     experimental_member_use: ignore
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
 include: package:flutter_lints/flutter.yaml
 
 linter:
