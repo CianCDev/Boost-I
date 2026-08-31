@@ -1,18 +1,16 @@
 // lib/features/pos/presentation/widgets/departamentos/crear_departamento_dialog.dart
-
-/// Diálogo para crear o editar un departamento.
-/// Permite seleccionar un local asociado (opcional) y activar/desactivar.
-/// Se integra con el provider de departamentos y locales para persistencia local y sincronización con Supabase.
-library;
-
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/departamento_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/departamentos_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/input_decoration_helper.dart';
+import '../../providers/usuario_provider.dart';
+
+import '../dialogos_genericos/error_dialog.dart';
+import '../dialogos_genericos/succes.dialog.dart';
 
 class CrearDepartamentoDialog extends ConsumerStatefulWidget {
   final DepartamentoEntity? departamento;
@@ -35,6 +33,7 @@ class _CrearDepartamentoDialogState
   late TextEditingController _nombreController;
   late TextEditingController _descripcionController;
   int? _localIdSeleccionado;
+  int? _usuarioIdSeleccionado;
   bool _activo = true;
   bool _isSaving = false;
   bool _esDesdeLocal = false;
@@ -46,6 +45,7 @@ class _CrearDepartamentoDialogState
     _nombreController = TextEditingController(text: d?.nombre ?? '');
     _descripcionController = TextEditingController(text: d?.descripcion ?? '');
     _localIdSeleccionado = d?.localId ?? widget.localIdPreseleccionado;
+    _usuarioIdSeleccionado = d?.usuarioId;
     _activo = d?.activo ?? true;
     _esDesdeLocal = widget.localIdPreseleccionado != null;
   }
@@ -57,7 +57,6 @@ class _CrearDepartamentoDialogState
     super.dispose();
   }
 
-  /// Guarda el departamento (crea o actualiza) y cierra el diálogo.
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -77,6 +76,7 @@ class _CrearDepartamentoDialogState
           ? _descripcionController.text.trim()
           : null
       ..localId = _localIdSeleccionado
+      ..usuarioId = _usuarioIdSeleccionado
       ..activo = _activo
       ..supabaseId = widget.departamento?.supabaseId
       ..sincronizado = false;
@@ -88,22 +88,26 @@ class _CrearDepartamentoDialogState
     try {
       await ref.read(guardarDepartamentoProvider(departamento).future);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.departamento == null
-                ? '✅ Departamento creado correctamente'
-                : '✅ Departamento actualizado correctamente'),
-            backgroundColor: Colors.green,
+        await showDialog(
+          context: context,
+          builder: (_) => SuccessDialog(
+            title: widget.departamento == null
+                ? 'Departamento creado'
+                : 'Departamento actualizado',
+            content: widget.departamento == null
+                ? 'El departamento se ha creado correctamente.'
+                : 'El departamento se ha actualizado correctamente.',
           ),
         );
-        Navigator.pop(context, true);
+        if (mounted) Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Error al guardar: $e'),
-            backgroundColor: Colors.red,
+        await showDialog(
+          context: context,
+          builder: (_) => ErrorDialog(
+            title: 'Error al guardar',
+            content: e.toString(),
           ),
         );
         setState(() => _isSaving = false);
@@ -118,6 +122,17 @@ class _CrearDepartamentoDialogState
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final localesAsync = ref.watch(localesProvider);
+    final usuariosAsync = ref.watch(usuariosProvider);
+
+    // Filtrar usuarios por local seleccionado
+    final usuariosFiltrados = usuariosAsync.when(
+      data: (usuarios) {
+        if (_localIdSeleccionado == null) return usuarios;
+        return usuarios.where((u) => u.localId == _localIdSeleccionado).toList();
+      },
+      loading: () => <UsuarioEntity>[],
+      error: (_, __) => <UsuarioEntity>[],
+    );
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -126,7 +141,7 @@ class _CrearDepartamentoDialogState
       child: Container(
         constraints: BoxConstraints(
           maxWidth: 500,
-          maxHeight: MediaQuery.of(context).size.height * 0.8,
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
         ),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
@@ -207,7 +222,7 @@ class _CrearDepartamentoDialogState
                 ),
                 const SizedBox(height: 16),
 
-                // CAMPO LOCAL ASOCIADO
+                // LOCAL ASOCIADO
                 localesAsync.when(
                   data: (locales) {
                     if (_esDesdeLocal) {
@@ -279,6 +294,10 @@ class _CrearDepartamentoDialogState
                       onChanged: (value) {
                         setState(() {
                           _localIdSeleccionado = value;
+                          // Resetear usuario si cambia el local
+                          if (value != null) {
+                            _usuarioIdSeleccionado = null;
+                          }
                         });
                       },
                       decoration: InputDecorationHelper.build(
@@ -295,6 +314,89 @@ class _CrearDepartamentoDialogState
                   loading: () => const Text('Cargando locales...'),
                   error: (err, _) => Text(
                     'Error al cargar locales: $err',
+                    style: TextStyle(color: colorScheme.error),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // ENCARGADO (USUARIO)
+                usuariosAsync.when(
+                  data: (_) {
+                    if (usuariosFiltrados.isEmpty && _localIdSeleccionado != null) {
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline_rounded,
+                                color: colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'No hay usuarios en este local para asignar como encargado.',
+                                style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return DropdownButtonFormField<int?>(
+                      initialValue: _usuarioIdSeleccionado,
+                      hint: Text(
+                        'Seleccionar encargado (opcional)',
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text('Sin encargado'),
+                        ),
+                        ...usuariosFiltrados.map((usuario) {
+                          return DropdownMenuItem<int?>(
+                            value: usuario.id,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(usuario.nombre),
+                                Text(
+                                  'Rol: ${usuario.rol}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _usuarioIdSeleccionado = value;
+                        });
+                      },
+                      decoration: InputDecorationHelper.build(
+                        context: context,
+                        label: 'Encargado del departamento',
+                        prefixIcon: Icons.person_rounded,
+                        isDark: isDark,
+                      ),
+                      isExpanded: true,
+                      dropdownColor: colorScheme.surface,
+                      style: TextStyle(color: colorScheme.onSurface),
+                    );
+                  },
+                  loading: () => const Text('Cargando usuarios...'),
+                  error: (err, _) => Text(
+                    'Error al cargar usuarios: $err',
                     style: TextStyle(color: colorScheme.error),
                   ),
                 ),

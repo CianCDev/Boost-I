@@ -184,7 +184,7 @@ class _PrinterSelectionDialogState
           ),
         );
       } else {
-        String errorMessage = _getErrorMessage(result.error);
+        String errorMessage = _getErrorMessage(result.error ?? PrinterError.unknown);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ Prueba fallida: $errorMessage'),

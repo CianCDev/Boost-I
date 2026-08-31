@@ -7,7 +7,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/rendering.dart';
 import 'package:barcode_widget/barcode_widget.dart' as barcode;
 import '../../../data/Local/entities/isar_service.dart';
-import '../../providers/esc_pos_provider.dart';
 import '../../services/ticket_service.dart';
 import '../../utils/responsive_helper.dart';
 
@@ -55,25 +54,33 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
 
   Future<void> _imprimirCodigo() async {
     try {
+      // Capturar imagen del widget
       final boundary = _previewKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
       final image = await boundary.toImage();
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      final bytes = byteData!.buffer.asUint8List();
-      final impresora = ref.read(printerProvider);
+      final imageBytes = byteData!.buffer.asUint8List();
+
+      // Llamar al servicio de impresión con el código y la imagen
       await TicketService.imprimirCodigoBarras(
         codigo: _codigo,
-        imageBytes: bytes,
-        impresoraSeleccionada: impresora,
+        imageBytes: imageBytes,
       );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Código enviado a imprimir'), backgroundColor: Color(0xFF10B981)),
+          const SnackBar(
+            content: Text('✅ Código enviado a imprimir'),
+            backgroundColor: Color(0xFF10B981),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString().substring(0, 100)}'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error: ${e.toString().substring(0, 100)}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -154,7 +161,7 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
                   decoration: BoxDecoration(
                     color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Theme.of(context).dividerColor), 
+                    border: Border.all(color: Theme.of(context).dividerColor),
                   ),
                   child: Column(
                     children: [
@@ -190,12 +197,12 @@ class _BarcodeGeneratorDialogState extends ConsumerState<BarcodeGeneratorDialog>
 
             const SizedBox(height: 20),
 
-            // ✅ SECCIÓN DE BOTONES CORREGIDA CON WRAP (Responsive)
+            // Botones en Wrap (responsive)
             Wrap(
               alignment: WrapAlignment.center,
               runAlignment: WrapAlignment.center,
-              spacing: 8,   // Espacio horizontal entre botones
-              runSpacing: 8, // Espacio vertical si bajan a la siguiente línea
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 OutlinedButton.icon(
                   onPressed: _generarCodigo,

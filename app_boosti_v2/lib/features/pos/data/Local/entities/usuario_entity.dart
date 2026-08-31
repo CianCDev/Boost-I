@@ -19,12 +19,23 @@ class UsuarioEntity {
   late String estado;
   late String cajaAsignada;
   String? email;
+  String? password;
   String? supabaseId;
   String? supabaseUid;
   String? deviceId;
   String? departamento;
+  int? departamentoId;
+  int? localId;
+
+
+ // Auditoría
+  DateTime? createdAt;
   DateTime? updatedAt;
 
+  bool sincronizado = false;
+  DateTime? fechaSincronizacion;
   // No es necesario un constructor. 
-  // Al hacer "UsuarioEntity()", la variable 'dynamicId' ya nace con su UUID asignado.
+  // Al hacer "UsuarioEntity()", la variable 'dynamicId' ya nace con su UUID asignado..
+   UsuarioEntity();
+
 }

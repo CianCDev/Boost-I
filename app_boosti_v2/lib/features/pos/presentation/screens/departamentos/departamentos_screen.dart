@@ -8,6 +8,14 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/departamento_enti
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/departamentos/crear_departamento_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/departamentos/detalle_departamento_dialog.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
+import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
+
+import '../../../data/Local/entities/isar_service.dart';
+import '../../../data/Local/entities/usuario_entity.dart';
+import '../../widgets/dialogos_genericos/dialogos_genericos.dart';
+import '../../widgets/dialogos_genericos/error_dialog.dart';
+import '../../widgets/dialogos_genericos/succes.dialog.dart';
 
 class DepartamentosScreen extends ConsumerStatefulWidget {
   const DepartamentosScreen({super.key});
@@ -29,10 +37,28 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
       localId: _localFiltroId,
     )));
     final colorScheme = Theme.of(context).colorScheme;
+    final isMobile = ResponsiveHelper.isMobile(context);
 
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLow,
-      appBar: _buildAppBar(),
+      appBar: CustomAppBar(
+        title: isMobile ? 'Departamentos' : 'Gestión de Departamentos',
+        showBackButton: true,
+        centerTitle: false,
+        actions: [
+          IconButton(
+            onPressed: () {
+              ref.invalidate(departamentosConFiltroProvider((
+                query: _queryBusqueda,
+                soloActivos: !_mostrarInactivos,
+                localId: _localFiltroId,
+              )));
+            },
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            tooltip: 'Recargar lista',
+          ),
+        ],
+      ),
       body: Column(
         children: [
           _buildSearchBar(),
@@ -69,37 +95,6 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
         ],
       ),
       floatingActionButton: _buildFloatingButton(),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: const Text('Departamentos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-      flexibleSpace: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
-          ),
-        ),
-      ),
-      backgroundColor: Colors.transparent,
-      elevation: 2,
-      foregroundColor: Colors.white,
-      actions: [
-        IconButton(
-          onPressed: () {
-            ref.invalidate(departamentosConFiltroProvider((
-              query: _queryBusqueda,
-              soloActivos: !_mostrarInactivos,
-              localId: _localFiltroId,
-            )));
-          },
-          icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-          tooltip: 'Recargar lista',
-        ),
-      ],
     );
   }
 
@@ -253,6 +248,9 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
     final localNameAsync = departamento.localId != null
         ? ref.watch(localPorIdProvider(departamento.localId!))
         : const AsyncValue<LocalEntity?>.data(null);
+    final usuarioAsync = departamento.usuarioId != null
+        ? ref.watch(usuarioPorIdProvider(departamento.usuarioId!))
+        : const AsyncValue<UsuarioEntity?>.data(null);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -319,6 +317,30 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    // ✅ Mostrar encargado si existe
+                    usuarioAsync.when(
+                      data: (usuario) {
+                        if (usuario != null) {
+                          return Row(
+                            children: [
+                              Icon(Icons.person_outline_rounded, size: 14, color: colorScheme.onSurfaceVariant),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Encargado: ${usuario.nombre}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
                     ),
                   ],
                 ),
@@ -423,7 +445,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
   }
 
   // ============================================================
-  // ACCIONES (con parámetros `_` renombrados)
+  // ACCIONES (con diálogos genéricos)
   // ============================================================
 
   void _navegarACrear() {
@@ -475,6 +497,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
         ..nombre = departamento.nombre
         ..descripcion = departamento.descripcion
         ..localId = departamento.localId
+        ..usuarioId = departamento.usuarioId
         ..activo = !departamento.activo
         ..supabaseId = departamento.supabaseId
         ..sincronizado = false;
@@ -486,35 +509,41 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
       )));
       setState(() {});
     } catch (e) {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        await showDialog(
+          context: context,
+          builder: (_) => ErrorDialog(
+            title: 'Error al cambiar estado',
+            content: e.toString(),
+          ),
+        );
+      }
     }
   }
 
   Future<void> _eliminarDepartamento(DepartamentoEntity departamento) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Eliminar Departamento'),
-        content: Text('¿Estás seguro de eliminar "${departamento.nombre}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
+      builder: (dialogContext) => ConfirmDialog(
+        title: 'Eliminar Departamento',
+        content: '¿Estás seguro de eliminar "${departamento.nombre}"?',
+        confirmText: 'Eliminar',
+        confirmColor: Colors.red, onConfirm: () {  },
       ),
     );
+
     if (confirm == true) {
       try {
         await ref.read(eliminarDepartamentoProvider(departamento.id).future);
+        if (mounted) {
+          await showDialog(
+            context: context,
+            builder: (_) => const SuccessDialog(
+              title: 'Departamento eliminado',
+              content: 'El departamento se ha eliminado correctamente.',
+            ),
+          );
+        }
         ref.invalidate(departamentosConFiltroProvider((
           query: _queryBusqueda,
           soloActivos: !_mostrarInactivos,
@@ -522,11 +551,22 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
         )));
         setState(() {});
       } catch (e) {
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        if (mounted) {
+          await showDialog(
+            context: context,
+            builder: (_) => ErrorDialog(
+              title: 'Error al eliminar',
+              content: e.toString(),
+            ),
+          );
+        }
       }
     }
   }
 }
+
+// ✅ Provider para obtener un usuario por ID (necesario para mostrar encargado)
+final usuarioPorIdProvider = FutureProvider.family<UsuarioEntity?, int>((ref, id) async {
+  final isar = IsarService();
+  return await isar.obtenerUsuarioPorId(id);
+});

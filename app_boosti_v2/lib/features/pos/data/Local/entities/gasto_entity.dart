@@ -15,6 +15,7 @@ class GastoEntity {
   String usuarioNombre = '';
   DateTime fecha = DateTime.now();
   String syncStatus = 'pending';
+  String? supabaseId;
 
   GastoEntity();
 }

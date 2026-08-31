@@ -1,9 +1,7 @@
-import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
+import 'package:esc_pos_utils_lts/esc_pos_utils_lts.dart';
+import '../../data/Local/entities/local_entity.dart';
 
-
-// ============================================================
-// MODELO TICKET ITEM (ÚNICO)
-// ============================================================
+/// Modelo de un ítem del ticket
 class TicketItem {
   final String nombre;
   final double precio;
@@ -17,12 +15,10 @@ class TicketItem {
     this.esPesado = false,
   });
 
-  double get total => cantidad * precio;
+  double get total => precio * cantidad;
 }
 
-// ============================================================
-// GENERADOR DE TICKET (ESC/POS)
-// ============================================================
+/// Generador de comandos ESC/POS para tickets
 class TicketGenerator {
   static Future<List<int>> generateTicketBytes({
     required List<TicketItem> items,
@@ -33,106 +29,121 @@ class TicketGenerator {
     required double montoRecibido,
     required double vuelto,
     DateTime? fechaVenta,
+    LocalEntity? local, // NUEVO: datos del local
   }) async {
     final profile = await CapabilityProfile.load();
     final generator = Generator(PaperSize.mm80, profile);
 
-    // ✅ ACUMULADOR: donde guardaremos todos los comandos
     List<int> bytes = [];
 
-    final fecha = fechaVenta ?? DateTime.now();
+    // ==================== ENCABEZADO ====================
+    if (local != null) {
+      // Nombre del local (negrita, tamaño 2)
+      bytes += generator.text(
+        local.nombre,
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
+      );
+
+      if (local.direccion != null && local.direccion!.isNotEmpty) {
+        bytes += generator.text(
+          local.direccion!,
+          styles: const PosStyles(align: PosAlign.center),
+        );
+      }
+
+      if (local.telefono != null && local.telefono!.isNotEmpty) {
+        bytes += generator.text(
+          'Tel: ${local.telefono}',
+          styles: const PosStyles(align: PosAlign.center),
+        );
+      }
+
+      if (local.email != null && local.email!.isNotEmpty) {
+        bytes += generator.text(
+          'Email: ${local.email}',
+          styles: const PosStyles(align: PosAlign.center),
+        );
+      }
+
+      if (local.rif != null && local.rif!.isNotEmpty) {
+        bytes += generator.text(
+          'RIF: ${local.rif}',
+          styles: const PosStyles(align: PosAlign.center),
+        );
+      }
+    } else {
+      bytes += generator.text(
+        '--- LOCAL NO CONFIGURADO ---',
+        styles: const PosStyles(align: PosAlign.center),
+      );
+    }
+
+    bytes += generator.text(
+      '--------------------------------',
+      styles: const PosStyles(align: PosAlign.center),
+    );
+
+    // ==================== FECHA ====================
+    final now = fechaVenta ?? DateTime.now();
     final fechaStr =
-        '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year} ${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}';
-
-    // ---------- ENCABEZADO ----------
-    bytes += generator.text(
-      'MI NEGOCIO / TIENDA',
-      styles: const PosStyles(
-        align: PosAlign.center,
-        bold: true,
-        height: PosTextSize.size2,
-        width: PosTextSize.size2,
-      ),
-    );
-    bytes += generator.text(
-      'COMPROBANTE DE PAGO',
-      styles: const PosStyles(align: PosAlign.center),
-    );
-    bytes += generator.text(
-      '-' * 32,
-      styles: const PosStyles(align: PosAlign.center),
-    );
-
-    // ---------- INFORMACIÓN DE VENTA ----------
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} '
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     bytes += generator.text('Fecha: $fechaStr');
-    bytes += generator.text('Pago: ${metodoPago.toUpperCase()}');
-    if (metodoPago.toLowerCase() == 'efectivo') {
-      bytes += generator.text('Recibido: ${montoRecibido.toStringAsFixed(2)} Bs');
-      bytes += generator.text('Vuelto: ${vuelto.toStringAsFixed(2)} Bs');
-    }
+
+    // ==================== ITEMS ====================
+    bytes += generator.text('--------------------------------');
     bytes += generator.text(
-      '-' * 32,
-      styles: const PosStyles(align: PosAlign.center),
+      'CANT  PRODUCTO                PRECIO',
+      styles: const PosStyles(bold: true),
     );
+    bytes += generator.text('--------------------------------');
 
-    // ---------- DETALLE DE PRODUCTOS ----------
-    bytes += generator.row([
-      PosColumn(text: 'Cant', width: 2, styles: const PosStyles(bold: true)),
-      PosColumn(text: 'Producto', width: 6, styles: const PosStyles(bold: true)),
-      PosColumn(text: 'Total', width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
-    ]);
-
-    for (final item in items) {
-      final cantStr = item.cantidad % 1 == 0
-          ? item.cantidad.toInt().toString()
-          : item.cantidad.toStringAsFixed(3);
-      final totalStr = '\$${item.total.toStringAsFixed(2)}';
-      bytes += generator.row([
-        PosColumn(text: cantStr, width: 2),
-        PosColumn(text: '${item.nombre} x \$${item.precio.toStringAsFixed(2)}', width: 6),
-        PosColumn(text: totalStr, width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
+    for (var item in items) {
+      final cantidadStr = item.cantidad.toStringAsFixed(item.esPesado ? 3 : 0);
+      final nombreTruncado = item.nombre.length > 20
+          ? '${item.nombre.substring(0, 20)}...'
+          : item.nombre;
+      final precioStr = '\$${item.total.toStringAsFixed(2)}';
+      final linea = '$cantidadStr  $nombreTruncado'.padRight(32) + precioStr;
+      bytes += generator.text(linea);
     }
 
-    // ---------- TOTALES ----------
-    bytes += generator.text(
-      '-' * 32,
-      styles: const PosStyles(align: PosAlign.center),
-    );
-    bytes += generator.row([
-      PosColumn(text: 'SUBTOTAL:', width: 8),
-      PosColumn(text: '\$${subtotal.toStringAsFixed(2)}', width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    if (impuesto > 0) {
-      bytes += generator.row([
-        PosColumn(text: 'IMPUESTO:', width: 8),
-        PosColumn(text: '\$${impuesto.toStringAsFixed(2)}', width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-    }
-    bytes += generator.row([
-      PosColumn(text: 'TOTAL:', width: 8, styles: const PosStyles(bold: true)),
-      PosColumn(text: '\$${total.toStringAsFixed(2)}', width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
-    ]);
+    bytes += generator.text('--------------------------------');
 
-    // ---------- PIE DE PÁGINA ----------
+    // ==================== TOTALES ====================
     bytes += generator.text(
-      '-' * 32,
-      styles: const PosStyles(align: PosAlign.center),
+      'Subtotal:'.padRight(32) + '\$${subtotal.toStringAsFixed(2)}',
     );
+    bytes += generator.text(
+      'Impuesto:'.padRight(32) + '\$${impuesto.toStringAsFixed(2)}',
+    );
+    bytes += generator.text(
+      'TOTAL:'.padRight(32) + '\$${total.toStringAsFixed(2)}',
+      styles: const PosStyles(bold: true, height: PosTextSize.size2),
+    );
+    bytes += generator.text('--------------------------------');
+
+    bytes += generator.text(
+      'Método: $metodoPago'.padRight(32) + 'Recibido: \$${montoRecibido.toStringAsFixed(2)}',
+    );
+    bytes += generator.text(
+      'Vuelto: \$${vuelto.toStringAsFixed(2)}'.padRight(40),
+    );
+
+    // ==================== PIE ====================
+    bytes += generator.text('--------------------------------');
     bytes += generator.text(
       '¡Gracias por su compra!',
       styles: const PosStyles(align: PosAlign.center, bold: true),
     );
-    bytes += generator.text(
-      '-' * 32,
-      styles: const PosStyles(align: PosAlign.center),
-    );
-
-    // Avanzar papel y cortar
-    bytes += generator.feed(2);
+    bytes += generator.feed(3);
     bytes += generator.cut();
 
-    // ✅ Devuelves la lista acumulada
     return bytes;
   }
 }

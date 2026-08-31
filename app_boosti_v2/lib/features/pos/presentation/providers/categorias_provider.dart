@@ -1,12 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/Local/entities/categoria_entity.dart';
-import '../../data/Local/entities/isar_service.dart';
-
 import 'package:uuid/uuid.dart';
+import '../../data/Local/entities/categoria_entity.dart';
+import 'isar_provider.dart';       // ✅ Provider centralizado
+import 'sync_provider.dart';       // ✅ Provider centralizado de sincronización
+// 🔥 OCULTAR AMBOS
 
-import 'pedidos_provider.dart';
-
-final isarServiceProvider = Provider<IsarService>((ref) => IsarService());
+// ============================================================
+// PROVIDERS DE LECTURA
+// ============================================================
 
 /// Provider que devuelve SOLO categorías ACTIVAS (para listados generales)
 final categoriasProvider = FutureProvider<List<CategoriaEntity>>((ref) async {
@@ -14,13 +15,15 @@ final categoriasProvider = FutureProvider<List<CategoriaEntity>>((ref) async {
   return await isar.obtenerCategorias(soloActivas: true);
 });
 
-/// 🔥 NUEVO: Provider que devuelve TODAS las categorías (activas e inactivas)
-/// Útil para formularios donde se necesita mostrar la categoría actual del producto,
-/// incluso si está inactiva.
+/// Provider que devuelve TODAS las categorías (activas e inactivas)
 final todasLasCategoriasProvider = FutureProvider<List<CategoriaEntity>>((ref) async {
   final isar = ref.watch(isarServiceProvider);
   return await isar.obtenerCategorias(soloActivas: false);
 });
+
+// ============================================================
+// NOTIFIER PRINCIPAL (CRUD)
+// ============================================================
 
 final categoriasNotifierProvider = StateNotifierProvider<CategoriasNotifier, List<CategoriaEntity>>((ref) {
   return CategoriasNotifier(ref);
@@ -28,6 +31,7 @@ final categoriasNotifierProvider = StateNotifierProvider<CategoriasNotifier, Lis
 
 class CategoriasNotifier extends StateNotifier<List<CategoriaEntity>> {
   final Ref ref;
+
   CategoriasNotifier(this.ref) : super([]) {
     _cargarCategorias();
   }
@@ -38,6 +42,7 @@ class CategoriasNotifier extends StateNotifier<List<CategoriaEntity>> {
     state = lista;
   }
 
+  // ---------- CRUD ----------
   Future<void> agregarCategoria(String nombre, {String? descripcion}) async {
     final isar = ref.read(isarServiceProvider);
     final nueva = CategoriaEntity(

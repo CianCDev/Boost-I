@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/departamento_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart'; // ✅ Importar provider de usuarios
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 
 class DetalleDepartamentoDialog extends ConsumerWidget {
@@ -16,6 +18,9 @@ class DetalleDepartamentoDialog extends ConsumerWidget {
     final localAsync = departamento.localId != null
         ? ref.watch(localPorIdProvider(departamento.localId!))
         : const AsyncValue<LocalEntity?>.data(null);
+    final usuarioAsync = departamento.usuarioId != null
+        ? ref.watch(usuarioPorIdProvider(departamento.usuarioId!)) // ✅ Provider desde import
+        : const AsyncValue<UsuarioEntity?>.data(null);
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -141,6 +146,23 @@ class DetalleDepartamentoDialog extends ConsumerWidget {
                       'Local asociado',
                       localAsync.when(
                         data: (local) => local?.nombre ?? 'Sin local asignado',
+                        loading: () => 'Cargando...',
+                        error: (err, stack) => 'Error al cargar',
+                      ),
+                      colorScheme,
+                    ),
+                    // ✅ Mostrar encargado usando provider
+                    _buildInfoRow(
+                      context,
+                      Icons.person_rounded,
+                      'Encargado',
+                      usuarioAsync.when(
+                        data: (usuario) {
+                          if (usuario != null) {
+                            return '${usuario.nombre} (${usuario.rol})';
+                          }
+                          return 'Sin encargado asignado';
+                        },
                         loading: () => 'Cargando...',
                         error: (err, stack) => 'Error al cargar',
                       ),

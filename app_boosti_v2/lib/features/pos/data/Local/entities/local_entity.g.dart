@@ -47,23 +47,28 @@ const LocalEntitySchema = CollectionSchema(
       name: r'nombre',
       type: IsarType.string,
     ),
-    r'sincronizado': PropertySchema(
+    r'rif': PropertySchema(
       id: 6,
+      name: r'rif',
+      type: IsarType.string,
+    ),
+    r'sincronizado': PropertySchema(
+      id: 7,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'supabaseId': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'telefono': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'telefono',
       type: IsarType.string,
     ),
     r'updatedAt': PropertySchema(
-      id: 9,
+      id: 10,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -102,6 +107,12 @@ int _localEntityEstimateSize(
   }
   bytesCount += 3 + object.nombre.length * 3;
   {
+    final value = object.rif;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final value = object.supabaseId;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -128,10 +139,11 @@ void _localEntitySerialize(
   writer.writeString(offsets[3], object.email);
   writer.writeDateTime(offsets[4], object.fechaSincronizacion);
   writer.writeString(offsets[5], object.nombre);
-  writer.writeBool(offsets[6], object.sincronizado);
-  writer.writeString(offsets[7], object.supabaseId);
-  writer.writeString(offsets[8], object.telefono);
-  writer.writeDateTime(offsets[9], object.updatedAt);
+  writer.writeString(offsets[6], object.rif);
+  writer.writeBool(offsets[7], object.sincronizado);
+  writer.writeString(offsets[8], object.supabaseId);
+  writer.writeString(offsets[9], object.telefono);
+  writer.writeDateTime(offsets[10], object.updatedAt);
 }
 
 LocalEntity _localEntityDeserialize(
@@ -148,10 +160,11 @@ LocalEntity _localEntityDeserialize(
   object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[4]);
   object.id = id;
   object.nombre = reader.readString(offsets[5]);
-  object.sincronizado = reader.readBool(offsets[6]);
-  object.supabaseId = reader.readStringOrNull(offsets[7]);
-  object.telefono = reader.readStringOrNull(offsets[8]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[9]);
+  object.rif = reader.readStringOrNull(offsets[6]);
+  object.sincronizado = reader.readBool(offsets[7]);
+  object.supabaseId = reader.readStringOrNull(offsets[8]);
+  object.telefono = reader.readStringOrNull(offsets[9]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[10]);
   return object;
 }
 
@@ -175,12 +188,14 @@ P _localEntityDeserializeProp<P>(
     case 5:
       return (reader.readString(offset)) as P;
     case 6:
-      return (reader.readBool(offset)) as P;
-    case 7:
       return (reader.readStringOrNull(offset)) as P;
+    case 7:
+      return (reader.readBool(offset)) as P;
     case 8:
       return (reader.readStringOrNull(offset)) as P;
     case 9:
+      return (reader.readStringOrNull(offset)) as P;
+    case 10:
       return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -928,6 +943,153 @@ extension LocalEntityQueryFilter
     });
   }
 
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'rif',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'rif',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'rif',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'rif',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'rif',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'rif',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'rif',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'rif',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'rif',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'rif',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'rif',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      rifIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'rif',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
       sincronizadoEqualTo(bool value) {
     return QueryBuilder.apply(this, (query) {
@@ -1402,6 +1564,18 @@ extension LocalEntityQuerySortBy
     });
   }
 
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> sortByRif() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'rif', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> sortByRifDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'rif', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> sortBySincronizado() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'sincronizado', Sort.asc);
@@ -1540,6 +1714,18 @@ extension LocalEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> thenByRif() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'rif', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> thenByRifDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'rif', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> thenBySincronizado() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'sincronizado', Sort.asc);
@@ -1632,6 +1818,13 @@ extension LocalEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<LocalEntity, LocalEntity, QDistinct> distinctByRif(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'rif', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<LocalEntity, LocalEntity, QDistinct> distinctBySincronizado() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'sincronizado');
@@ -1701,6 +1894,12 @@ extension LocalEntityQueryProperty
   QueryBuilder<LocalEntity, String, QQueryOperations> nombreProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'nombre');
+    });
+  }
+
+  QueryBuilder<LocalEntity, String?, QQueryOperations> rifProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'rif');
     });
   }
 

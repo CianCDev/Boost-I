@@ -1085,6 +1085,8 @@ class IsarService {
         .findAll();
   }
 
+  
+
   // ==================== DETALLES DE PEDIDO ====================
 
   /// Guarda un detalle de pedido y retorna su ID.
@@ -1301,23 +1303,64 @@ class IsarService {
     }
     return await isar.localEntitys.where().findAll();
   }
+  
+  /// Obtiene el primer local activo (prioriza el que tenga activo = true)
+Future<LocalEntity?> obtenerLocalActivo() async {
+  final isar = await db;
+  return await isar.localEntitys.filter().activoEqualTo(true).findFirst();
+}
 
   /// Elimina un local solo si no tiene pedidos asociados.
   Future<bool> eliminarLocal(int id) async {
-    final isar = await db;
-    final pedidos = await isar.pedidoEntitys
-        .filter()
-        .localOrigenIdEqualTo(id)
-        .or()
-        .localDestinoIdEqualTo(id)
-        .findAll();
-    if (pedidos.isNotEmpty) {
-      return false;
-    }
-    return await isar.writeTxn(() async {
-      return await isar.localEntitys.delete(id);
-    });
+  final isar = await db;
+
+  // Verificar dependencias (pedidos)
+  final pedidos = await isar.pedidoEntitys
+      .filter()
+      .localOrigenIdEqualTo(id)
+      .or()
+      .localDestinoIdEqualTo(id)
+      .findAll();
+  if (pedidos.isNotEmpty) {
+    debugPrint('⚠️ No se puede eliminar el local $id porque tiene pedidos asociados.');
+    return false;
   }
+
+  // 1. Actualizar usuarios que tenían este local
+  final usuarios = await isar.usuarioEntitys.filter().localIdEqualTo(id).findAll();
+  if (usuarios.isNotEmpty) {
+    for (var u in usuarios) {
+      u.localId = null;
+    }
+    await isar.writeTxn(() async {
+      await isar.usuarioEntitys.putAll(usuarios);
+    });
+    debugPrint('✅ ${usuarios.length} usuarios actualizados (localId → null)');
+  }
+
+  // 2. Actualizar departamentos que tenían este local
+  final departamentos = await isar.departamentoEntitys.filter().localIdEqualTo(id).findAll();
+  if (departamentos.isNotEmpty) {
+    for (var d in departamentos) {
+      d.localId = null;
+    }
+    await isar.writeTxn(() async {
+      await isar.departamentoEntitys.putAll(departamentos);
+    });
+    debugPrint('✅ ${departamentos.length} departamentos actualizados (localId → null)');
+  }
+
+  // 3. Eliminar local
+  final eliminado = await isar.writeTxn(() async {
+    return await isar.localEntitys.delete(id);
+  });
+
+  if (eliminado) {
+    debugPrint('✅ Local $id eliminado correctamente');
+  }
+
+  return eliminado;
+}
 
   /// Actualiza el estado de sincronización de un local.
   Future<void> actualizarSyncStatusLocal(int id, bool sincronizado) async {

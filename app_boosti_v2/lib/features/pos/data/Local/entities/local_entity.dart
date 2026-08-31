@@ -1,4 +1,3 @@
-// local_entity.dart (ampliado)
 import 'package:isar/isar.dart';
 
 part 'local_entity.g.dart';
@@ -12,13 +11,12 @@ class LocalEntity {
   String? direccion;
   String? telefono;
   String? email;
+  String? rif; // NUEVO: RIF del local
 
-  // Nuevos campos
   bool activo = true;
   bool sincronizado = false;
   DateTime? fechaSincronizacion;
 
-  // Auditoría
   DateTime? createdAt;
   DateTime? updatedAt;
 

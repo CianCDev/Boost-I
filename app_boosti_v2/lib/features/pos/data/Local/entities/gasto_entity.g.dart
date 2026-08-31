@@ -42,23 +42,28 @@ const GastoEntitySchema = CollectionSchema(
       name: r'monto',
       type: IsarType.double,
     ),
-    r'syncStatus': PropertySchema(
+    r'supabaseId': PropertySchema(
       id: 5,
+      name: r'supabaseId',
+      type: IsarType.string,
+    ),
+    r'syncStatus': PropertySchema(
+      id: 6,
       name: r'syncStatus',
       type: IsarType.string,
     ),
     r'tasaBcv': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'tasaBcv',
       type: IsarType.double,
     ),
     r'usuarioId': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'usuarioId',
       type: IsarType.long,
     ),
     r'usuarioNombre': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'usuarioNombre',
       type: IsarType.string,
     )
@@ -86,6 +91,12 @@ int _gastoEntityEstimateSize(
   bytesCount += 3 + object.categoria.length * 3;
   bytesCount += 3 + object.descripcion.length * 3;
   bytesCount += 3 + object.moneda.length * 3;
+  {
+    final value = object.supabaseId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.syncStatus.length * 3;
   bytesCount += 3 + object.usuarioNombre.length * 3;
   return bytesCount;
@@ -102,10 +113,11 @@ void _gastoEntitySerialize(
   writer.writeDateTime(offsets[2], object.fecha);
   writer.writeString(offsets[3], object.moneda);
   writer.writeDouble(offsets[4], object.monto);
-  writer.writeString(offsets[5], object.syncStatus);
-  writer.writeDouble(offsets[6], object.tasaBcv);
-  writer.writeLong(offsets[7], object.usuarioId);
-  writer.writeString(offsets[8], object.usuarioNombre);
+  writer.writeString(offsets[5], object.supabaseId);
+  writer.writeString(offsets[6], object.syncStatus);
+  writer.writeDouble(offsets[7], object.tasaBcv);
+  writer.writeLong(offsets[8], object.usuarioId);
+  writer.writeString(offsets[9], object.usuarioNombre);
 }
 
 GastoEntity _gastoEntityDeserialize(
@@ -121,10 +133,11 @@ GastoEntity _gastoEntityDeserialize(
   object.id = id;
   object.moneda = reader.readString(offsets[3]);
   object.monto = reader.readDouble(offsets[4]);
-  object.syncStatus = reader.readString(offsets[5]);
-  object.tasaBcv = reader.readDoubleOrNull(offsets[6]);
-  object.usuarioId = reader.readLong(offsets[7]);
-  object.usuarioNombre = reader.readString(offsets[8]);
+  object.supabaseId = reader.readStringOrNull(offsets[5]);
+  object.syncStatus = reader.readString(offsets[6]);
+  object.tasaBcv = reader.readDoubleOrNull(offsets[7]);
+  object.usuarioId = reader.readLong(offsets[8]);
+  object.usuarioNombre = reader.readString(offsets[9]);
   return object;
 }
 
@@ -146,12 +159,14 @@ P _gastoEntityDeserializeProp<P>(
     case 4:
       return (reader.readDouble(offset)) as P;
     case 5:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 6:
-      return (reader.readDoubleOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 7:
-      return (reader.readLong(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 8:
+      return (reader.readLong(offset)) as P;
+    case 9:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -828,6 +843,160 @@ extension GastoEntityQueryFilter
   }
 
   QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'supabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'supabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'supabaseId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'supabaseId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'supabaseId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
+      supabaseIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'supabaseId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterFilterCondition>
       syncStatusEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -1305,6 +1474,18 @@ extension GastoEntityQuerySortBy
     });
   }
 
+  QueryBuilder<GastoEntity, GastoEntity, QAfterSortBy> sortBySupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterSortBy> sortBySupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supabaseId', Sort.desc);
+    });
+  }
+
   QueryBuilder<GastoEntity, GastoEntity, QAfterSortBy> sortBySyncStatus() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'syncStatus', Sort.asc);
@@ -1429,6 +1610,18 @@ extension GastoEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<GastoEntity, GastoEntity, QAfterSortBy> thenBySupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<GastoEntity, GastoEntity, QAfterSortBy> thenBySupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supabaseId', Sort.desc);
+    });
+  }
+
   QueryBuilder<GastoEntity, GastoEntity, QAfterSortBy> thenBySyncStatus() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'syncStatus', Sort.asc);
@@ -1514,6 +1707,13 @@ extension GastoEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<GastoEntity, GastoEntity, QDistinct> distinctBySupabaseId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'supabaseId', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<GastoEntity, GastoEntity, QDistinct> distinctBySyncStatus(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1577,6 +1777,12 @@ extension GastoEntityQueryProperty
   QueryBuilder<GastoEntity, double, QQueryOperations> montoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'monto');
+    });
+  }
+
+  QueryBuilder<GastoEntity, String?, QQueryOperations> supabaseIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'supabaseId');
     });
   }
 

@@ -14,14 +14,15 @@ import 'features/pos/presentation/screens/login_screen.dart';
 import 'features/pos/presentation/screens/inventory_catalog_screen.dart';
 import 'features/pos/presentation/providers/lock_provider.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
-import 'package:app_boosti_v2/features/pos/presentation/services/telegram/telegram_service.dart';
+import 'features/pos/presentation/services/telegram/telegram_service.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
+import 'features/pos/presentation/providers/sync_provider.dart'; // ✅ NUEVO
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // ============================================================
-  // 1. INICIALIZAR SUPABASE
+  // 1. INICIALIZAR SUPABASE (UNA SOLA VEZ)
   // ============================================================
   final prefs = await SharedPreferences.getInstance();
   String? url = prefs.getString('supabase_url');
@@ -38,7 +39,7 @@ void main() async {
   if (url != null && anonKey != null && url.isNotEmpty && anonKey.isNotEmpty) {
     try {
       await Supabase.initialize(url: url, publishableKey: anonKey);
-      debugPrint('✅ Supabase inicializado para la empresa');
+      debugPrint('✅ Supabase inicializado');
     } catch (e) {
       debugPrint('⚠️ Error inicializando Supabase: $e');
     }
@@ -54,10 +55,10 @@ void main() async {
   // 2.1. Usuario admin por defecto
   await isarService.inicializarUsuarioAdminPorDefecto();
 
-  // 2.2. Migración de stock a lotes (solo una vez)
+  // 2.2. Migración de stock a lotes
   await isarService.migrarStockExistenteALotes();
 
-  // 2.3. Inicializar Telegram (con manejo de errores)
+  // 2.3. Inicializar Telegram
   try {
     final telegramService = TelegramService();
     await telegramService.inicializar();
@@ -66,36 +67,17 @@ void main() async {
     debugPrint('⚠️ Error al inicializar Telegram: $e');
   }
 
-  // 2.4. ASIGNAR SUPABASE ID A PRODUCTOS (con manejo de errores)
+  // 2.4. Asignar supabaseId a productos faltantes
   try {
     final actualizados = await isarService.asignarSupabaseIdsAFaltantes();
     debugPrint('✅ Migración de supabaseId: $actualizados productos actualizados.');
-    if (actualizados == 0) {
-      debugPrint('⚠️ Ningún producto actualizado. Verifica la columna "id_isar" en Supabase.');
-    }
   } catch (e) {
     debugPrint('❌ Error en migración de supabaseId: $e');
-    debugPrint('⚠️ Los lotes no se sincronizarán hasta que los productos tengan supabaseId.');
-  }
-  // 🔥 LEER CREDENCIALES E INICIALIZAR SUPABASE ANTES DE runApp
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final url = prefs.getString('supabase_url');
-    final anonKey = prefs.getString('supabase_anon_key');
-
-    if (url != null && anonKey != null && url.isNotEmpty && anonKey.isNotEmpty) {
-      await Supabase.initialize(
-        url: url,
-        publishableKey: anonKey,
-      );
-      debugPrint('✅ Supabase inicializado desde main.dart');
-    } else {
-      debugPrint('⚠️ No hay credenciales, se inicializará después');
-    }
-  } catch (e) {
-    debugPrint('⚠️ Error inicializando Supabase en main: $e');
   }
 
+  // ============================================================
+  // 3. EJECUTAR APP
+  // ============================================================
   runApp(
     DevicePreview(
       enabled: !kReleaseMode,
@@ -112,9 +94,16 @@ class BoostiPOS extends ConsumerWidget {
     final isLocked = ref.watch(lockProvider);
     final themeMode = ref.watch(themeProvider);
 
+    // 🔥 Iniciar Realtime y monitoreo UNA SOLA VEZ
+    final syncService = ref.watch(syncServiceProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      syncService.iniciarSuscripcionesRealtime();
+      syncService.iniciarMonitoreo();
+    });
+
     return MaterialApp(
       title: 'BoostI POS - JAH Lab',
-      debugShowCheckedModeBanner: false, // ✅ CORREGIDO
+      debugShowCheckedModeBanner: false,
       theme: lightTheme(),
       darkTheme: darkTheme(),
       themeMode: themeMode,

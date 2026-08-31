@@ -62,6 +62,11 @@ const DepartamentoEntitySchema = CollectionSchema(
       id: 8,
       name: r'updatedAt',
       type: IsarType.dateTime,
+    ),
+    r'usuarioId': PropertySchema(
+      id: 9,
+      name: r'usuarioId',
+      type: IsarType.long,
     )
   },
   estimateSize: _departamentoEntityEstimateSize,
@@ -115,6 +120,7 @@ void _departamentoEntitySerialize(
   writer.writeBool(offsets[6], object.sincronizado);
   writer.writeString(offsets[7], object.supabaseId);
   writer.writeDateTime(offsets[8], object.updatedAt);
+  writer.writeLong(offsets[9], object.usuarioId);
 }
 
 DepartamentoEntity _departamentoEntityDeserialize(
@@ -134,6 +140,7 @@ DepartamentoEntity _departamentoEntityDeserialize(
   object.sincronizado = reader.readBool(offsets[6]);
   object.supabaseId = reader.readStringOrNull(offsets[7]);
   object.updatedAt = reader.readDateTimeOrNull(offsets[8]);
+  object.usuarioId = reader.readLongOrNull(offsets[9]);
   return object;
 }
 
@@ -162,6 +169,8 @@ P _departamentoEntityDeserializeProp<P>(
       return (reader.readStringOrNull(offset)) as P;
     case 8:
       return (reader.readDateTimeOrNull(offset)) as P;
+    case 9:
+      return (reader.readLongOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -1078,6 +1087,80 @@ extension DepartamentoEntityQueryFilter
       ));
     });
   }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterFilterCondition>
+      usuarioIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'usuarioId',
+      ));
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterFilterCondition>
+      usuarioIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'usuarioId',
+      ));
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterFilterCondition>
+      usuarioIdEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'usuarioId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterFilterCondition>
+      usuarioIdGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'usuarioId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterFilterCondition>
+      usuarioIdLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'usuarioId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterFilterCondition>
+      usuarioIdBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'usuarioId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
 }
 
 extension DepartamentoEntityQueryObject
@@ -1211,6 +1294,20 @@ extension DepartamentoEntityQuerySortBy
       sortByUpdatedAtDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterSortBy>
+      sortByUsuarioId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'usuarioId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterSortBy>
+      sortByUsuarioIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'usuarioId', Sort.desc);
     });
   }
 }
@@ -1356,6 +1453,20 @@ extension DepartamentoEntityQuerySortThenBy
       return query.addSortBy(r'updatedAt', Sort.desc);
     });
   }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterSortBy>
+      thenByUsuarioId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'usuarioId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterSortBy>
+      thenByUsuarioIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'usuarioId', Sort.desc);
+    });
+  }
 }
 
 extension DepartamentoEntityQueryWhereDistinct
@@ -1420,6 +1531,13 @@ extension DepartamentoEntityQueryWhereDistinct
       distinctByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'updatedAt');
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QDistinct>
+      distinctByUsuarioId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'usuarioId');
     });
   }
 }
@@ -1489,6 +1607,12 @@ extension DepartamentoEntityQueryProperty
       updatedAtProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'updatedAt');
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, int?, QQueryOperations> usuarioIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'usuarioId');
     });
   }
 }

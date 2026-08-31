@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:uuid/uuid.dart';
+import 'package:collection/collection.dart';
 
 // Entidades locales
 import '../../data/Local/entities/categoria_entity.dart';
@@ -44,6 +45,53 @@ class SyncService {
   bool _configLoaded = false;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isSyncing = false;
+
+  // ============================================================
+  // SUSCRIPCIONES REALTIME Y CALLBACK
+  // ============================================================
+  List<RealtimeChannel> _channels = [];
+
+  /// Callback opcional para notificar cambios en la UI
+  final VoidCallback? onDataChanged;
+
+  /// Constructor con callback opcional
+  SyncService({this.onDataChanged});
+
+  /// Inicia suscripciones a cambios en las tablas principales
+  void iniciarSuscripcionesRealtime() {
+    _suscribirATabla('productos', () => descargarProductosDesdeSupabase());
+    _suscribirATabla('categorias', () => descargarCategoriasDesdeSupabase());
+    _suscribirATabla('marcas', () => descargarMarcasDesdeSupabase());
+    _suscribirATabla('locales', () => descargarLocalesDesdeSupabase());
+    _suscribirATabla('departamentos', () => descargarDepartamentosDesdeSupabase());
+    _suscribirATabla('usuarios', () => sincronizarUsuariosDesdeSupabase());
+    _suscribirATabla('gastos', () => descargarGastosDesdeSupabase());
+    debugPrint('✅ Suscripciones Realtime iniciadas');
+  }
+
+  void _suscribirATabla(String tabla, Future<void> Function() onCambio) {
+    final channel = _supabase
+        .channel('realtime:$tabla')
+        .onPostgresChanges(
+          schema: 'public',
+          table: tabla,
+          event: PostgresChangeEvent.all,   // <--- USAR ENUM
+          callback: (payload) {
+            debugPrint('🔄 Cambio detectado en $tabla, actualizando...');
+            onCambio();
+          },
+        )
+        .subscribe();
+    _channels.add(channel);
+}
+  /// Detiene todas las suscripciones
+  void detenerSuscripcionesRealtime() {
+    for (var channel in _channels) {
+      channel.unsubscribe();
+    }
+    _channels.clear();
+    debugPrint('⏹️ Suscripciones Realtime detenidas');
+  }
 
   // ============================================================
   // CONFIGURACIÓN Y MONITOREO
@@ -101,10 +149,11 @@ class SyncService {
   /// Libera recursos.
   void dispose() {
     detenerMonitoreo();
+    detenerSuscripcionesRealtime();
   }
 
   // ============================================================
-  // USUARIOS
+  // USUARIOS (CORREGIDO)
   // ============================================================
 
   /// Sube todos los usuarios locales a Supabase (crea o actualiza).
@@ -121,13 +170,57 @@ class SyncService {
 
       for (var usuario in usuarios) {
         try {
-          final existing = await _supabase
-              .from('usuarios')
-              .select('id_isar')
-              .eq('id_isar', usuario.id)
-              .maybeSingle();
+          // 1️⃣ Si no tiene supabaseId, verificar si ya existe en auth.users por email
+          if (usuario.supabaseId == null || usuario.supabaseId!.isEmpty) {
+            // Si no tiene email, no podemos crearlo en auth
+            if (usuario.email == null || usuario.email!.isEmpty) {
+              debugPrint('⚠️ Usuario "${usuario.nombre}" sin email, omitido');
+              continue;
+            }
 
+            // Buscar en auth.users por email
+            try {
+              final allUsers = await _supabase.auth.admin.listUsers();
+              final existingUser = allUsers.firstWhereOrNull(
+                (u) => u.email == usuario.email,
+              );
+
+              if (existingUser != null) {
+                // Ya existe en auth, usar su ID
+                usuario.supabaseId = existingUser.id;
+                await _isarService.guardarUsuario(usuario);
+                debugPrint('✅ Usuario "${usuario.nombre}" tiene cuenta en auth (ID: ${usuario.supabaseId})');
+              } else {
+                // No existe en auth, crearlo
+                if (usuario.password == null || usuario.password!.isEmpty) {
+                  debugPrint('⚠️ Usuario "${usuario.nombre}" sin password, omitido');
+                  continue;
+                }
+
+                final newUser = await _supabase.auth.admin.createUser(
+                  AdminUserAttributes(
+                    email: usuario.email!,
+                    password: usuario.password!,
+                    emailConfirm: true,
+                    userMetadata: {
+                      'nombre': usuario.nombre,
+                      'rol': usuario.rol,
+                    },
+                  ),
+                );
+                usuario.supabaseId = newUser.user?.id;
+                await _isarService.guardarUsuario(usuario);
+                debugPrint('✅ Usuario "${usuario.nombre}" creado en auth.users (ID: ${usuario.supabaseId})');
+              }
+            } catch (e) {
+              debugPrint('⚠️ Error al buscar/crear usuario en auth: $e');
+              continue;
+            }
+          }
+
+          // 2️⃣ Ahora sí, insertar/actualizar en public.usuarios
           final data = {
+            'id': usuario.supabaseId,
             'id_isar': usuario.id,
             'nombre': usuario.nombre,
             'pin': usuario.pin,
@@ -136,22 +229,18 @@ class SyncService {
             'device_id': usuario.deviceId ?? '',
             'estado': usuario.estado,
             'caja_asignada': usuario.cajaAsignada,
-            'departamento': (usuario.departamento != null && usuario.departamento!.isNotEmpty)
-                ? usuario.departamento
-                : null,
+            'departamento': usuario.departamento,
+            'local_id': usuario.localId,
           };
 
-          if (existing == null) {
-            await _supabase.from('usuarios').insert(data);
-          } else {
-            await _supabase.from('usuarios').update(data).eq('id_isar', usuario.id);
-          }
+          await _supabase.from('usuarios').upsert(data, onConflict: 'id_isar');
           sincronizados++;
         } catch (e) {
           debugPrint('⚠️ Error sincronizando usuario "${usuario.nombre}": $e');
         }
       }
       debugPrint('✅ $sincronizados usuarios sincronizados con Supabase');
+      onDataChanged?.call();
     } catch (e) {
       debugPrint('❌ Error general sincronizando usuarios: $e');
     }
@@ -184,6 +273,7 @@ class SyncService {
           local.deviceId = data['device_id'] ?? local.deviceId;
           local.cajaAsignada = data['caja_asignada'] ?? local.cajaAsignada;
           local.departamento = data['departamento'] ?? local.departamento;
+          local.localId = data['local_id'] as int?;
 
           final estadoNube = data['estado'] as String? ?? 'inactivo';
           if (estadoNube == 'inactivo' && (local.estado == 'activo' || local.estado == 'descanso')) {
@@ -202,11 +292,13 @@ class SyncService {
             ..cajaAsignada = data['caja_asignada'] ?? ''
             ..email = data['email']
             ..deviceId = data['device_id'] ?? ''
-            ..departamento = data['departamento'];
+            ..departamento = data['departamento']
+            ..localId = data['local_id'] as int?;
           await _isarService.guardarUsuario(nuevoUsuario);
         }
       }
       debugPrint('✅ Usuarios sincronizados desde Supabase');
+      onDataChanged?.call();
     } catch (e) {
       debugPrint('❌ Error descargando usuarios: $e');
       rethrow;
@@ -381,6 +473,7 @@ class SyncService {
           debugPrint('📥 Proveedor ${proveedorNube.nombre} creado');
         }
       }
+      onDataChanged?.call();
     } catch (e) {
       debugPrint('❌ Error descargando proveedores: $e');
       rethrow;
@@ -647,6 +740,7 @@ class SyncService {
         }
       }
       debugPrint('✅ Productos sincronizados: ${response.length} actualizados/creados, $eliminados eliminados');
+      onDataChanged?.call();
     } catch (e) {
       debugPrint('❌ Error descargando productos: $e');
       rethrow;
@@ -1035,6 +1129,7 @@ class SyncService {
         }
       }
       debugPrint('✅ [SyncService] $guardadas categorías guardadas/actualizadas en Isar');
+      onDataChanged?.call();
     } catch (e) {
       debugPrint('❌ Error descargando categorías: $e');
     }
@@ -1145,6 +1240,7 @@ class SyncService {
         }
       }
       debugPrint('✅ [SyncService] $guardadas marcas insertadas, $actualizadas actualizadas');
+      onDataChanged?.call();
     } catch (e) {
       debugPrint('❌ Error descargando marcas: $e');
       rethrow;
@@ -1154,6 +1250,87 @@ class SyncService {
   // ============================================================
   // GASTOS
   // ============================================================
+
+  /// Descarga todos los gastos desde Supabase y los guarda/actualiza localmente.
+Future<void> descargarGastosDesdeSupabase() async {
+  try {
+    final response = await _supabase
+        .from('gastos')
+        .select()
+        .order('fecha', ascending: false);
+
+    if (response.isEmpty) {
+      debugPrint('ℹ️ No hay gastos en Supabase para descargar');
+      return;
+    }
+
+    debugPrint('🔄 Descargando ${response.length} gastos desde Supabase...');
+
+    // Obtener todos los gastos locales actuales para mapear por id_isar y supabaseId
+    final gastosLocales = await _isarService.obtenerGastos();
+    final Map<int, GastoEntity> porIdIsar = {
+      for (var g in gastosLocales) g.id: g
+    };
+    final Map<String, GastoEntity> porSupabaseId = {
+      for (var g in gastosLocales)
+        if (g.supabaseId != null && g.supabaseId!.isNotEmpty)
+          g.supabaseId!: g
+    };
+
+    int insertados = 0, actualizados = 0;
+
+    for (var data in response) {
+      final supabaseId = data['id'] as String?;
+      if (supabaseId == null || supabaseId.isEmpty) continue;
+
+      final idIsar = data['id_isar'] as int?;
+      GastoEntity? gastoLocal;
+
+      // Buscar por supabaseId o por id_isar
+      if (idIsar != null && porIdIsar.containsKey(idIsar)) {
+        gastoLocal = porIdIsar[idIsar];
+      } else if (supabaseId.isNotEmpty && porSupabaseId.containsKey(supabaseId)) {
+        gastoLocal = porSupabaseId[supabaseId];
+      }
+
+      // Crear entidad con los datos de la nube
+      final gastoNube = GastoEntity()
+        ..supabaseId = supabaseId
+        ..descripcion = data['descripcion'] ?? ''
+        ..monto = (data['monto'] as num?)?.toDouble() ?? 0.0
+        ..moneda = data['moneda'] ?? 'USD'
+        ..tasaBcv = (data['tasa_bcv'] as num?)?.toDouble()
+        ..categoria = data['categoria'] ?? 'General'
+        ..usuarioId = data['usuario_id'] as int? ?? 0
+        ..usuarioNombre = data['usuario_nombre'] ?? ''
+        ..fecha = DateTime.parse(data['fecha']).toLocal()
+        ..syncStatus = 'synced';
+
+      if (gastoLocal != null) {
+        // Actualizar existente: conservar el id de Isar y reemplazar el resto
+        gastoNube.id = gastoLocal.id;
+        await _isarService.guardarGasto(gastoNube);
+        actualizados++;
+        debugPrint('🔄 Gasto actualizado: ${gastoNube.descripcion}');
+      } else {
+        // Insertar nuevo (Isar generará un id automáticamente si es 0)
+        // Si el id_isar existe en la nube pero no local, podemos usarlo.
+        if (idIsar != null && idIsar > 0) {
+          gastoNube.id = idIsar;
+        }
+        await _isarService.guardarGasto(gastoNube);
+        insertados++;
+        debugPrint('📥 Gasto creado: ${gastoNube.descripcion}');
+      }
+    }
+
+    debugPrint('✅ Gastos sincronizados: $insertados insertados, $actualizados actualizados');
+    onDataChanged?.call();
+  } catch (e) {
+    debugPrint('❌ Error descargando gastos desde Supabase: $e');
+    rethrow;
+  }
+}
 
   /// Sincroniza gastos pendientes hacia Supabase.
   Future<int> sincronizarGastosPendientes() async {
@@ -1319,6 +1496,7 @@ class SyncService {
         final data = {
           'id_isar': local.id,
           'nombre': local.nombre,
+          'rif': local.rif,
           'direccion': local.direccion,
           'telefono': local.telefono,
           'email': local.email,
@@ -1393,7 +1571,8 @@ class SyncService {
           ..email = data['email'] as String?
           ..activo = data['activo'] ?? true
           ..sincronizado = true
-          ..fechaSincronizacion = DateTime.now();
+          ..fechaSincronizacion = DateTime.now()
+          ..rif = data['rif'];
 
         if (local != null) {
           localNube.id = local.id;
@@ -1404,6 +1583,7 @@ class SyncService {
           debugPrint('📥 Local ${localNube.nombre} creado');
         }
       }
+      onDataChanged?.call();
     } catch (e) {
       debugPrint('❌ Error descargando locales: $e');
       rethrow;
@@ -1431,11 +1611,17 @@ class SyncService {
           localUuid = await _obtenerSupabaseIdLocal(departamento.localId!);
         }
 
+        String? usuarioUuid;
+        if (departamento.usuarioId != null) {
+          usuarioUuid = await _obtenerSupabaseIdUsuario(departamento.usuarioId!);
+        }
+
         final data = {
           'id_isar': departamento.id,
           'nombre': departamento.nombre,
           'descripcion': departamento.descripcion,
           'local_id': localUuid,
+          'usuario_id': usuarioUuid,
           'activo': departamento.activo,
           'sync_status': 'synced',
           'updated_at': DateTime.now().toIso8601String(),
@@ -1515,11 +1701,18 @@ class SyncService {
           localIsarId = uuidToIsarId[localUuid];
         }
 
+        int? usuarioIsarId;
+        final usuarioUuid = data['usuario_id'] as String?;
+        if (usuarioUuid != null && usuarioUuid.isNotEmpty) {
+          usuarioIsarId = await _obtenerIsarIdUsuario(usuarioUuid);
+        }
+
         final deptoNube = DepartamentoEntity()
           ..supabaseId = supabaseId
           ..nombre = data['nombre'] ?? ''
           ..descripcion = data['descripcion'] as String?
           ..localId = localIsarId
+          ..usuarioId = usuarioIsarId
           ..activo = data['activo'] ?? true
           ..sincronizado = true
           ..fechaSincronizacion = DateTime.now();
@@ -1533,6 +1726,7 @@ class SyncService {
           debugPrint('📥 Departamento ${deptoNube.nombre} creado');
         }
       }
+      onDataChanged?.call();
     } catch (e) {
       debugPrint('❌ Error descargando departamentos: $e');
       rethrow;
@@ -1708,11 +1902,7 @@ class SyncService {
         if (local == null) {
           final supabaseId = data['id'] as String?;
           if (supabaseId != null) {
-            local = locales.firstWhere(
-              (c) => c.supabaseId == supabaseId,
-              // ignore: cast_from_null_always_fails
-              orElse: () => null as TelegramConfigEntity,
-            );
+            local = locales.firstWhereOrNull((c) => c.supabaseId == supabaseId);
           }
         }
 
@@ -2232,6 +2422,7 @@ class SyncService {
 
     // 8. Gastos
     await sincronizarGastosPendientes();
+    await descargarGastosDesdeSupabase();
 
     // 9. Locales (UUID)
     await _obtenerLocalActualUuid();
@@ -2259,6 +2450,7 @@ class SyncService {
     await descargarTelegramConfigDesdeSupabase();
 
     debugPrint('✅ Sincronización completa finalizada.');
+    onDataChanged?.call();
   }
 
   /// Ejecuta sincronización completa y devuelve un resumen con cantidades sincronizadas.
@@ -2305,6 +2497,7 @@ class SyncService {
       final gastosPend = await _isarService.obtenerGastosPendientesSync();
       if (gastosPend.isNotEmpty) {
         await sincronizarGastosPendientes();
+        await descargarGastosDesdeSupabase();
         gastos = gastosPend.length;
       }
 

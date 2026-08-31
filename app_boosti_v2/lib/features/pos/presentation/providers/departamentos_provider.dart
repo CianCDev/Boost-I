@@ -27,6 +27,11 @@ final departamentoPorIdProvider = FutureProvider.family<DepartamentoEntity?, int
   return await isar.obtenerDepartamentoPorId(id);
 });
 
+final todosDepartamentosProvider = FutureProvider<List<DepartamentoEntity>>((ref) async {
+  final isar = IsarService();
+  return await isar.obtenerDepartamentos(soloActivos: false);
+});
+
 // ============================================================
 // 2. PROVIDER CON FILTROS AVANZADOS (PARA LA UI)
 // ============================================================

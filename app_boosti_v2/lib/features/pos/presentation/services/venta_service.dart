@@ -14,6 +14,8 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/catalog_provid
 import 'package:app_boosti_v2/features/pos/presentation/providers/productos_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
 
+import '../../data/Local/entities/isar_service.dart';
+
 class VentaService {
   final Ref _ref;
 
@@ -30,7 +32,7 @@ class VentaService {
     final isar = _ref.read(isarServiceProvider);
     final cartState = _ref.read(cartProvider);
     final cartNotifier = _ref.read(cartProvider.notifier);
-
+    
     try {
       // 🔥 Descontar lotes y actualizar stock del producto principal
       final productosAfectados = <int>{}; // IDs de productos afectados
@@ -67,15 +69,16 @@ class VentaService {
         final stockTotal = await isar.obtenerStockTotalPorProducto(productoId);
         producto.stock = stockTotal;
         await isar.guardarProducto(producto);
+        
+
 
         // Registrar movimiento de inventario (ya se hizo en descontarLote)
       }
-
+      
       // Guardar venta
       final ventaIdStr = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
       final ahora = DateTime.now();
       final totalBsCalculado = cartState.total * tasaActual;
-
       final itemsIsar = cartState.items.map((cartItem) {
         return DetalleVentaEntity()
           ..productoId = int.tryParse(cartItem.producto.id)
@@ -107,8 +110,10 @@ class VentaService {
 
       // Limpiar carrito
       cartNotifier.limpiarCarrito();
-
+      
       // Imprimir ticket
+            final local = await IsarService().obtenerLocalActivo();
+
       try {
         final ticketItems = cartState.items.map((item) {
           return TicketItem(
@@ -122,6 +127,7 @@ class VentaService {
         final selectedPrinter = _ref.read(printerProvider);
         await TicketService.imprimirTicketVenta(
           context: context,
+          local: local, // NUEVO
           items: ticketItems,
           subtotal: cartState.subtotal,
           impuesto: cartState.impuesto,

@@ -4,12 +4,15 @@ import 'package:esc_pos_printer_lts/esc_pos_printer_lts.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../../domain/models/printer_models.dart';
 import '../../domain/enums/printer_error.dart';
+import 'label_generator.dart';
 import 'ticket_generator.dart';
-import 'label_generator.dart'; // 👈 Importar el generador de etiquetas
+import '../../data/Local/entities/local_entity.dart';
 
 class PrinterService {
+
+
   // =========================================================
-  // 1. IMPRESIÓN POR RED (WIFI/ETHERNET) CON REINTENTOS
+  // IMPRESIÓN POR RED (WIFI/ETHERNET)
   // =========================================================
   Future<PrintResult> printViaNetwork({
     required PrinterDevice printer,
@@ -21,6 +24,7 @@ class PrinterService {
     required double montoRecibido,
     required double vuelto,
     DateTime? fechaVenta,
+    LocalEntity? local,
     int maxRetries = 2,
   }) async {
     int attempts = 0;
@@ -40,13 +44,13 @@ class PrinterService {
           montoRecibido: montoRecibido,
           vuelto: vuelto,
           fechaVenta: fechaVenta,
+          local: local,
         );
 
         const PaperSize paper = PaperSize.mm80;
         final profile = await CapabilityProfile.load();
         final networkPrinter = NetworkPrinter(paper, profile);
 
-        // Conectar
         final connectResult = await networkPrinter.connect(
           printer.address,
           port: printer.port ?? 9100,
@@ -58,34 +62,28 @@ class PrinterService {
             PrinterError.notConnected,
             'Error de conexión: ${connectResult.msg}',
           );
-          continue; // Reintentar
+          continue;
         }
 
-        // Enviar bytes (rawBytes es el método correcto según tu experiencia)
         networkPrinter.rawBytes(bytes);
-
-        // Desconectar
-         networkPrinter.disconnect();
+        networkPrinter.disconnect();
 
         _log('✅ Impresión por red exitosa en intento $attempts');
         return PrintResult.success();
       } catch (e) {
         _log('❌ Error en intento $attempts: $e');
         lastResult = PrintResult.failure(PrinterError.unknown, e.toString());
-
-        // Esperar antes de reintentar (excepto en el último intento)
         if (attempts < maxRetries) {
           await Future.delayed(const Duration(milliseconds: 500));
         }
       }
     }
 
-    // Si llegamos aquí, todos los intentos fallaron
     return lastResult ?? PrintResult.failure(PrinterError.unknown, 'Falló la impresión');
   }
 
   // =========================================================
-  // 2. IMPRESIÓN POR BLUETOOTH CON REINTENTOS
+  // IMPRESIÓN POR BLUETOOTH
   // =========================================================
   Future<PrintResult> printViaBluetooth({
     required PrinterDevice printer,
@@ -97,6 +95,7 @@ class PrinterService {
     required double montoRecibido,
     required double vuelto,
     DateTime? fechaVenta,
+    LocalEntity? local,
     int maxRetries = 2,
   }) async {
     int attempts = 0;
@@ -116,16 +115,13 @@ class PrinterService {
           montoRecibido: montoRecibido,
           vuelto: vuelto,
           fechaVenta: fechaVenta,
+          local: local,
         );
 
-        // Conectar al dispositivo Bluetooth
         final device = BluetoothDevice.fromId(printer.address);
         await device.connect();
 
-        // Descubrir servicios
         final services = await device.discoverServices();
-
-        // Buscar la característica para impresión
         BluetoothCharacteristic? characteristic;
         for (final service in services) {
           for (final char in service.characteristics) {
@@ -140,18 +136,15 @@ class PrinterService {
 
         if (characteristic == null) {
           _log('❌ Característica no encontrada');
+          await device.disconnect();
           lastResult = PrintResult.failure(
             PrinterError.unknown,
             'Característica de impresión no encontrada',
           );
-          await device.disconnect();
           continue;
         }
 
-        // Enviar bytes
         await characteristic.write(bytes, withoutResponse: true);
-
-        // Desconectar
         await device.disconnect();
 
         _log('✅ Impresión por Bluetooth exitosa en intento $attempts');
@@ -159,7 +152,6 @@ class PrinterService {
       } catch (e) {
         _log('❌ Error en intento $attempts: $e');
         lastResult = PrintResult.failure(PrinterError.unknown, e.toString());
-
         if (attempts < maxRetries) {
           await Future.delayed(const Duration(milliseconds: 500));
         }
@@ -170,7 +162,7 @@ class PrinterService {
   }
 
   // =========================================================
-  // 3. MÉTODO UNIFICADO PARA TICKETS
+  // MÉTODO UNIFICADO PARA TICKETS
   // =========================================================
   Future<PrintResult> printTicket({
     required PrinterDevice printer,
@@ -182,6 +174,7 @@ class PrinterService {
     required double montoRecibido,
     required double vuelto,
     DateTime? fechaVenta,
+    LocalEntity? local,
   }) async {
     _log('📨 Iniciando impresión de ticket en ${printer.type.name}');
 
@@ -197,6 +190,7 @@ class PrinterService {
           montoRecibido: montoRecibido,
           vuelto: vuelto,
           fechaVenta: fechaVenta,
+          local: local,
         );
       case PrinterType.network:
         return await printViaNetwork(
@@ -209,23 +203,22 @@ class PrinterService {
           montoRecibido: montoRecibido,
           vuelto: vuelto,
           fechaVenta: fechaVenta,
+          local: local,
         );
     }
   }
 
   // =========================================================
-  // 4. PRUEBA DE CONEXIÓN (TICKET DE PRUEBA)
+  // PRUEBA DE CONEXIÓN
   // =========================================================
   Future<PrintResult> testPrinter(PrinterDevice printer) async {
     _log('🧪 Probando impresora: ${printer.name}');
 
-    // Crear un ticket de prueba simple
     final testItems = [
       TicketItem(
         nombre: '---- PRUEBA ----',
         precio: 0,
         cantidad: 1,
-        esPesado: false,
       ),
     ];
 
@@ -238,11 +231,110 @@ class PrinterService {
       metodoPago: 'prueba',
       montoRecibido: 0,
       vuelto: 0,
+      local: null,
     );
   }
 
+    // =========================================================
+// 🆕 IMPRESIÓN DE ETIQUETAS
+// =========================================================
+Future<PrintResult> printLabel({
+  required PrinterDevice printer,
+  required List<LabelItem> labels,
+  int maxRetries = 2,
+}) async {
+  _log('🏷️ Iniciando impresión de ${labels.length} etiqueta(s)');
+
+  // Generar bytes para todas las etiquetas
+  List<int> allBytes = [];
+  for (final label in labels) {
+    final bytes = await LabelGenerator.generateLabelBytes(item: label);
+    allBytes.addAll(bytes);
+  }
+
+  int attempts = 0;
+  PrintResult? lastResult;
+
+  while (attempts < maxRetries) {
+    attempts++;
+    _log('🔄 Intento $attempts de $maxRetries para imprimir etiquetas');
+
+    try {
+      if (printer.type == PrinterType.network) {
+        // Impresión por red
+        const PaperSize paper = PaperSize.mm58; // 58mm para etiquetas
+        final profile = await CapabilityProfile.load();
+        final networkPrinter = NetworkPrinter(paper, profile);
+
+        final connectResult = await networkPrinter.connect(
+          printer.address,
+          port: printer.port ?? 9100,
+        );
+        if (connectResult != PosPrintResult.success) {
+          _log('❌ Error de conexión: ${connectResult.msg}');
+          lastResult = PrintResult.failure(
+            PrinterError.notConnected,
+            'Error de conexión: ${connectResult.msg}',
+          );
+          continue;
+        }
+
+        networkPrinter.rawBytes(allBytes);
+        networkPrinter.disconnect();
+
+        _log('✅ Etiquetas impresas por red en intento $attempts');
+        return PrintResult.success();
+      } else if (printer.type == PrinterType.bluetooth) {
+        // Impresión por Bluetooth
+        final device = BluetoothDevice.fromId(printer.address);
+        await device.connect();
+
+        final services = await device.discoverServices();
+        BluetoothCharacteristic? characteristic;
+        for (final service in services) {
+          for (final char in service.characteristics) {
+            final uuid = char.uuid.toString().toLowerCase();
+            if (uuid.contains('ffe1') || uuid.contains('abf1')) {
+              characteristic = char;
+              break;
+            }
+          }
+          if (characteristic != null) break;
+        }
+
+        if (characteristic == null) {
+          _log('❌ Característica no encontrada');
+          await device.disconnect();
+          lastResult = PrintResult.failure(
+            PrinterError.unknown,
+            'Característica de impresión no encontrada',
+          );
+          continue;
+        }
+
+        await characteristic.write(allBytes, withoutResponse: true);
+        await device.disconnect();
+
+        _log('✅ Etiquetas impresas por Bluetooth en intento $attempts');
+        return PrintResult.success();
+      } else {
+        throw Exception('Tipo de impresora no soportado para etiquetas');
+      }
+    } catch (e) {
+      _log('❌ Error en intento $attempts: $e');
+      lastResult = PrintResult.failure(PrinterError.unknown, e.toString());
+
+      if (attempts < maxRetries) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+  }
+
+  return lastResult ?? PrintResult.failure(PrinterError.unknown, 'Falló la impresión de etiquetas');
+}
+
   // =========================================================
-  // 5. ESCANEO BLUETOOTH CON FILTRADO
+  // ESCANEO BLUETOOTH
   // =========================================================
   Future<List<PrinterDevice>> scanBluetoothPrinters({
     Duration timeout = const Duration(seconds: 10),
@@ -256,7 +348,6 @@ class PrinterService {
           final device = result.device;
           final name = device.platformName.toLowerCase();
 
-          // ✅ FILTRO: solo dispositivos que parezcan impresoras
           final isPrinter = name.contains('printer') ||
               name.contains('pos') ||
               name.contains('bt') ||
@@ -293,108 +384,23 @@ class PrinterService {
   }
 
   // =========================================================
-  // 🆕 6. IMPRESIÓN DE ETIQUETAS (NUEVO)
-  // =========================================================
-  Future<PrintResult> printLabel({
-    required PrinterDevice printer,
-    required List<LabelItem> labels,
-    int maxRetries = 2,
-  }) async {
-    _log('🏷️ Iniciando impresión de ${labels.length} etiqueta(s)');
-
-    // Generar bytes para todas las etiquetas
-    List<int> allBytes = [];
-    for (final label in labels) {
-      final bytes = await LabelGenerator.generateLabelBytes(item: label);
-      allBytes.addAll(bytes);
-    }
-
-    int attempts = 0;
-    PrintResult? lastResult;
-
-    while (attempts < maxRetries) {
-      attempts++;
-      _log('🔄 Intento $attempts de $maxRetries para imprimir etiquetas');
-
-      try {
-        if (printer.type == PrinterType.network) {
-          // Impresión por red
-          const PaperSize paper = PaperSize.mm58; // Usamos 58mm para etiquetas
-          final profile = await CapabilityProfile.load();
-          final networkPrinter = NetworkPrinter(paper, profile);
-
-          final connectResult = await networkPrinter.connect(
-            printer.address,
-            port: printer.port ?? 9100,
-          );
-          if (connectResult != PosPrintResult.success) {
-            _log('❌ Error de conexión: ${connectResult.msg}');
-            lastResult = PrintResult.failure(
-              PrinterError.notConnected,
-              'Error de conexión: ${connectResult.msg}',
-            );
-            continue;
-          }
-
-          networkPrinter.rawBytes(allBytes);
-           networkPrinter.disconnect();
-
-          _log('✅ Etiquetas impresas por red en intento $attempts');
-          return PrintResult.success();
-        } else if (printer.type == PrinterType.bluetooth) {
-          // Impresión por Bluetooth
-          final device = BluetoothDevice.fromId(printer.address);
-          await device.connect();
-
-          final services = await device.discoverServices();
-          BluetoothCharacteristic? characteristic;
-          for (final service in services) {
-            for (final char in service.characteristics) {
-              final uuid = char.uuid.toString().toLowerCase();
-              if (uuid.contains('ffe1') || uuid.contains('abf1')) {
-                characteristic = char;
-                break;
-              }
-            }
-            if (characteristic != null) break;
-          }
-
-          if (characteristic == null) {
-            _log('❌ Característica no encontrada');
-            await device.disconnect();
-            lastResult = PrintResult.failure(
-              PrinterError.unknown,
-              'Característica de impresión no encontrada',
-            );
-            continue;
-          }
-
-          await characteristic.write(allBytes, withoutResponse: true);
-          await device.disconnect();
-
-          _log('✅ Etiquetas impresas por Bluetooth en intento $attempts');
-          return PrintResult.success();
-        } else {
-          throw Exception('Tipo de impresora no soportado para etiquetas');
-        }
-      } catch (e) {
-        _log('❌ Error en intento $attempts: $e');
-        lastResult = PrintResult.failure(PrinterError.unknown, e.toString());
-
-        if (attempts < maxRetries) {
-          await Future.delayed(const Duration(milliseconds: 500));
-        }
-      }
-    }
-
-    return lastResult ?? PrintResult.failure(PrinterError.unknown, 'Falló la impresión de etiquetas');
-  }
-
-  // =========================================================
-  // LOGS CON TIMESTAMP
+  // LOGS
   // =========================================================
   void _log(String message) {
     final timestamp = DateTime.now().toIso8601String().substring(0, 19);
     debugPrint('[$timestamp] [PrinterService] $message');
   }
+}
+
+/// Resultado de impresión
+class PrintResult {
+  final bool success;
+  final PrinterError? error;
+  final String? message;
+
+  PrintResult._({required this.success, this.error, this.message});
+
+  factory PrintResult.success() => PrintResult._(success: true);
+  factory PrintResult.failure(PrinterError error, [String? message]) =>
+      PrintResult._(success: false, error: error, message: message);
 }

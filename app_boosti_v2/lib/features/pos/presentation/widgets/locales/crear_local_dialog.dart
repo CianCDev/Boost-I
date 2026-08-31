@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
-
 import 'package:app_boosti_v2/features/pos/presentation/utils/input_decoration_helper.dart';
-import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart'; // ✅ Importación necesaria
+import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
+import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
+
+import '../dialogos_genericos/error_dialog.dart';
+import '../dialogos_genericos/succes.dialog.dart';
 
 class CrearLocalDialog extends ConsumerStatefulWidget {
   final LocalEntity? local;
@@ -21,6 +24,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
   late TextEditingController _direccionController;
   late TextEditingController _telefonoController;
   late TextEditingController _emailController;
+  late TextEditingController _rifController;
   bool _activo = true;
   bool _isSaving = false;
 
@@ -32,6 +36,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
     _direccionController = TextEditingController(text: l?.direccion ?? '');
     _telefonoController = TextEditingController(text: l?.telefono ?? '');
     _emailController = TextEditingController(text: l?.email ?? '');
+    _rifController = TextEditingController(text: l?.rif ?? '');
     _activo = l?.activo ?? true;
   }
 
@@ -41,6 +46,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
     _direccionController.dispose();
     _telefonoController.dispose();
     _emailController.dispose();
+    _rifController.dispose();
     super.dispose();
   }
 
@@ -68,6 +74,9 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
       ..email = _emailController.text.trim().isNotEmpty
           ? _emailController.text.trim()
           : null
+      ..rif = _rifController.text.trim().isNotEmpty
+          ? _rifController.text.trim()
+          : null
       ..activo = _activo
       ..supabaseId = widget.local?.supabaseId
       ..sincronizado = false;
@@ -79,22 +88,27 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
     try {
       await ref.read(guardarLocalProvider(local).future);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.local == null
-                ? '✅ Local creado correctamente'
-                : '✅ Local actualizado correctamente'),
-            backgroundColor: Colors.green,
+        await showDialog(
+          context: context,
+          builder: (_) => SuccessDialog(
+            title: widget.local == null ? 'Local creado' : 'Local actualizado',
+            content: widget.local == null
+                ? 'El local se ha creado correctamente.'
+                : 'El local se ha actualizado correctamente.',
           ),
         );
-        Navigator.pop(context, true);
+        if (mounted) Navigator.pop(context, true);
       }
       // Sincronizar en segundo plano
       _sincronizarEnSegundoPlano();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Error al guardar: $e'), backgroundColor: Colors.red),
+        await showDialog(
+          context: context,
+          builder: (_) => ErrorDialog(
+            title: 'Error al guardar',
+            content: e.toString(),
+          ),
         );
         setState(() => _isSaving = false);
       }
@@ -104,7 +118,6 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
   void _sincronizarEnSegundoPlano() {
     Future.microtask(() async {
       try {
-        // ✅ CORRECCIÓN: instanciar correctamente SyncService
         await SyncService().sincronizarLocalesPendientes();
         debugPrint('✅ Locales sincronizados con Supabase en segundo plano');
       } catch (e) {
@@ -118,7 +131,12 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
     final esEdicion = widget.local != null;
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+    final isMobile = ResponsiveHelper.isMobile(context);
+
+    final double dialogPadding = isMobile ? 16 : 24;
+    final double titleFontSize = isMobile ? 18 : 22;
+    final double fieldFontSize = isMobile ? 14 : 16;
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       elevation: 8,
@@ -128,7 +146,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
           maxWidth: 600,
           maxHeight: MediaQuery.of(context).size.height * 0.9,
         ),
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(dialogPadding),
         decoration: BoxDecoration(
           color: colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
@@ -161,9 +179,11 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
                         esEdicion ? 'Editar Local' : 'Nuevo Local',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 20,
+                          fontSize: titleFontSize,
                           color: colorScheme.onSurface,
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ),
                     IconButton(
@@ -174,10 +194,10 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
                 ),
                 const SizedBox(height: 16),
 
-                // Campos
+                // Nombre
                 TextFormField(
                   controller: _nombreController,
-                  style: TextStyle(color: colorScheme.onSurface),
+                  style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
                   decoration: InputDecorationHelper.build(
                     context: context,
                     label: 'Nombre del Local *',
@@ -188,9 +208,10 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
                 ),
                 const SizedBox(height: 16),
 
+                // Dirección
                 TextFormField(
                   controller: _direccionController,
-                  style: TextStyle(color: colorScheme.onSurface),
+                  style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
                   decoration: InputDecorationHelper.build(
                     context: context,
                     label: 'Dirección',
@@ -200,9 +221,10 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
                 ),
                 const SizedBox(height: 16),
 
+                // Teléfono
                 TextFormField(
                   controller: _telefonoController,
-                  style: TextStyle(color: colorScheme.onSurface),
+                  style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
                   keyboardType: TextInputType.phone,
                   decoration: InputDecorationHelper.build(
                     context: context,
@@ -213,9 +235,10 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
                 ),
                 const SizedBox(height: 16),
 
+                // Email
                 TextFormField(
                   controller: _emailController,
-                  style: TextStyle(color: colorScheme.onSurface),
+                  style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecorationHelper.build(
                     context: context,
@@ -234,10 +257,24 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
                 ),
                 const SizedBox(height: 16),
 
+                // RIF (NUEVO)
+                TextFormField(
+                  controller: _rifController,
+                  style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
+                  decoration: InputDecorationHelper.build(
+                    context: context,
+                    label: 'RIF',
+                    prefixIcon: Icons.assignment_rounded,
+                    isDark: isDark,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Activo
                 SwitchListTile(
                   title: Text(
                     'Local activo',
-                    style: TextStyle(color: colorScheme.onSurface),
+                    style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
                   ),
                   value: _activo,
                   onChanged: (value) => setState(() => _activo = value),
@@ -258,7 +295,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
                         ),
                         child: Text(
                           'Cancelar',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: fieldFontSize),
                         ),
                       ),
                     ),
@@ -277,7 +314,10 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
                                 height: 20,
                                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               )
-                            : Text(esEdicion ? 'Actualizar' : 'Crear'),
+                            : Text(
+                                esEdicion ? 'Actualizar' : 'Crear',
+                                style: TextStyle(fontSize: fieldFontSize),
+                              ),
                       ),
                     ),
                   ],

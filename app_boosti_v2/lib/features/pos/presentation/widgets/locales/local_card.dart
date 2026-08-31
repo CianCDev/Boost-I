@@ -5,6 +5,7 @@ import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.
 
 class LocalCard extends StatelessWidget {
   final LocalEntity local;
+  final bool isLocalActual;
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onToggleActivo;
@@ -13,6 +14,7 @@ class LocalCard extends StatelessWidget {
   const LocalCard({
     super.key,
     required this.local,
+    this.isLocalActual = false,
     required this.onTap,
     required this.onEdit,
     required this.onToggleActivo,
@@ -29,15 +31,21 @@ class LocalCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: colorScheme.surface,
+      elevation: isLocalActual ? 4 : 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: isLocalActual
+            ? BorderSide(color: Colors.green.shade400, width: 2)
+            : BorderSide.none,
+      ),
+      color: isLocalActual ? Colors.green.shade50 : colorScheme.surface,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: EdgeInsets.all(isMobile ? 12 : 16),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Indicador de estado (línea vertical)
               Container(
@@ -55,20 +63,44 @@ class LocalCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Nombre
-                    Text(
-                      local.nombre,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: isMobile ? 14 : 16,
-                        color: colorScheme.onSurface,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            local.nombre,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: isMobile ? 14 : 16,
+                              color: colorScheme.onSurface,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Badge "Actual"
+                        if (isLocalActual)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.green.shade400),
+                            ),
+                            child: Text(
+                              'ACTUAL',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade700,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 2),
 
-                    // Dirección (si existe)
+                    // Dirección
                     if (local.direccion != null && local.direccion!.isNotEmpty) ...[
                       Text(
                         local.direccion!,
@@ -82,7 +114,7 @@ class LocalCard extends StatelessWidget {
                       const SizedBox(height: 2),
                     ],
 
-                    // Teléfono y Email (con manejo de overflow)
+                    // Teléfono, Email y RIF
                     Wrap(
                       spacing: 12,
                       runSpacing: 2,
@@ -133,6 +165,29 @@ class LocalCard extends StatelessWidget {
                               ),
                             ],
                           ),
+                        if (local.rif != null && local.rif!.isNotEmpty)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.assignment_rounded,
+                                size: isMobile ? 12 : 14,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'RIF: ${local.rif}',
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 11 : 13,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ),
+                            ],
+                          ),
                       ],
                     ),
                   ],
@@ -163,36 +218,31 @@ class LocalCard extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Botón Editar
-                      IconButton(
-                        icon: Icon(Icons.edit_rounded, size: 18, color: const Color(0xFF8B5CF6)),
+                      // Botón Editar (tamaño aumentado para móvil)
+                      _buildActionButton(
+                        icon: Icons.edit_rounded,
+                        color: const Color(0xFF8B5CF6),
                         onPressed: onEdit,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                        splashRadius: 20,
                         tooltip: 'Editar',
+                        isMobile: isMobile,
                       ),
                       // Botón Activar/Desactivar
-                      IconButton(
-                        icon: Icon(
-                          local.activo ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded,
-                          size: 18,
-                          color: local.activo ? Colors.orange : Colors.green,
-                        ),
+                      _buildActionButton(
+                        icon: local.activo
+                            ? Icons.pause_circle_outline_rounded
+                            : Icons.play_circle_outline_rounded,
+                        color: local.activo ? Colors.orange : Colors.green,
                         onPressed: onToggleActivo,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                        splashRadius: 20,
                         tooltip: local.activo ? 'Desactivar' : 'Activar',
+                        isMobile: isMobile,
                       ),
                       // Botón Eliminar
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.red),
+                      _buildActionButton(
+                        icon: Icons.delete_outline_rounded,
+                        color: Colors.red,
                         onPressed: onDelete,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                        splashRadius: 20,
                         tooltip: 'Eliminar',
+                        isMobile: isMobile,
                       ),
                     ],
                   ),
@@ -202,6 +252,25 @@ class LocalCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+    required String tooltip,
+    required bool isMobile,
+  }) {
+    return IconButton(
+      icon: Icon(icon, size: isMobile ? 22 : 18, color: color),
+      onPressed: onPressed,
+      padding: isMobile ? const EdgeInsets.all(8) : EdgeInsets.zero,
+      constraints: isMobile
+          ? const BoxConstraints(minWidth: 40, minHeight: 40)
+          : const BoxConstraints(minWidth: 32, minHeight: 32),
+      splashRadius: isMobile ? 24 : 20,
+      tooltip: tooltip,
     );
   }
 }

@@ -5,26 +5,21 @@ part 'departamento_entity.g.dart';
 @Collection()
 class DepartamentoEntity {
   Id id = Isar.autoIncrement;
-
-  // UUID de Supabase (para sincronización)
   String? supabaseId;
 
-  // Datos básicos
   late String nombre;
   String? descripcion;
+  int? localId; // ID del local asociado (opcional)
 
-  // Relación con Local (opcional, si quieres que los departamentos pertenezcan a un local)
-  int? localId;
+  // ✅ NUEVO: ID del usuario encargado (opcional)
+  int? usuarioId;
 
-  // Estado y sincronización
   bool activo = true;
   bool sincronizado = false;
   DateTime? fechaSincronizacion;
 
-  // Auditoría
   DateTime? createdAt;
   DateTime? updatedAt;
 
-  // Constructor vacío necesario para Isar
   DepartamentoEntity();
 }

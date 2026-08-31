@@ -1,24 +1,22 @@
 import 'dart:io';
 import 'dart:developer' as developer;
-import 'dart:typed_data'; 
-import '../../presentation/providers/esc_pos_provider.dart';
-import '../../domain/models/printer_models.dart';
-
-
-import 'package:app_boosti_v2/features/pos/domain/enums/printer_error.dart';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-
+import '../../domain/models/printer_models.dart';
+import '../../domain/enums/printer_error.dart';
+import '../../data/Local/entities/local_entity.dart';
+import '../../data/Local/entities/isar_service.dart';
 import 'printer_service.dart';
-import 'ticket_generator.dart' show TicketItem;
+import 'ticket_generator.dart';
 
 class TicketService {
   /// Método principal: intenta impresión directa ESC/POS, si falla usa PDF.
   static Future<void> imprimirTicketVenta({
-    required BuildContext context, // ← PARA MOSTRAR SNACKBARS
+    required BuildContext context,
     required List<TicketItem> items,
     required double total,
     required String metodoPago,
@@ -28,16 +26,17 @@ class TicketService {
     double subtotal = 0.0,
     DateTime? fechaVenta,
     PrinterDevice? impresoraSeleccionada,
+    LocalEntity? local,
   }) async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    local ??= await IsarService().obtenerLocalActivo();
 
     final subtotalCalculado = subtotal > 0
         ? subtotal
         : items.fold(0.0, (sum, item) => sum + item.total);
 
-    // 1. Intentar impresión directa ESC/POS
     if (impresoraSeleccionada != null) {
-      // Mostrar indicador de carga
       final snackBar = SnackBar(
         content: Row(
           children: const [
@@ -66,14 +65,12 @@ class TicketService {
           montoRecibido: montoRecibido,
           vuelto: cambio,
           fechaVenta: fechaVenta,
+          local: local,
         );
 
-        // Cerrar el SnackBar de carga
-        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).clearSnackBars();
 
         if (result.success) {
-          // ignore: use_build_context_synchronously
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('✅ Ticket impreso correctamente'),
@@ -83,9 +80,7 @@ class TicketService {
           );
           return;
         } else {
-          // Error específico
           String errorMessage = _getErrorMessage(result.error);
-          // ignore: use_build_context_synchronously
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('❌ Error al imprimir: $errorMessage'),
@@ -96,9 +91,7 @@ class TicketService {
           developer.log('Fallo en impresión ESC/POS: ${result.message}');
         }
       } catch (e) {
-        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).clearSnackBars();
-        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ Error inesperado: $e'),
@@ -110,7 +103,7 @@ class TicketService {
       }
     }
 
-    // 2. Fallback: PDF
+    // Fallback: PDF
     final pdf = await _generarDocumentoFallback(
       items: items,
       subtotal: subtotalCalculado,
@@ -120,6 +113,7 @@ class TicketService {
       montoRecibido: montoRecibido,
       vuelto: cambio,
       fechaVenta: fechaVenta,
+      local: local,
     );
 
     final bytes = await pdf.save();
@@ -134,7 +128,8 @@ class TicketService {
   // ============================================================
   // MENSAJES DE ERROR AMIGABLES
   // ============================================================
-  static String _getErrorMessage(PrinterError error) {
+  static String _getErrorMessage(PrinterError? error) {
+    if (error == null) return 'Error desconocido';
     switch (error) {
       case PrinterError.none:
         return 'Sin errores';
@@ -152,7 +147,7 @@ class TicketService {
   }
 
   // ============================================================
-  // GENERAR PDF (COPIA TU CÓDIGO AQUÍ)
+  // GENERAR PDF FALLBACK
   // ============================================================
   static Future<pw.Document> _generarDocumentoFallback({
     required List<TicketItem> items,
@@ -163,102 +158,197 @@ class TicketService {
     required double montoRecibido,
     required double vuelto,
     DateTime? fechaVenta,
+    LocalEntity? local,
   }) async {
-    // 📌 COPIA AQUÍ TU MÉTODO DE PDF COMPLETO
-    // (No lo pongo completo para no alargar, pero tú ya lo tienes)
     final pdf = pw.Document();
-    // ... tu lógica de PDF ...
-    return pdf;
-  }
-
-  static Future<void> _guardarEnDiscoSilencioso(List<int> bytes) async {
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final folderPath = '${directory.path}/Tickets_POS';
-      final folder = Directory(folderPath);
-      if (!await folder.exists()) {
-        await folder.create(recursive: true);
-      }
-      final fileName = 'Ticket_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final file = File('$folderPath/$fileName');
-      await file.writeAsBytes(bytes);
-    } catch (e) {
-      developer.log('Aviso: No se pudo respaldar el PDF en disco', error: e);
-    }
-  }
-
-  /// Imprime una etiqueta con un código de barras
-/// Imprime una etiqueta con un código de barras (SIEMPRE CON DIÁLOGO DEL SISTEMA)
-static Future<void> imprimirCodigoBarras({
-  required String codigo,
-  required Uint8List imageBytes,
-  SelectedPrinter? impresoraSeleccionada,
-}) async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  debugPrint('📄 Generando PDF para código: $codigo');
-
-  try {
-    // 1. Generar documento PDF con el código y la imagen
-    final pdf = pw.Document();
-    pw.Font fontRegular;
-    try {
-      fontRegular = await PdfGoogleFonts.robotoRegular();
-    } catch (_) {
-      fontRegular = pw.Font.helvetica();
-    }
-
-    final pageFormat = PdfPageFormat.roll80.copyWith(
-      marginLeft: 10,
-      marginRight: 10,
-      marginTop: 10,
-      marginBottom: 10,
-    );
+    await PdfGoogleFonts.robotoRegular(); // Forzamos carga para tener la fuente
 
     pdf.addPage(
       pw.Page(
-        pageFormat: pageFormat,
-        theme: pw.ThemeData.withFont(base: fontRegular),
-        build: (pw.Context context) {
-          return pw.Center(
-            child: pw.Column(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
-                pw.Text(
-                  'Código de Barras',
-                  style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+        pageFormat: PdfPageFormat.roll80.copyWith(
+          marginLeft: 10,
+          marginRight: 10,
+          marginTop: 10,
+          marginBottom: 10,
+        ),
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              if (local != null) ...[
+                pw.Center(
+                  child: pw.Text(
+                    local.nombre,
+                    style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                  ),
                 ),
-                pw.SizedBox(height: 10),
-                pw.Image(pw.MemoryImage(imageBytes), width: 200, height: 80),
-                pw.SizedBox(height: 10),
-                pw.Text(
-                  codigo,
-                  style: pw.TextStyle(fontSize: 12),
-                ),
+                if (local.direccion != null && local.direccion!.isNotEmpty)
+                  pw.Center(child: pw.Text(local.direccion!)),
+                if (local.telefono != null && local.telefono!.isNotEmpty)
+                  pw.Center(child: pw.Text('Tel: ${local.telefono}')),
+                if (local.email != null && local.email!.isNotEmpty)
+                  pw.Center(child: pw.Text('Email: ${local.email}')),
+                if (local.rif != null && local.rif!.isNotEmpty)
+                  pw.Center(child: pw.Text('RIF: ${local.rif}')),
+                pw.SizedBox(height: 8),
+                pw.Divider(),
+                pw.SizedBox(height: 8),
               ],
-            ),
+              pw.Text('Fecha: ${fechaVenta?.toLocal().toString() ?? DateTime.now().toLocal().toString()}'),
+              pw.Text('Método: $metodoPago'),
+              pw.SizedBox(height: 8),
+              ...items.map((item) {
+                return pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Expanded(
+                      child: pw.Text('${item.cantidad.toStringAsFixed(item.esPesado ? 3 : 0)}x ${item.nombre}'),
+                    ),
+                    pw.Text('\$${item.total.toStringAsFixed(2)}'),
+                  ],
+                );
+              }).toList(),
+              pw.Divider(),
+              pw.SizedBox(height: 8),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Subtotal:'),
+                  pw.Text('\$${subtotal.toStringAsFixed(2)}'),
+                ],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Impuesto:'),
+                  pw.Text('\$${impuesto.toStringAsFixed(2)}'),
+                ],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('TOTAL:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  pw.Text('\$${total.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ],
+              ),
+              pw.SizedBox(height: 8),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Recibido:'),
+                  pw.Text('\$${montoRecibido.toStringAsFixed(2)}'),
+                ],
+              ),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Vuelto:'),
+                  pw.Text('\$${vuelto.toStringAsFixed(2)}'),
+                ],
+              ),
+              pw.SizedBox(height: 16),
+              pw.Center(
+                child: pw.Text('¡Gracias por su compra!', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              ),
+            ],
           );
         },
       ),
     );
-
-    final bytes = await pdf.save();
-    debugPrint('✅ PDF generado, tamaño: ${bytes.length} bytes');
-
-    // 2. Guardar copia en disco (opcional)
-    _guardarEnDiscoSilencioso(bytes);
-
-    // 3. Siempre usar el diálogo del sistema (más fiable)
-    debugPrint('📤 Abriendo diálogo de impresión del sistema...');
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => bytes,
-      name: 'Codigo_Barras_$codigo',
-    );
-    debugPrint('✅ Diálogo de impresión cerrado');
-    
-  } catch (e) {
-    debugPrint('❌ Error en imprimirCodigoBarras: $e');
-    rethrow; // Para que el llamador maneje el error
+    return pdf;
   }
-}
+
+  // ============================================================
+  // GUARDAR PDF EN DISCO (FALLBACK)
+  // ============================================================
+  static Future<void> _guardarEnDiscoSilencioso(List<int> bytes) async {
+    try {
+      if (bytes.isEmpty) {
+        developer.log('⚠️ Bytes vacíos, no se guardará el PDF.');
+        return;
+      }
+      final directory = await getApplicationDocumentsDirectory();
+      final folderPath = '${directory.path}/Tickets_POS';
+      final folder = Directory(folderPath);
+      if (!await folder.exists()) await folder.create(recursive: true);
+      final fileName = 'Ticket_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final file = File('$folderPath/$fileName');
+      await file.writeAsBytes(bytes);
+    } catch (e) {
+      developer.log('❌ Error guardando PDF: $e');
+    }
+  }
+
+  // ============================================================
+  // 🆕 IMPRIMIR CÓDIGO DE BARRAS (como método estático)
+  // ============================================================
+  static Future<void> imprimirCodigoBarras({
+    required String codigo,
+    required Uint8List imageBytes,
+  }) async {
+    WidgetsFlutterBinding.ensureInitialized();
+
+    debugPrint('📄 Generando PDF para código: $codigo');
+
+    try {
+      final pdf = pw.Document();
+      pw.Font fontRegular;
+      try {
+        fontRegular = await PdfGoogleFonts.robotoRegular();
+      } catch (_) {
+        fontRegular = pw.Font.helvetica();
+      }
+
+      final pageFormat = PdfPageFormat.roll80.copyWith(
+        marginLeft: 10,
+        marginRight: 10,
+        marginTop: 10,
+        marginBottom: 10,
+      );
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: pageFormat,
+          theme: pw.ThemeData.withFont(base: fontRegular),
+          build: (context) {
+            return pw.Center(
+              child: pw.Column(
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                children: [
+                  pw.Text(
+                    'Código de Barras',
+                    style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                  ),
+                  pw.SizedBox(height: 10),
+                  pw.Image(pw.MemoryImage(imageBytes), width: 200, height: 80),
+                  pw.SizedBox(height: 10),
+                  pw.Text(
+                    codigo,
+                    style: pw.TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+
+      final bytes = await pdf.save();
+      debugPrint('✅ PDF generado, tamaño: ${bytes.length} bytes');
+
+      // Guardar copia en disco
+      await _guardarEnDiscoSilencioso(bytes);
+
+      // Mostrar diálogo de impresión del sistema
+      debugPrint('📤 Abriendo diálogo de impresión del sistema...');
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => bytes,
+        name: 'Codigo_Barras_$codigo',
+      );
+      debugPrint('✅ Diálogo de impresión cerrado');
+    } catch (e) {
+      debugPrint('❌ Error en imprimirCodigoBarras: $e');
+      rethrow;
+    }
+  }
 }

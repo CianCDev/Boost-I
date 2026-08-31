@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/Local/entities/isar_service.dart';
 import '../services/cash_register_service.dart';
 import '../services/ticket_service.dart';
 import '../services/ticket_generator.dart';
@@ -87,6 +88,9 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
   Future<void> _ejecutarCierreYGuardarPdf() async {
     if (_resumen == null) return;
 
+    // ✅ Obtener local activo
+    final local = await IsarService().obtenerLocalActivo();
+
     try {
       final selectedPrinter = ref.read(printerProvider);
 
@@ -109,6 +113,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
 
       await TicketService.imprimirTicketVenta(
         context: context,
+        local: local, // ✅ PASAMOS EL LOCAL
         items: items,
         total: _resumen!.totalVentas,
         metodoPago: 'Cierre de Caja',
