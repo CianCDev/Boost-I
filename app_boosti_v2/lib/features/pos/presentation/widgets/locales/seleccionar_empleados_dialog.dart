@@ -66,7 +66,7 @@ class _SeleccionarEmpleadosDialogState extends ConsumerState<SeleccionarEmpleado
                     title: Text(empleado.nombre),
                     subtitle: Text('Rol: ${empleado.rol}'),
                     secondary: CircleAvatar(
-                      backgroundColor: colorScheme.primary.withOpacity(0.1),
+                      backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
                       child: Icon(
                         Icons.person,
                         color: colorScheme.primary,
