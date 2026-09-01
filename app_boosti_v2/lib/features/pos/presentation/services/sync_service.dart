@@ -1364,63 +1364,57 @@ class SyncService {
         return;
       }
 
-      debugPrint('🔄 Descargando ${response.length} gastos desde Supabase...');
+    final gastosLocales = await _isarService.obtenerGastos();
+    final Map<int, GastoEntity> porIdIsar = {
+      for (var g in gastosLocales) g.id: g
+    };
+    final Map<String, GastoEntity> porSupabaseId = {
+      for (var g in gastosLocales)
+        if (g.supabaseId != null && g.supabaseId!.isNotEmpty)
+          g.supabaseId!: g
+    };
 
-      // Obtener todos los gastos locales actuales para mapear por id_isar y supabaseId
-      final gastosLocales = await _isarService.obtenerGastos();
-      final Map<int, GastoEntity> porIdIsar = {
-        for (var g in gastosLocales) g.id: g
-      };
-      final Map<String, GastoEntity> porSupabaseId = {
-        for (var g in gastosLocales)
-          if (g.supabaseId != null && g.supabaseId!.isNotEmpty) g.supabaseId!: g
-      };
+    int insertados = 0, actualizados = 0;
 
-      int insertados = 0, actualizados = 0;
+    for (var data in response) {
+      final supabaseId = data['id'] as String?;
+      if (supabaseId == null || supabaseId.isEmpty) continue;
 
-      for (var data in response) {
-        final supabaseId = data['id'] as String?;
-        if (supabaseId == null || supabaseId.isEmpty) continue;
+      final idIsar = data['id_isar'] as int?;
+      GastoEntity? gastoLocal;
 
-        final idIsar = data['id_isar'] as int?;
-        GastoEntity? gastoLocal;
+      if (idIsar != null && porIdIsar.containsKey(idIsar)) {
+        gastoLocal = porIdIsar[idIsar];
+      } else if (supabaseId.isNotEmpty && porSupabaseId.containsKey(supabaseId)) {
+        gastoLocal = porSupabaseId[supabaseId];
+      }
 
-        // Buscar por supabaseId o por id_isar
-        if (idIsar != null && porIdIsar.containsKey(idIsar)) {
-          gastoLocal = porIdIsar[idIsar];
-        } else if (supabaseId.isNotEmpty &&
-            porSupabaseId.containsKey(supabaseId)) {
-          gastoLocal = porSupabaseId[supabaseId];
-        }
+      // 🔥 CORRECCIÓN: Convertir UUID de usuario a ID local de Isar
+      final String? usuarioUuid = data['usuario_id']?.toString();
+      final int usuarioIsarId = usuarioUuid != null && usuarioUuid.isNotEmpty
+          ? await _obtenerIsarIdUsuario(usuarioUuid)
+          : 0;
 
-        // Crear entidad con los datos de la nube
-        final gastoNube = GastoEntity()
-          ..supabaseId = supabaseId
-          ..descripcion = data['descripcion'] ?? ''
-          ..monto = (data['monto'] as num?)?.toDouble() ?? 0.0
-          ..moneda = data['moneda'] ?? 'USD'
-          ..tasaBcv = (data['tasa_bcv'] as num?)?.toDouble()
-          ..categoria = data['categoria'] ?? 'General'
-          ..usuarioId = data['usuario_id'] as int? ?? 0
-          ..usuarioNombre = data['usuario_nombre'] ?? ''
-          ..fecha = DateTime.parse(data['fecha']).toLocal()
-          ..syncStatus = 'synced';
+      final gastoNube = GastoEntity()
+        ..supabaseId = supabaseId
+        ..descripcion = data['descripcion'] ?? ''
+        ..monto = (data['monto'] as num?)?.toDouble() ?? 0.0
+        ..moneda = data['moneda'] ?? 'USD'
+        ..tasaBcv = (data['tasa_bcv'] as num?)?.toDouble()
+        ..categoria = data['categoria'] ?? 'General'
+        ..usuarioId = usuarioIsarId  // ✅ Ahora es int (ID local)
+        ..usuarioNombre = data['usuario_nombre'] ?? ''
+        ..fecha = DateTime.parse(data['fecha']).toLocal()
+        ..syncStatus = 'synced';
 
-        if (gastoLocal != null) {
-          // Actualizar existente: conservar el id de Isar y reemplazar el resto
-          gastoNube.id = gastoLocal.id;
-          await _isarService.guardarGasto(gastoNube);
-          actualizados++;
-          debugPrint('🔄 Gasto actualizado: ${gastoNube.descripcion}');
-        } else {
-          // Insertar nuevo (Isar generará un id automáticamente si es 0)
-          // Si el id_isar existe en la nube pero no local, podemos usarlo.
-          if (idIsar != null && idIsar > 0) {
-            gastoNube.id = idIsar;
-          }
-          await _isarService.guardarGasto(gastoNube);
-          insertados++;
-          debugPrint('📥 Gasto creado: ${gastoNube.descripcion}');
+      if (gastoLocal != null) {
+        gastoNube.id = gastoLocal.id;
+        await _isarService.guardarGasto(gastoNube);
+        actualizados++;
+        debugPrint('🔄 Gasto actualizado: ${gastoNube.descripcion}');
+      } else {
+        if (idIsar != null && idIsar > 0) {
+          gastoNube.id = idIsar;
         }
       }
 
@@ -2277,120 +2271,123 @@ class SyncService {
   }
 
   /// Descarga pedidos desde Supabase y los guarda localmente.
-  Future<void> descargarPedidosDesdeSupabase() async {
-    try {
-      final String? localActualUuid = await _obtenerLocalActualUuid();
-      if (localActualUuid == null || localActualUuid.isEmpty) {
-        debugPrint(
-            '⚠️ No se pudo obtener el UUID del local actual. No se descargarán pedidos.');
-        return;
-      }
+ Future<void> descargarPedidosDesdeSupabase() async {
+  try {
+    // Obtener el local activo
+    final localActivo = await _isarService.obtenerLocalActivo();
+    String? localActualUuid = localActivo?.supabaseId;
+    final int localActualId = localActivo?.id ?? 1;
 
-      final response = await _supabase
-          .from('pedidos')
-          .select('*, detalles_pedido(*), recepciones(*)')
-          .or('local_id.eq.$localActualUuid,local_destino_id.eq.$localActualUuid')
-          .order('fecha_pedido', ascending: false);
-
-      if (response.isEmpty) {
-        debugPrint('ℹ️ No hay pedidos en Supabase para descargar');
-        return;
-      }
-
-      debugPrint('🔄 Descargando ${response.length} pedidos desde Supabase...');
-
-      final isar = await _isarService.db;
-      for (var pedidoJson in response) {
-        final existing = await isar.pedidoEntitys
-            .filter()
-            .supabaseIdEqualTo(pedidoJson['id'])
-            .findFirst();
-        if (existing != null) continue;
-
-        final String? localOrigenUuid = pedidoJson['local_id']?.toString();
-        final String? localDestinoUuid =
-            pedidoJson['local_destino_id']?.toString();
-        final String? usuarioUuid = pedidoJson['usuario_id']?.toString();
-
-        if (localOrigenUuid == null ||
-            localDestinoUuid == null ||
-            usuarioUuid == null) {
-          debugPrint(
-              '⚠️ Pedido ${pedidoJson['id']} omitido por falta de mapeo de IDs');
-          continue;
-        }
-
-        final int localOrigenId = await _obtenerIsarIdLocal(localOrigenUuid);
-        final int localDestinoId = await _obtenerIsarIdLocal(localDestinoUuid);
-        final int usuarioId = await _obtenerIsarIdUsuario(usuarioUuid);
-
-        if (localOrigenId == 0 || localDestinoId == 0 || usuarioId == 0) {
-          debugPrint(
-              '⚠️ Pedido ${pedidoJson['id']} omitido: IDs locales no encontrados');
-          continue;
-        }
-
-        final pedido = PedidoEntity()
-          ..supabaseId = pedidoJson['id']
-          ..localOrigenId = localOrigenId
-          ..localDestinoId = localDestinoId
-          ..usuarioId = usuarioId
-          ..fechaPedido = DateTime.parse(pedidoJson['fecha_pedido'])
-          ..estado = EstadoPedido.values.firstWhere(
-            (e) => e.name == pedidoJson['estado'],
-            orElse: () => EstadoPedido.pendiente,
-          )
-          ..proveedorNombre = pedidoJson['proveedor_nombre'] ?? ''
-          ..proveedorCedula = pedidoJson['proveedor_cedula']
-          ..proveedorTelefono = pedidoJson['proveedor_telefono']
-          ..proveedorEmpresa = pedidoJson['proveedor_empresa']
-          ..observaciones = pedidoJson['observaciones']
-          ..total = (pedidoJson['total'] as num).toDouble()
-          ..sincronizado = true
-          ..fechaSincronizacion = DateTime.now();
-
-        await isar.writeTxn(() async {
-          final pedidoId = await isar.pedidoEntitys.put(pedido);
-
-          for (var detalleJson in pedidoJson['detalles_pedido'] ?? []) {
-            final int productoId =
-                await _obtenerIsarIdProducto(detalleJson['producto_id']);
-            final detalle = DetallePedidoEntity()
-              ..supabaseId = detalleJson['id']
-              ..pedidoId = pedidoId
-              ..productoId = productoId
-              ..nombreProducto = detalleJson['nombre_producto']
-              ..cantidad = (detalleJson['cantidad'] as num).toDouble()
-              ..precioUnidad = (detalleJson['precio_unidad'] as num).toDouble()
-              ..subtotal = (detalleJson['subtotal'] as num).toDouble();
-            await isar.detallePedidoEntitys.put(detalle);
-          }
-
-          final recepcionJson = pedidoJson['recepciones'];
-          if (recepcionJson != null && recepcionJson.isNotEmpty) {
-            final recepcionData = recepcionJson[0];
-            final int usuarioRecepcionId =
-                await _obtenerIsarIdUsuario(recepcionData['usuario_id']);
-            final recepcion = RecepcionEntity()
-              ..supabaseId = recepcionData['id']
-              ..pedidoId = pedidoId
-              ..fechaRecepcion =
-                  DateTime.parse(recepcionData['fecha_recepcion'])
-              ..usuarioId = usuarioRecepcionId
-              ..observaciones = recepcionData['observaciones']
-              ..sincronizado = true
-              ..fechaSincronizacion = DateTime.now();
-            await isar.recepcionEntitys.put(recepcion);
-          }
-        });
-      }
-      debugPrint(
-          '✅ ${response.length} pedidos descargados y guardados correctamente.');
-    } catch (e) {
-      debugPrint('❌ Error descargando pedidos: $e');
-      rethrow;
+    // Si no tiene UUID, obtener el del local principal (ID 1)
+    if (localActualUuid == null || localActualUuid.isEmpty) {
+      localActualUuid = await _obtenerLocalActualUuid();
     }
+
+    if (localActualUuid == null || localActualUuid.isEmpty) {
+      debugPrint('⚠️ No se pudo obtener el UUID del local actual. No se descargarán pedidos.');
+      return;
+    }
+
+    // 🔥 OR con tipos correctos: local_id (bigint) y local_destino_id (uuid)
+    final response = await _supabase
+        .from('pedidos')
+        .select('*, detalles_pedido(*), recepciones(*)')
+        .or(
+          'local_id.eq.$localActualId,'          // local_id es bigint
+          'local_destino_id.eq.$localActualUuid' // local_destino_id es uuid
+        )
+        .order('fecha_pedido', ascending: false);
+
+    if (response.isEmpty) {
+      debugPrint('ℹ️ No hay pedidos en Supabase para descargar');
+      return;
+    }
+
+    debugPrint('🔄 Descargando ${response.length} pedidos desde Supabase...');
+
+    final isar = await _isarService.db;
+    for (var pedidoJson in response) {
+      final existing = await isar.pedidoEntitys
+          .filter()
+          .supabaseIdEqualTo(pedidoJson['id'])
+          .findFirst();
+      if (existing != null) continue;
+
+      final String? localOrigenUuid = pedidoJson['local_id']?.toString();
+      final String? localDestinoUuid = pedidoJson['local_destino_id']?.toString();
+      final String? usuarioUuid = pedidoJson['usuario_id']?.toString();
+
+      if (localOrigenUuid == null || localDestinoUuid == null || usuarioUuid == null) {
+        debugPrint('⚠️ Pedido ${pedidoJson['id']} omitido por falta de mapeo de IDs');
+        continue;
+      }
+
+      final int localOrigenId = await _obtenerIsarIdLocal(localOrigenUuid);
+      final int localDestinoId = await _obtenerIsarIdLocal(localDestinoUuid);
+      final int usuarioId = await _obtenerIsarIdUsuario(usuarioUuid);
+
+      if (localOrigenId == 0 || localDestinoId == 0 || usuarioId == 0) {
+        debugPrint('⚠️ Pedido ${pedidoJson['id']} omitido: IDs locales no encontrados');
+        continue;
+      }
+
+      final pedido = PedidoEntity()
+        ..supabaseId = pedidoJson['id']
+        ..localOrigenId = localOrigenId
+        ..localDestinoId = localDestinoId
+        ..usuarioId = usuarioId
+        ..fechaPedido = DateTime.parse(pedidoJson['fecha_pedido'])
+        ..estado = EstadoPedido.values.firstWhere(
+          (e) => e.name == pedidoJson['estado'],
+          orElse: () => EstadoPedido.pendiente,
+        )
+        ..proveedorNombre = pedidoJson['proveedor_nombre'] ?? ''
+        ..proveedorCedula = pedidoJson['proveedor_cedula']
+        ..proveedorTelefono = pedidoJson['proveedor_telefono']
+        ..proveedorEmpresa = pedidoJson['proveedor_empresa']
+        ..observaciones = pedidoJson['observaciones']
+        ..total = (pedidoJson['total'] as num).toDouble()
+        ..sincronizado = true
+        ..fechaSincronizacion = DateTime.now();
+
+      await isar.writeTxn(() async {
+        final pedidoId = await isar.pedidoEntitys.put(pedido);
+
+        for (var detalleJson in pedidoJson['detalles_pedido'] ?? []) {
+          final int productoId = await _obtenerIsarIdProducto(detalleJson['producto_id']);
+          final detalle = DetallePedidoEntity()
+            ..supabaseId = detalleJson['id']
+            ..pedidoId = pedidoId
+            ..productoId = productoId
+            ..nombreProducto = detalleJson['nombre_producto']
+            ..cantidad = (detalleJson['cantidad'] as num).toDouble()
+            ..precioUnidad = (detalleJson['precio_unidad'] as num).toDouble()
+            ..subtotal = (detalleJson['subtotal'] as num).toDouble();
+          await isar.detallePedidoEntitys.put(detalle);
+        }
+
+        final recepcionJson = pedidoJson['recepciones'];
+        if (recepcionJson != null && recepcionJson.isNotEmpty) {
+          final recepcionData = recepcionJson[0];
+          final int usuarioRecepcionId = await _obtenerIsarIdUsuario(recepcionData['usuario_id']);
+          final recepcion = RecepcionEntity()
+            ..supabaseId = recepcionData['id']
+            ..pedidoId = pedidoId
+            ..fechaRecepcion = DateTime.parse(recepcionData['fecha_recepcion'])
+            ..usuarioId = usuarioRecepcionId
+            ..observaciones = recepcionData['observaciones']
+            ..sincronizado = true
+            ..fechaSincronizacion = DateTime.now();
+          await isar.recepcionEntitys.put(recepcion);
+        }
+      });
+    }
+    debugPrint('✅ ${response.length} pedidos descargados y guardados correctamente.');
+  } catch (e) {
+    debugPrint('❌ Error descargando pedidos: $e');
+    rethrow;
   }
+}
 
   // ============================================================
   // MÉTODOS AUXILIARES (UUID ↔ ID de Isar)
