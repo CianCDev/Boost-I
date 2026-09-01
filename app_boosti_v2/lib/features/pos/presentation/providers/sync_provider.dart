@@ -7,7 +7,6 @@ import 'categorias_provider.dart';
 import 'dashboard_provider.dart';
 import 'departamentos_provider.dart';
 import 'inventory_provider.dart';
-import 'isar_provider.dart';
 import 'locales_provider.dart';
 import 'productos_provider.dart';
 import 'proveedores_provider.dart';

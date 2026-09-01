@@ -12,6 +12,8 @@ import '../../../data/Local/entities/isar_service.dart';
 import '../dialogos_genericos/dialogos_genericos.dart';
 import 'empleados_departamento_dialogo.dart';
 import 'seleccionar_departamento_dialog.dart';
+// ✅ NUEVO IMPORT PARA EL DIÁLOGO DE SELECCIÓN MÚLTIPLE
+import 'seleccionar_empleados_dialog.dart';
 
 class DetalleLocalDialog extends ConsumerStatefulWidget {
   final LocalEntity local;
@@ -561,6 +563,7 @@ class _DetalleLocalDialogState extends ConsumerState<DetalleLocalDialog> {
     );
   }
 
+  // ✅ MÉTODO CORREGIDO PARA SELECCIÓN MÚLTIPLE
   Future<void> _agregarEmpleado() async {
     // ✅ Forzar sincronización de usuarios desde Supabase para asegurar datos actualizados
     try {
@@ -588,46 +591,49 @@ class _DetalleLocalDialogState extends ConsumerState<DetalleLocalDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No hay empleados disponibles para asignar.'),
+          backgroundColor: Colors.orange,
         ),
       );
       return;
     }
 
-    final selected = await showDialog<UsuarioEntity>(
+    // 🔥 Usar el diálogo de selección múltiple
+    final seleccionados = await showDialog<List<int>>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Asignar empleado'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: disponibles.length,
-              itemBuilder: (context, index) {
-                final u = disponibles[index];
-                return ListTile(
-                  title: Text(u.nombre),
-                  subtitle: Text('Rol: ${u.rol}'),
-                  onTap: () => Navigator.pop(context, u),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-          ],
-        );
-      },
+      builder: (context) => SeleccionarEmpleadosDialog(
+        localId: widget.local.id,
+        empleadosDisponibles: disponibles,
+      ),
     );
 
-    if (selected != null) {
-      selected.localId = widget.local.id;
-      await isar.guardarUsuario(selected);
+    if (seleccionados != null && seleccionados.isNotEmpty) {
+      // Asignar el local a todos los empleados seleccionados
+      for (final empleadoId in seleccionados) {
+        final empleado = await isar.obtenerUsuarioPorId(empleadoId);
+        if (empleado != null) {
+          empleado.localId = widget.local.id;
+          await isar.guardarUsuario(empleado);
+        }
+      }
+
+      // Sincronizar con Supabase
+      final syncService = SyncService();
+      await syncService.sincronizarUsuariosASupabase();
+
+      // Invalidar providers para refrescar UI
       ref.invalidate(empleadosPorLocalProvider(widget.local.id));
-      setState(() {});
+      ref.invalidate(usuariosProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${seleccionados.length} empleados asignados correctamente.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Refrescar el estado local
+        setState(() {});
+      }
     }
   }
 
@@ -638,7 +644,8 @@ class _DetalleLocalDialogState extends ConsumerState<DetalleLocalDialog> {
         title: 'Desasignar empleado',
         content: '¿Quitar a "${usuario.nombre}" de este local?',
         confirmText: 'Desasignar',
-        confirmColor: Colors.orange, onConfirm: () {  },
+        confirmColor: Colors.orange,
+        onConfirm: () {},
       ),
     );
 

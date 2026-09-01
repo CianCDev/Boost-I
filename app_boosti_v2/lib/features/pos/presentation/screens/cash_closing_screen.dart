@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/Local/entities/isar_service.dart';
-import '../services/cash_register_service.dart';
-import '../services/ticket_service.dart';
-import '../services/ticket_generator.dart';
-import '../services/sync_service.dart';
-import '../providers/esc_pos_provider.dart';
-import '../utils/responsive_helper.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/cash_closing_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/cash_closing/closing_summary_card.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/cash_closing/closing_payment_card.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/cash_closing/closing_confirm_dialog.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/cash_closing/closing_button.dart';
+import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
 
 class CashClosingScreen extends ConsumerStatefulWidget {
   const CashClosingScreen({super.key});
@@ -17,130 +17,21 @@ class CashClosingScreen extends ConsumerStatefulWidget {
 
 class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
     with SingleTickerProviderStateMixin {
-  final CashRegisterService _cashService = CashRegisterService();
-  final SyncService _syncService = SyncService();
-  bool _isLoading = true;
-  bool _descargando = false;
-  ResumenCorteCaja? _resumen;
-
-  static const Map<String, Color> _coloresMetodo = {
-    'Efectivo': Color(0xFF10B981),
-    'Tarjeta': Color(0xFF3B82F6),
-    'Pago Móvil': Color(0xFF8B5CF6),
-    'Divisas': Color(0xFFF59E0B),
-    'Pago Mixto': Color(0xFFEC4899),
-    'Otros': Color(0xFF64748B),
-  };
-
-  static const Map<String, IconData> _iconosMetodo = {
-    'Efectivo': Icons.money_rounded,
-    'Tarjeta': Icons.credit_card_rounded,
-    'Pago Móvil': Icons.phone_android_rounded,
-    'Divisas': Icons.currency_exchange_rounded,
-    'Pago Mixto': Icons.swap_horiz_rounded,
-    'Otros': Icons.more_horiz_rounded,
-  };
-
-  Color _getColorMetodo(String metodo) {
-    return _coloresMetodo[metodo] ?? _coloresMetodo['Otros']!;
-  }
-
-  IconData _getIconMetodo(String metodo) {
-    return _iconosMetodo[metodo] ?? _iconosMetodo['Otros']!;
-  }
+  late final AnimationController _animationController;
 
   @override
   void initState() {
     super.initState();
-    _cargarCorte();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    )..forward();
   }
 
-  Future<void> _cargarCorte() async {
-    setState(() => _isLoading = true);
-    try {
-      setState(() => _descargando = true);
-      await _syncService.descargarVentasDesdeSupabase();
-      setState(() => _descargando = false);
-
-      final resumen = await _cashService.calcularCorteDelDia();
-      if (mounted) {
-        setState(() {
-          _resumen = resumen;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _descargando = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al cargar el corte: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _ejecutarCierreYGuardarPdf() async {
-    if (_resumen == null) return;
-
-    // ✅ Obtener local activo
-    final local = await IsarService().obtenerLocalActivo();
-
-    try {
-      final selectedPrinter = ref.read(printerProvider);
-
-      final List<TicketItem> items = [
-        TicketItem(
-          nombre: 'CIERRE DE CAJA - ${DateTime.now().toLocal().toString().substring(0, 16)}',
-          precio: _resumen!.totalVentas,
-          cantidad: 1.0,
-          esPesado: false,
-        ),
-        ..._resumen!.totalesPorMetodo.entries.map((entry) {
-          return TicketItem(
-            nombre: '  ${entry.key}:',
-            precio: entry.value,
-            cantidad: 1.0,
-            esPesado: false,
-          );
-        }),
-      ];
-
-      await TicketService.imprimirTicketVenta(
-        context: context,
-        local: local, // ✅ PASAMOS EL LOCAL
-        items: items,
-        total: _resumen!.totalVentas,
-        metodoPago: 'Cierre de Caja',
-        montoRecibido: _resumen!.totalVentas,
-        cambio: 0.0,
-        impuesto: 0.0,
-        subtotal: _resumen!.totalVentas,
-        fechaVenta: DateTime.now(),
-        impresoraSeleccionada: selectedPrinter?.device,
-      );
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('✅ Cierre procesado y ticket impreso'),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Error al imprimir: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-    }
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   @override
@@ -150,83 +41,81 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
-    final double padding = isMobile ? 10 : 20;
-    final double cardPadding = isMobile ? 12 : 20;
-    final double spacing = isMobile ? 8 : 14;
+    final state = ref.watch(cashClosingProvider);
+    final notifier = ref.read(cashClosingProvider.notifier);
 
-    final double fontSizeTotal = isMobile ? 24 : (isTablet ? 36 : 44);
-    final double fontSizeTitle = isMobile ? 14 : (isTablet ? 18 : 22);
-    final double fontSizeSubtitle = isMobile ? 10 : (isTablet ? 12 : 14);
-    final double fontSizeMonto = isMobile ? 12 : (isTablet ? 18 : 22);
+    final title = isMobile ? 'Cierre de Caja' : 'Cierre de Caja Diario';
+
+    // Gradiente para el CustomAppBar (coherente con el resto de la app)
+    final gradient = isDark
+        ? LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colorScheme.primaryContainer.withValues(alpha: 0.9),
+              colorScheme.primary,
+            ],
+          )
+        : const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1A2235), Color(0xFF2D3748)],
+          );
 
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLow,
-      appBar: AppBar(
-        title: Text(
-          isMobile ? 'Corte de Caja' : 'Corte de Caja Diario',
-          style: TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onPrimary),
-        ),
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: isDark
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      colorScheme.primaryContainer.withValues(alpha: 0.9),
-                      colorScheme.primary,
-                    ],
-                  )
-                : const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color.fromRGBO(68, 109, 241, 1), Color.fromARGB(255, 85, 59, 235)],
-                  ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: colorScheme.onPrimary,
+      appBar: CustomAppBar(
+        title: title,
+        showBackButton: false,
+        gradient: gradient,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh, color: colorScheme.onPrimary),
+            icon: const Icon(Icons.refresh, color: Colors.white),
             tooltip: 'Actualizar',
-            onPressed: _cargarCorte,
+            onPressed: state.isLoading ? null : () => notifier.refrescar(),
           ),
         ],
+        // Opcional: logo
+        // logoAsset: 'assets/logo_white.svg',
+        // logoSize: 30,
       ),
-      body: _buildBody(
-        context,
-        colorScheme,
-        isDark,
-        isMobile,
-        isTablet,
-        padding,
-        cardPadding,
-        spacing,
-        fontSizeTotal,
-        fontSizeTitle,
-        fontSizeSubtitle,
-        fontSizeMonto,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final crossAxisCount = constraints.maxWidth > 800 ? 4 : 2;
+          final isWide = constraints.maxWidth > 600;
+
+          return FadeTransition(
+            opacity: _animationController,
+            child: _buildBody(
+              context,
+              state,
+              notifier,
+              colorScheme,
+              isDark,
+              isMobile,
+              isTablet,
+              isWide,
+              crossAxisCount,
+            ),
+          );
+        },
       ),
     );
   }
 
   Widget _buildBody(
     BuildContext context,
+    CashClosingState state,
+    CashClosingNotifier notifier,
     ColorScheme colorScheme,
     bool isDark,
     bool isMobile,
     bool isTablet,
-    double padding,
-    double cardPadding,
-    double spacing,
-    double fontSizeTotal,
-    double fontSizeTitle,
-    double fontSizeSubtitle,
-    double fontSizeMonto,
+    bool isWide,
+    int crossAxisCount,
   ) {
-    if (_isLoading || _descargando) {
+    // Estado de carga
+    if (state.isLoading) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -236,10 +125,10 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              _descargando ? 'Descargando ventas...' : 'Calculando corte...',
+              'Cargando datos del cierre...',
               style: TextStyle(
                 color: colorScheme.onSurfaceVariant,
-                fontSize: fontSizeSubtitle,
+                fontSize: isMobile ? 14 : 16,
               ),
             ),
           ],
@@ -247,7 +136,51 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
       );
     }
 
-    if (_resumen == null) {
+    // Error
+    if (state.error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                size: 56,
+                color: colorScheme.error,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Error al cargar datos',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                state.error!,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => notifier.refrescar(),
+                child: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Datos disponibles
+    final resumen = state.resumen;
+    if (resumen == null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -262,7 +195,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
               'Sin datos disponibles',
               style: TextStyle(
                 color: colorScheme.onSurfaceVariant,
-                fontSize: fontSizeSubtitle,
+                fontSize: isMobile ? 14 : 16,
               ),
             ),
           ],
@@ -270,320 +203,118 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
       );
     }
 
+    // Construir lista de tarjetas de resumen
+    final summaryItems = [
+      _SummaryItem(
+        title: 'Ventas Totales',
+        value: '\$${resumen.totalVentas.toStringAsFixed(2)}',
+        color: const Color(0xFF00E5FF), // Cian
+        icon: Icons.attach_money_rounded,
+        sparklineData: const [10, 20, 15, 30, 25, 40, 35],
+      ),
+      _SummaryItem(
+        title: 'Efectivo',
+        value: '\$${(resumen.totalesPorMetodo['Efectivo'] ?? 0.0).toStringAsFixed(2)}',
+        color: const Color(0xFF00E676), // Verde
+        icon: Icons.money_rounded,
+        sparklineData: const [5, 10, 8, 15, 12, 20, 18],
+      ),
+      _SummaryItem(
+        title: 'Tarjeta',
+        value: '\$${(resumen.totalesPorMetodo['Tarjeta'] ?? 0.0).toStringAsFixed(2)}',
+        color: const Color(0xFFD500F9), // Púrpura
+        icon: Icons.credit_card_rounded,
+        sparklineData: const [8, 12, 10, 18, 14, 22, 20],
+      ),
+      _SummaryItem(
+        title: 'Transferencia',
+        value: '\$${(resumen.totalesPorMetodo['Pago Móvil'] ?? 0.0).toStringAsFixed(2)}',
+        color: const Color(0xFFFF9100), // Naranja
+        icon: Icons.phone_android_rounded,
+        sparklineData: const [3, 7, 5, 10, 8, 14, 12],
+      ),
+    ];
+
+    final padding = isMobile ? 12.0 : 20.0;
+    final spacing = isMobile ? 8.0 : 14.0;
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(padding),
       physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildTotalCard(colorScheme, isDark, isMobile, cardPadding, fontSizeTotal, fontSizeSubtitle),
+          // Fila de tarjetas de resumen (sparkline)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final itemWidth = (constraints.maxWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: summaryItems.map((item) {
+                  return SizedBox(
+                    width: itemWidth,
+                    child: ClosingSummaryCard(
+                      title: item.title,
+                      value: item.value,
+                      color: item.color,
+                      icon: item.icon,
+                      sparklineData: item.sparklineData,
+                      isMobile: isMobile,
+                      isTablet: isTablet,
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+
+          SizedBox(height: spacing * 2),
+
+          // Tarjeta de métodos de pago (detalle)
+          ClosingPaymentCard(
+            totalesPorMetodo: resumen.totalesPorMetodo,
+            notifier: notifier,
+            isMobile: isMobile,
+            isTablet: isTablet,
+          ),
+
           SizedBox(height: spacing),
-          _buildPaymentMethodsCard(colorScheme, isDark, isMobile, cardPadding, fontSizeTitle, fontSizeMonto, fontSizeSubtitle),
-          SizedBox(height: spacing),
-          _buildInfoCard(colorScheme, isDark, isMobile, padding, fontSizeSubtitle),
+
+          // Información de actualización
+          _buildInfoRow(context, state, colorScheme, isMobile),
+
           SizedBox(height: spacing * 1.5),
-          _buildPrintButton(colorScheme, isDark, isMobile),
-          const SizedBox(height: 12),
+
+          // Botón de cierre
+          ClosingButton(
+            isSyncing: state.isSyncing,
+            total: resumen.totalVentas,
+            onPress: () => _mostrarDialogoCierre(context, notifier),
+            isMobile: isMobile,
+            isTablet: isTablet,
+          ),
+
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
 
-  // ✅ CONTENEDOR DE TOTAL MEJORADO (más visible)
-  Widget _buildTotalCard(
+  Widget _buildInfoRow(
+    BuildContext context,
+    CashClosingState state,
     ColorScheme colorScheme,
-    bool isDark,
     bool isMobile,
-    double cardPadding,
-    double fontSizeTotal,
-    double fontSizeSubtitle,
-  ) {
-    return Card(
-      elevation: isDark ? 16 : 12,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: colorScheme.primary.withValues(alpha: 0.4),
-          width: 2.5,
-        ),
-      ),
-      color: colorScheme.surface,
-      shadowColor: isDark
-          ? colorScheme.primary.withValues(alpha: 0.5)
-          : colorScheme.primary.withValues(alpha: 0.3),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              colorScheme.primary.withValues(alpha: 0.05),
-              colorScheme.primary.withValues(alpha: 0.02),
-            ],
-          ),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(cardPadding * 1.2),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: colorScheme.primary.withValues(alpha: 0.3),
-                    width: 1.5,
-                  ),
-                ),
-                child: Icon(
-                  Icons.attach_money_rounded,
-                  color: colorScheme.primary,
-                  size: isMobile ? 32 : 42,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'TOTAL RECAUDADO',
-                      style: TextStyle(
-                        color: colorScheme.primary,
-                        fontSize: isMobile ? 10 : 13,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '\$${_resumen!.totalVentas.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: fontSizeTotal * 1.1,
-                        color: colorScheme.primary,
-                        shadows: [
-                          Shadow(
-                            color: colorScheme.primary.withValues(alpha: 0.2),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isMobile ? 12 : 16,
-                  vertical: isMobile ? 6 : 10,
-                ),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: colorScheme.primary.withValues(alpha: 0.3),
-                    width: 1.5,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      '${_resumen!.cantidadTransacciones}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: isMobile ? 18 : 24,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                    Text(
-                      'ventas',
-                      style: TextStyle(
-                        fontSize: isMobile ? 8 : 10,
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPaymentMethodsCard(
-    ColorScheme colorScheme,
-    bool isDark,
-    bool isMobile,
-    double cardPadding,
-    double fontSizeTitle,
-    double fontSizeMonto,
-    double fontSizeSubtitle,
-  ) {
-    final methods = _resumen!.totalesPorMetodo;
-    final totalMethods = methods.keys.length;
-
-    return Card(
-      elevation: isDark ? 6 : 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: colorScheme.surface,
-      shadowColor: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.06),
-      child: Padding(
-        padding: EdgeInsets.all(cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.payment_rounded,
-                  color: colorScheme.onSurfaceVariant,
-                  size: isMobile ? 16 : 20,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Métodos de Pago',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: fontSizeTitle,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '$totalMethods',
-                    style: TextStyle(
-                      fontSize: isMobile ? 9 : 11,
-                      color: colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 10,
-                runSpacing: 10,
-                children: methods.keys.map((metodo) {
-                  final double monto = methods[metodo]!;
-                  final Color color = _getColorMetodo(metodo);
-                  final IconData icon = _getIconMetodo(metodo);
-
-                  final double itemWidth = isMobile ? 140 : 180;
-
-                  return Container(
-                    width: itemWidth,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isMobile ? 10 : 16,
-                      vertical: isMobile ? 10 : 14,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: color.withValues(alpha: 0.3),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withValues(alpha: 0.05),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            icon,
-                            color: color,
-                            size: isMobile ? 18 : 24,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                metodo,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: isMobile ? 12 : 14,
-                                  color: colorScheme.onSurface,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '\$${monto.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: isMobile ? 14 : 20,
-                                  color: color,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoCard(
-    ColorScheme colorScheme,
-    bool isDark,
-    bool isMobile,
-    double padding,
-    double fontSizeSubtitle,
   ) {
     final now = DateTime.now().toLocal();
-
     return Card(
-      elevation: isDark ? 4 : 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
+      elevation: 0,
       color: colorScheme.surfaceContainerHighest,
-      shadowColor: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.04),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: padding,
+          horizontal: isMobile ? 12 : 16,
           vertical: isMobile ? 8 : 12,
         ),
         child: Row(
@@ -591,31 +322,27 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.calendar_today_outlined,
-                  size: isMobile ? 12 : 16,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 4),
+                Icon(Icons.calendar_today_outlined,
+                    size: isMobile ? 14 : 18,
+                    color: colorScheme.onSurfaceVariant),
+                const SizedBox(width: 6),
                 Text(
                   '${now.day}/${now.month}/${now.year}',
                   style: TextStyle(
-                    fontSize: isMobile ? 10 : 12,
+                    fontSize: isMobile ? 12 : 14,
                     fontWeight: FontWeight.w500,
                     color: colorScheme.onSurface,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.timer_outlined,
-                  size: isMobile ? 12 : 16,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 12),
+                Icon(Icons.timer_outlined,
+                    size: isMobile ? 14 : 18,
+                    color: colorScheme.onSurfaceVariant),
+                const SizedBox(width: 6),
                 Text(
                   '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
                   style: TextStyle(
-                    fontSize: isMobile ? 10 : 12,
+                    fontSize: isMobile ? 12 : 14,
                     fontWeight: FontWeight.w500,
                     color: colorScheme.onSurface,
                   ),
@@ -625,23 +352,16 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
             Row(
               children: [
                 Icon(
-                  _resumen!.totalesPorMetodo.isNotEmpty
-                      ? Icons.check_circle_rounded
-                      : Icons.warning_amber_rounded,
-                  size: isMobile ? 16 : 20,
-                  color: _resumen!.totalesPorMetodo.isNotEmpty
-                      ? colorScheme.primary
-                      : colorScheme.error,
+                  Icons.update_rounded,
+                  size: isMobile ? 14 : 18,
+                  color: colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  _resumen!.totalesPorMetodo.isNotEmpty ? 'OK' : 'Pendiente',
+                  'Última actualización: hace ${_calcularTiempo(state.lastUpdated)}',
                   style: TextStyle(
                     fontSize: isMobile ? 10 : 12,
-                    fontWeight: FontWeight.bold,
-                    color: _resumen!.totalesPorMetodo.isNotEmpty
-                        ? colorScheme.primary
-                        : colorScheme.error,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -652,37 +372,54 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
     );
   }
 
-  Widget _buildPrintButton(
-    ColorScheme colorScheme,
-    bool isDark,
-    bool isMobile,
-  ) {
-    return SizedBox(
-      height: isMobile ? 48 : 56,
-      child: ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: colorScheme.primary,
-          foregroundColor: colorScheme.onPrimary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          elevation: isDark ? 8 : 3,
-          shadowColor: colorScheme.primary.withValues(alpha: 0.3),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-        ),
-        onPressed: _ejecutarCierreYGuardarPdf,
-        icon: Icon(
-          Icons.print_rounded,
-          size: isMobile ? 18 : 24,
-        ),
-        label: Text(
-          isMobile ? 'Imprimir' : 'Realizar Cierre y Guardar PDF',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: isMobile ? 13 : 16,
-          ),
-        ),
+  String _calcularTiempo(DateTime updated) {
+    final diff = DateTime.now().difference(updated);
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    return '${diff.inDays}d';
+  }
+
+  void _mostrarDialogoCierre(BuildContext context, CashClosingNotifier notifier) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ClosingConfirmDialog(
+        // ignore: invalid_use_of_visible_for_testing_member, invalid_use_of_visible_for_testing_member, invalid_use_of_protected_member
+        total: notifier.state.totalVentas,
+        onConfirm: () async {
+          await notifier.cerrarCaja();
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('✅ Cierre de caja completado con éxito'),
+                backgroundColor: Color(0xFF10B981),
+              ),
+            );
+          }
+        },
+        onCancel: () => Navigator.pop(context),
       ),
     );
   }
+}
+
+// ============================================================
+// Clase auxiliar para los datos de resumen
+// ============================================================
+class _SummaryItem {
+  final String title;
+  final String value;
+  final Color color;
+  final IconData icon;
+  final List<double> sparklineData;
+
+  const _SummaryItem({
+    required this.title,
+    required this.value,
+    required this.color,
+    required this.icon,
+    required this.sparklineData,
+  });
 }

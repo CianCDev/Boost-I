@@ -1266,7 +1266,6 @@ Future<void> descargarGastosDesdeSupabase() async {
 
     debugPrint('🔄 Descargando ${response.length} gastos desde Supabase...');
 
-    // Obtener todos los gastos locales actuales para mapear por id_isar y supabaseId
     final gastosLocales = await _isarService.obtenerGastos();
     final Map<int, GastoEntity> porIdIsar = {
       for (var g in gastosLocales) g.id: g
@@ -1286,14 +1285,18 @@ Future<void> descargarGastosDesdeSupabase() async {
       final idIsar = data['id_isar'] as int?;
       GastoEntity? gastoLocal;
 
-      // Buscar por supabaseId o por id_isar
       if (idIsar != null && porIdIsar.containsKey(idIsar)) {
         gastoLocal = porIdIsar[idIsar];
       } else if (supabaseId.isNotEmpty && porSupabaseId.containsKey(supabaseId)) {
         gastoLocal = porSupabaseId[supabaseId];
       }
 
-      // Crear entidad con los datos de la nube
+      // 🔥 CORRECCIÓN: Convertir UUID de usuario a ID local de Isar
+      final String? usuarioUuid = data['usuario_id']?.toString();
+      final int usuarioIsarId = usuarioUuid != null && usuarioUuid.isNotEmpty
+          ? await _obtenerIsarIdUsuario(usuarioUuid)
+          : 0;
+
       final gastoNube = GastoEntity()
         ..supabaseId = supabaseId
         ..descripcion = data['descripcion'] ?? ''
@@ -1301,20 +1304,17 @@ Future<void> descargarGastosDesdeSupabase() async {
         ..moneda = data['moneda'] ?? 'USD'
         ..tasaBcv = (data['tasa_bcv'] as num?)?.toDouble()
         ..categoria = data['categoria'] ?? 'General'
-        ..usuarioId = data['usuario_id'] as int? ?? 0
+        ..usuarioId = usuarioIsarId  // ✅ Ahora es int (ID local)
         ..usuarioNombre = data['usuario_nombre'] ?? ''
         ..fecha = DateTime.parse(data['fecha']).toLocal()
         ..syncStatus = 'synced';
 
       if (gastoLocal != null) {
-        // Actualizar existente: conservar el id de Isar y reemplazar el resto
         gastoNube.id = gastoLocal.id;
         await _isarService.guardarGasto(gastoNube);
         actualizados++;
         debugPrint('🔄 Gasto actualizado: ${gastoNube.descripcion}');
       } else {
-        // Insertar nuevo (Isar generará un id automáticamente si es 0)
-        // Si el id_isar existe en la nube pero no local, podemos usarlo.
         if (idIsar != null && idIsar > 0) {
           gastoNube.id = idIsar;
         }
