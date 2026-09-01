@@ -5,6 +5,7 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart'
 import 'package:app_boosti_v2/features/pos/data/Local/entities/movimiento_lote_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/invalidation/invalidation_provider.dart';
 
 class TraspasoLoteDialog extends ConsumerStatefulWidget {
   final LoteEntity lote;
@@ -59,10 +60,14 @@ class _TraspasoLoteDialogState extends ConsumerState<TraspasoLoteDialog> {
             ..observaciones = 'Traspaso manual a inventario'
             ..sincronizado = false,
         );
+
+        // 🔥 Invalidar todos los providers que dependen del stock
+        ref.read(invalidationProvider).invalidarStock();
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('✅ $cantidad unidades repuestas'),
+              content: Text('✅ $cantidad unidades repuestas al inventario'),
               backgroundColor: const Color(0xFF10B981),
             ),
           );
@@ -70,7 +75,7 @@ class _TraspasoLoteDialogState extends ConsumerState<TraspasoLoteDialog> {
         }
       } else {
         setState(() {
-          _errorMessage = 'Error al descontar';
+          _errorMessage = 'Error al descontar del lote';
           _isLoading = false;
         });
       }

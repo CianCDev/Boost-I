@@ -13,7 +13,7 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provid
 import 'package:app_boosti_v2/features/pos/presentation/providers/categorias_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/categoria_entity.dart';
-
+import 'package:app_boosti_v2/features/pos/presentation/providers/productos_provider.dart';
 
 class LotesScreen extends ConsumerStatefulWidget {
   const LotesScreen({super.key});
@@ -327,6 +327,7 @@ class _LotesScreenState extends ConsumerState<LotesScreen>
       context: context,
       builder: (_) => DetalleLoteDialog(lote: lote),
     ).then((_) => notifier.recargar());
+    ref.read(productosProvider.notifier).cargarProductos();
   }
 
   void _mostrarVerificacion(LoteEntity lote, LotesNotifier notifier) {

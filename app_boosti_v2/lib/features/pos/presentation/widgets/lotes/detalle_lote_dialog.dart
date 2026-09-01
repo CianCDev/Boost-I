@@ -121,6 +121,7 @@ class _DetalleLoteDialogState extends ConsumerState<DetalleLoteDialog> {
                                 context: context,
                                 builder: (_) => TraspasoLoteDialog(lote: lote),
                               ).then((_) {
+                                // 🔥 Recargar movimientos después del traspaso
                                 setState(() {
                                   _movimientosFuture = _isar.obtenerMovimientosPorLote(widget.lote.id);
                                 });
@@ -345,4 +346,4 @@ class _DetalleLoteDialogState extends ConsumerState<DetalleLoteDialog> {
       ),
     );
   }
-}
+} 

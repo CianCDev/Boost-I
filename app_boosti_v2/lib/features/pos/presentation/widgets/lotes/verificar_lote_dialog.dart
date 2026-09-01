@@ -6,6 +6,7 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart
 import 'package:app_boosti_v2/features/pos/data/Local/entities/codigo_barra_alia_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/shared/barcode_scanner_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/invalidation/invalidation_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/input_decoration_helper.dart';
 
 class VerificarLoteDialog extends ConsumerStatefulWidget {
@@ -191,18 +192,22 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
         cantidadRecibida: cantidad,
         usuarioId: usuario.id,
       );
+
       if (mounted) {
         if (exito) {
+          // 🔥 Invalidar todos los providers que dependen del stock
+          ref.read(invalidationProvider).invalidarStock();
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('✅ Lote activado'),
+              content: Text('✅ Lote activado correctamente'),
               backgroundColor: Color(0xFF10B981),
             ),
           );
           Navigator.pop(context, true);
         } else {
           setState(() {
-            _errorMessage = 'Error al activar';
+            _errorMessage = 'Error al activar el lote';
             _isLoading = false;
           });
         }
