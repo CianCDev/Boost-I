@@ -1730,6 +1730,41 @@ Future<LocalEntity?> obtenerLocalActivo() async {
 
   // ==================== TELEGRAM CONFIG ====================
 
+  // Obtener configuración de un usuario específico
+Future<TelegramConfigEntity?> obtenerTelegramConfigPorUsuario(int usuarioId) async {
+  final isar = await db;
+  final configs = await isar.telegramConfigEntitys
+      .filter()
+      .usuarioIdEqualTo(usuarioId)
+      .findAll();
+  
+  if (configs.isEmpty) return null;
+  
+  // Ordenar por updatedAt (más reciente primero)
+  configs.sort((a, b) {
+    final aTime = a.updatedAt ?? DateTime(1970);
+    final bTime = b.updatedAt ?? DateTime(1970);
+    return bTime.compareTo(aTime);
+  });
+  
+  return configs.first;
+}
+
+// Obtener todas las configuraciones (para superadmin)
+Future<List<TelegramConfigEntity>> obtenerTodasTelegramConfigs() async {
+  final isar = await db;
+  return await isar.telegramConfigEntitys.where().findAll();
+}
+
+// Obtener configuraciones pendientes de sincronización
+Future<List<TelegramConfigEntity>> obtenerTelegramConfigsPendientesSync() async {
+  final isar = await db;
+  return await isar.telegramConfigEntitys
+      .filter()
+      .sincronizadoEqualTo(false)
+      .findAll();
+}
+
   /// Guarda una configuración de Telegram (crea o actualiza).
   Future<int> guardarTelegramConfig(TelegramConfigEntity config) async {
     final isar = await db;
@@ -1746,11 +1781,6 @@ Future<LocalEntity?> obtenerLocalActivo() async {
     return await isar.telegramConfigEntitys.where().findFirst();
   }
 
-  /// Lista todas las configuraciones de Telegram.
-  Future<List<TelegramConfigEntity>> obtenerTelegramConfigs() async {
-    final isar = await db;
-    return await isar.telegramConfigEntitys.where().findAll();
-  }
 
   /// Actualiza el estado de sincronización de una configuración.
   Future<void> actualizarSyncStatusTelegramConfig(
@@ -1767,22 +1797,23 @@ Future<LocalEntity?> obtenerLocalActivo() async {
   }
 
   /// Obtiene configuraciones de Telegram pendientes de sincronización.
-  Future<List<TelegramConfigEntity>> obtenerTelegramConfigsPendientesSync()
-      async {
-    final isar = await db;
-    return await isar.telegramConfigEntitys
-        .filter()
-        .sincronizadoEqualTo(false)
-        .findAll();
-  }
+// Obtener TODAS las configuraciones (no solo la primera)
+Future<List<TelegramConfigEntity>> obtenerTelegramConfigs() async {
+  final isar = await db;
+  return await isar.telegramConfigEntitys.where().findAll();
+}
 
-  /// Elimina una configuración de Telegram por ID.
-  Future<void> eliminarTelegramConfig(int id) async {
-    final isar = await db;
-    await isar.writeTxn(() async {
-      await isar.telegramConfigEntitys.delete(id);
-    });
-  }
+// ==================== TELEGRAM CONFIG - PENDIENTES DE SINCRONIZACIÓN ====================
+
+
+// Eliminar una configuración por ID
+Future<void> eliminarTelegramConfig(int id) async {
+  final isar = await db;
+  await isar.writeTxn(() async {
+    await isar.telegramConfigEntitys.delete(id);
+  });
+  debugPrint('🗑️ Configuración de Telegram eliminada (ID: $id)');
+}
 
   // ==================== Sincronización general ====================
 
