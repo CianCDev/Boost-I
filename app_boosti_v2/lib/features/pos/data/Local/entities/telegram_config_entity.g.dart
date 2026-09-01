@@ -176,7 +176,7 @@ TelegramConfigEntity _telegramConfigEntityDeserialize(
   object.sincronizado = reader.readBool(offsets[10]);
   object.supabaseId = reader.readStringOrNull(offsets[11]);
   object.updatedAt = reader.readDateTimeOrNull(offsets[12]);
-  object.usuarioId = reader.readLongOrNull(offsets[13]);
+  object.usuarioId = reader.readLong(offsets[13]);
   return object;
 }
 
@@ -214,7 +214,7 @@ P _telegramConfigEntityDeserializeProp<P>(
     case 12:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 13:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -1463,25 +1463,7 @@ extension TelegramConfigEntityQueryFilter on QueryBuilder<TelegramConfigEntity,
   }
 
   QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
-      QAfterFilterCondition> usuarioIdIsNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNull(
-        property: r'usuarioId',
-      ));
-    });
-  }
-
-  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
-      QAfterFilterCondition> usuarioIdIsNotNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNotNull(
-        property: r'usuarioId',
-      ));
-    });
-  }
-
-  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
-      QAfterFilterCondition> usuarioIdEqualTo(int? value) {
+      QAfterFilterCondition> usuarioIdEqualTo(int value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'usuarioId',
@@ -1492,7 +1474,7 @@ extension TelegramConfigEntityQueryFilter on QueryBuilder<TelegramConfigEntity,
 
   QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
       QAfterFilterCondition> usuarioIdGreaterThan(
-    int? value, {
+    int value, {
     bool include = false,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -1506,7 +1488,7 @@ extension TelegramConfigEntityQueryFilter on QueryBuilder<TelegramConfigEntity,
 
   QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
       QAfterFilterCondition> usuarioIdLessThan(
-    int? value, {
+    int value, {
     bool include = false,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -1520,8 +1502,8 @@ extension TelegramConfigEntityQueryFilter on QueryBuilder<TelegramConfigEntity,
 
   QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
       QAfterFilterCondition> usuarioIdBetween(
-    int? lower,
-    int? upper, {
+    int lower,
+    int upper, {
     bool includeLower = true,
     bool includeUpper = true,
   }) {
@@ -2126,7 +2108,7 @@ extension TelegramConfigEntityQueryProperty on QueryBuilder<
     });
   }
 
-  QueryBuilder<TelegramConfigEntity, int?, QQueryOperations>
+  QueryBuilder<TelegramConfigEntity, int, QQueryOperations>
       usuarioIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'usuarioId');

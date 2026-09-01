@@ -6,10 +6,10 @@ part 'telegram_config_entity.g.dart';
 @Collection()
 class TelegramConfigEntity {
   Id id = Isar.autoIncrement;
-  int? usuarioId;
+
 
   String? supabaseId; // UUID de Supabase
-
+  late int usuarioId;
   String botToken = '';
   String chatId = '';
   String? nombreChat;
