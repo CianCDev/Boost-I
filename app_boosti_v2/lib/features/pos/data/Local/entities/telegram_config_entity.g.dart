@@ -82,6 +82,11 @@ const TelegramConfigEntitySchema = CollectionSchema(
       id: 12,
       name: r'updatedAt',
       type: IsarType.dateTime,
+    ),
+    r'usuarioId': PropertySchema(
+      id: 13,
+      name: r'usuarioId',
+      type: IsarType.long,
     )
   },
   estimateSize: _telegramConfigEntityEstimateSize,
@@ -147,6 +152,7 @@ void _telegramConfigEntitySerialize(
   writer.writeBool(offsets[10], object.sincronizado);
   writer.writeString(offsets[11], object.supabaseId);
   writer.writeDateTime(offsets[12], object.updatedAt);
+  writer.writeLong(offsets[13], object.usuarioId);
 }
 
 TelegramConfigEntity _telegramConfigEntityDeserialize(
@@ -170,6 +176,7 @@ TelegramConfigEntity _telegramConfigEntityDeserialize(
   object.sincronizado = reader.readBool(offsets[10]);
   object.supabaseId = reader.readStringOrNull(offsets[11]);
   object.updatedAt = reader.readDateTimeOrNull(offsets[12]);
+  object.usuarioId = reader.readLong(offsets[13]);
   return object;
 }
 
@@ -206,6 +213,8 @@ P _telegramConfigEntityDeserializeProp<P>(
       return (reader.readStringOrNull(offset)) as P;
     case 12:
       return (reader.readDateTimeOrNull(offset)) as P;
+    case 13:
+      return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -1452,6 +1461,62 @@ extension TelegramConfigEntityQueryFilter on QueryBuilder<TelegramConfigEntity,
       ));
     });
   }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> usuarioIdEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'usuarioId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> usuarioIdGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'usuarioId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> usuarioIdLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'usuarioId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> usuarioIdBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'usuarioId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
 }
 
 extension TelegramConfigEntityQueryObject on QueryBuilder<TelegramConfigEntity,
@@ -1627,6 +1692,20 @@ extension TelegramConfigEntityQuerySortBy
       sortByUpdatedAtDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      sortByUsuarioId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'usuarioId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      sortByUsuarioIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'usuarioId', Sort.desc);
     });
   }
 }
@@ -1814,6 +1893,20 @@ extension TelegramConfigEntityQuerySortThenBy
       return query.addSortBy(r'updatedAt', Sort.desc);
     });
   }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      thenByUsuarioId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'usuarioId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      thenByUsuarioIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'usuarioId', Sort.desc);
+    });
+  }
 }
 
 extension TelegramConfigEntityQueryWhereDistinct
@@ -1906,6 +1999,13 @@ extension TelegramConfigEntityQueryWhereDistinct
       distinctByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'updatedAt');
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QDistinct>
+      distinctByUsuarioId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'usuarioId');
     });
   }
 }
@@ -2005,6 +2105,13 @@ extension TelegramConfigEntityQueryProperty on QueryBuilder<
       updatedAtProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'updatedAt');
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, int, QQueryOperations>
+      usuarioIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'usuarioId');
     });
   }
 }

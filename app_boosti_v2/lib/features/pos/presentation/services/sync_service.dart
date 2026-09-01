@@ -31,6 +31,7 @@ import '../../data/Local/entities/codigo_barra_alia_entity.dart';
 import '../../data/Local/entities/lote_entity.dart';
 import '../../data/Local/entities/telegram_config_entity.dart';
 import '../../data/Local/entities/marca_entity.dart';
+import '../../data/Local/entities/movimiento_lote_entity.dart';
 
 /// Servicio central de sincronización entre la base de datos local (Isar) y Supabase.
 /// Maneja la subida y descarga de datos, así como la monitorización de conectividad.
@@ -63,7 +64,8 @@ class SyncService {
     _suscribirATabla('categorias', () => descargarCategoriasDesdeSupabase());
     _suscribirATabla('marcas', () => descargarMarcasDesdeSupabase());
     _suscribirATabla('locales', () => descargarLocalesDesdeSupabase());
-    _suscribirATabla('departamentos', () => descargarDepartamentosDesdeSupabase());
+    _suscribirATabla(
+        'departamentos', () => descargarDepartamentosDesdeSupabase());
     _suscribirATabla('usuarios', () => sincronizarUsuariosDesdeSupabase());
     _suscribirATabla('gastos', () => descargarGastosDesdeSupabase());
     debugPrint('✅ Suscripciones Realtime iniciadas');
@@ -75,7 +77,7 @@ class SyncService {
         .onPostgresChanges(
           schema: 'public',
           table: tabla,
-          event: PostgresChangeEvent.all,   // <--- USAR ENUM
+          event: PostgresChangeEvent.all,
           callback: (payload) {
             debugPrint('🔄 Cambio detectado en $tabla, actualizando...');
             onCambio();
@@ -83,7 +85,8 @@ class SyncService {
         )
         .subscribe();
     _channels.add(channel);
-}
+  }
+
   /// Detiene todas las suscripciones
   void detenerSuscripcionesRealtime() {
     for (var channel in _channels) {
@@ -132,8 +135,10 @@ class SyncService {
   /// Inicia el monitoreo de conectividad. Al recuperar conexión, ejecuta sincronización completa.
   void iniciarMonitoreo() {
     _connectivitySubscription?.cancel();
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((results) {
-      final tieneConexion = results.any((result) => result != ConnectivityResult.none);
+    _connectivitySubscription =
+        _connectivity.onConnectivityChanged.listen((results) {
+      final tieneConexion =
+          results.any((result) => result != ConnectivityResult.none);
       if (tieneConexion) {
         sincronizarTodo();
       }
@@ -165,7 +170,8 @@ class SyncService {
         return;
       }
 
-      debugPrint('🔄 Sincronizando ${usuarios.length} usuarios con Supabase...');
+      debugPrint(
+          '🔄 Sincronizando ${usuarios.length} usuarios con Supabase...');
       int sincronizados = 0;
 
       for (var usuario in usuarios) {
@@ -189,11 +195,13 @@ class SyncService {
                 // Ya existe en auth, usar su ID
                 usuario.supabaseId = existingUser.id;
                 await _isarService.guardarUsuario(usuario);
-                debugPrint('✅ Usuario "${usuario.nombre}" tiene cuenta en auth (ID: ${usuario.supabaseId})');
+                debugPrint(
+                    '✅ Usuario "${usuario.nombre}" tiene cuenta en auth (ID: ${usuario.supabaseId})');
               } else {
                 // No existe en auth, crearlo
                 if (usuario.password == null || usuario.password!.isEmpty) {
-                  debugPrint('⚠️ Usuario "${usuario.nombre}" sin password, omitido');
+                  debugPrint(
+                      '⚠️ Usuario "${usuario.nombre}" sin password, omitido');
                   continue;
                 }
 
@@ -210,7 +218,8 @@ class SyncService {
                 );
                 usuario.supabaseId = newUser.user?.id;
                 await _isarService.guardarUsuario(usuario);
-                debugPrint('✅ Usuario "${usuario.nombre}" creado en auth.users (ID: ${usuario.supabaseId})');
+                debugPrint(
+                    '✅ Usuario "${usuario.nombre}" creado en auth.users (ID: ${usuario.supabaseId})');
               }
             } catch (e) {
               debugPrint('⚠️ Error al buscar/crear usuario en auth: $e');
@@ -249,15 +258,21 @@ class SyncService {
   /// Descarga todos los usuarios desde Supabase y los guarda/actualiza localmente.
   Future<void> sincronizarUsuariosDesdeSupabase() async {
     try {
-      final response = await _supabase.from('usuarios').select().order('nombre', ascending: true);
+      final response = await _supabase
+          .from('usuarios')
+          .select()
+          .order('nombre', ascending: true);
       if (response.isEmpty) {
         debugPrint('ℹ️ No hay usuarios en Supabase para descargar');
         return;
       }
 
-      debugPrint('🔄 Descargando ${response.length} usuarios desde Supabase...');
+      debugPrint(
+          '🔄 Descargando ${response.length} usuarios desde Supabase...');
       final locales = await _isarService.obtenerUsuarios();
-      final Map<int, UsuarioEntity> localesMap = {for (var u in locales) u.id: u};
+      final Map<int, UsuarioEntity> localesMap = {
+        for (var u in locales) u.id: u
+      };
 
       for (var data in response) {
         final int idIsar = data['id_isar'] as int? ?? 0;
@@ -276,9 +291,11 @@ class SyncService {
           local.localId = data['local_id'] as int?;
 
           final estadoNube = data['estado'] as String? ?? 'inactivo';
-          if (estadoNube == 'inactivo' && (local.estado == 'activo' || local.estado == 'descanso')) {
+          if (estadoNube == 'inactivo' &&
+              (local.estado == 'activo' || local.estado == 'descanso')) {
             local.estado = 'inactivo';
-            debugPrint('🔄 Usuario ${local.nombre} marcado como inactivo por sincronización');
+            debugPrint(
+                '🔄 Usuario ${local.nombre} marcado como inactivo por sincronización');
           }
           await _isarService.guardarUsuario(local);
         } else {
@@ -308,7 +325,10 @@ class SyncService {
   /// Obtiene la lista de usuarios desde Supabase (como Map).
   Future<List<Map<String, dynamic>>> obtenerUsuariosDesdeSupabase() async {
     try {
-      final response = await _supabase.from('usuarios').select().order('nombre', ascending: true);
+      final response = await _supabase
+          .from('usuarios')
+          .select()
+          .order('nombre', ascending: true);
       return response;
     } catch (e) {
       debugPrint('❌ Error obteniendo usuarios desde Supabase: $e');
@@ -317,7 +337,8 @@ class SyncService {
   }
 
   /// Actualiza el estado de un usuario en Supabase.
-  Future<bool> actualizarEstadoUsuarioEnSupabase(int userId, String nuevoEstado) async {
+  Future<bool> actualizarEstadoUsuarioEnSupabase(
+      int userId, String nuevoEstado) async {
     try {
       final response = await _supabase
           .from('usuarios')
@@ -334,7 +355,11 @@ class SyncService {
   /// Elimina un usuario de Supabase por su ID de Isar.
   Future<bool> eliminarUsuarioEnSupabase(int userId) async {
     try {
-      final response = await _supabase.from('usuarios').delete().eq('id_isar', userId).select();
+      final response = await _supabase
+          .from('usuarios')
+          .delete()
+          .eq('id_isar', userId)
+          .select();
       return response.isNotEmpty;
     } catch (e) {
       debugPrint('❌ Error eliminando usuario en Supabase: $e');
@@ -344,19 +369,16 @@ class SyncService {
 
   /// Stream en tiempo real de cambios en usuarios (para monitoreo).
   Stream<List<UsuarioEntity>> streamUsuariosEnTiempoReal() {
-    return _supabase
-        .from('usuarios')
-        .stream(primaryKey: ['id'])
-        .map((data) {
-          return data.map<UsuarioEntity>((row) {
-            return UsuarioEntity()
-              ..id = row['id_isar'] as int
-              ..nombre = row['nombre'] as String
-              ..rol = row['rol'] as String
-              ..estado = row['estado'] as String? ?? 'inactivo'
-              ..deviceId = row['device_id'] as String? ?? '';
-          }).toList();
-        });
+    return _supabase.from('usuarios').stream(primaryKey: ['id']).map((data) {
+      return data.map<UsuarioEntity>((row) {
+        return UsuarioEntity()
+          ..id = row['id_isar'] as int
+          ..nombre = row['nombre'] as String
+          ..rol = row['rol'] as String
+          ..estado = row['estado'] as String? ?? 'inactivo'
+          ..deviceId = row['device_id'] as String? ?? '';
+      }).toList();
+    });
   }
 
   // ============================================================
@@ -372,10 +394,12 @@ class SyncService {
         return;
       }
 
-      debugPrint('🔄 Sincronizando ${pendientes.length} proveedores con Supabase...');
+      debugPrint(
+          '🔄 Sincronizando ${pendientes.length} proveedores con Supabase...');
 
       for (var proveedor in pendientes) {
-        debugPrint('📤 Enviando proveedor: ${proveedor.nombre} (ID local: ${proveedor.id})');
+        debugPrint(
+            '📤 Enviando proveedor: ${proveedor.nombre} (ID local: ${proveedor.id})');
 
         final data = {
           'id_isar': proveedor.id,
@@ -413,12 +437,15 @@ class SyncService {
             proveedor.fechaSincronizacion = DateTime.now();
             proveedor.updatedAt = DateTime.now();
             await _isarService.guardarProveedor(proveedor);
-            debugPrint('✅ Proveedor ${proveedor.nombre} sincronizado con ID: $supabaseId');
+            debugPrint(
+                '✅ Proveedor ${proveedor.nombre} sincronizado con ID: $supabaseId');
           } else {
-            debugPrint('⚠️ No se pudo obtener ID de Supabase para ${proveedor.nombre}');
+            debugPrint(
+                '⚠️ No se pudo obtener ID de Supabase para ${proveedor.nombre}');
           }
         } catch (e) {
-          debugPrint('❌ Error al sincronizar proveedor ${proveedor.nombre}: $e');
+          debugPrint(
+              '❌ Error al sincronizar proveedor ${proveedor.nombre}: $e');
         }
       }
       debugPrint('✅ Sincronización de proveedores completada');
@@ -431,12 +458,17 @@ class SyncService {
   /// Descarga todos los proveedores desde Supabase y los guarda/actualiza localmente.
   Future<void> descargarProveedoresDesdeSupabase() async {
     try {
-      final response = await _supabase.from('proveedores').select().order('nombre', ascending: true);
-      debugPrint('🔄 Descargando ${response.length} proveedores desde Supabase...');
+      final response = await _supabase
+          .from('proveedores')
+          .select()
+          .order('nombre', ascending: true);
+      debugPrint(
+          '🔄 Descargando ${response.length} proveedores desde Supabase...');
 
       final locales = await _isarService.obtenerProveedores(soloActivos: false);
       final Map<String, ProveedorEntity> localesPorSupabaseId = {
-        for (var p in locales) if (p.supabaseId != null) p.supabaseId!: p
+        for (var p in locales)
+          if (p.supabaseId != null) p.supabaseId!: p
       };
       final Map<int, ProveedorEntity> localesPorId = {
         for (var p in locales) p.id: p
@@ -483,7 +515,11 @@ class SyncService {
   /// Elimina un proveedor de Supabase por su UUID.
   Future<bool> eliminarProveedorEnSupabase(String supabaseId) async {
     try {
-      final response = await _supabase.from('proveedores').delete().eq('id', supabaseId).select();
+      final response = await _supabase
+          .from('proveedores')
+          .delete()
+          .eq('id', supabaseId)
+          .select();
       return response.isNotEmpty;
     } catch (e) {
       debugPrint('❌ Error eliminando proveedor en Supabase: $e');
@@ -496,13 +532,20 @@ class SyncService {
     try {
       debugPrint('🔥 Iniciando sincronización forzada de proveedores...');
 
-      final response = await _supabase.from('proveedores').select().order('nombre', ascending: true);
-      debugPrint('📥 Descargados ${response.length} proveedores desde Supabase');
+      final response = await _supabase
+          .from('proveedores')
+          .select()
+          .order('nombre', ascending: true);
+      debugPrint(
+          '📥 Descargados ${response.length} proveedores desde Supabase');
 
       final locales = await _isarService.obtenerProveedores(soloActivos: false);
-      final Map<int, ProveedorEntity> localesPorId = {for (var p in locales) p.id: p};
+      final Map<int, ProveedorEntity> localesPorId = {
+        for (var p in locales) p.id: p
+      };
       final Map<String, ProveedorEntity> localesPorSupabaseId = {
-        for (var p in locales) if (p.supabaseId != null) p.supabaseId!: p
+        for (var p in locales)
+          if (p.supabaseId != null) p.supabaseId!: p
       };
 
       final Set<int> idsLocalesProcesados = {};
@@ -538,7 +581,8 @@ class SyncService {
           debugPrint('🔄 Proveedor actualizado: ${proveedorNube.nombre}');
         } else {
           await _isarService.guardarProveedor(proveedorNube);
-          debugPrint('📥 Proveedor creado desde Supabase: ${proveedorNube.nombre}');
+          debugPrint(
+              '📥 Proveedor creado desde Supabase: ${proveedorNube.nombre}');
         }
       }
 
@@ -558,7 +602,11 @@ class SyncService {
           };
 
           try {
-            final response = await _supabase.from('proveedores').insert(data).select('id').single();
+            final response = await _supabase
+                .from('proveedores')
+                .insert(data)
+                .select('id')
+                .single();
             final supabaseId = response['id'] as String?;
             if (supabaseId != null) {
               local.supabaseId = supabaseId;
@@ -573,7 +621,8 @@ class SyncService {
           }
         }
       }
-      debugPrint('✅ Sincronización forzada completada: ${response.length} descargados, $subidos subidos');
+      debugPrint(
+          '✅ Sincronización forzada completada: ${response.length} descargados, $subidos subidos');
     } catch (e) {
       debugPrint('❌ Error en sincronización forzada: $e');
       rethrow;
@@ -586,7 +635,8 @@ class SyncService {
 
   /// Limpia valores numéricos (evita NaN o infinito).
   double _limpiarNumero(double? valor, [double valorPorDefecto = 0.0]) {
-    if (valor == null || valor.isNaN || valor.isInfinite) return valorPorDefecto;
+    if (valor == null || valor.isNaN || valor.isInfinite)
+      return valorPorDefecto;
     return valor;
   }
 
@@ -626,7 +676,9 @@ class SyncService {
         return payload;
       }).toList();
 
-      await _supabase.from('productos').upsert(payloadList, onConflict: 'codigo_barras');
+      await _supabase
+          .from('productos')
+          .upsert(payloadList, onConflict: 'codigo_barras');
 
       // Actualizar supabaseId local
       final idsIsar = productosLocales.map((p) => p.id).toList();
@@ -656,7 +708,8 @@ class SyncService {
         }
       }
 
-      debugPrint('✅ ${productosLocales.length} productos sincronizados. $actualizados supabaseId actualizados.');
+      debugPrint(
+          '✅ ${productosLocales.length} productos sincronizados. $actualizados supabaseId actualizados.');
       return true;
     } catch (e) {
       debugPrint('🚫 Error sincronizando productos: $e');
@@ -667,13 +720,17 @@ class SyncService {
   /// Descarga todos los productos desde Supabase y los guarda/actualiza localmente.
   Future<void> descargarProductosDesdeSupabase() async {
     try {
-      final response = await _supabase.from('productos').select().order('nombre', ascending: true);
+      final response = await _supabase
+          .from('productos')
+          .select()
+          .order('nombre', ascending: true);
       if (response.isEmpty) {
         debugPrint('ℹ️ No hay productos en Supabase para descargar');
         return;
       }
 
-      debugPrint('🔄 Procesando ${response.length} productos desde Supabase...');
+      debugPrint(
+          '🔄 Procesando ${response.length} productos desde Supabase...');
 
       final productosLocales = await _isarService.obtenerTodosLosProductos();
       final Map<String, ProductoEntity> localesPorCodigo = {
@@ -690,9 +747,10 @@ class SyncService {
 
         final imagenUrlNube = data['imagen_url'] as String?;
         final imagenUrlLocal = productoLocal?.imagenUrl ?? '';
-        final imagenUrlFinal = (imagenUrlNube != null && imagenUrlNube.isNotEmpty)
-            ? imagenUrlNube
-            : imagenUrlLocal;
+        final imagenUrlFinal =
+            (imagenUrlNube != null && imagenUrlNube.isNotEmpty)
+                ? imagenUrlNube
+                : imagenUrlLocal;
 
         final productoNube = ProductoEntity()
           ..codigoBarras = codigoBarras
@@ -709,8 +767,12 @@ class SyncService {
           ..proveedorEmail = data['proveedor_email'] ?? ''
           ..proveedorDireccion = data['proveedor_direccion'] ?? ''
           ..version = data['version'] ?? 0
-          ..createdAt = data['created_at'] != null ? DateTime.parse(data['created_at']) : null
-          ..updatedAt = data['updated_at'] != null ? DateTime.parse(data['updated_at']) : null
+          ..createdAt = data['created_at'] != null
+              ? DateTime.parse(data['created_at'])
+              : null
+          ..updatedAt = data['updated_at'] != null
+              ? DateTime.parse(data['updated_at'])
+              : null
           ..createdBy = data['created_by'] as int?
           ..updatedBy = data['updated_by'] as int?
           ..createdByName = data['created_by_name'] ?? ''
@@ -736,10 +798,12 @@ class SyncService {
         if (!codigosEnNube.contains(producto.codigoBarras)) {
           await _isarService.eliminarProducto(producto.id);
           eliminados++;
-          debugPrint('🗑️ Producto eliminado por no existir en Supabase: ${producto.nombre}');
+          debugPrint(
+              '🗑️ Producto eliminado por no existir en Supabase: ${producto.nombre}');
         }
       }
-      debugPrint('✅ Productos sincronizados: ${response.length} actualizados/creados, $eliminados eliminados');
+      debugPrint(
+          '✅ Productos sincronizados: ${response.length} actualizados/creados, $eliminados eliminados');
       onDataChanged?.call();
     } catch (e) {
       debugPrint('❌ Error descargando productos: $e');
@@ -763,7 +827,8 @@ class SyncService {
           .maybeSingle();
 
       if (existing == null) {
-        debugPrint('ℹ️ Producto con código exacto "$codigoLimpio" no encontrado, intentando búsqueda flexible...');
+        debugPrint(
+            'ℹ️ Producto con código exacto "$codigoLimpio" no encontrado, intentando búsqueda flexible...');
         final resultados = await _supabase
             .from('productos')
             .select('id')
@@ -771,16 +836,19 @@ class SyncService {
             .limit(1);
         if (resultados.isNotEmpty) {
           existing = resultados.first;
-          debugPrint('🔍 Producto encontrado con búsqueda flexible: ${existing['id']}');
+          debugPrint(
+              '🔍 Producto encontrado con búsqueda flexible: ${existing['id']}');
         }
       }
 
       if (existing == null) {
-        debugPrint('ℹ️ Producto con código "$codigoLimpio" no existe en Supabase.');
+        debugPrint(
+            'ℹ️ Producto con código "$codigoLimpio" no existe en Supabase.');
         return false;
       }
 
-      final response = await _supabase.from('productos').delete().eq('id', existing['id']);
+      final response =
+          await _supabase.from('productos').delete().eq('id', existing['id']);
       final int affected = response != null ? response.length : 0;
       debugPrint('📦 Filas afectadas en Supabase: $affected');
 
@@ -814,7 +882,8 @@ class SyncService {
         return 0;
       }
 
-      debugPrint('🔄 [SyncService] Sincronizando ${pendientes.length} ventas...');
+      debugPrint(
+          '🔄 [SyncService] Sincronizando ${pendientes.length} ventas...');
 
       for (var venta in pendientes) {
         final exito = await _enviarVentaAlServidor(venta);
@@ -854,23 +923,28 @@ class SyncService {
 
       if (_hasValidSyncConfig()) {
         try {
-          final response = await http.post(
-            Uri.parse('$_syncServerUrl/api/ventas/sync'),
-            headers: _authHeaders(),
-            body: jsonEncode(payload),
-          ).timeout(const Duration(seconds: 10));
+          final response = await http
+              .post(
+                Uri.parse('$_syncServerUrl/api/ventas/sync'),
+                headers: _authHeaders(),
+                body: jsonEncode(payload),
+              )
+              .timeout(const Duration(seconds: 10));
           if (response.statusCode == 200 || response.statusCode == 201) {
-            debugPrint('✅ Venta ${venta.ventaIdString} sincronizada vía microservicio');
+            debugPrint(
+                '✅ Venta ${venta.ventaIdString} sincronizada vía microservicio');
             return true;
           }
         } catch (e) {
-          debugPrint('⚠️ Microservicio falló, intentando con Supabase directo: $e');
+          debugPrint(
+              '⚠️ Microservicio falló, intentando con Supabase directo: $e');
         }
       } else {
         debugPrint('ℹ️ No hay configuración válida; se usa Supabase directo.');
       }
 
-      final responseVenta = await _supabase.from('ventas').insert(payload).select('id').single();
+      final responseVenta =
+          await _supabase.from('ventas').insert(payload).select('id').single();
       final int ventaIdPk = responseVenta['id'];
 
       if (venta.items.isNotEmpty) {
@@ -886,10 +960,12 @@ class SyncService {
         await _supabase.from('detalle_ventas').insert(itemsPayload);
       }
 
-      debugPrint('✅ Venta ${venta.ventaIdString} sincronizada vía Supabase directo');
+      debugPrint(
+          '✅ Venta ${venta.ventaIdString} sincronizada vía Supabase directo');
       return true;
     } catch (e) {
-      debugPrint('🚫 [Supabase] Error al insertar venta ${venta.ventaIdString}: $e');
+      debugPrint(
+          '🚫 [Supabase] Error al insertar venta ${venta.ventaIdString}: $e');
       return false;
     }
   }
@@ -897,7 +973,10 @@ class SyncService {
   /// Descarga todas las ventas desde Supabase y las guarda/actualiza localmente.
   Future<void> descargarVentasDesdeSupabase() async {
     try {
-      final response = await _supabase.from('ventas').select().order('fecha', ascending: false);
+      final response = await _supabase
+          .from('ventas')
+          .select()
+          .order('fecha', ascending: false);
       if (response.isEmpty) {
         debugPrint('ℹ️ No hay ventas en Supabase para descargar');
         return;
@@ -924,7 +1003,8 @@ class SyncService {
             ..subtotal = (d['subtotal'] as num?)?.toDouble() ?? 0.0;
         }).toList();
 
-        final existing = await _isarService.obtenerVentaPorIdString(ventaIdString);
+        final existing =
+            await _isarService.obtenerVentaPorIdString(ventaIdString);
         final venta = VentaEntity()
           ..ventaIdString = ventaIdString
           ..fecha = DateTime.parse(data['fecha']).toLocal()
@@ -932,7 +1012,8 @@ class SyncService {
           ..impuesto = (data['impuesto'] as num).toDouble()
           ..total = (data['total'] as num).toDouble()
           ..tasaBcv = (data['tasa_bcv'] as num?)?.toDouble() ?? 0.0
-          ..totalBolivares = (data['total_bolivares'] as num?)?.toDouble() ?? 0.0
+          ..totalBolivares =
+              (data['total_bolivares'] as num?)?.toDouble() ?? 0.0
           ..metodoPago = data['metodo_pago'] ?? ''
           ..documento = data['documento'] ?? ''
           ..empleado = data['empleado'] ?? ''
@@ -948,10 +1029,12 @@ class SyncService {
         }
 
         if (detalles.isNotEmpty) {
-          final ventaLocal = await _isarService.obtenerVentaPorIdString(ventaIdString);
+          final ventaLocal =
+              await _isarService.obtenerVentaPorIdString(ventaIdString);
           if (ventaLocal != null) {
             await _isarService.guardarDetallesVenta(ventaLocal.id, detalles);
-            debugPrint('📦 ${detalles.length} detalles guardados para venta $ventaIdString');
+            debugPrint(
+                '📦 ${detalles.length} detalles guardados para venta $ventaIdString');
           }
         }
       }
@@ -990,7 +1073,8 @@ class SyncService {
     }
   }
 
-  Future<bool> _enviarMovimientoAlServidor(MovimientoInventarioEntity mov) async {
+  Future<bool> _enviarMovimientoAlServidor(
+      MovimientoInventarioEntity mov) async {
     await _loadConfig();
     try {
       try {
@@ -1023,12 +1107,13 @@ class SyncService {
       } catch (rpcError) {
         debugPrint('⚠️ RPC falló, intentando directo: $rpcError');
 
-        final producto = await _isarService.obtenerProductoPorId(mov.productoId);
+        final producto =
+            await _isarService.obtenerProductoPorId(mov.productoId);
         if (producto != null && producto.codigoBarras.isNotEmpty) {
           await _supabase
               .from('productos')
-              .update({'stock': mov.stockResultante})
-              .eq('codigo_barras', producto.codigoBarras);
+              .update({'stock': mov.stockResultante}).eq(
+                  'codigo_barras', producto.codigoBarras);
 
           final payload = {
             'producto_id': mov.productoId,
@@ -1044,7 +1129,8 @@ class SyncService {
           debugPrint('✅ Movimiento ${mov.id} sincronizado vía directa');
           return true;
         } else {
-          debugPrint('⚠️ Producto no encontrado o sin código de barras para movimiento ${mov.id}');
+          debugPrint(
+              '⚠️ Producto no encontrado o sin código de barras para movimiento ${mov.id}');
           return false;
         }
       }
@@ -1067,7 +1153,8 @@ class SyncService {
         return;
       }
 
-      debugPrint('🔄 Sincronizando ${pendientes.length} categorías con Supabase...');
+      debugPrint(
+          '🔄 Sincronizando ${pendientes.length} categorías con Supabase...');
       int sincronizadas = 0;
 
       for (final categoria in pendientes) {
@@ -1078,7 +1165,10 @@ class SyncService {
           }
 
           final json = categoria.toSupabaseJson();
-          await _supabase.from('categorias').upsert(json, onConflict: 'id').select();
+          await _supabase
+              .from('categorias')
+              .upsert(json, onConflict: 'id')
+              .select();
           categoria.syncStatus = 'synced';
           await _isarService.guardarCategoria(categoria);
           sincronizadas++;
@@ -1098,7 +1188,8 @@ class SyncService {
   Future<void> descargarCategoriasDesdeSupabase() async {
     try {
       final response = await _supabase.from('categorias').select('*');
-      debugPrint('📥 [SyncService] Descargadas ${response.length} categorías desde Supabase');
+      debugPrint(
+          '📥 [SyncService] Descargadas ${response.length} categorías desde Supabase');
 
       int guardadas = 0;
       for (final json in response) {
@@ -1109,7 +1200,8 @@ class SyncService {
         }
 
         final categoria = CategoriaEntity.fromSupabase(json);
-        final existente = await _isarService.obtenerCategoriaPorSupabaseId(supabaseId);
+        final existente =
+            await _isarService.obtenerCategoriaPorSupabaseId(supabaseId);
 
         if (existente != null) {
           if (existente.nombre != categoria.nombre ||
@@ -1128,7 +1220,8 @@ class SyncService {
           guardadas++;
         }
       }
-      debugPrint('✅ [SyncService] $guardadas categorías guardadas/actualizadas en Isar');
+      debugPrint(
+          '✅ [SyncService] $guardadas categorías guardadas/actualizadas en Isar');
       onDataChanged?.call();
     } catch (e) {
       debugPrint('❌ Error descargando categorías: $e');
@@ -1148,7 +1241,8 @@ class SyncService {
         return;
       }
 
-      debugPrint('🔄 Sincronizando ${pendientes.length} marcas con Supabase...');
+      debugPrint(
+          '🔄 Sincronizando ${pendientes.length} marcas con Supabase...');
       int sincronizadas = 0;
 
       for (var marca in pendientes) {
@@ -1196,15 +1290,20 @@ class SyncService {
   /// Descarga todas las marcas desde Supabase y las guarda/actualiza localmente.
   Future<void> descargarMarcasDesdeSupabase() async {
     try {
-      final response = await _supabase.from('marcas').select().order('nombre', ascending: true);
-      debugPrint('📥 [SyncService] Descargadas ${response.length} marcas desde Supabase');
+      final response = await _supabase
+          .from('marcas')
+          .select()
+          .order('nombre', ascending: true);
+      debugPrint(
+          '📥 [SyncService] Descargadas ${response.length} marcas desde Supabase');
 
       final isar = await _isarService.db;
       int guardadas = 0, actualizadas = 0;
 
       final locales = await isar.marcaEntitys.where().findAll();
       final Map<String, MarcaEntity> localesPorSupabaseId = {
-        for (var m in locales) if (m.supabaseId != null) m.supabaseId!: m
+        for (var m in locales)
+          if (m.supabaseId != null) m.supabaseId!: m
       };
 
       for (var json in response) {
@@ -1239,7 +1338,8 @@ class SyncService {
           guardadas++;
         }
       }
-      debugPrint('✅ [SyncService] $guardadas marcas insertadas, $actualizadas actualizadas');
+      debugPrint(
+          '✅ [SyncService] $guardadas marcas insertadas, $actualizadas actualizadas');
       onDataChanged?.call();
     } catch (e) {
       debugPrint('❌ Error descargando marcas: $e');
@@ -1252,19 +1352,17 @@ class SyncService {
   // ============================================================
 
   /// Descarga todos los gastos desde Supabase y los guarda/actualiza localmente.
-Future<void> descargarGastosDesdeSupabase() async {
-  try {
-    final response = await _supabase
-        .from('gastos')
-        .select()
-        .order('fecha', ascending: false);
+  Future<void> descargarGastosDesdeSupabase() async {
+    try {
+      final response = await _supabase
+          .from('gastos')
+          .select()
+          .order('fecha', ascending: false);
 
-    if (response.isEmpty) {
-      debugPrint('ℹ️ No hay gastos en Supabase para descargar');
-      return;
-    }
-
-    debugPrint('🔄 Descargando ${response.length} gastos desde Supabase...');
+      if (response.isEmpty) {
+        debugPrint('ℹ️ No hay gastos en Supabase para descargar');
+        return;
+      }
 
     final gastosLocales = await _isarService.obtenerGastos();
     final Map<int, GastoEntity> porIdIsar = {
@@ -1318,19 +1416,16 @@ Future<void> descargarGastosDesdeSupabase() async {
         if (idIsar != null && idIsar > 0) {
           gastoNube.id = idIsar;
         }
-        await _isarService.guardarGasto(gastoNube);
-        insertados++;
-        debugPrint('📥 Gasto creado: ${gastoNube.descripcion}');
       }
-    }
 
-    debugPrint('✅ Gastos sincronizados: $insertados insertados, $actualizados actualizados');
-    onDataChanged?.call();
-  } catch (e) {
-    debugPrint('❌ Error descargando gastos desde Supabase: $e');
-    rethrow;
+      debugPrint(
+          '✅ Gastos sincronizados: $insertados insertados, $actualizados actualizados');
+      onDataChanged?.call();
+    } catch (e) {
+      debugPrint('❌ Error descargando gastos desde Supabase: $e');
+      rethrow;
+    }
   }
-}
 
   /// Sincroniza gastos pendientes hacia Supabase.
   Future<int> sincronizarGastosPendientes() async {
@@ -1345,7 +1440,8 @@ Future<void> descargarGastosDesdeSupabase() async {
         return 0;
       }
 
-      debugPrint('🔄 [SyncService] Sincronizando ${pendientes.length} gastos...');
+      debugPrint(
+          '🔄 [SyncService] Sincronizando ${pendientes.length} gastos...');
 
       for (var gasto in pendientes) {
         final exito = await _enviarGastoAlServidor(gasto);
@@ -1372,10 +1468,13 @@ Future<void> descargarGastosDesdeSupabase() async {
     try {
       String? usuarioUuid;
       final usuario = await _isarService.obtenerUsuarioPorId(gasto.usuarioId);
-      if (usuario != null && usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
+      if (usuario != null &&
+          usuario.supabaseId != null &&
+          usuario.supabaseId!.isNotEmpty) {
         usuarioUuid = usuario.supabaseId;
       } else {
-        debugPrint('⚠️ Usuario ID ${gasto.usuarioId} no tiene supabaseId. Se envía null.');
+        debugPrint(
+            '⚠️ Usuario ID ${gasto.usuarioId} no tiene supabaseId. Se envía null.');
       }
 
       final payload = {
@@ -1391,7 +1490,11 @@ Future<void> descargarGastosDesdeSupabase() async {
         'usuario_id': usuarioUuid,
       };
 
-      final existing = await _supabase.from('gastos').select('id').eq('id_isar', gasto.id).maybeSingle();
+      final existing = await _supabase
+          .from('gastos')
+          .select('id')
+          .eq('id_isar', gasto.id)
+          .maybeSingle();
       if (existing != null) {
         await _supabase.from('gastos').update(payload).eq('id_isar', gasto.id);
         debugPrint('✅ Gasto ${gasto.id} actualizado correctamente.');
@@ -1423,7 +1526,8 @@ Future<void> descargarGastosDesdeSupabase() async {
         return 0;
       }
 
-      debugPrint('🔄 [SyncService] Sincronizando ${pendientes.length} turnos...');
+      debugPrint(
+          '🔄 [SyncService] Sincronizando ${pendientes.length} turnos...');
 
       for (var turno in pendientes) {
         final exito = await _enviarTurnoAlServidor(turno);
@@ -1462,7 +1566,11 @@ Future<void> descargarGastosDesdeSupabase() async {
         payload['fecha_cierre'] = turno.fechaCierre!.toIso8601String();
       }
 
-      final existing = await _supabase.from('turnos').select('id_isar').eq('id_isar', turno.id).maybeSingle();
+      final existing = await _supabase
+          .from('turnos')
+          .select('id_isar')
+          .eq('id_isar', turno.id)
+          .maybeSingle();
       if (existing == null) {
         await _supabase.from('turnos').insert(payload);
         debugPrint('✅ Turno ${turno.id} insertado correctamente');
@@ -1490,7 +1598,8 @@ Future<void> descargarGastosDesdeSupabase() async {
         return;
       }
 
-      debugPrint('🔄 Sincronizando ${pendientes.length} locales con Supabase...');
+      debugPrint(
+          '🔄 Sincronizando ${pendientes.length} locales con Supabase...');
 
       for (var local in pendientes) {
         final data = {
@@ -1527,7 +1636,8 @@ Future<void> descargarGastosDesdeSupabase() async {
             local.sincronizado = true;
             local.fechaSincronizacion = DateTime.now();
             await _isarService.guardarLocal(local);
-            debugPrint('✅ Local ${local.nombre} sincronizado con ID: $supabaseId');
+            debugPrint(
+                '✅ Local ${local.nombre} sincronizado con ID: $supabaseId');
           }
         } catch (e) {
           debugPrint('❌ Error al sincronizar local ${local.nombre}: $e');
@@ -1542,12 +1652,17 @@ Future<void> descargarGastosDesdeSupabase() async {
   /// Descarga todos los locales desde Supabase y los guarda/actualiza localmente.
   Future<void> descargarLocalesDesdeSupabase() async {
     try {
-      final response = await _supabase.from('locales').select().order('nombre', ascending: true);
+      final response = await _supabase
+          .from('locales')
+          .select()
+          .order('nombre', ascending: true);
       debugPrint('🔄 Descargando ${response.length} locales desde Supabase...');
 
-      final localesLocales = await _isarService.obtenerLocales(soloActivos: false);
+      final localesLocales =
+          await _isarService.obtenerLocales(soloActivos: false);
       final Map<String, LocalEntity> localesPorSupabaseId = {
-        for (var l in localesLocales) if (l.supabaseId != null) l.supabaseId!: l
+        for (var l in localesLocales)
+          if (l.supabaseId != null) l.supabaseId!: l
       };
       final Map<int, LocalEntity> localesPorId = {
         for (var l in localesLocales) l.id: l
@@ -1597,13 +1712,15 @@ Future<void> descargarGastosDesdeSupabase() async {
   /// Sincroniza departamentos pendientes hacia Supabase.
   Future<void> sincronizarDepartamentosPendientes() async {
     try {
-      final pendientes = await _isarService.obtenerDepartamentosPendientesSync();
+      final pendientes =
+          await _isarService.obtenerDepartamentosPendientesSync();
       if (pendientes.isEmpty) {
         debugPrint('ℹ️ No hay departamentos pendientes para sincronizar');
         return;
       }
 
-      debugPrint('🔄 Sincronizando ${pendientes.length} departamentos con Supabase...');
+      debugPrint(
+          '🔄 Sincronizando ${pendientes.length} departamentos con Supabase...');
 
       for (var departamento in pendientes) {
         String? localUuid;
@@ -1613,7 +1730,8 @@ Future<void> descargarGastosDesdeSupabase() async {
 
         String? usuarioUuid;
         if (departamento.usuarioId != null) {
-          usuarioUuid = await _obtenerSupabaseIdUsuario(departamento.usuarioId!);
+          usuarioUuid =
+              await _obtenerSupabaseIdUsuario(departamento.usuarioId!);
         }
 
         final data = {
@@ -1649,10 +1767,12 @@ Future<void> descargarGastosDesdeSupabase() async {
             departamento.sincronizado = true;
             departamento.fechaSincronizacion = DateTime.now();
             await _isarService.guardarDepartamento(departamento);
-            debugPrint('✅ Departamento ${departamento.nombre} sincronizado con ID: $supabaseId');
+            debugPrint(
+                '✅ Departamento ${departamento.nombre} sincronizado con ID: $supabaseId');
           }
         } catch (e) {
-          debugPrint('❌ Error al sincronizar departamento ${departamento.nombre}: $e');
+          debugPrint(
+              '❌ Error al sincronizar departamento ${departamento.nombre}: $e');
         }
       }
     } catch (e) {
@@ -1664,12 +1784,17 @@ Future<void> descargarGastosDesdeSupabase() async {
   /// Descarga todos los departamentos desde Supabase y los guarda/actualiza localmente.
   Future<void> descargarDepartamentosDesdeSupabase() async {
     try {
-      final response = await _supabase.from('departamentos').select().order('nombre', ascending: true);
-      debugPrint('🔄 Descargando ${response.length} departamentos desde Supabase...');
+      final response = await _supabase
+          .from('departamentos')
+          .select()
+          .order('nombre', ascending: true);
+      debugPrint(
+          '🔄 Descargando ${response.length} departamentos desde Supabase...');
 
       if (response.isEmpty) return;
 
-      final localesLocales = await _isarService.obtenerLocales(soloActivos: false);
+      final localesLocales =
+          await _isarService.obtenerLocales(soloActivos: false);
       final Map<String, int> uuidToIsarId = {};
       for (var local in localesLocales) {
         if (local.supabaseId != null) {
@@ -1677,9 +1802,11 @@ Future<void> descargarGastosDesdeSupabase() async {
         }
       }
 
-      final deptosLocales = await _isarService.obtenerDepartamentos(soloActivos: false);
+      final deptosLocales =
+          await _isarService.obtenerDepartamentos(soloActivos: false);
       final Map<String, DepartamentoEntity> localesPorSupabaseId = {
-        for (var d in deptosLocales) if (d.supabaseId != null) d.supabaseId!: d
+        for (var d in deptosLocales)
+          if (d.supabaseId != null) d.supabaseId!: d
       };
       final Map<int, DepartamentoEntity> localesPorId = {
         for (var d in deptosLocales) d.id: d
@@ -1765,7 +1892,10 @@ Future<void> descargarGastosDesdeSupabase() async {
         if (existing == null) {
           await _supabase.from('codigos_barras_alias').insert(data);
         } else {
-          await _supabase.from('codigos_barras_alias').update(data).eq('id_isar', alias.id);
+          await _supabase
+              .from('codigos_barras_alias')
+              .update(data)
+              .eq('id_isar', alias.id);
         }
 
         alias.sincronizado = true;
@@ -1790,11 +1920,16 @@ Future<void> descargarGastosDesdeSupabase() async {
       for (var lote in pendientes) {
         final productoIdFk = await _obtenerSupabaseIdProducto(lote.productoId);
         if (productoIdFk == null || productoIdFk.isEmpty) {
-          debugPrint('⚠️ Lote ${lote.id} omitido: producto ${lote.productoId} sin supabaseId');
+          debugPrint(
+              '⚠️ Lote ${lote.id} omitido: producto ${lote.productoId} sin supabaseId');
           continue;
         }
 
-        final existing = await _supabase.from('lotes').select('id_isar').eq('id_isar', lote.id).maybeSingle();
+        final existing = await _supabase
+            .from('lotes')
+            .select('id_isar')
+            .eq('id_isar', lote.id)
+            .maybeSingle();
         final data = {
           'id_isar': lote.id,
           'producto_id_fk': productoIdFk,
@@ -1840,18 +1975,17 @@ Future<void> descargarGastosDesdeSupabase() async {
       debugPrint('🔄 Sincronizando ${pendientes.length} configuraciones de Telegram con Supabase...');
 
       for (var config in pendientes) {
-        final comandos = config.comandosPermitidos;
-
         final data = {
           'id_isar': config.id,
-          'bot_token': config.botToken,
-          'chat_id': config.chatId,
+          'usuario_id': config.usuarioId,
+          'bot_token': config.botToken ?? '',
+          'chat_id': config.chatId ?? '',
           'nombre_chat': config.nombreChat ?? '',
           'enabled': config.enabled,
           'notificar_stock_bajo': config.notificarStockBajo,
           'notificar_ventas': config.notificarVentas,
           'notificar_pedidos': config.notificarPedidos,
-          'comandos_permitidos': jsonEncode(comandos),
+          'comandos_permitidos': jsonEncode(config.comandosPermitidos),
           'sync_status': 'synced',
           'sincronizado': true,
           'updated_at': DateTime.now().toIso8601String(),
@@ -1860,7 +1994,7 @@ Future<void> descargarGastosDesdeSupabase() async {
         try {
           final response = await _supabase
               .from('telegram_config')
-              .upsert(data, onConflict: 'id_isar')
+              .upsert(data, onConflict: 'usuario_id')
               .select('id')
               .maybeSingle();
 
@@ -1870,10 +2004,12 @@ Future<void> descargarGastosDesdeSupabase() async {
             config.sincronizado = true;
             config.fechaSincronizacion = DateTime.now();
             await _isarService.guardarTelegramConfig(config);
-            debugPrint('✅ Configuración de Telegram sincronizada con ID: $supabaseId');
+            debugPrint('✅ Configuración de Telegram (usuario ${config.usuarioId}) sincronizada con ID: $supabaseId');
+          } else {
+            debugPrint('⚠️ No se pudo obtener ID de Supabase para usuario ${config.usuarioId}');
           }
         } catch (e) {
-          debugPrint('❌ Error al sincronizar configuración de Telegram: $e');
+          debugPrint('❌ Error al sincronizar configuración (usuario ${config.usuarioId}): $e');
         }
       }
     } catch (e) {
@@ -1884,30 +2020,37 @@ Future<void> descargarGastosDesdeSupabase() async {
   /// Descarga todas las configuraciones de Telegram desde Supabase.
   Future<void> descargarTelegramConfigDesdeSupabase() async {
     try {
-      final response = await _supabase.from('telegram_config').select().order('id_isar', ascending: true);
+      final response = await _supabase
+          .from('telegram_config')
+          .select()
+          .order('id_isar', ascending: true);
+
+      if (response.isEmpty) {
+        debugPrint('ℹ️ No hay configuraciones de Telegram en Supabase para descargar');
+        return;
+      }
+
       debugPrint('🔄 Descargando ${response.length} configuraciones de Telegram desde Supabase...');
 
-      if (response.isEmpty) return;
-
-      final locales = await _isarService.obtenerTelegramConfigs();
-      final Map<int, TelegramConfigEntity> localesPorId = {
-        for (var c in locales) c.id: c
+      final locales = await _isarService.obtenerTodasTelegramConfigs();
+      final Map<int?, TelegramConfigEntity> localesPorUsuario = {
+        for (var c in locales) c.usuarioId: c
       };
 
       for (var data in response) {
         final idIsar = data['id_isar'] as int?;
-        if (idIsar == null) continue;
-
-        TelegramConfigEntity? local = localesPorId[idIsar];
-        if (local == null) {
-          final supabaseId = data['id'] as String?;
-          if (supabaseId != null) {
-            local = locales.firstWhereOrNull((c) => c.supabaseId == supabaseId);
-          }
+        final usuarioId = data['usuario_id'] as int?;
+        
+        if (idIsar == null || usuarioId == null) {
+          debugPrint('⚠️ Configuración sin id_isar o usuario_id, omitiendo...');
+          continue;
         }
+
+        TelegramConfigEntity? local = localesPorUsuario[usuarioId];
 
         final configNube = TelegramConfigEntity()
           ..id = idIsar
+          ..usuarioId = usuarioId
           ..supabaseId = data['id']
           ..botToken = data['bot_token'] as String? ?? ''
           ..chatId = data['chat_id'] as String? ?? ''
@@ -1920,27 +2063,26 @@ Future<void> descargarGastosDesdeSupabase() async {
               ? List<String>.from(data['comandos_permitidos'])
               : ['/ventas', '/stock', '/ayuda']
           ..sincronizado = true
-          ..fechaSincronizacion = DateTime.now()
-          ..createdAt = data['created_at'] != null ? DateTime.parse(data['created_at']) : null
-          ..updatedAt = data['updated_at'] != null ? DateTime.parse(data['updated_at']) : null;
+          ..fechaSincronizacion = DateTime.now();
 
         if (local != null) {
           configNube.id = local.id;
           await _isarService.guardarTelegramConfig(configNube);
-          debugPrint('🔄 Configuración de Telegram actualizada localmente');
+          debugPrint('🔄 Configuración de Telegram actualizada (usuario $usuarioId)');
         } else {
           await _isarService.guardarTelegramConfig(configNube);
-          debugPrint('📥 Configuración de Telegram creada localmente');
+          debugPrint('📥 Nueva configuración de Telegram creada (usuario $usuarioId)');
         }
       }
 
-      // Eliminar configuraciones locales que ya no existen en Supabase
       final supabaseIds = response.map((d) => d['id'] as String).toSet();
-      final localesParaEliminar = locales.where((c) =>
-          c.supabaseId != null && !supabaseIds.contains(c.supabaseId)).toList();
+      final localesParaEliminar = locales.where((c) => 
+        c.supabaseId != null && !supabaseIds.contains(c.supabaseId)
+      ).toList();
+
       for (var c in localesParaEliminar) {
         await _isarService.eliminarTelegramConfig(c.id);
-        debugPrint('🗑️ Configuración de Telegram eliminada localmente (ID: ${c.id})');
+        debugPrint('🗑️ Configuración de Telegram eliminada localmente (usuario ${c.usuarioId})');
       }
 
       debugPrint('✅ Descarga de configuraciones de Telegram completada');
@@ -1950,19 +2092,21 @@ Future<void> descargarGastosDesdeSupabase() async {
   }
 
   // ============================================================
-  // PEDIDOS
+  // PEDIDOS (CORREGIDO CON LOGS DE DEPURACIÓN)
   // ============================================================
 
   /// Obtiene el ID entero del producto en Supabase (no UUID, sino el 'id' numérico).
   /// Si no existe, lo crea y retorna el ID.
   Future<int?> _obtenerOCrearProductoEnSupabase(int productoLocalId) async {
-    final productoLocal = await _isarService.obtenerProductoPorId(productoLocalId);
+    final productoLocal =
+        await _isarService.obtenerProductoPorId(productoLocalId);
     if (productoLocal == null) {
       debugPrint('⚠️ Producto local $productoLocalId no encontrado en Isar');
       return null;
     }
 
-    if (productoLocal.supabaseId != null && productoLocal.supabaseId!.isNotEmpty) {
+    if (productoLocal.supabaseId != null &&
+        productoLocal.supabaseId!.isNotEmpty) {
       final idInt = int.tryParse(productoLocal.supabaseId!);
       if (idInt != null && idInt > 0) {
         final response = await _supabase
@@ -2013,18 +2157,21 @@ Future<void> descargarGastosDesdeSupabase() async {
         'sync_status': 'synced',
       };
 
-      final response = await _supabase.from('productos').insert(data).select('id').single();
+      final response =
+          await _supabase.from('productos').insert(data).select('id').single();
       final newId = response['id'] as int?;
       if (newId != null && newId > 0) {
         productoLocal.supabaseId = newId.toString();
         productoLocal.sincronizado = true;
         productoLocal.fechaSincronizacion = DateTime.now();
         await _isarService.guardarProducto(productoLocal);
-        debugPrint('✅ Producto "${productoLocal.nombre}" creado en Supabase con ID: $newId');
+        debugPrint(
+            '✅ Producto "${productoLocal.nombre}" creado en Supabase con ID: $newId');
         return newId;
       }
     } catch (e) {
-      debugPrint('❌ Error creando producto ${productoLocal.nombre} en Supabase: $e');
+      debugPrint(
+          '❌ Error creando producto ${productoLocal.nombre} en Supabase: $e');
     }
     return null;
   }
@@ -2034,21 +2181,30 @@ Future<void> descargarGastosDesdeSupabase() async {
     try {
       await _obtenerLocalActualUuid();
 
-      final pedidosPendientes = await _isarService.obtenerPedidosPendientesSync();
+      final pedidosPendientes =
+          await _isarService.obtenerPedidosPendientesSync();
       if (pedidosPendientes.isEmpty) return;
 
-      for (var pedido in pedidosPendientes) {
-        final String? localOrigenUuid = await _obtenerSupabaseIdLocal(pedido.localOrigenId);
-        final String? localDestinoUuid = await _obtenerSupabaseIdLocal(pedido.localDestinoId);
-        final String? usuarioUuid = await _obtenerSupabaseIdUsuario(pedido.usuarioId);
+      debugPrint('📦 Sincronizando ${pedidosPendientes.length} pedidos...');
 
-        if (localOrigenUuid == null || localDestinoUuid == null || usuarioUuid == null) {
-          debugPrint('⚠️ Pedido ${pedido.id} omitido: localOrigenUuid=$localOrigenUuid, localDestinoUuid=$localDestinoUuid, usuarioUuid=$usuarioUuid');
+      for (var pedido in pedidosPendientes) {
+        final String? localOrigenUuid =
+            await _obtenerSupabaseIdLocal(pedido.localOrigenId);
+        final String? localDestinoUuid =
+            await _obtenerSupabaseIdLocal(pedido.localDestinoId);
+        final String? usuarioUuid =
+            await _obtenerSupabaseIdUsuario(pedido.usuarioId);
+
+        if (localOrigenUuid == null ||
+            localDestinoUuid == null ||
+            usuarioUuid == null) {
+          debugPrint(
+              '⚠️ Pedido ${pedido.id} omitido: localOrigenUuid=$localOrigenUuid, localDestinoUuid=$localDestinoUuid, usuarioUuid=$usuarioUuid');
           continue;
         }
 
         final pedidoData = {
-          'local_id': localOrigenUuid,
+          'local_id': pedido.localOrigenId,
           'local_destino_id': localDestinoUuid,
           'usuario_id': usuarioUuid,
           'fecha_pedido': pedido.fechaPedido.toIso8601String(),
@@ -2063,27 +2219,39 @@ Future<void> descargarGastosDesdeSupabase() async {
           'sync_status': 'synced',
         };
 
-        final response = await _supabase.from('pedidos').insert(pedidoData).select().single();
+        final response = await _supabase
+            .from('pedidos')
+            .insert(pedidoData)
+            .select()
+            .single();
         final supabasePedidoId = response['id'] as String;
 
         final detalles = await _isarService.obtenerDetallesPorPedido(pedido.id);
+
+        // 🔥 LOGS DE DEPURACIÓN
+        debugPrint('📦 Pedido $supabasePedidoId tiene ${detalles.length} detalles');
+
         for (var detalle in detalles) {
-          final int? supabaseProductoId = await _obtenerOCrearProductoEnSupabase(detalle.productoId);
-          if (supabaseProductoId == null) {
-            debugPrint('⚠️ Detalle omitido: no se pudo obtener/crear producto ${detalle.productoId}');
-            continue;
-          }
-          await _supabase.from('detalles_pedido').insert({
+          // 🔥 Verificar el tipo y valor de detalle.productoId
+          debugPrint('🔍 detalle.productoId: ${detalle.productoId} (tipo: ${detalle.productoId.runtimeType})');
+
+          // 🔥 Construir el payload y mostrarlo
+          final payload = {
             'pedido_id': supabasePedidoId,
-            'producto_id': supabaseProductoId,
+            'producto_id_isar': detalle.productoId,
             'nombre_producto': detalle.nombreProducto,
             'cantidad': detalle.cantidad,
             'precio_unidad': detalle.precioUnidad,
             'subtotal': detalle.subtotal,
-          });
+          };
+          debugPrint('📤 Payload a enviar: ${jsonEncode(payload)}');
+
+          // ✅ Ahora sí, insertar con producto_id_isar
+          await _supabase.from('detalles_pedido').insert(payload);
         }
 
-        final recepcion = await _isarService.obtenerRecepcionPorPedido(pedido.id);
+        final recepcion =
+            await _isarService.obtenerRecepcionPorPedido(pedido.id);
         if (recepcion != null) {
           await _supabase.from('recepciones').insert({
             'pedido_id': supabasePedidoId,
@@ -2230,15 +2398,15 @@ Future<void> descargarGastosDesdeSupabase() async {
     final isar = await _isarService.db;
 
     LocalEntity? local = await isar.localEntitys.get(isarId);
-    if (local != null && local.supabaseId != null && local.supabaseId!.isNotEmpty) {
+    if (local != null &&
+        local.supabaseId != null &&
+        local.supabaseId!.isNotEmpty) {
       return local.supabaseId;
     }
 
     if (local != null) {
-      final localesConUuid = await isar.localEntitys
-          .filter()
-          .supabaseIdIsNotNull()
-          .findAll();
+      final localesConUuid =
+          await isar.localEntitys.filter().supabaseIdIsNotNull().findAll();
       if (localesConUuid.isNotEmpty) {
         final localExistente = localesConUuid.first;
         if (local.supabaseId == null || local.supabaseId!.isEmpty) {
@@ -2246,14 +2414,19 @@ Future<void> descargarGastosDesdeSupabase() async {
           await isar.writeTxn(() async {
             await isar.localEntitys.put(local);
           });
-          debugPrint('🔄 Asignado UUID del local ${localExistente.id} al local ${local.id} (fallback)');
+          debugPrint(
+              '🔄 Asignado UUID del local ${localExistente.id} al local ${local.id} (fallback)');
         }
         return localExistente.supabaseId;
       }
     }
 
     try {
-      final response = await _supabase.from('locales').select('id').eq('id_isar', isarId).maybeSingle();
+      final response = await _supabase
+          .from('locales')
+          .select('id')
+          .eq('id_isar', isarId)
+          .maybeSingle();
       if (response != null) {
         final supabaseId = response['id'] as String?;
         if (supabaseId != null && supabaseId.isNotEmpty) {
@@ -2262,7 +2435,8 @@ Future<void> descargarGastosDesdeSupabase() async {
             await isar.writeTxn(() async {
               await isar.localEntitys.put(local);
             });
-            debugPrint('✅ UUID del local $isarId obtenido de Supabase: $supabaseId');
+            debugPrint(
+                '✅ UUID del local $isarId obtenido de Supabase: $supabaseId');
           } else {
             final nuevoLocal = LocalEntity()
               ..id = isarId
@@ -2277,7 +2451,8 @@ Future<void> descargarGastosDesdeSupabase() async {
         }
       }
     } catch (e) {
-      debugPrint('⚠️ Error obteniendo UUID del local $isarId desde Supabase: $e');
+      debugPrint(
+          '⚠️ Error obteniendo UUID del local $isarId desde Supabase: $e');
     }
     return await _obtenerLocalActualUuid();
   }
@@ -2303,7 +2478,8 @@ Future<void> descargarGastosDesdeSupabase() async {
   }
 
   Future<int> _obtenerIsarIdProducto(String supabaseId) async {
-    final producto = await _isarService.obtenerProductoPorSupabaseId(supabaseId);
+    final producto =
+        await _isarService.obtenerProductoPorSupabaseId(supabaseId);
     return producto?.id ?? 0;
   }
 
@@ -2313,7 +2489,9 @@ Future<void> descargarGastosDesdeSupabase() async {
 
     LocalEntity? localIsar = await isar.localEntitys.get(1);
     if (localIsar == null) {
-      final nuevoLocal = LocalEntity()..id = 1..nombre = 'Local Principal';
+      final nuevoLocal = LocalEntity()
+        ..id = 1
+        ..nombre = 'Local Principal';
       await isar.writeTxn(() async {
         await isar.localEntitys.put(nuevoLocal);
       });
@@ -2326,11 +2504,16 @@ Future<void> descargarGastosDesdeSupabase() async {
     }
 
     try {
-      final data = await _supabase.from('locales').select('id').eq('id_isar', 1).maybeSingle();
+      final data = await _supabase
+          .from('locales')
+          .select('id')
+          .eq('id_isar', 1)
+          .maybeSingle();
       String uuid;
       if (data != null) {
         uuid = data['id'] as String;
-        debugPrint('✅ Local encontrado en Supabase con id_isar = 1. UUID: $uuid');
+        debugPrint(
+            '✅ Local encontrado en Supabase con id_isar = 1. UUID: $uuid');
       } else {
         final newData = await _supabase
             .from('locales')
@@ -2382,23 +2565,95 @@ Future<void> descargarGastosDesdeSupabase() async {
 
       final fileName = archivosPorCodigo[p.codigoBarras];
       if (fileName != null) {
-        final publicUrl = supabase.storage.from('productos').getPublicUrl(fileName);
+        final publicUrl =
+            supabase.storage.from('productos').getPublicUrl(fileName);
         p.imagenUrl = publicUrl;
         await _isarService.guardarProducto(p);
         reparados++;
         debugPrint('🖼️ Imagen reparada para ${p.nombre}');
       } else {
-        debugPrint('⚠️ No se encontró imagen para ${p.nombre} (código: ${p.codigoBarras})');
+        debugPrint(
+            '⚠️ No se encontró imagen para ${p.nombre} (código: ${p.codigoBarras})');
       }
     }
 
     if (reparados > 0) {
-      debugPrint('✅ $reparados imágenes reparadas, sincronizando con Supabase...');
+      debugPrint(
+          '✅ $reparados imágenes reparadas, sincronizando con Supabase...');
       await sincronizarProductosASupabase();
     } else {
       debugPrint('ℹ️ No se encontraron imágenes faltantes.');
     }
     return reparados;
+  }
+
+  // ============================================================
+  // MOVIMIENTOS DE LOTE
+  // ============================================================
+
+  /// Sincroniza movimientos de lote pendientes hacia Supabase
+  Future<void> sincronizarMovimientosLotePendientes() async {
+    try {
+      final pendientes = await _isarService.obtenerMovimientosLotePendientesSync();
+      if (pendientes.isEmpty) {
+        debugPrint('ℹ️ No hay movimientos de lote pendientes');
+        return;
+      }
+
+      debugPrint('🔄 Sincronizando ${pendientes.length} movimientos de lote...');
+
+      for (var mov in pendientes) {
+        final data = mov.toSupabaseJson();
+        final lote = await _isarService.obtenerLotePorId(mov.loteId);
+        if (lote != null && lote.supabaseId == null) {
+          await sincronizarLotesPendientes();
+        }
+
+        try {
+          await _supabase.from('movimientos_lotes').upsert(data, onConflict: 'id_isar').select();
+          mov.sincronizado = true;
+          mov.fechaSincronizacion = DateTime.now();
+          await _isarService.guardarMovimientoLote(mov);
+        } catch (e) {
+          debugPrint('❌ Error sincronizando movimiento ${mov.id}: $e');
+        }
+      }
+      debugPrint('✅ Movimientos de lote sincronizados');
+    } catch (e) {
+      debugPrint('❌ Error general en sincronizarMovimientosLotePendientes: $e');
+    }
+  }
+
+  /// Descarga movimientos de lote desde Supabase (si se necesitan)
+  Future<void> descargarMovimientosLoteDesdeSupabase() async {
+    try {
+      final response = await _supabase.from('movimientos_lotes').select().order('fecha', ascending: false);
+      if (response.isEmpty) return;
+
+      debugPrint('🔄 Descargando ${response.length} movimientos de lote...');
+
+      final locales = await _isarService.obtenerTodosMovimientosLote();
+      final Map<int, MovimientoLoteEntity> localesPorId = {
+        for (var m in locales) m.id: m
+      };
+
+      for (var data in response) {
+        final idIsar = data['id_isar'] as int?;
+        if (idIsar == null) continue;
+
+        final movNube = MovimientoLoteEntity.fromSupabase(data);
+        if (localesPorId.containsKey(idIsar)) {
+          final local = localesPorId[idIsar]!;
+          movNube.id = local.id;
+          await _isarService.guardarMovimientoLote(movNube);
+        } else {
+          await _isarService.guardarMovimientoLote(movNube);
+        }
+      }
+      debugPrint('✅ Movimientos de lote descargados');
+    } catch (e) {
+      debugPrint('❌ Error descargando movimientos de lote: $e');
+    }
   }
 
   // ============================================================
@@ -2500,7 +2755,8 @@ Future<void> descargarGastosDesdeSupabase() async {
       }
 
       // Proveedores
-      final proveedoresPend = await _isarService.obtenerProveedoresPendientesSync();
+      final proveedoresPend =
+          await _isarService.obtenerProveedoresPendientesSync();
       if (proveedoresPend.isNotEmpty) {
         await sincronizarProveedoresPendientes();
         proveedores = proveedoresPend.length;
@@ -2536,14 +2792,16 @@ Future<void> descargarGastosDesdeSupabase() async {
       }
 
       // Departamentos
-      final deptosPend = await _isarService.obtenerDepartamentosPendientesSync();
+      final deptosPend =
+          await _isarService.obtenerDepartamentosPendientesSync();
       if (deptosPend.isNotEmpty) {
         await sincronizarDepartamentosPendientes();
         departamentos = deptosPend.length;
       }
 
       // Telegram
-      final telegramPend = await _isarService.obtenerTelegramConfigsPendientesSync();
+      final telegramPend =
+          await _isarService.obtenerTelegramConfigsPendientesSync();
       if (telegramPend.isNotEmpty) {
         await sincronizarTelegramConfigPendientes();
         telegram = telegramPend.length;

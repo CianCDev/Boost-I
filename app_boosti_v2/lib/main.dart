@@ -16,13 +16,13 @@ import 'features/pos/presentation/providers/lock_provider.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
 import 'features/pos/presentation/services/telegram/telegram_service.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
-import 'features/pos/presentation/providers/sync_provider.dart'; // ✅ NUEVO
+import 'features/pos/presentation/providers/sync_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // ============================================================
-  // 1. INICIALIZAR SUPABASE (UNA SOLA VEZ)
+  // 1. INICIALIZAR SUPABASE
   // ============================================================
   final prefs = await SharedPreferences.getInstance();
   String? url = prefs.getString('supabase_url');
@@ -47,6 +47,8 @@ void main() async {
     debugPrint('⚠️ No hay configuración de Supabase, esperando configuración');
   }
 
+
+
   // ============================================================
   // 2. INICIALIZAR ISAR Y MIGRACIONES
   // ============================================================
@@ -58,14 +60,8 @@ void main() async {
   // 2.2. Migración de stock a lotes
   await isarService.migrarStockExistenteALotes();
 
-  // 2.3. Inicializar Telegram
-  try {
-    final telegramService = TelegramService();
-    await telegramService.inicializar();
-    debugPrint('✅ Servicio de Telegram inicializado');
-  } catch (e) {
-    debugPrint('⚠️ Error al inicializar Telegram: $e');
-  }
+  // 2.3. Telegram NO se inicializa aquí porque aún no hay usuario logueado
+  // Se inicializará después del login en el authProvider o en el pos_menu_screen
 
   // 2.4. Asignar supabaseId a productos faltantes
   try {
@@ -74,6 +70,8 @@ void main() async {
   } catch (e) {
     debugPrint('❌ Error en migración de supabaseId: $e');
   }
+
+  
 
   // ============================================================
   // 3. EJECUTAR APP

@@ -34,6 +34,7 @@ import '../screens/locales/locales_screen.dart';
 import '../screens/telegram/telegram_config_screen.dart';
 import '../widgets/appbar.dart';
 import '../widgets/menu/turno_closing_dialog.dart';
+import '../screens/lotes_screen.dart';
 
 class MenuOption {
   final String title;
@@ -720,6 +721,17 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         onTap: _crearBackup,
         isAdminOnly: true,
       ),
+      MenuOption(
+  title: 'Gestión de Lotes',
+  subtitle: 'Verificar y administrar lotes',
+  icon: Icons.inventory_2_rounded,
+  color: const Color(0xFF8B5CF6),
+  onTap: () => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (context) => const LotesScreen()),
+  ),
+  isAdminOnly: true,
+),
       MenuOption(
         title: 'Diagnóstico de Lotes',
         subtitle: 'Verificar estado del inventario por lotes',

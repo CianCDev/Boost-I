@@ -127,7 +127,7 @@ final registrarRecepcionProvider = FutureProvider.family<void, ({
       ..cantidadRestante = cantidad
       ..fechaIngreso = DateTime.now()
       ..fechaVencimiento = fechaVencimiento
-      ..estado = 'activo'
+      ..estado = 'pendiente'
       ..costoUnitario = costoUnitario
       ..sincronizado = false;
 
