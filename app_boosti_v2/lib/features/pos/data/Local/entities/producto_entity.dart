@@ -10,33 +10,34 @@ class ProductoEntity {
   @Index(unique: true, replace: true)
   late String codigoBarras;
 
+  // ──────────────── Datos del producto ────────────────
   String nombre = '';
   double precioUnidad = 0.0;
   double stock = 0.0;
   bool esPesado = false;
 
   // ──────────────── Categoría ────────────────
-  // Campo legacy (se mantiene por compatibilidad)
   String categoria = 'General';
-  // Relación con CategoriaEntity (local, int)
-  int? categoriaId;
+  int? categoriaId; // Relación con CategoriaEntity (local, int)
 
   // ──────────────── Marca ────────────────
-  // Campo legacy (texto libre, se mantiene por compatibilidad)
-  String marca = '';
-  // 🔥 NUEVO: Relación con MarcaEntity usando el UUID de Supabase
+  String marca = ''; // Legacy (texto libre)
   @Index()
-  String? marcaSupabaseId;
+  String? marcaSupabaseId; // UUID de la marca en Supabase
 
   // ──────────────── Proveedor ────────────────
-  int? proveedorId;
+  int? proveedorId; // ID local del proveedor (Isar)
   String proveedorNombre = '';
   String proveedorTelefono = '';
   String proveedorEmail = '';
   String proveedorDireccion = '';
 
+  /// 🔥 NUEVO: UUID del proveedor en Supabase (para la relación)
+  @Index()
+  String? proveedorSupabaseId;
+
   // ──────────────── Supabase ────────────────
-  String? supabaseId;
+  String? supabaseId; // UUID del producto en Supabase
 
   // ──────────────── Stock y configuración ────────────────
   double stockMinimo = 5.0;
@@ -65,18 +66,19 @@ class ProductoEntity {
     this.id = Isar.autoIncrement,
     this.codigoBarras = '',
     this.nombre = '',
-    this.marca = '',
-    this.marcaSupabaseId,
     this.precioUnidad = 0.0,
     this.stock = 0.0,
     this.esPesado = false,
     this.categoria = 'General',
     this.categoriaId,
+    this.marca = '',
+    this.marcaSupabaseId,
     this.proveedorId,
     this.proveedorNombre = '',
     this.proveedorTelefono = '',
     this.proveedorEmail = '',
     this.proveedorDireccion = '',
+    this.proveedorSupabaseId, // 🔥 NUEVO
     this.supabaseId,
     this.stockMinimo = 5.0,
     this.activo = true,
@@ -98,18 +100,19 @@ class ProductoEntity {
       supabaseId: json['id'] as String?,
       codigoBarras: json['codigo_barras'] as String? ?? '',
       nombre: json['nombre'] as String? ?? '',
-      marca: json['marca'] as String? ?? '', // legacy
-      marcaSupabaseId: json['marca_supabase_id'] as String?, // 🔥 NUEVO
+      marca: json['marca'] as String? ?? '',
+      marcaSupabaseId: json['marca_supabase_id'] as String?,
       precioUnidad: (json['precio_unidad'] as num?)?.toDouble() ?? 0.0,
       stock: (json['stock'] as num?)?.toDouble() ?? 0.0,
       esPesado: json['es_pesado'] as bool? ?? false,
       categoria: json['categoria'] as String? ?? 'General',
       categoriaId: json['categoria_id'] as int?,
-      proveedorId: json['proveedor_id'] as int?,
+      proveedorId: json['proveedor_id'] as int?, // local (legacy)
       proveedorNombre: json['proveedor_nombre'] as String? ?? '',
       proveedorTelefono: json['proveedor_telefono'] as String? ?? '',
       proveedorEmail: json['proveedor_email'] as String? ?? '',
       proveedorDireccion: json['proveedor_direccion'] as String? ?? '',
+      proveedorSupabaseId: json['proveedor_id'] as String?, // 🔥 UUID del proveedor
       stockMinimo: (json['stock_minimo'] as num?)?.toDouble() ?? 5.0,
       activo: json['activo'] as bool? ?? true,
       imagenUrl: json['imagen_url'] as String?,
@@ -133,14 +136,14 @@ class ProductoEntity {
       'id': supabaseId,
       'codigo_barras': codigoBarras,
       'nombre': nombre,
-      'marca': marca, // legacy
-      'marca_supabase_id': marcaSupabaseId, // 🔥 NUEVO
+      'marca': marca,
+      'marca_supabase_id': marcaSupabaseId,
       'precio_unidad': precioUnidad,
       'stock': stock,
       'es_pesado': esPesado,
       'categoria': categoria,
       'categoria_id': categoriaId,
-      'proveedor_id': proveedorId,
+      'proveedor_id': proveedorSupabaseId, // 🔥 Enviamos el UUID
       'proveedor_nombre': proveedorNombre,
       'proveedor_telefono': proveedorTelefono,
       'proveedor_email': proveedorEmail,

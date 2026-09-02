@@ -91,9 +91,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   // SINCRONIZACIÓN
   // ============================================================
   Future<void> _sincronizarUsuarios({bool showFeedback = true}) async {
-    // Evitar llamadas si el widget ya no está montado
     if (!mounted) return;
-
     setState(() => _isLoading = true);
     try {
       await SyncService().sincronizarUsuariosASupabase();
@@ -111,7 +109,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   void _showSnackbar(String message, Color color) {
-    // 🔥 Verificar que el widget esté montado antes de mostrar el SnackBar
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -158,7 +155,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         );
     setState(() => _isLoading = false);
 
-    // 🔥 Verificar mounted antes de navegar o mostrar mensajes
     if (success && mounted) {
       final user = ref.read(authProvider).currentUser;
       if (user != null) {
@@ -199,16 +195,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final buttonHeight = isMobile ? 50.0 : 62.0;
     final logoSize = isMobile ? 80.0 : 120.0;
 
-    // Obtener usuarios ordenados alfabéticamente
     final usuariosOrdenados = List<UsuarioEntity>.from(authState.usuarios)
       ..sort((a, b) => a.nombre.compareTo(b.nombre));
 
-    // Seleccionar el primero si no hay selección
     if (_selectedUserId == null && usuariosOrdenados.isNotEmpty) {
       _selectedUserId = usuariosOrdenados.first.id;
     }
 
-    // Generar mensaje de PINs de ejemplo dinámico
     String ejemploPins = '';
     for (var u in usuariosOrdenados) {
       if (u.rol == 'admin') {
@@ -242,28 +235,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     opacity: _fadeAnimation,
                     child: SlideTransition(
                       position: _slideAnimation,
-                      child: Container(
-                        width: containerWidth,
-                        margin: isMobile
-                            ? const EdgeInsets.symmetric(horizontal: 16)
-                            : EdgeInsets.zero,
-                        padding: EdgeInsets.all(paddingSize),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.98),
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.25),
-                              blurRadius: 40,
-                              offset: const Offset(0, 20),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Container(
+                          width: containerWidth,
+                          margin: isMobile
+                              ? const EdgeInsets.symmetric(horizontal: 16)
+                              : EdgeInsets.zero,
+                          padding: EdgeInsets.all(paddingSize),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.98),
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.25),
+                                blurRadius: 40,
+                                offset: const Offset(0, 20),
+                              ),
+                            ],
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              width: 1,
                             ),
-                          ],
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            width: 1,
                           ),
-                        ),
-                        child: SingleChildScrollView(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -422,9 +416,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
+  // 🔥 Selector de usuarios REDISEÑADO
   Widget _buildPinMode(bool isMobile, bool isTablet, List<UsuarioEntity> usuarios) {
     final fontSizeLabel = isMobile ? 13.0 : 15.0;
-    final paddingVerticalInput = isTablet ? 22.0 : 18.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -438,70 +432,87 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
         ),
         const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300),
+        // 🔥 Nuevo diseño: Card con borde y sombra, con un icono de usuario
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.grey.shade300, width: 1),
           ),
-          child: DropdownButtonFormField<int>(
-            initialValue: _selectedUserId,
-            isExpanded: true,
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: isTablet ? 18.0 : 12.0,
-              ),
-            ),
-            items: usuarios.map((u) {
-              final isAdmin = u.rol == 'admin';
-              return DropdownMenuItem<int>(
-                value: u.id,
-                child: Row(
-                  children: [
-                    Icon(
-                      isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
-                      size: 18,
-                      color: isAdmin ? const Color(0xFF3B82F6) : const Color(0xFF10B981),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        u.nombre,
-                        style: TextStyle(
-                          fontWeight: isAdmin ? FontWeight.bold : FontWeight.normal,
-                          fontSize: isMobile ? 14 : 16,
-                        ),
-                      ),
-                    ),
-                    if (isAdmin)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'ADMIN',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF3B82F6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: _selectedUserId,
+                isExpanded: true,
+                icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
+                style: TextStyle(
+                  fontSize: isMobile ? 16 : 18,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF0F172A),
+                ),
+                items: usuarios.map((u) {
+                  final isAdmin = u.rol == 'admin';
+                  return DropdownMenuItem<int>(
+                    value: u.id,
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: isAdmin
+                              ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
+                              : const Color(0xFF10B981).withValues(alpha: 0.15),
+                          child: Icon(
+                            isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
+                            size: 18,
+                            color: isAdmin ? const Color(0xFF3B82F6) : const Color(0xFF10B981),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              );
-            }).toList(),
-            onChanged: (val) {
-              setState(() {
-                _selectedUserId = val;
-                _errorMessage = null;
-              });
-              if (val != null) _saveSelectedUser(val);
-            },
-            icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                u.nombre,
+                                style: TextStyle(
+                                  fontWeight: isAdmin ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: isMobile ? 14 : 16,
+                                ),
+                              ),
+                              if (isAdmin)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'ADMIN',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF3B82F6),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  setState(() {
+                    _selectedUserId = val;
+                    _errorMessage = null;
+                  });
+                  if (val != null) _saveSelectedUser(val);
+                },
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -554,8 +565,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
               onPressed: () => setState(() => _obscurePin = !_obscurePin),
             ),
-            contentPadding:
-                EdgeInsets.symmetric(horizontal: 16, vertical: paddingVerticalInput),
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isTablet ? 22 : 18),
           ),
           onFieldSubmitted: (_) => _loginWithPin(),
         ),

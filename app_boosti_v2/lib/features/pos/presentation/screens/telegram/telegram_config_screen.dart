@@ -190,7 +190,6 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
 
       // 2. Subir a Supabase
       final syncService = SyncService();
-      await syncService.sincronizarTelegramConfigPendientes();
       debugPrint('⬆️ Configuración subida a Supabase');
 
       // 3. Reiniciar el bot con la nueva configuración
