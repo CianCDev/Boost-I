@@ -107,48 +107,53 @@ const ProductoEntitySchema = CollectionSchema(
       name: r'proveedorNombre',
       type: IsarType.string,
     ),
-    r'proveedorTelefono': PropertySchema(
+    r'proveedorSupabaseId': PropertySchema(
       id: 18,
+      name: r'proveedorSupabaseId',
+      type: IsarType.string,
+    ),
+    r'proveedorTelefono': PropertySchema(
+      id: 19,
       name: r'proveedorTelefono',
       type: IsarType.string,
     ),
     r'sincronizado': PropertySchema(
-      id: 19,
+      id: 20,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'stock': PropertySchema(
-      id: 20,
+      id: 21,
       name: r'stock',
       type: IsarType.double,
     ),
     r'stockMinimo': PropertySchema(
-      id: 21,
+      id: 22,
       name: r'stockMinimo',
       type: IsarType.double,
     ),
     r'supabaseId': PropertySchema(
-      id: 22,
+      id: 23,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'updatedAt': PropertySchema(
-      id: 23,
+      id: 24,
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
     r'updatedBy': PropertySchema(
-      id: 24,
+      id: 25,
       name: r'updatedBy',
       type: IsarType.long,
     ),
     r'updatedByName': PropertySchema(
-      id: 25,
+      id: 26,
       name: r'updatedByName',
       type: IsarType.string,
     ),
     r'version': PropertySchema(
-      id: 26,
+      id: 27,
       name: r'version',
       type: IsarType.long,
     )
@@ -180,6 +185,19 @@ const ProductoEntitySchema = CollectionSchema(
       properties: [
         IndexPropertySchema(
           name: r'marcaSupabaseId',
+          type: IndexType.hash,
+          caseSensitive: true,
+        )
+      ],
+    ),
+    r'proveedorSupabaseId': IndexSchema(
+      id: -4461090418338684523,
+      name: r'proveedorSupabaseId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'proveedorSupabaseId',
           type: IndexType.hash,
           caseSensitive: true,
         )
@@ -225,6 +243,12 @@ int _productoEntityEstimateSize(
   bytesCount += 3 + object.proveedorDireccion.length * 3;
   bytesCount += 3 + object.proveedorEmail.length * 3;
   bytesCount += 3 + object.proveedorNombre.length * 3;
+  {
+    final value = object.proveedorSupabaseId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.proveedorTelefono.length * 3;
   {
     final value = object.supabaseId;
@@ -265,15 +289,16 @@ void _productoEntitySerialize(
   writer.writeString(offsets[15], object.proveedorEmail);
   writer.writeLong(offsets[16], object.proveedorId);
   writer.writeString(offsets[17], object.proveedorNombre);
-  writer.writeString(offsets[18], object.proveedorTelefono);
-  writer.writeBool(offsets[19], object.sincronizado);
-  writer.writeDouble(offsets[20], object.stock);
-  writer.writeDouble(offsets[21], object.stockMinimo);
-  writer.writeString(offsets[22], object.supabaseId);
-  writer.writeDateTime(offsets[23], object.updatedAt);
-  writer.writeLong(offsets[24], object.updatedBy);
-  writer.writeString(offsets[25], object.updatedByName);
-  writer.writeLong(offsets[26], object.version);
+  writer.writeString(offsets[18], object.proveedorSupabaseId);
+  writer.writeString(offsets[19], object.proveedorTelefono);
+  writer.writeBool(offsets[20], object.sincronizado);
+  writer.writeDouble(offsets[21], object.stock);
+  writer.writeDouble(offsets[22], object.stockMinimo);
+  writer.writeString(offsets[23], object.supabaseId);
+  writer.writeDateTime(offsets[24], object.updatedAt);
+  writer.writeLong(offsets[25], object.updatedBy);
+  writer.writeString(offsets[26], object.updatedByName);
+  writer.writeLong(offsets[27], object.version);
 }
 
 ProductoEntity _productoEntityDeserialize(
@@ -302,15 +327,16 @@ ProductoEntity _productoEntityDeserialize(
     proveedorEmail: reader.readStringOrNull(offsets[15]) ?? '',
     proveedorId: reader.readLongOrNull(offsets[16]),
     proveedorNombre: reader.readStringOrNull(offsets[17]) ?? '',
-    proveedorTelefono: reader.readStringOrNull(offsets[18]) ?? '',
-    sincronizado: reader.readBoolOrNull(offsets[19]) ?? false,
-    stock: reader.readDoubleOrNull(offsets[20]) ?? 0.0,
-    stockMinimo: reader.readDoubleOrNull(offsets[21]) ?? 5.0,
-    supabaseId: reader.readStringOrNull(offsets[22]),
-    updatedAt: reader.readDateTimeOrNull(offsets[23]),
-    updatedBy: reader.readLongOrNull(offsets[24]),
-    updatedByName: reader.readStringOrNull(offsets[25]),
-    version: reader.readLongOrNull(offsets[26]) ?? 0,
+    proveedorSupabaseId: reader.readStringOrNull(offsets[18]),
+    proveedorTelefono: reader.readStringOrNull(offsets[19]) ?? '',
+    sincronizado: reader.readBoolOrNull(offsets[20]) ?? false,
+    stock: reader.readDoubleOrNull(offsets[21]) ?? 0.0,
+    stockMinimo: reader.readDoubleOrNull(offsets[22]) ?? 5.0,
+    supabaseId: reader.readStringOrNull(offsets[23]),
+    updatedAt: reader.readDateTimeOrNull(offsets[24]),
+    updatedBy: reader.readLongOrNull(offsets[25]),
+    updatedByName: reader.readStringOrNull(offsets[26]),
+    version: reader.readLongOrNull(offsets[27]) ?? 0,
   );
   return object;
 }
@@ -359,22 +385,24 @@ P _productoEntityDeserializeProp<P>(
     case 17:
       return (reader.readStringOrNull(offset) ?? '') as P;
     case 18:
-      return (reader.readStringOrNull(offset) ?? '') as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 19:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
+      return (reader.readStringOrNull(offset) ?? '') as P;
     case 20:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 21:
-      return (reader.readDoubleOrNull(offset) ?? 5.0) as P;
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 22:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDoubleOrNull(offset) ?? 5.0) as P;
     case 23:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 24:
-      return (reader.readLongOrNull(offset)) as P;
-    case 25:
       return (reader.readStringOrNull(offset)) as P;
+    case 24:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 25:
+      return (reader.readLongOrNull(offset)) as P;
     case 26:
+      return (reader.readStringOrNull(offset)) as P;
+    case 27:
       return (reader.readLongOrNull(offset) ?? 0) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -637,6 +665,73 @@ extension ProductoEntityQueryWhere
               indexName: r'marcaSupabaseId',
               lower: [],
               upper: [marcaSupabaseId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterWhereClause>
+      proveedorSupabaseIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'proveedorSupabaseId',
+        value: [null],
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterWhereClause>
+      proveedorSupabaseIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'proveedorSupabaseId',
+        lower: [null],
+        includeLower: false,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterWhereClause>
+      proveedorSupabaseIdEqualTo(String? proveedorSupabaseId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'proveedorSupabaseId',
+        value: [proveedorSupabaseId],
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterWhereClause>
+      proveedorSupabaseIdNotEqualTo(String? proveedorSupabaseId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'proveedorSupabaseId',
+              lower: [],
+              upper: [proveedorSupabaseId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'proveedorSupabaseId',
+              lower: [proveedorSupabaseId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'proveedorSupabaseId',
+              lower: [proveedorSupabaseId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'proveedorSupabaseId',
+              lower: [],
+              upper: [proveedorSupabaseId],
               includeUpper: false,
             ));
       }
@@ -2572,6 +2667,160 @@ extension ProductoEntityQueryFilter
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'proveedorSupabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'proveedorSupabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'proveedorSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'proveedorSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'proveedorSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'proveedorSupabaseId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'proveedorSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'proveedorSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'proveedorSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'proveedorSupabaseId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'proveedorSupabaseId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      proveedorSupabaseIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'proveedorSupabaseId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
       proveedorTelefonoEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -3614,6 +3863,20 @@ extension ProductoEntityQuerySortBy
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByProveedorSupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorSupabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByProveedorSupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorSupabaseId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
       sortByProveedorTelefono() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'proveedorTelefono', Sort.asc);
@@ -3993,6 +4256,20 @@ extension ProductoEntityQuerySortThenBy
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByProveedorSupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorSupabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByProveedorSupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorSupabaseId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
       thenByProveedorTelefono() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'proveedorTelefono', Sort.asc);
@@ -4246,6 +4523,14 @@ extension ProductoEntityQueryWhereDistinct
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByProveedorSupabaseId({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'proveedorSupabaseId',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
       distinctByProveedorTelefono({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'proveedorTelefono',
@@ -4431,6 +4716,13 @@ extension ProductoEntityQueryProperty
       proveedorNombreProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'proveedorNombre');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, String?, QQueryOperations>
+      proveedorSupabaseIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'proveedorSupabaseId');
     });
   }
 

@@ -1,7 +1,7 @@
 // ignore_for_file: unused_local_variable
 
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/crear_pedido_dialog.dart';
-import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/detalle_pedido_dialog.dart'; // ✅ NUEVO
+import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/detalle_pedido_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
@@ -23,6 +23,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   EstadoPedido? _estadoFiltro;
   int? _localDestinoId;
   late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
 
   String _periodoSeleccionado = 'todos';
   String _mesSeleccionado = 'Actual';
@@ -39,7 +40,11 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOut,
     );
     _animationController.forward();
 
@@ -55,6 +60,9 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     super.dispose();
   }
 
+  // ==========================================
+  // FILTROS EN MEMORIA
+  // ==========================================
   bool _perteneceAlPeriodo(DateTime fecha, String periodo) {
     final now = DateTime.now();
     final fechaLocal = fecha.toLocal();
@@ -84,17 +92,30 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     }
   }
 
+  List<PedidoEntity> _filtrarPedidos(List<PedidoEntity> todos) {
+    var filtrados = todos;
+
+    // Filtro por estado
+    if (_estadoFiltro != null) {
+      filtrados = filtrados.where((p) => p.estado == _estadoFiltro).toList();
+    }
+
+    // Filtro por período
+    filtrados = filtrados
+        .where((p) => _perteneceAlPeriodo(p.fechaPedido, _periodoSeleccionado))
+        .toList();
+
+    return filtrados;
+  }
+
   @override
   Widget build(BuildContext context) {
     final localDestinoId = _localDestinoId ?? 1;
     final isMobile = ResponsiveHelper.isMobile(context);
     final colorScheme = Theme.of(context).colorScheme;
 
-    final pedidosAsync = ref.watch(
-      pedidosPorEstadoProvider(
-        (localDestinoId: localDestinoId, estado: _estadoFiltro),
-      ),
-    );
+    // 🔥 Usamos pedidosListProvider (sin filtro de estado) para evitar recarga al cambiar filtro
+    final pedidosAsync = ref.watch(pedidosListProvider(localDestinoId));
 
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLow,
@@ -120,9 +141,9 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
           _buildFiltroEstado(),
           Expanded(
             child: pedidosAsync.when(
-              data: (pedidos) {
-                final pedidosFiltrados = pedidos.where((p) => _perteneceAlPeriodo(p.fechaPedido, _periodoSeleccionado)).toList();
-                return _buildListaPedidos(pedidosFiltrados);
+              data: (todos) {
+                final pedidosFiltrados = _filtrarPedidos(todos);
+                return _buildContent(pedidosFiltrados);
               },
               loading: () => _buildLoadingState(),
               error: (err, stack) => _buildErrorState(err),
@@ -131,6 +152,39 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
         ],
       ),
       floatingActionButton: _buildFloatingButton(),
+    );
+  }
+
+  // ==========================================
+  // CONTENIDO CON ANIMACIÓN DE ENTRADA
+  // ==========================================
+  Widget _buildContent(List<PedidoEntity> pedidos) {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 400),
+        switchInCurve: Curves.easeInOut,
+        switchOutCurve: Curves.easeInOut,
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.06),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              )),
+              child: child,
+            ),
+          );
+        },
+        child: KeyedSubtree(
+          key: ValueKey('pedidos_${_estadoFiltro?.name ?? 'todos'}_${pedidos.length}'),
+          child: _buildListaPedidos(pedidos),
+        ),
+      ),
     );
   }
 
@@ -159,7 +213,12 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
           ],
         ),
         IconButton(
-          onPressed: () => setState(() {}),
+          onPressed: () {
+            // Recargar forzado: invalidar provider y reiniciar animación
+            ref.invalidate(pedidosListProvider(_localDestinoId ?? 1));
+            setState(() {});
+            _animationController.forward(from: 0.0);
+          },
           icon: const Icon(Icons.refresh_rounded, color: Colors.white),
         ),
       ],
@@ -169,7 +228,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   Widget _buildResumenPedidos(AsyncValue<List<PedidoEntity>> pedidosAsync) {
     final colorScheme = Theme.of(context).colorScheme;
     return pedidosAsync.when(
-      data: (pedidos) {
+      data: (todos) {
+        final pedidos = _filtrarPedidos(todos);
         final total = pedidos.length;
         final pendientes = pedidos.where((p) => p.estado == EstadoPedido.pendiente).length;
         final recibidos = pedidos.where((p) => p.estado == EstadoPedido.recibido).length;
@@ -226,7 +286,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   }
 
   // ==========================================
-  // FILTRO POR ESTADO
+  // FILTRO POR ESTADO (CON HOVER Y ANIMACIÓN)
   // ==========================================
   Widget _buildFiltroEstado() {
     final colorScheme = Theme.of(context).colorScheme;
@@ -255,45 +315,20 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
               final bool esSeleccionado = _estadoFiltro == opcion['valor'];
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                child: GestureDetector(
+                child: _EstadoChip(
+                  key: ValueKey(opcion['etiqueta']),
+                  selected: esSeleccionado,
+                  icon: opcion['icono'],
+                  label: opcion['etiqueta'],
                   onTap: () {
                     setState(() {
                       _estadoFiltro = opcion['valor'];
                     });
-                    ref.invalidate(pedidosPorEstadoProvider(
-                      (localDestinoId: _localDestinoId ?? 1, estado: _estadoFiltro),
-                    ));
+                    // Reiniciamos la animación al cambiar de filtro
+                    _animationController.forward(from: 0.0);
                   },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: EdgeInsets.symmetric(
-                      vertical: isMobile ? 6 : 8,
-                      horizontal: isMobile ? 10 : 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: esSeleccionado ? const Color(0xFF8B5CF6) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          opcion['icono'],
-                          size: 16,
-                          color: esSeleccionado ? Colors.white : colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          opcion['etiqueta'],
-                          style: TextStyle(
-                            color: esSeleccionado ? Colors.white : colorScheme.onSurfaceVariant,
-                            fontWeight: esSeleccionado ? FontWeight.bold : FontWeight.w500,
-                            fontSize: isMobile ? 12 : 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  isMobile: isMobile,
+                  colorScheme: colorScheme,
                 ),
               );
             }).toList(),
@@ -304,16 +339,22 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   }
 
   // ==========================================
-  // LISTA DE PEDIDOS CON ANIMACIÓN
+  // LISTA DE PEDIDOS CON ANIMACIÓN ESCALONADA
   // ==========================================
   Widget _buildListaPedidos(List<PedidoEntity> pedidos) {
-    final colorScheme = Theme.of(context).colorScheme;
     if (pedidos.isEmpty) {
       return _buildEmptyState();
     }
 
     return RefreshIndicator(
-      onRefresh: () async => setState(() {}),
+      onRefresh: () async {
+        // Recargar datos desde la nube/local
+        ref.invalidate(pedidosListProvider(_localDestinoId ?? 1));
+        // Esperar a que se recargue
+        await Future.delayed(const Duration(milliseconds: 300));
+        setState(() {});
+        _animationController.forward(from: 0.0);
+      },
       child: AnimationLimiter(
         child: ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -322,7 +363,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
             final pedido = pedidos[index];
             return AnimationConfiguration.staggeredList(
               position: index,
-              duration: const Duration(milliseconds: 400),
+              duration: const Duration(milliseconds: 500),
               child: SlideAnimation(
                 verticalOffset: 50,
                 curve: Curves.easeOutCubic,
@@ -333,7 +374,6 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
                     child: PedidoCard(
                       pedido: pedido,
                       onTap: () async {
-                        // ✅ ABRIR DIÁLOGO DE DETALLE
                         await showDialog(
                           context: context,
                           builder: (_) => DetallePedidoDialog(pedidoId: pedido.id),
@@ -430,7 +470,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   }
 
   // ==========================================
-  // BOTÓN FLOTANTE (ABRE DIÁLOGO DE CREACIÓN)
+  // BOTÓN FLOTANTE
   // ==========================================
   Widget _buildFloatingButton() {
     return FloatingActionButton(
@@ -440,14 +480,113 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
           builder: (_) => const CrearPedidoDialog(),
         );
         if (result == true) {
-          ref.invalidate(pedidosPorEstadoProvider((localDestinoId: _localDestinoId ?? 1, estado: _estadoFiltro)));
+          // Recargar datos después de crear un pedido
+          ref.invalidate(pedidosListProvider(_localDestinoId ?? 1));
           setState(() {});
+          _animationController.forward(from: 0.0);
         }
       },
       backgroundColor: const Color(0xFF8B5CF6),
       foregroundColor: Colors.white,
       elevation: 4,
       child: const Icon(Icons.add_rounded, size: 32),
+    );
+  }
+}
+
+// ==========================================
+// CHIP DE ESTADO (CON HOVER Y ANIMACIÓN)
+// ==========================================
+class _EstadoChip extends StatefulWidget {
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool isMobile;
+  final ColorScheme colorScheme;
+
+  const _EstadoChip({
+    super.key,
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.isMobile,
+    required this.colorScheme,
+  });
+
+  @override
+  State<_EstadoChip> createState() => _EstadoChipState();
+}
+
+class _EstadoChipState extends State<_EstadoChip> {
+  bool isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = widget.colorScheme;
+    final isMobile = widget.isMobile;
+
+    final double fontSize = isMobile ? 12 : 14;
+    final double iconSize = isMobile ? 16 : 18;
+    final double verticalPadding = isMobile ? 6 : 8;
+    final double horizontalPadding = isMobile ? 10 : 16;
+    final double borderRadius = isMobile ? 8 : 12;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => isHovering = true),
+      onExit: (_) => setState(() => isHovering = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: EdgeInsets.symmetric(
+            vertical: verticalPadding,
+            horizontal: horizontalPadding,
+          ),
+          decoration: BoxDecoration(
+            color: widget.selected ? const Color(0xFF8B5CF6) : Colors.transparent,
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(
+              color: widget.selected
+                  ? const Color(0xFF8B5CF6)
+                  : (isHovering
+                      ? const Color(0xFF8B5CF6).withValues(alpha: 0.5)
+                      : colorScheme.outline.withValues(alpha: 0.3)),
+              width: widget.selected ? 1.5 : 1.0,
+            ),
+            boxShadow: widget.selected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                widget.icon,
+                size: iconSize,
+                color: widget.selected ? Colors.white : colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: widget.selected ? FontWeight.bold : FontWeight.w500,
+                  color: widget.selected ? Colors.white : colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

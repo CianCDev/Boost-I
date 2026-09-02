@@ -21,48 +21,40 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // ============================================================
-  // 1. INICIALIZAR SUPABASE
+  // 1. INICIALIZAR SUPABASE (de forma síncrona con await)
   // ============================================================
   final prefs = await SharedPreferences.getInstance();
   String? url = prefs.getString('supabase_url');
   final anonKey = prefs.getString('supabase_anon_key');
+  bool supabaseInitialized = false;
 
-  if (url != null && url.isNotEmpty) {
+  if (url != null && url.isNotEmpty && anonKey != null && anonKey.isNotEmpty) {
     if (url.endsWith('/')) url = url.substring(0, url.length - 1);
     final uri = Uri.tryParse(url);
     if (uri != null) {
       url = '${uri.scheme}://${uri.host}';
     }
-  }
 
-  if (url != null && anonKey != null && url.isNotEmpty && anonKey.isNotEmpty) {
     try {
       await Supabase.initialize(url: url, publishableKey: anonKey);
-      debugPrint('✅ Supabase inicializado');
+      supabaseInitialized = true;
+      debugPrint('✅ Supabase inicializado correctamente');
     } catch (e) {
       debugPrint('⚠️ Error inicializando Supabase: $e');
+      supabaseInitialized = false;
     }
   } else {
-    debugPrint('⚠️ No hay configuración de Supabase, esperando configuración');
+    debugPrint('⚠️ No hay configuración de Supabase, se mostrará pantalla de configuración');
   }
-
-
 
   // ============================================================
   // 2. INICIALIZAR ISAR Y MIGRACIONES
   // ============================================================
   final isarService = IsarService();
 
-  // 2.1. Usuario admin por defecto
   await isarService.inicializarUsuarioAdminPorDefecto();
-
-  // 2.2. Migración de stock a lotes
   await isarService.migrarStockExistenteALotes();
 
-  // 2.3. Telegram NO se inicializa aquí porque aún no hay usuario logueado
-  // Se inicializará después del login en el authProvider o en el pos_menu_screen
-
-  // 2.4. Asignar supabaseId a productos faltantes
   try {
     final actualizados = await isarService.asignarSupabaseIdsAFaltantes();
     debugPrint('✅ Migración de supabaseId: $actualizados productos actualizados.');
@@ -70,33 +62,48 @@ void main() async {
     debugPrint('❌ Error en migración de supabaseId: $e');
   }
 
-  
-
   // ============================================================
-  // 3. EJECUTAR APP
+  // 3. EJECUTAR APP (con un FutureBuilder para esperar Supabase)
   // ============================================================
   runApp(
     DevicePreview(
       enabled: !kReleaseMode,
-      builder: (context) => const ProviderScope(child: BoostiPOS()),
+      builder: (context) => ProviderScope(
+        child: BoostiPOS(
+          supabaseInitialized: supabaseInitialized,
+        ),
+      ),
     ),
   );
 }
 
-class BoostiPOS extends ConsumerWidget {
-  const BoostiPOS({super.key});
+class BoostiPOS extends ConsumerStatefulWidget {
+  final bool supabaseInitialized;
+
+  const BoostiPOS({super.key, required this.supabaseInitialized});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BoostiPOS> createState() => _BoostiPOSState();
+}
+
+class _BoostiPOSState extends ConsumerState<BoostiPOS> {
+  @override
+  void initState() {
+    super.initState();
+    // Iniciar Realtime y monitoreo solo si Supabase está inicializado
+    if (widget.supabaseInitialized) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final syncService = ref.read(syncServiceProvider);
+        syncService.iniciarSuscripcionesRealtime();
+        syncService.iniciarMonitoreo();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final isLocked = ref.watch(lockProvider);
     final themeMode = ref.watch(themeProvider);
-
-    // 🔥 Iniciar Realtime y monitoreo UNA SOLA VEZ
-    final syncService = ref.watch(syncServiceProvider);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      syncService.iniciarSuscripcionesRealtime();
-      syncService.iniciarMonitoreo();
-    });
 
     return MaterialApp(
       title: 'BoostI POS - JAH Lab',
@@ -104,7 +111,9 @@ class BoostiPOS extends ConsumerWidget {
       theme: lightTheme(),
       darkTheme: darkTheme(),
       themeMode: themeMode,
-      home: const SplashScreen(),
+      home: widget.supabaseInitialized
+          ? const SplashScreen()
+          : const ConfiguracionEmpresaScreen(),
       routes: {
         '/configuracion': (context) => const ConfiguracionEmpresaScreen(),
         '/login': (context) => const LoginScreen(),
