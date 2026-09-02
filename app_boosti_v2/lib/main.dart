@@ -14,7 +14,6 @@ import 'features/pos/presentation/screens/login_screen.dart';
 import 'features/pos/presentation/screens/inventory_catalog_screen.dart';
 import 'features/pos/presentation/providers/lock_provider.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
-import 'features/pos/presentation/services/telegram/telegram_service.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 import 'features/pos/presentation/providers/sync_provider.dart';
 

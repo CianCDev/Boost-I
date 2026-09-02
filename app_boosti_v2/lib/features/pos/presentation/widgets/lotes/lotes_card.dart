@@ -26,7 +26,7 @@ class LoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    Theme.of(context).brightness == Brightness.dark;
 
     final estadoColor = _getEstadoColor(lote.estado);
     final estadoTexto = _getEstadoTexto(lote.estado);
@@ -193,7 +193,7 @@ class LoteCard extends StatelessWidget {
                             ),
                           ),
                           child: Text(
-                            diasRestantes!,
+                            diasRestantes,
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,

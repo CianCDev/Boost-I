@@ -9,8 +9,6 @@ import 'ticket_generator.dart';
 import '../../data/Local/entities/local_entity.dart';
 
 class PrinterService {
-
-
   // =========================================================
   // IMPRESIÓN POR RED (WIFI/ETHERNET)
   // =========================================================
@@ -26,6 +24,8 @@ class PrinterService {
     DateTime? fechaVenta,
     LocalEntity? local,
     int maxRetries = 2,
+    bool esCierre = false,
+    Map<String, double>? totalesPorMetodo,
   }) async {
     int attempts = 0;
     PrintResult? lastResult;
@@ -45,6 +45,8 @@ class PrinterService {
           vuelto: vuelto,
           fechaVenta: fechaVenta,
           local: local,
+          esCierre: esCierre,
+          totalesPorMetodo: totalesPorMetodo,
         );
 
         const PaperSize paper = PaperSize.mm80;
@@ -97,6 +99,8 @@ class PrinterService {
     DateTime? fechaVenta,
     LocalEntity? local,
     int maxRetries = 2,
+    bool esCierre = false,
+    Map<String, double>? totalesPorMetodo,
   }) async {
     int attempts = 0;
     PrintResult? lastResult;
@@ -116,6 +120,8 @@ class PrinterService {
           vuelto: vuelto,
           fechaVenta: fechaVenta,
           local: local,
+          esCierre: esCierre,
+          totalesPorMetodo: totalesPorMetodo,
         );
 
         final device = BluetoothDevice.fromId(printer.address);
@@ -175,6 +181,8 @@ class PrinterService {
     required double vuelto,
     DateTime? fechaVenta,
     LocalEntity? local,
+    bool esCierre = false,
+    Map<String, double>? totalesPorMetodo,
   }) async {
     _log('📨 Iniciando impresión de ticket en ${printer.type.name}');
 
@@ -191,6 +199,8 @@ class PrinterService {
           vuelto: vuelto,
           fechaVenta: fechaVenta,
           local: local,
+          esCierre: esCierre,
+          totalesPorMetodo: totalesPorMetodo,
         );
       case PrinterType.network:
         return await printViaNetwork(
@@ -204,6 +214,8 @@ class PrinterService {
           vuelto: vuelto,
           fechaVenta: fechaVenta,
           local: local,
+          esCierre: esCierre,
+          totalesPorMetodo: totalesPorMetodo,
         );
     }
   }

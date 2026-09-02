@@ -11,10 +11,8 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dar
 class TelegramService {
   final IsarService _isarService = IsarService();
   TelegramConfigEntity? _config;
-  int? _usuarioIdActivo;
   Timer? _pollingTimer;
   int _lastUpdateId = 0;
-  bool _isRunning = false;
 
   // Singleton
   static final TelegramService _instance = TelegramService._internal();
@@ -28,7 +26,6 @@ class TelegramService {
   /// Inicializa el bot para un usuario específico.
   /// Si no se pasa usuarioId, usa la primera configuración disponible (fallback).
 Future<void> inicializar({int? usuarioId}) async {
-  _usuarioIdActivo = usuarioId;
 
   if (usuarioId != null) {
     _config = await _isarService.obtenerTelegramConfigPorUsuario(usuarioId);
@@ -64,7 +61,6 @@ Future<void> inicializar({int? usuarioId}) async {
   /// Cambia de usuario en tiempo real (ej. cuando se cambia de admin en la sesión)
   Future<void> cambiarUsuario(int usuarioId) async {
     _pollingTimer?.cancel();
-    _isRunning = false;
     await inicializar(usuarioId: usuarioId);
   }
 
@@ -74,10 +70,8 @@ Future<void> inicializar({int? usuarioId}) async {
 
   void _startPolling() {
     _pollingTimer?.cancel();
-    _isRunning = true;
     _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
       if (_config == null || !_config!.enabled) {
-        _isRunning = false;
         timer.cancel();
         return;
       }
@@ -413,14 +407,12 @@ $lista
 
   Future<void> actualizarConfig(TelegramConfigEntity nuevaConfig) async {
     _config = nuevaConfig;
-    _usuarioIdActivo = nuevaConfig.usuarioId;
     if (_config!.enabled && _config!.botToken.isNotEmpty) {
       await actualizarComandosEnTelegram(_config!.comandosPermitidos);
       _startPolling();
       debugPrint('🤖 Bot de Telegram reiniciado con nueva configuración (usuario ${_config!.usuarioId})');
     } else {
       _pollingTimer?.cancel();
-      _isRunning = false;
       debugPrint('⏹️ Bot de Telegram detenido');
     }
   }
@@ -455,7 +447,6 @@ $lista
 
   void dispose() {
     _pollingTimer?.cancel();
-    _isRunning = false;
     debugPrint('🤖 Bot de Telegram detenido');
   }
 }

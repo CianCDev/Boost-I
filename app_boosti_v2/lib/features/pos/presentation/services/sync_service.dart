@@ -134,16 +134,18 @@ class SyncService {
 
   /// Inicia el monitoreo de conectividad. Al recuperar conexión, ejecuta sincronización completa.
   void iniciarMonitoreo() {
-    _connectivitySubscription?.cancel();
-    _connectivitySubscription =
-        _connectivity.onConnectivityChanged.listen((results) {
-      final tieneConexion =
-          results.any((result) => result != ConnectivityResult.none);
-      if (tieneConexion) {
-        sincronizarTodo();
-      }
-    });
-  }
+  _connectivitySubscription?.cancel();
+  _connectivitySubscription =
+      _connectivity.onConnectivityChanged.handleError((e) {
+        debugPrint('⚠️ Error de conectividad: $e');
+      }).listen((results) {
+    final tieneConexion =
+        results.any((result) => result != ConnectivityResult.none);
+    if (tieneConexion) {
+      sincronizarTodo();
+    }
+  });
+}
 
   /// Detiene el monitoreo de conectividad.
   void detenerMonitoreo() {
@@ -162,98 +164,97 @@ class SyncService {
   // ============================================================
 
   /// Sube todos los usuarios locales a Supabase (crea o actualiza).
-  Future<void> sincronizarUsuariosASupabase() async {
-    try {
-      final usuarios = await _isarService.obtenerUsuarios();
-      if (usuarios.isEmpty) {
-        debugPrint('ℹ️ No hay usuarios locales para sincronizar');
-        return;
-      }
+ Future<void> sincronizarUsuariosASupabase() async {
+  try {
+    final usuarios = await _isarService.obtenerUsuarios();
+    if (usuarios.isEmpty) {
+      debugPrint('ℹ️ No hay usuarios locales para sincronizar');
+      return;
+    }
 
-      debugPrint(
-          '🔄 Sincronizando ${usuarios.length} usuarios con Supabase...');
-      int sincronizados = 0;
+    debugPrint('🔄 Sincronizando ${usuarios.length} usuarios con Supabase...');
+    int sincronizados = 0;
 
-      for (var usuario in usuarios) {
-        try {
-          // 1️⃣ Si no tiene supabaseId, verificar si ya existe en auth.users por email
-          if (usuario.supabaseId == null || usuario.supabaseId!.isEmpty) {
-            // Si no tiene email, no podemos crearlo en auth
-            if (usuario.email == null || usuario.email!.isEmpty) {
-              debugPrint('⚠️ Usuario "${usuario.nombre}" sin email, omitido');
-              continue;
-            }
-
-            // Buscar en auth.users por email
-            try {
-              final allUsers = await _supabase.auth.admin.listUsers();
-              final existingUser = allUsers.firstWhereOrNull(
-                (u) => u.email == usuario.email,
-              );
-
-              if (existingUser != null) {
-                // Ya existe en auth, usar su ID
-                usuario.supabaseId = existingUser.id;
-                await _isarService.guardarUsuario(usuario);
-                debugPrint(
-                    '✅ Usuario "${usuario.nombre}" tiene cuenta en auth (ID: ${usuario.supabaseId})');
-              } else {
-                // No existe en auth, crearlo
-                if (usuario.password == null || usuario.password!.isEmpty) {
-                  debugPrint(
-                      '⚠️ Usuario "${usuario.nombre}" sin password, omitido');
-                  continue;
-                }
-
-                final newUser = await _supabase.auth.admin.createUser(
-                  AdminUserAttributes(
-                    email: usuario.email!,
-                    password: usuario.password!,
-                    emailConfirm: true,
-                    userMetadata: {
-                      'nombre': usuario.nombre,
-                      'rol': usuario.rol,
-                    },
-                  ),
-                );
-                usuario.supabaseId = newUser.user?.id;
-                await _isarService.guardarUsuario(usuario);
-                debugPrint(
-                    '✅ Usuario "${usuario.nombre}" creado en auth.users (ID: ${usuario.supabaseId})');
-              }
-            } catch (e) {
-              debugPrint('⚠️ Error al buscar/crear usuario en auth: $e');
-              continue;
-            }
+    for (var usuario in usuarios) {
+      try {
+        // 1️⃣ Si no tiene supabaseId, intentar crear en auth.users
+        if (usuario.supabaseId == null || usuario.supabaseId!.isEmpty) {
+          if (usuario.email == null || usuario.email!.isEmpty) {
+            debugPrint('⚠️ Usuario "${usuario.nombre}" sin email. No se sincroniza.');
+            continue;
+          }
+          if (usuario.password == null || usuario.password!.isEmpty) {
+            debugPrint('⚠️ Usuario "${usuario.nombre}" sin password. No se puede crear en auth.');
+            continue;
           }
 
-          // 2️⃣ Ahora sí, insertar/actualizar en public.usuarios
-          final data = {
-            'id': usuario.supabaseId,
-            'id_isar': usuario.id,
-            'nombre': usuario.nombre,
-            'pin': usuario.pin,
-            'rol': usuario.rol,
-            'email': usuario.email ?? '',
-            'device_id': usuario.deviceId ?? '',
-            'estado': usuario.estado,
-            'caja_asignada': usuario.cajaAsignada,
-            'departamento': usuario.departamento,
-            'local_id': usuario.localId,
-          };
-
-          await _supabase.from('usuarios').upsert(data, onConflict: 'id_isar');
-          sincronizados++;
-        } catch (e) {
-          debugPrint('⚠️ Error sincronizando usuario "${usuario.nombre}": $e');
+          try {
+            final response = await _supabase.auth.signUp(
+              email: usuario.email!,
+              password: usuario.password!,
+              data: {
+                'nombre': usuario.nombre,
+                'rol': usuario.rol,
+                'pin': usuario.pin,
+              },
+            );
+            if (response.user != null) {
+              usuario.supabaseId = response.user!.id;
+              await _isarService.guardarUsuario(usuario);
+              debugPrint('✅ Usuario "${usuario.nombre}" creado en auth.users (ID: ${usuario.supabaseId})');
+              // ✅ No insertamos en public.usuarios aquí; el trigger lo hará
+              sincronizados++;
+            } else {
+              debugPrint('⚠️ Usuario "${usuario.nombre}" no se pudo crear en auth (posible email duplicado)');
+            }
+          } catch (e) {
+            debugPrint('❌ Error creando usuario "${usuario.nombre}" en auth: $e');
+          }
+          continue;
         }
+
+        // 2️⃣ Si tiene supabaseId, actualizar en public.usuarios
+        if (usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
+          // Verificar si el registro existe en public.usuarios
+          final existing = await _supabase
+              .from('usuarios')
+              .select('id')
+              .eq('id', usuario.supabaseId!)
+              .maybeSingle();
+
+          if (existing != null) {
+            // Actualizar
+            await _supabase.from('usuarios').update({
+              'nombre': usuario.nombre,
+              'pin': usuario.pin,
+              'rol': usuario.rol,
+              'email': usuario.email ?? '',
+              'device_id': usuario.deviceId ?? '',
+              'estado': usuario.estado,
+              'caja_asignada': usuario.cajaAsignada,
+              'departamento': usuario.departamento,
+              'local_id': usuario.localId,
+              'updated_at': DateTime.now().toIso8601String(),
+            }).eq('id', usuario.supabaseId!);
+            debugPrint('✅ Usuario "${usuario.nombre}" actualizado en public.usuarios');
+          } else {
+            // Si no existe, quizá el trigger aún no lo insertó. Lo intentamos de nuevo con signUp?
+            // Mejor lo dejamos y sincronizamos de nuevo más tarde.
+            debugPrint('⚠️ Usuario "${usuario.nombre}" tiene supabaseId pero no existe en public.usuarios. Se sincronizará en la próxima descarga.');
+          }
+          sincronizados++;
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error procesando usuario "${usuario.nombre}": $e');
       }
-      debugPrint('✅ $sincronizados usuarios sincronizados con Supabase');
-      onDataChanged?.call();
-    } catch (e) {
-      debugPrint('❌ Error general sincronizando usuarios: $e');
     }
+
+    debugPrint('✅ $sincronizados usuarios sincronizados con Supabase');
+    onDataChanged?.call();
+  } catch (e) {
+    debugPrint('❌ Error general sincronizando usuarios: $e');
   }
+}
 
   /// Descarga todos los usuarios desde Supabase y los guarda/actualiza localmente.
   Future<void> sincronizarUsuariosDesdeSupabase() async {
@@ -1348,21 +1349,23 @@ class SyncService {
   }
 
   // ============================================================
-  // GASTOS
+  // GASTOS (CORREGIDO)
   // ============================================================
 
   /// Descarga todos los gastos desde Supabase y los guarda/actualiza localmente.
   Future<void> descargarGastosDesdeSupabase() async {
-    try {
-      final response = await _supabase
-          .from('gastos')
-          .select()
-          .order('fecha', ascending: false);
+  try {
+    final response = await _supabase
+        .from('gastos')
+        .select()
+        .order('fecha', ascending: false);
 
-      if (response.isEmpty) {
-        debugPrint('ℹ️ No hay gastos en Supabase para descargar');
-        return;
-      }
+    if (response.isEmpty) {
+      debugPrint('ℹ️ No hay gastos en Supabase para descargar');
+      return;
+    }
+
+    debugPrint('🔄 Descargando ${response.length} gastos desde Supabase...');
 
     final gastosLocales = await _isarService.obtenerGastos();
     final Map<int, GastoEntity> porIdIsar = {
@@ -1389,7 +1392,6 @@ class SyncService {
         gastoLocal = porSupabaseId[supabaseId];
       }
 
-      // 🔥 CORRECCIÓN: Convertir UUID de usuario a ID local de Isar
       final String? usuarioUuid = data['usuario_id']?.toString();
       final int usuarioIsarId = usuarioUuid != null && usuarioUuid.isNotEmpty
           ? await _obtenerIsarIdUsuario(usuarioUuid)
@@ -1402,7 +1404,7 @@ class SyncService {
         ..moneda = data['moneda'] ?? 'USD'
         ..tasaBcv = (data['tasa_bcv'] as num?)?.toDouble()
         ..categoria = data['categoria'] ?? 'General'
-        ..usuarioId = usuarioIsarId  // ✅ Ahora es int (ID local)
+        ..usuarioId = usuarioIsarId
         ..usuarioNombre = data['usuario_nombre'] ?? ''
         ..fecha = DateTime.parse(data['fecha']).toLocal()
         ..syncStatus = 'synced';
@@ -1416,16 +1418,19 @@ class SyncService {
         if (idIsar != null && idIsar > 0) {
           gastoNube.id = idIsar;
         }
+        await _isarService.guardarGasto(gastoNube);
+        insertados++;
+        debugPrint('📥 Gasto creado: ${gastoNube.descripcion}');
       }
-
-      debugPrint(
-          '✅ Gastos sincronizados: $insertados insertados, $actualizados actualizados');
-      onDataChanged?.call();
-    } catch (e) {
-      debugPrint('❌ Error descargando gastos desde Supabase: $e');
-      rethrow;
     }
+
+    debugPrint('✅ Gastos sincronizados: $insertados insertados, $actualizados actualizados');
+    onDataChanged?.call();
+  } catch (e) {
+    debugPrint('❌ Error descargando gastos desde Supabase: $e');
+    rethrow;
   }
+}
 
   /// Sincroniza gastos pendientes hacia Supabase.
   Future<int> sincronizarGastosPendientes() async {
@@ -1978,8 +1983,8 @@ class SyncService {
         final data = {
           'id_isar': config.id,
           'usuario_id': config.usuarioId,
-          'bot_token': config.botToken ?? '',
-          'chat_id': config.chatId ?? '',
+          'bot_token': config.botToken,
+          'chat_id': config.chatId,
           'nombre_chat': config.nombreChat ?? '',
           'enabled': config.enabled,
           'notificar_stock_bajo': config.notificarStockBajo,
@@ -2092,11 +2097,12 @@ class SyncService {
   }
 
   // ============================================================
-  // PEDIDOS (CORREGIDO CON LOGS DE DEPURACIÓN)
+  // PEDIDOS (CORREGIDO)
   // ============================================================
 
   /// Obtiene el ID entero del producto en Supabase (no UUID, sino el 'id' numérico).
   /// Si no existe, lo crea y retorna el ID.
+  // ignore: unused_element
   Future<int?> _obtenerOCrearProductoEnSupabase(int productoLocalId) async {
     final productoLocal =
         await _isarService.obtenerProductoPorId(productoLocalId);
@@ -2177,217 +2183,208 @@ class SyncService {
   }
 
   /// Sincroniza pedidos pendientes hacia Supabase.
-  Future<void> sincronizarPedidosPendientes() async {
-    try {
-      await _obtenerLocalActualUuid();
-
-      final pedidosPendientes =
-          await _isarService.obtenerPedidosPendientesSync();
-      if (pedidosPendientes.isEmpty) return;
-
-      debugPrint('📦 Sincronizando ${pedidosPendientes.length} pedidos...');
-
-      for (var pedido in pedidosPendientes) {
-        final String? localOrigenUuid =
-            await _obtenerSupabaseIdLocal(pedido.localOrigenId);
-        final String? localDestinoUuid =
-            await _obtenerSupabaseIdLocal(pedido.localDestinoId);
-        final String? usuarioUuid =
-            await _obtenerSupabaseIdUsuario(pedido.usuarioId);
-
-        if (localOrigenUuid == null ||
-            localDestinoUuid == null ||
-            usuarioUuid == null) {
-          debugPrint(
-              '⚠️ Pedido ${pedido.id} omitido: localOrigenUuid=$localOrigenUuid, localDestinoUuid=$localDestinoUuid, usuarioUuid=$usuarioUuid');
-          continue;
-        }
-
-        final pedidoData = {
-          'local_id': pedido.localOrigenId,
-          'local_destino_id': localDestinoUuid,
-          'usuario_id': usuarioUuid,
-          'fecha_pedido': pedido.fechaPedido.toIso8601String(),
-          'estado': pedido.estado.name,
-          'proveedor_nombre': pedido.proveedorNombre,
-          'proveedor_cedula': pedido.proveedorCedula,
-          'proveedor_telefono': pedido.proveedorTelefono,
-          'proveedor_empresa': pedido.proveedorEmpresa,
-          'observaciones': pedido.observaciones,
-          'total': pedido.total,
-          'tipo_pedido': 'proveedor',
-          'sync_status': 'synced',
-        };
-
-        final response = await _supabase
-            .from('pedidos')
-            .insert(pedidoData)
-            .select()
-            .single();
-        final supabasePedidoId = response['id'] as String;
-
-        final detalles = await _isarService.obtenerDetallesPorPedido(pedido.id);
-
-        // 🔥 LOGS DE DEPURACIÓN
-        debugPrint('📦 Pedido $supabasePedidoId tiene ${detalles.length} detalles');
-
-        for (var detalle in detalles) {
-          // 🔥 Verificar el tipo y valor de detalle.productoId
-          debugPrint('🔍 detalle.productoId: ${detalle.productoId} (tipo: ${detalle.productoId.runtimeType})');
-
-          // 🔥 Construir el payload y mostrarlo
-          final payload = {
-            'pedido_id': supabasePedidoId,
-            'producto_id_isar': detalle.productoId,
-            'nombre_producto': detalle.nombreProducto,
-            'cantidad': detalle.cantidad,
-            'precio_unidad': detalle.precioUnidad,
-            'subtotal': detalle.subtotal,
-          };
-          debugPrint('📤 Payload a enviar: ${jsonEncode(payload)}');
-
-          // ✅ Ahora sí, insertar con producto_id_isar
-          await _supabase.from('detalles_pedido').insert(payload);
-        }
-
-        final recepcion =
-            await _isarService.obtenerRecepcionPorPedido(pedido.id);
-        if (recepcion != null) {
-          await _supabase.from('recepciones').insert({
-            'pedido_id': supabasePedidoId,
-            'fecha_recepcion': recepcion.fechaRecepcion.toIso8601String(),
-            'usuario_id': recepcion.usuarioId,
-            'observaciones': recepcion.observaciones,
-          });
-          await _isarService.actualizarSyncStatusRecepcion(recepcion.id, true);
-        }
-
-        await _isarService.actualizarSyncStatusPedido(pedido.id, true);
-      }
-    } catch (e) {
-      debugPrint('Error sincronizando pedidos: $e');
-      rethrow;
-    }
-  }
-
-  /// Descarga pedidos desde Supabase y los guarda localmente.
- Future<void> descargarPedidosDesdeSupabase() async {
+  /// Sincroniza pedidos pendientes hacia Supabase.
+Future<void> sincronizarPedidosPendientes() async {
   try {
-    // Obtener el local activo
-    final localActivo = await _isarService.obtenerLocalActivo();
-    String? localActualUuid = localActivo?.supabaseId;
-    final int localActualId = localActivo?.id ?? 1;
+    await _obtenerLocalActualUuid();
 
-    // Si no tiene UUID, obtener el del local principal (ID 1)
-    if (localActualUuid == null || localActualUuid.isEmpty) {
-      localActualUuid = await _obtenerLocalActualUuid();
-    }
+    final pedidosPendientes =
+        await _isarService.obtenerPedidosPendientesSync();
+    if (pedidosPendientes.isEmpty) return;
 
-    if (localActualUuid == null || localActualUuid.isEmpty) {
-      debugPrint('⚠️ No se pudo obtener el UUID del local actual. No se descargarán pedidos.');
-      return;
-    }
+    debugPrint('📦 Sincronizando ${pedidosPendientes.length} pedidos...');
 
-    // 🔥 OR con tipos correctos: local_id (bigint) y local_destino_id (uuid)
-    final response = await _supabase
-        .from('pedidos')
-        .select('*, detalles_pedido(*), recepciones(*)')
-        .or(
-          'local_id.eq.$localActualId,'          // local_id es bigint
-          'local_destino_id.eq.$localActualUuid' // local_destino_id es uuid
-        )
-        .order('fecha_pedido', ascending: false);
+    for (var pedido in pedidosPendientes) {
+      final String? localOrigenUuid =
+          await _obtenerSupabaseIdLocal(pedido.localOrigenId);
+      final String? localDestinoUuid =
+          await _obtenerSupabaseIdLocal(pedido.localDestinoId);
+      final String? usuarioUuid =
+          await _obtenerSupabaseIdUsuario(pedido.usuarioId);
 
-    if (response.isEmpty) {
-      debugPrint('ℹ️ No hay pedidos en Supabase para descargar');
-      return;
-    }
-
-    debugPrint('🔄 Descargando ${response.length} pedidos desde Supabase...');
-
-    final isar = await _isarService.db;
-    for (var pedidoJson in response) {
-      final existing = await isar.pedidoEntitys
-          .filter()
-          .supabaseIdEqualTo(pedidoJson['id'])
-          .findFirst();
-      if (existing != null) continue;
-
-      final String? localOrigenUuid = pedidoJson['local_id']?.toString();
-      final String? localDestinoUuid = pedidoJson['local_destino_id']?.toString();
-      final String? usuarioUuid = pedidoJson['usuario_id']?.toString();
-
-      if (localOrigenUuid == null || localDestinoUuid == null || usuarioUuid == null) {
-        debugPrint('⚠️ Pedido ${pedidoJson['id']} omitido por falta de mapeo de IDs');
+      if (localOrigenUuid == null ||
+          localDestinoUuid == null ||
+          usuarioUuid == null) {
+        debugPrint(
+            '⚠️ Pedido ${pedido.id} omitido: localOrigenUuid=$localOrigenUuid, localDestinoUuid=$localDestinoUuid, usuarioUuid=$usuarioUuid');
         continue;
       }
 
-      final int localOrigenId = await _obtenerIsarIdLocal(localOrigenUuid);
-      final int localDestinoId = await _obtenerIsarIdLocal(localDestinoUuid);
-      final int usuarioId = await _obtenerIsarIdUsuario(usuarioUuid);
+      final pedidoData = {
+        'local_id': pedido.localOrigenId,
+        'local_destino_id': localDestinoUuid,
+        'usuario_id': usuarioUuid,
+        'fecha_pedido': pedido.fechaPedido.toIso8601String(),
+        'estado': pedido.estado.name,
+        'proveedor_nombre': pedido.proveedorNombre,
+        'proveedor_cedula': pedido.proveedorCedula,
+        'proveedor_telefono': pedido.proveedorTelefono,
+        'proveedor_empresa': pedido.proveedorEmpresa,
+        'observaciones': pedido.observaciones,
+        'total': pedido.total,
+        'tipo_pedido': 'proveedor',
+        'sync_status': 'synced',
+      };
 
-      if (localOrigenId == 0 || localDestinoId == 0 || usuarioId == 0) {
-        debugPrint('⚠️ Pedido ${pedidoJson['id']} omitido: IDs locales no encontrados');
-        continue;
+      final response = await _supabase
+          .from('pedidos')
+          .insert(pedidoData)
+          .select()
+          .single();
+      final supabasePedidoId = response['id'] as String;
+
+      final detalles = await _isarService.obtenerDetallesPorPedido(pedido.id);
+
+      for (var detalle in detalles) {
+        final payload = {
+          'pedido_id': supabasePedidoId,
+          'producto_id_isar': detalle.productoId,
+          'nombre_producto': detalle.nombreProducto,
+          'cantidad': detalle.cantidad,
+          'precio_unidad': detalle.precioUnidad,
+          'subtotal': detalle.subtotal,
+        };
+        await _supabase.from('detalles_pedido').insert(payload);
       }
 
-      final pedido = PedidoEntity()
-        ..supabaseId = pedidoJson['id']
-        ..localOrigenId = localOrigenId
-        ..localDestinoId = localDestinoId
-        ..usuarioId = usuarioId
-        ..fechaPedido = DateTime.parse(pedidoJson['fecha_pedido'])
-        ..estado = EstadoPedido.values.firstWhere(
-          (e) => e.name == pedidoJson['estado'],
-          orElse: () => EstadoPedido.pendiente,
-        )
-        ..proveedorNombre = pedidoJson['proveedor_nombre'] ?? ''
-        ..proveedorCedula = pedidoJson['proveedor_cedula']
-        ..proveedorTelefono = pedidoJson['proveedor_telefono']
-        ..proveedorEmpresa = pedidoJson['proveedor_empresa']
-        ..observaciones = pedidoJson['observaciones']
-        ..total = (pedidoJson['total'] as num).toDouble()
-        ..sincronizado = true
-        ..fechaSincronizacion = DateTime.now();
+      final recepcion =
+          await _isarService.obtenerRecepcionPorPedido(pedido.id);
+      if (recepcion != null) {
+        await _supabase.from('recepciones').insert({
+          'pedido_id': supabasePedidoId,
+          'fecha_recepcion': recepcion.fechaRecepcion.toIso8601String(),
+          'usuario_id': recepcion.usuarioId,
+          'observaciones': recepcion.observaciones,
+        });
+        await _isarService.actualizarSyncStatusRecepcion(recepcion.id, true);
+      }
 
-      await isar.writeTxn(() async {
-        final pedidoId = await isar.pedidoEntitys.put(pedido);
-
-        for (var detalleJson in pedidoJson['detalles_pedido'] ?? []) {
-          final int productoId = await _obtenerIsarIdProducto(detalleJson['producto_id']);
-          final detalle = DetallePedidoEntity()
-            ..supabaseId = detalleJson['id']
-            ..pedidoId = pedidoId
-            ..productoId = productoId
-            ..nombreProducto = detalleJson['nombre_producto']
-            ..cantidad = (detalleJson['cantidad'] as num).toDouble()
-            ..precioUnidad = (detalleJson['precio_unidad'] as num).toDouble()
-            ..subtotal = (detalleJson['subtotal'] as num).toDouble();
-          await isar.detallePedidoEntitys.put(detalle);
-        }
-
-        final recepcionJson = pedidoJson['recepciones'];
-        if (recepcionJson != null && recepcionJson.isNotEmpty) {
-          final recepcionData = recepcionJson[0];
-          final int usuarioRecepcionId = await _obtenerIsarIdUsuario(recepcionData['usuario_id']);
-          final recepcion = RecepcionEntity()
-            ..supabaseId = recepcionData['id']
-            ..pedidoId = pedidoId
-            ..fechaRecepcion = DateTime.parse(recepcionData['fecha_recepcion'])
-            ..usuarioId = usuarioRecepcionId
-            ..observaciones = recepcionData['observaciones']
-            ..sincronizado = true
-            ..fechaSincronizacion = DateTime.now();
-          await isar.recepcionEntitys.put(recepcion);
-        }
-      });
+      await _isarService.actualizarSyncStatusPedido(pedido.id, true);
     }
-    debugPrint('✅ ${response.length} pedidos descargados y guardados correctamente.');
   } catch (e) {
-    debugPrint('❌ Error descargando pedidos: $e');
+    debugPrint('Error sincronizando pedidos: $e');
     rethrow;
   }
 }
+
+  /// Descarga pedidos desde Supabase y los guarda localmente.
+  Future<void> descargarPedidosDesdeSupabase() async {
+    try {
+      // Obtener el local activo
+      final localActivo = await _isarService.obtenerLocalActivo();
+      String? localActualUuid = localActivo?.supabaseId;
+      final int localActualId = localActivo?.id ?? 1;
+
+      // Si no tiene UUID, obtener el del local principal (ID 1)
+      if (localActualUuid == null || localActualUuid.isEmpty) {
+        localActualUuid = await _obtenerLocalActualUuid();
+      }
+
+      if (localActualUuid == null || localActualUuid.isEmpty) {
+        debugPrint('⚠️ No se pudo obtener el UUID del local actual. No se descargarán pedidos.');
+        return;
+      }
+
+      // 🔥 OR con tipos correctos: local_id (bigint) y local_destino_id (uuid)
+      final response = await _supabase
+          .from('pedidos')
+          .select('*, detalles_pedido(*), recepciones(*)')
+          .or(
+            'local_id.eq.$localActualId,'          // local_id es bigint
+            'local_destino_id.eq.$localActualUuid' // local_destino_id es uuid
+          )
+          .order('fecha_pedido', ascending: false);
+
+      if (response.isEmpty) {
+        debugPrint('ℹ️ No hay pedidos en Supabase para descargar');
+        return;
+      }
+
+      debugPrint('🔄 Descargando ${response.length} pedidos desde Supabase...');
+
+      final isar = await _isarService.db;
+      for (var pedidoJson in response) {
+        final existing = await isar.pedidoEntitys
+            .filter()
+            .supabaseIdEqualTo(pedidoJson['id'])
+            .findFirst();
+        if (existing != null) continue;
+
+        final String? localOrigenUuid = pedidoJson['local_id']?.toString();
+        final String? localDestinoUuid = pedidoJson['local_destino_id']?.toString();
+        final String? usuarioUuid = pedidoJson['usuario_id']?.toString();
+
+        if (localOrigenUuid == null || localDestinoUuid == null || usuarioUuid == null) {
+          debugPrint('⚠️ Pedido ${pedidoJson['id']} omitido por falta de mapeo de IDs');
+          continue;
+        }
+
+        final int localOrigenId = await _obtenerIsarIdLocal(localOrigenUuid);
+        final int localDestinoId = await _obtenerIsarIdLocal(localDestinoUuid);
+        final int usuarioId = await _obtenerIsarIdUsuario(usuarioUuid);
+
+        if (localOrigenId == 0 || localDestinoId == 0 || usuarioId == 0) {
+          debugPrint('⚠️ Pedido ${pedidoJson['id']} omitido: IDs locales no encontrados');
+          continue;
+        }
+
+        final pedido = PedidoEntity()
+          ..supabaseId = pedidoJson['id']
+          ..localOrigenId = localOrigenId
+          ..localDestinoId = localDestinoId
+          ..usuarioId = usuarioId
+          ..fechaPedido = DateTime.parse(pedidoJson['fecha_pedido'])
+          ..estado = EstadoPedido.values.firstWhere(
+            (e) => e.name == pedidoJson['estado'],
+            orElse: () => EstadoPedido.pendiente,
+          )
+          ..proveedorNombre = pedidoJson['proveedor_nombre'] ?? ''
+          ..proveedorCedula = pedidoJson['proveedor_cedula']
+          ..proveedorTelefono = pedidoJson['proveedor_telefono']
+          ..proveedorEmpresa = pedidoJson['proveedor_empresa']
+          ..observaciones = pedidoJson['observaciones']
+          ..total = (pedidoJson['total'] as num).toDouble()
+          ..sincronizado = true
+          ..fechaSincronizacion = DateTime.now();
+
+        await isar.writeTxn(() async {
+          final pedidoId = await isar.pedidoEntitys.put(pedido);
+
+          for (var detalleJson in pedidoJson['detalles_pedido'] ?? []) {
+            final int productoId = await _obtenerIsarIdProducto(detalleJson['producto_id']);
+            final detalle = DetallePedidoEntity()
+              ..supabaseId = detalleJson['id']
+              ..pedidoId = pedidoId
+              ..productoId = productoId
+              ..nombreProducto = detalleJson['nombre_producto']
+              ..cantidad = (detalleJson['cantidad'] as num).toDouble()
+              ..precioUnidad = (detalleJson['precio_unidad'] as num).toDouble()
+              ..subtotal = (detalleJson['subtotal'] as num).toDouble();
+            await isar.detallePedidoEntitys.put(detalle);
+          }
+
+          final recepcionJson = pedidoJson['recepciones'];
+          if (recepcionJson != null && recepcionJson.isNotEmpty) {
+            final recepcionData = recepcionJson[0];
+            final int usuarioRecepcionId = await _obtenerIsarIdUsuario(recepcionData['usuario_id']);
+            final recepcion = RecepcionEntity()
+              ..supabaseId = recepcionData['id']
+              ..pedidoId = pedidoId
+              ..fechaRecepcion = DateTime.parse(recepcionData['fecha_recepcion'])
+              ..usuarioId = usuarioRecepcionId
+              ..observaciones = recepcionData['observaciones']
+              ..sincronizado = true
+              ..fechaSincronizacion = DateTime.now();
+            await isar.recepcionEntitys.put(recepcion);
+          }
+        });
+      }
+      debugPrint('✅ ${response.length} pedidos descargados y guardados correctamente.');
+    } catch (e) {
+      debugPrint('❌ Error descargando pedidos: $e');
+      rethrow;
+    }
+  }
 
   // ============================================================
   // MÉTODOS AUXILIARES (UUID ↔ ID de Isar)

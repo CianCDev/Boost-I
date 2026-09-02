@@ -13,6 +13,9 @@ import '../../data/Local/entities/isar_service.dart';
 import 'printer_service.dart';
 import 'ticket_generator.dart';
 
+/// Tipo de ticket para organizar archivos y formato
+enum TicketType { venta, cierre, codigo }
+
 class TicketService {
   /// Método principal: intenta impresión directa ESC/POS, si falla usa PDF.
   static Future<void> imprimirTicketVenta({
@@ -27,6 +30,9 @@ class TicketService {
     DateTime? fechaVenta,
     PrinterDevice? impresoraSeleccionada,
     LocalEntity? local,
+    TicketType tipo = TicketType.venta,
+    Map<String, double>? totalesPorMetodo, // Para cierre
+    double? totalGeneral, // Para cierre
   }) async {
     WidgetsFlutterBinding.ensureInitialized();
 
@@ -36,6 +42,23 @@ class TicketService {
         ? subtotal
         : items.fold(0.0, (sum, item) => sum + item.total);
 
+    // Si es cierre y no se pasaron totales, los extraemos de los items (fallback)
+    if (tipo == TicketType.cierre && totalesPorMetodo == null) {
+      // Los items tienen formato: nombre: "CIERRE DE CAJA - ..." y luego "  Método:"
+      // Extraer los métodos
+      final Map<String, double> extraidos = {};
+      for (var item in items) {
+        final nombre = item.nombre.trim();
+        if (nombre.startsWith('  ') && nombre.endsWith(':')) {
+          final metodo = nombre.substring(2, nombre.length - 1).trim();
+          extraidos[metodo] = item.precio;
+        }
+      }
+      totalesPorMetodo = extraidos;
+      totalGeneral = total;
+    }
+
+    // Intentar impresión ESC/POS si hay impresora seleccionada
     if (impresoraSeleccionada != null) {
       final snackBar = SnackBar(
         content: Row(
@@ -66,6 +89,8 @@ class TicketService {
           vuelto: cambio,
           fechaVenta: fechaVenta,
           local: local,
+          esCierre: tipo == TicketType.cierre,
+          totalesPorMetodo: totalesPorMetodo,
         );
 
         ScaffoldMessenger.of(context).clearSnackBars();
@@ -114,15 +139,18 @@ class TicketService {
       vuelto: cambio,
       fechaVenta: fechaVenta,
       local: local,
+      tipo: tipo,
+      totalesPorMetodo: totalesPorMetodo,
+      totalGeneral: totalGeneral ?? total,
     );
 
     final bytes = await pdf.save();
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => bytes,
-      name: 'Ticket_${DateTime.now().millisecondsSinceEpoch}',
+      name: _generarNombreArchivo(tipo),
     );
 
-    _guardarEnDiscoSilencioso(bytes);
+    _guardarEnDiscoSilencioso(bytes, tipo: tipo);
   }
 
   // ============================================================
@@ -159,6 +187,9 @@ class TicketService {
     required double vuelto,
     DateTime? fechaVenta,
     LocalEntity? local,
+    TicketType tipo = TicketType.venta,
+    Map<String, double>? totalesPorMetodo,
+    double? totalGeneral,
   }) async {
     final pdf = pw.Document();
     await PdfGoogleFonts.robotoRegular(); // Forzamos carga para tener la fuente
@@ -172,86 +203,28 @@ class TicketService {
           marginBottom: 10,
         ),
         build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              if (local != null) ...[
-                pw.Center(
-                  child: pw.Text(
-                    local.nombre,
-                    style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
-                  ),
-                ),
-                if (local.direccion != null && local.direccion!.isNotEmpty)
-                  pw.Center(child: pw.Text(local.direccion!)),
-                if (local.telefono != null && local.telefono!.isNotEmpty)
-                  pw.Center(child: pw.Text('Tel: ${local.telefono}')),
-                if (local.email != null && local.email!.isNotEmpty)
-                  pw.Center(child: pw.Text('Email: ${local.email}')),
-                if (local.rif != null && local.rif!.isNotEmpty)
-                  pw.Center(child: pw.Text('RIF: ${local.rif}')),
-                pw.SizedBox(height: 8),
-                pw.Divider(),
-                pw.SizedBox(height: 8),
-              ],
-              pw.Text('Fecha: ${fechaVenta?.toLocal().toString() ?? DateTime.now().toLocal().toString()}'),
-              pw.Text('Método: $metodoPago'),
-              pw.SizedBox(height: 8),
-              ...items.map((item) {
-                return pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Expanded(
-                      child: pw.Text('${item.cantidad.toStringAsFixed(item.esPesado ? 3 : 0)}x ${item.nombre}'),
-                    ),
-                    pw.Text('\$${item.total.toStringAsFixed(2)}'),
-                  ],
-                );
-              }).toList(),
-              pw.Divider(),
-              pw.SizedBox(height: 8),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Subtotal:'),
-                  pw.Text('\$${subtotal.toStringAsFixed(2)}'),
-                ],
-              ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Impuesto:'),
-                  pw.Text('\$${impuesto.toStringAsFixed(2)}'),
-                ],
-              ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('TOTAL:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  pw.Text('\$${total.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                ],
-              ),
-              pw.SizedBox(height: 8),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Recibido:'),
-                  pw.Text('\$${montoRecibido.toStringAsFixed(2)}'),
-                ],
-              ),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Vuelto:'),
-                  pw.Text('\$${vuelto.toStringAsFixed(2)}'),
-                ],
-              ),
-              pw.SizedBox(height: 16),
-              pw.Center(
-                child: pw.Text('¡Gracias por su compra!', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              ),
-            ],
-          );
+          if (tipo == TicketType.cierre) {
+            return _buildCierrePdf(
+              context,
+              local: local,
+              totalesPorMetodo: totalesPorMetodo ?? {},
+              totalGeneral: totalGeneral ?? total,
+              fecha: fechaVenta ?? DateTime.now(),
+            );
+          } else {
+            return _buildVentaPdf(
+              context,
+              local: local,
+              items: items,
+              subtotal: subtotal,
+              impuesto: impuesto,
+              total: total,
+              metodoPago: metodoPago,
+              montoRecibido: montoRecibido,
+              vuelto: vuelto,
+              fecha: fechaVenta ?? DateTime.now(),
+            );
+          }
         },
       ),
     );
@@ -259,28 +232,267 @@ class TicketService {
   }
 
   // ============================================================
-  // GUARDAR PDF EN DISCO (FALLBACK)
+  // PDF PARA VENTA (formato original mejorado)
   // ============================================================
-  static Future<void> _guardarEnDiscoSilencioso(List<int> bytes) async {
+  static pw.Widget _buildVentaPdf(
+    pw.Context context, {
+    required LocalEntity? local,
+    required List<TicketItem> items,
+    required double subtotal,
+    required double impuesto,
+    required double total,
+    required String metodoPago,
+    required double montoRecibido,
+    required double vuelto,
+    required DateTime fecha,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        // Encabezado del local
+        if (local != null) ...[
+          pw.Center(
+            child: pw.Text(
+              local.nombre,
+              style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+            ),
+          ),
+          if (local.direccion != null && local.direccion!.isNotEmpty)
+            pw.Center(child: pw.Text(local.direccion!)),
+          if (local.telefono != null && local.telefono!.isNotEmpty)
+            pw.Center(child: pw.Text('Tel: ${local.telefono}')),
+          if (local.email != null && local.email!.isNotEmpty)
+            pw.Center(child: pw.Text('Email: ${local.email}')),
+          if (local.rif != null && local.rif!.isNotEmpty)
+            pw.Center(child: pw.Text('RIF: ${local.rif}')),
+          pw.SizedBox(height: 8),
+          pw.Divider(),
+          pw.SizedBox(height: 8),
+        ],
+        // Fecha y método
+        pw.Text('Fecha: ${fecha.toLocal().toString().substring(0, 16)}'),
+        pw.Text('Método: $metodoPago'),
+        pw.SizedBox(height: 8),
+        // Items
+        ...items.map((item) {
+          return pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Expanded(
+                child: pw.Text(
+                    '${item.cantidad.toStringAsFixed(item.esPesado ? 3 : 0)}x ${item.nombre}'),
+              ),
+              pw.Text('\$${item.total.toStringAsFixed(2)}'),
+            ],
+          );
+        }).toList(),
+        pw.Divider(),
+        pw.SizedBox(height: 8),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text('Subtotal:'),
+            pw.Text('\$${subtotal.toStringAsFixed(2)}'),
+          ],
+        ),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text('Impuesto:'),
+            pw.Text('\$${impuesto.toStringAsFixed(2)}'),
+          ],
+        ),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text('TOTAL:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.Text('\$${total.toStringAsFixed(2)}',
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          ],
+        ),
+        pw.SizedBox(height: 8),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text('Recibido:'),
+            pw.Text('\$${montoRecibido.toStringAsFixed(2)}'),
+          ],
+        ),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text('Vuelto:'),
+            pw.Text('\$${vuelto.toStringAsFixed(2)}'),
+          ],
+        ),
+        pw.SizedBox(height: 16),
+        pw.Center(
+          child: pw.Text('¡Gracias por su compra!',
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // PDF PARA CIERRE DE CAJA (NUEVO FORMATO PROFESIONAL)
+  // ============================================================
+  static pw.Widget _buildCierrePdf(
+    pw.Context context, {
+    required LocalEntity? local,
+    required Map<String, double> totalesPorMetodo,
+    required double totalGeneral,
+    required DateTime fecha,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        // Encabezado del local
+        if (local != null) ...[
+          pw.Center(
+            child: pw.Text(
+              local.nombre,
+              style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+            ),
+          ),
+          if (local.direccion != null && local.direccion!.isNotEmpty)
+            pw.Center(child: pw.Text(local.direccion!)),
+          if (local.telefono != null && local.telefono!.isNotEmpty)
+            pw.Center(child: pw.Text('Tel: ${local.telefono}')),
+          if (local.email != null && local.email!.isNotEmpty)
+            pw.Center(child: pw.Text('Email: ${local.email}')),
+          if (local.rif != null && local.rif!.isNotEmpty)
+            pw.Center(child: pw.Text('RIF: ${local.rif}')),
+          pw.SizedBox(height: 8),
+          pw.Divider(),
+          pw.SizedBox(height: 8),
+        ],
+        // Título
+        pw.Center(
+          child: pw.Text(
+            'CIERRE DE CAJA',
+            style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+        pw.SizedBox(height: 8),
+        pw.Center(
+          child: pw.Text(
+            fecha.toLocal().toString().substring(0, 16),
+            style: pw.TextStyle(fontSize: 12),
+          ),
+        ),
+        pw.SizedBox(height: 12),
+        pw.Divider(),
+        pw.SizedBox(height: 8),
+        // Desglose por método
+        pw.Text('Resumen de ventas:',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 8),
+        ...totalesPorMetodo.entries.map((entry) {
+          return pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(entry.key),
+              pw.Text('\$${entry.value.toStringAsFixed(2)}'),
+            ],
+          );
+        }).toList(),
+        pw.Divider(),
+        pw.SizedBox(height: 8),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(
+              'TOTAL GENERAL',
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            ),
+            pw.Text(
+              '\$${totalGeneral.toStringAsFixed(2)}',
+              style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold, fontSize: 14),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 16),
+        pw.Center(
+          child: pw.Text(
+            'Cierre realizado correctamente.',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          ),
+        ),
+        pw.SizedBox(height: 8),
+        pw.Center(
+          child: pw.Text(
+            '¡Gracias por su trabajo!',
+            style: pw.TextStyle(fontSize: 10, color: PdfColors.grey),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================================
+  // GUARDAR PDF EN DISCO CON ORGANIZACIÓN POR TIPO
+  // ============================================================
+  static Future<void> _guardarEnDiscoSilencioso(
+    List<int> bytes, {
+    TicketType tipo = TicketType.venta,
+  }) async {
     try {
       if (bytes.isEmpty) {
         developer.log('⚠️ Bytes vacíos, no se guardará el PDF.');
         return;
       }
       final directory = await getApplicationDocumentsDirectory();
-      final folderPath = '${directory.path}/Tickets_POS';
+      String subfolder;
+      String prefix;
+      switch (tipo) {
+        case TicketType.venta:
+          subfolder = 'Ventas';
+          prefix = 'Venta';
+          break;
+        case TicketType.cierre:
+          subfolder = 'Cierres';
+          prefix = 'Cierre';
+          break;
+        case TicketType.codigo:
+          subfolder = 'Codigos';
+          prefix = 'Codigo';
+          break;
+      }
+      final folderPath = '${directory.path}/Tickets_POS/$subfolder';
       final folder = Directory(folderPath);
       if (!await folder.exists()) await folder.create(recursive: true);
-      final fileName = 'Ticket_${DateTime.now().millisecondsSinceEpoch}.pdf';
+
+      final now = DateTime.now();
+      final fechaStr =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+      final fileName = '${prefix}_$fechaStr.pdf';
       final file = File('$folderPath/$fileName');
       await file.writeAsBytes(bytes);
+      developer.log('✅ PDF guardado en: $folderPath/$fileName');
     } catch (e) {
       developer.log('❌ Error guardando PDF: $e');
     }
   }
 
   // ============================================================
-  // 🆕 IMPRIMIR CÓDIGO DE BARRAS (como método estático)
+  // GENERAR NOMBRE DE ARCHIVO PARA IMPRESIÓN
+  // ============================================================
+  static String _generarNombreArchivo(TicketType tipo) {
+    final now = DateTime.now();
+    final fechaStr =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+    final prefix = tipo == TicketType.venta
+        ? 'Venta'
+        : tipo == TicketType.cierre
+            ? 'Cierre'
+            : 'Codigo';
+    return '${prefix}_$fechaStr';
+  }
+
+  // ============================================================
+  // 🆕 IMPRIMIR CÓDIGO DE BARRAS (actualizado)
   // ============================================================
   static Future<void> imprimirCodigoBarras({
     required String codigo,
@@ -336,14 +548,14 @@ class TicketService {
       final bytes = await pdf.save();
       debugPrint('✅ PDF generado, tamaño: ${bytes.length} bytes');
 
-      // Guardar copia en disco
-      await _guardarEnDiscoSilencioso(bytes);
+      // Guardar copia en disco (tipo codigo)
+      await _guardarEnDiscoSilencioso(bytes, tipo: TicketType.codigo);
 
       // Mostrar diálogo de impresión del sistema
       debugPrint('📤 Abriendo diálogo de impresión del sistema...');
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => bytes,
-        name: 'Codigo_Barras_$codigo',
+        name: _generarNombreArchivo(TicketType.codigo),
       );
       debugPrint('✅ Diálogo de impresión cerrado');
     } catch (e) {

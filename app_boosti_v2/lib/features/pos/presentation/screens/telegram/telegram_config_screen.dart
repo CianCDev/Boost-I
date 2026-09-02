@@ -6,31 +6,40 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provid
 import 'package:app_boosti_v2/features/pos/data/Local/entities/telegram_config_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/input_decoration_helper.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/telegram/telegram_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/isar_provider.dart';
 
 class TelegramConfigScreen extends ConsumerStatefulWidget {
   const TelegramConfigScreen({super.key});
 
   @override
-  ConsumerState<TelegramConfigScreen> createState() => _TelegramConfigScreenState();
+  ConsumerState<TelegramConfigScreen> createState() =>
+      _TelegramConfigScreenState();
 }
 
 class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   late TextEditingController _botTokenController;
   late TextEditingController _chatIdController;
   late TextEditingController _chatNameController;
-  
+
   bool _enabled = false;
   bool _notificarStockBajo = true;
   bool _notificarVentas = false;
   bool _notificarPedidos = false;
-  
+
   List<String> _comandosPermitidos = ['/ventas', '/stock', '/ayuda'];
-  final List<String> _comandosDisponibles = ['/ventas', '/stock', '/ayuda', '/pedidos', '/resumen'];
-  
+  final List<String> _comandosDisponibles = [
+    '/ventas',
+    '/stock',
+    '/ayuda',
+    '/pedidos',
+    '/resumen'
+  ];
+
   bool _isSaving = false;
   bool _isLoading = true;
 
@@ -51,6 +60,9 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
     super.dispose();
   }
 
+  // ============================================================
+  // CARGA DE CONFIGURACIÓN
+  // ============================================================
   Future<void> _cargarConfiguracion() async {
     setState(() => _isLoading = true);
     try {
@@ -62,22 +74,26 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
 
       final isar = ref.read(isarServiceProvider);
       final config = await isar.obtenerTelegramConfigPorUsuario(usuario.id);
-      
+
       if (config != null) {
-        _botTokenController.text = config.botToken ?? '';
-        _chatIdController.text = config.chatId ?? '';
+        _botTokenController.text = config.botToken;
+        _chatIdController.text = config.chatId;
         _chatNameController.text = config.nombreChat ?? '';
         _enabled = config.enabled;
         _notificarStockBajo = config.notificarStockBajo;
         _notificarVentas = config.notificarVentas;
         _notificarPedidos = config.notificarPedidos;
         _comandosPermitidos = List.from(config.comandosPermitidos);
-        debugPrint('📋 Configuración cargada: ${_comandosPermitidos.length} comandos');
+        debugPrint(
+            '📋 Configuración cargada: ${_comandosPermitidos.length} comandos');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar configuración: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error al cargar configuración: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -85,11 +101,18 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
     }
   }
 
+  // ============================================================
+  // GUARDAR CONFIGURACIÓN (con validación mejorada)
+  // ============================================================
   Future<void> _guardarConfiguracion() async {
+    // Validar formulario
     if (!_formKey.currentState!.validate()) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor, corrige los campos marcados'), backgroundColor: Colors.orange),
+          const SnackBar(
+            content: Text('Por favor, corrige los campos marcados en rojo.'),
+            backgroundColor: Colors.orange,
+          ),
         );
       }
       return;
@@ -99,45 +122,86 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
     if (usuario == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Usuario no autenticado'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Usuario no autenticado. Inicia sesión nuevamente.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
       return;
+    }
+
+    // 🔥 Validaciones adicionales de datos
+    final botToken = _botTokenController.text.trim();
+    final chatId = _chatIdController.text.trim();
+
+    if (_enabled) {
+      // Validar formato del Token (debe tener el formato: números:letras)
+      if (botToken.isEmpty || !botToken.contains(':')) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  '❌ El Token del Bot parece inválido. Debe tener el formato "123456:ABC-def..."'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Validar que el Chat ID no sea vacío
+      if (chatId.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ El Chat ID es obligatorio cuando el bot está habilitado.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
     }
 
     setState(() => _isSaving = true);
 
     final config = TelegramConfigEntity()
       ..usuarioId = usuario.id
-      ..botToken = _botTokenController.text.trim()
-      ..chatId = _chatIdController.text.trim()
-      ..nombreChat = _chatNameController.text.trim().isNotEmpty ? _chatNameController.text.trim() : null
+      ..botToken = botToken
+      ..chatId = chatId
+      ..nombreChat = _chatNameController.text.trim().isNotEmpty
+          ? _chatNameController.text.trim()
+          : null
       ..enabled = _enabled
       ..notificarStockBajo = _notificarStockBajo
       ..notificarVentas = _notificarVentas
       ..notificarPedidos = _notificarPedidos
-      ..comandosPermitidos = _comandosPermitidos
+      ..comandosPermitidos = List.from(_comandosPermitidos) // ✅ Copia defensiva
       ..sincronizado = false;
 
     try {
       final isar = ref.read(isarServiceProvider);
-      
-      // 1. Guardar en Isar (con todos los comandos)
-      await isar.guardarTelegramConfig(config);
-      debugPrint('💾 Configuración guardada en Isar con ${config.comandosPermitidos.length} comandos: ${config.comandosPermitidos}');
 
-      // 2. Subir a Supabase (sin descargar después)
+      // 1. Guardar en Isar
+      await isar.guardarTelegramConfig(config);
+      debugPrint(
+          '💾 Configuración guardada en Isar con ${config.comandosPermitidos.length} comandos: ${config.comandosPermitidos}');
+
+      // 2. Subir a Supabase
       final syncService = SyncService();
       await syncService.sincronizarTelegramConfigPendientes();
       debugPrint('⬆️ Configuración subida a Supabase');
 
-      // ⚠️ NO descargar inmediatamente (evita sobrescritura)
-      // await syncService.descargarTelegramConfigDesdeSupabase();
-
-      // 3. Reiniciar el bot con la configuración recién guardada
+      // 3. Reiniciar el bot con la nueva configuración
       if (_enabled) {
-        await TelegramService().inicializar(usuarioId: usuario.id);
-        debugPrint('🤖 Bot reiniciado con nuevos comandos');
+        try {
+          await TelegramService().inicializar(usuarioId: usuario.id);
+          debugPrint('🤖 Bot reiniciado con nuevos comandos');
+        } catch (e) {
+          debugPrint('⚠️ Error al reiniciar bot: $e');
+          // No bloqueamos el guardado, solo mostramos advertencia
+        }
       }
 
       if (mounted) {
@@ -148,18 +212,25 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
             duration: Duration(seconds: 3),
           ),
         );
+        // ✅ Volver a la pantalla anterior
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Error al guardar: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('❌ Error al guardar: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
         setState(() => _isSaving = false);
       }
     }
   }
 
+  // ============================================================
+  // PROBAR CONEXIÓN (mejorada)
+  // ============================================================
   Future<void> _probarConexion() async {
     final botToken = _botTokenController.text.trim();
     final chatId = _chatIdController.text.trim();
@@ -167,7 +238,10 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
     if (botToken.isEmpty || chatId.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Completa Token y Chat ID primero'), backgroundColor: Colors.orange),
+          const SnackBar(
+            content: Text('Completa el Token y el Chat ID primero.'),
+            backgroundColor: Colors.orange,
+          ),
         );
       }
       return;
@@ -177,18 +251,26 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
 
     try {
       final service = TelegramService();
-      final mensajePrueba = '🔔 *Prueba de conexión desde BoostI POS*\n\n'
+      final mensajePrueba =
+          '🔔 *Prueba de conexión desde BoostI POS*\n\n'
           '✅ El bot está configurado correctamente.\n'
-          '📅 ${DateTime.now().toLocal().toString().substring(0, 19)}';
+          '📅 ${DateTime.now().toLocal().toString().substring(0, 19)}\n\n'
+          '🤖 Comandos disponibles: ${_comandosPermitidos.join(", ")}';
 
-      final enviado = await service.enviarMensajePrueba(mensajePrueba, botToken, chatId);
-      
+      final enviado = await service.enviarMensajePrueba(
+        mensajePrueba,
+        botToken,
+        chatId,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(enviado 
-                ? '✅ Mensaje de prueba enviado correctamente' 
-                : '❌ Error al enviar mensaje. Verifica Token y Chat ID.'),
+            content: Text(
+              enviado
+                  ? '✅ Mensaje de prueba enviado correctamente a Telegram'
+                  : '❌ Error al enviar mensaje. Verifica Token y Chat ID.',
+            ),
             backgroundColor: enviado ? Colors.green : Colors.red,
             duration: const Duration(seconds: 4),
           ),
@@ -197,7 +279,10 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('❌ Error de conexión: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -205,82 +290,121 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
     }
   }
 
+  // ============================================================
+  // BUILD (con contenido centrado)
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = ResponsiveHelper.isMobile(context);
 
+    final gradient = isDark
+        ? LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF10B981).withValues(alpha: 0.8),
+              const Color(0xFF059669),
+            ],
+          )
+        : const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF10B981), Color(0xFF059669)],
+          );
+
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLow,
-      appBar: AppBar(
-        title: const Text(
-          'Configuración de Telegram',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFF10B981),
-                const Color(0xFF059669),
-              ],
-            ),
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 2,
-        foregroundColor: Colors.white,
+      appBar: CustomAppBar(
+        title: 'Configuración de Telegram',
+        showBackButton: true,
+        gradient: gradient,
         actions: [
           IconButton(
-            icon: const Icon(Icons.help_outline),
+            icon: const Icon(Icons.help_outline, color: Colors.white),
             onPressed: _mostrarAyuda,
             tooltip: 'Ayuda',
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 800),
-                margin: const EdgeInsets.symmetric(horizontal: 8),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildHeader(),
-                      const SizedBox(height: 24),
-                      _buildCredentialsSection(colorScheme, isDark),
-                      const SizedBox(height: 24),
-                      _buildNotificationsSection(colorScheme),
-                      const SizedBox(height: 24),
-                      _buildCommandsSection(colorScheme),
-                      const SizedBox(height: 16),
-                      if (_enabled) ...[
-                        _buildTestButton(),
-                        const SizedBox(height: 16),
-                      ],
-                      _buildSaveButton(),
-                    ],
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF10B981)),
+            )
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                // ✅ Calcular ancho máximo del contenido
+                final maxWidth = isMobile
+                    ? constraints.maxWidth * 0.95
+                    : 600.0.clamp(0.0, constraints.maxWidth * 0.9);
+
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(isMobile ? 16 : 24),
+                    physics: const BouncingScrollPhysics(),
+                    child: Container(
+                      width: maxWidth,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(isMobile ? 16 : 24),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildHeader(),
+                              const SizedBox(height: 20),
+                              _buildCredentialsSection(
+                                  colorScheme, isDark, isMobile),
+                              const SizedBox(height: 20),
+                              _buildNotificationsSection(
+                                  colorScheme, isMobile),
+                              const SizedBox(height: 20),
+                              _buildCommandsSection(colorScheme, isMobile),
+                              const SizedBox(height: 16),
+                              if (_enabled) ...[
+                                _buildTestButton(isMobile),
+                                const SizedBox(height: 16),
+                              ],
+                              _buildSaveButton(isMobile),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
     );
   }
 
+  // ============================================================
+  // WIDGETS UI
+  // ============================================================
+
   Widget _buildHeader() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: const Color(0xFF10B981).withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.2)),
+        border: Border.all(
+          color: const Color(0xFF10B981).withValues(alpha: 0.2),
+        ),
       ),
       child: Row(
         children: [
@@ -290,7 +414,11 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
               color: const Color(0xFF10B981).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.telegram, color: Color(0xFF10B981), size: 32),
+            child: const Icon(
+              Icons.telegram,
+              color: Color(0xFF10B981),
+              size: 32,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -299,12 +427,15 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
               children: [
                 const Text(
                   'Bot de Telegram',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
                 ),
                 Text(
                   'Configura el bot para recibir notificaciones y comandos',
                   style: TextStyle(
-                    color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                    color: colorScheme.onSurfaceVariant,
                     fontSize: 13,
                   ),
                 ),
@@ -314,30 +445,43 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
           Switch(
             value: _enabled,
             onChanged: (value) => setState(() => _enabled = value),
-            activeColor: const Color(0xFF10B981),
+            activeThumbColor: const Color(0xFF10B981),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCredentialsSection(ColorScheme colorScheme, bool isDark) {
+  Widget _buildCredentialsSection(
+    ColorScheme colorScheme,
+    bool isDark,
+    bool isMobile,
+  ) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       color: colorScheme.surface,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(isMobile ? 14 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.vpn_key_rounded, color: const Color(0xFF10B981), size: 20),
+                Icon(
+                  Icons.vpn_key_rounded,
+                  color: const Color(0xFF10B981),
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   'Credenciales del Bot',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ],
             ),
@@ -353,8 +497,13 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
                 isDark: isDark,
               ),
               validator: (v) {
-                if (_enabled && (v == null || v.trim().isEmpty)) {
-                  return 'Requerido si el bot está habilitado';
+                if (_enabled) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Requerido si el bot está habilitado';
+                  }
+                  if (!v.trim().contains(':')) {
+                    return 'Formato inválido. Ej: 123456:ABC-def...';
+                  }
                 }
                 return null;
               },
@@ -400,13 +549,20 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.blue.shade700,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Para obtener el Token, habla con @BotFather en Telegram. '
                       'El Chat ID puedes obtenerlo con el comando /start una vez configurado.',
-                      style: TextStyle(fontSize: 12, color: Colors.blue.shade700),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue.shade700,
+                      ),
                     ),
                   ),
                 ],
@@ -418,23 +574,32 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
     );
   }
 
-  Widget _buildNotificationsSection(ColorScheme colorScheme) {
+  Widget _buildNotificationsSection(ColorScheme colorScheme, bool isMobile) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       color: colorScheme.surface,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(isMobile ? 14 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.notifications_active_rounded, color: const Color(0xFF10B981), size: 20),
+                Icon(
+                  Icons.notifications_active_rounded,
+                  color: const Color(0xFF10B981),
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   'Notificaciones Automáticas',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ],
             ),
@@ -487,32 +652,51 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
   }) {
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
-      title: Text(title, style: TextStyle(fontWeight: FontWeight.w500)),
-      subtitle: Text(subtitle, style: TextStyle(fontSize: 12)),
-      secondary: Icon(icon, color: const Color(0xFF10B981), size: 20),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w500),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(fontSize: 12),
+      ),
+      secondary: Icon(
+        icon,
+        color: const Color(0xFF10B981),
+        size: 20,
+      ),
       value: value,
       onChanged: enabled ? onChanged : null,
-      activeColor: const Color(0xFF10B981),
+      activeThumbColor: const Color(0xFF10B981),
     );
   }
 
-  Widget _buildCommandsSection(ColorScheme colorScheme) {
+  Widget _buildCommandsSection(ColorScheme colorScheme, bool isMobile) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       color: colorScheme.surface,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(isMobile ? 14 : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.code_rounded, color: const Color(0xFF10B981), size: 20),
+                Icon(
+                  Icons.code_rounded,
+                  color: const Color(0xFF10B981),
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   'Comandos Permitidos',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ],
             ),
@@ -544,68 +728,136 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
                           });
                         }
                       : null,
-                  selectedColor: const Color(0xFF10B981).withValues(alpha: 0.2),
+                  selectedColor:
+                      const Color(0xFF10B981).withValues(alpha: 0.2),
                   backgroundColor: colorScheme.surfaceContainerHighest,
                   checkmarkColor: const Color(0xFF10B981),
                   labelStyle: TextStyle(
-                    color: isSelected ? const Color(0xFF10B981) : colorScheme.onSurface,
+                    color: isSelected
+                        ? const Color(0xFF10B981)
+                        : colorScheme.onSurface,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
                 );
               }).toList(),
             ),
+            // ✅ Mostrar comandos seleccionados como resumen
+            if (_comandosPermitidos.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline,
+                      color: const Color(0xFF10B981),
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Comandos activos: ${_comandosPermitidos.join(", ")}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: const Color(0xFF10B981),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTestButton() {
+  Widget _buildTestButton(bool isMobile) {
     return SizedBox(
-      height: 44,
+      height: isMobile ? 44 : 48,
       child: OutlinedButton.icon(
         onPressed: _isSaving ? null : _probarConexion,
-        icon: Icon(Icons.telegram, color: const Color(0xFF10B981)),
+        icon: Icon(
+          Icons.telegram,
+          color: const Color(0xFF10B981),
+          size: isMobile ? 18 : 22,
+        ),
         label: const Text('Probar conexión con Telegram'),
         style: OutlinedButton.styleFrom(
-          side: BorderSide(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          side: BorderSide(
+            color: const Color(0xFF10B981).withValues(alpha: 0.3),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSaveButton() {
+  Widget _buildSaveButton(bool isMobile) {
     return SizedBox(
-      height: 52,
+      height: isMobile ? 48 : 52,
       child: ElevatedButton.icon(
         onPressed: _isSaving ? null : _guardarConfiguracion,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF10B981),
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           elevation: 0,
         ),
         icon: _isSaving
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
             : const Icon(Icons.save_rounded),
         label: Text(
           _isSaving ? 'Guardando...' : 'Guardar Configuración',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: isMobile ? 14 : 16,
+          ),
         ),
       ),
     );
   }
 
+  // ============================================================
+  // AYUDA
+  // ============================================================
   void _mostrarAyuda() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Configurar Bot de Telegram'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.help_outline, color: const Color(0xFF10B981)),
+            const SizedBox(width: 8),
+            const Text('Configurar Bot de Telegram'),
+          ],
+        ),
         content: const SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -617,11 +869,20 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
               SizedBox(height: 8),
               Text('3. Inicia una conversación con tu bot y envía "/start".'),
               SizedBox(height: 8),
-              Text('4. Obtén tu Chat ID (puedes usar @userinfobot para obtenerlo).'),
+              Text(
+                  '4. Obtén tu Chat ID (puedes usar @userinfobot para obtenerlo).'),
               SizedBox(height: 8),
               Text('5. Configura las notificaciones y comandos permitidos.'),
               SizedBox(height: 8),
-              Text('6. Guarda la configuración y el bot se activará automáticamente.'),
+              Text('6. Guarda la configuración y el bot se activará.'),
+              SizedBox(height: 16),
+              Text(
+                '⚠️ Cada usuario puede tener un bot configurado.',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
+              ),
             ],
           ),
         ),

@@ -7,6 +7,12 @@ import 'package:app_boosti_v2/features/pos/presentation/widgets/cash_closing/clo
 import 'package:app_boosti_v2/features/pos/presentation/widgets/cash_closing/closing_button.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
+import 'package:app_boosti_v2/features/pos/presentation/services/ticket_service.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/esc_pos_provider.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
+
+
+import '../services/cash_register_service.dart';
 
 class CashClosingScreen extends ConsumerStatefulWidget {
   const CashClosingScreen({super.key});
@@ -46,7 +52,6 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
 
     final title = isMobile ? 'Cierre de Caja' : 'Cierre de Caja Diario';
 
-    // Gradiente para el CustomAppBar (coherente con el resto de la app)
     final gradient = isDark
         ? LinearGradient(
             begin: Alignment.topLeft,
@@ -75,15 +80,10 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
             onPressed: state.isLoading ? null : () => notifier.refrescar(),
           ),
         ],
-        // Opcional: logo
-        // logoAsset: 'assets/logo_white.svg',
-        // logoSize: 30,
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final crossAxisCount = constraints.maxWidth > 800 ? 4 : 2;
-          final isWide = constraints.maxWidth > 600;
-
           return FadeTransition(
             opacity: _animationController,
             child: _buildBody(
@@ -94,7 +94,6 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
               isDark,
               isMobile,
               isTablet,
-              isWide,
               crossAxisCount,
             ),
           );
@@ -111,7 +110,6 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
     bool isDark,
     bool isMobile,
     bool isTablet,
-    bool isWide,
     int crossAxisCount,
   ) {
     // Estado de carga
@@ -178,7 +176,6 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
       );
     }
 
-    // Datos disponibles
     final resumen = state.resumen;
     if (resumen == null) {
       return Center(
@@ -203,33 +200,33 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
       );
     }
 
-    // Construir lista de tarjetas de resumen
+    // Tarjetas de resumen
     final summaryItems = [
       _SummaryItem(
         title: 'Ventas Totales',
         value: '\$${resumen.totalVentas.toStringAsFixed(2)}',
-        color: const Color(0xFF00E5FF), // Cian
+        color: const Color(0xFF00E5FF),
         icon: Icons.attach_money_rounded,
         sparklineData: const [10, 20, 15, 30, 25, 40, 35],
       ),
       _SummaryItem(
         title: 'Efectivo',
         value: '\$${(resumen.totalesPorMetodo['Efectivo'] ?? 0.0).toStringAsFixed(2)}',
-        color: const Color(0xFF00E676), // Verde
+        color: const Color(0xFF00E676),
         icon: Icons.money_rounded,
         sparklineData: const [5, 10, 8, 15, 12, 20, 18],
       ),
       _SummaryItem(
         title: 'Tarjeta',
         value: '\$${(resumen.totalesPorMetodo['Tarjeta'] ?? 0.0).toStringAsFixed(2)}',
-        color: const Color(0xFFD500F9), // Púrpura
+        color: const Color(0xFFD500F9),
         icon: Icons.credit_card_rounded,
         sparklineData: const [8, 12, 10, 18, 14, 22, 20],
       ),
       _SummaryItem(
         title: 'Transferencia',
         value: '\$${(resumen.totalesPorMetodo['Pago Móvil'] ?? 0.0).toStringAsFixed(2)}',
-        color: const Color(0xFFFF9100), // Naranja
+        color: const Color(0xFFFF9100),
         icon: Icons.phone_android_rounded,
         sparklineData: const [3, 7, 5, 10, 8, 14, 12],
       ),
@@ -244,7 +241,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Fila de tarjetas de resumen (sparkline)
+          // Tarjetas de resumen
           LayoutBuilder(
             builder: (context, constraints) {
               final itemWidth = (constraints.maxWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount;
@@ -271,7 +268,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
 
           SizedBox(height: spacing * 2),
 
-          // Tarjeta de métodos de pago (detalle)
+          // Detalle de métodos de pago
           ClosingPaymentCard(
             totalesPorMetodo: resumen.totalesPorMetodo,
             notifier: notifier,
@@ -290,7 +287,7 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
           ClosingButton(
             isSyncing: state.isSyncing,
             total: resumen.totalVentas,
-            onPress: () => _mostrarDialogoCierre(context, notifier),
+            onPress: () => _mostrarDialogoCierre(context, notifier, resumen),
             isMobile: isMobile,
             isTablet: isTablet,
           ),
@@ -380,15 +377,27 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
     return '${diff.inDays}d';
   }
 
-  void _mostrarDialogoCierre(BuildContext context, CashClosingNotifier notifier) {
+  // Diálogo de confirmación con impresión integrada
+  void _mostrarDialogoCierre(
+    BuildContext context,
+    CashClosingNotifier notifier,
+    ResumenCorteCaja resumen,
+  ) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => ClosingConfirmDialog(
-        // ignore: invalid_use_of_visible_for_testing_member, invalid_use_of_visible_for_testing_member, invalid_use_of_protected_member
-        total: notifier.state.totalVentas,
+        total: resumen.totalVentas,
         onConfirm: () async {
+          // 1. Ejecutar cierre lógico
           await notifier.cerrarCaja();
+
+          // 2. Si el cierre fue exitoso, imprimir ticket
+          // ignore: invalid_use_of_visible_for_testing_member, invalid_use_of_protected_member
+          if (context.mounted && !notifier.state.isSyncing) {
+            await _imprimirCierre(context, resumen);
+          }
+
           if (context.mounted) {
             Navigator.pop(context);
             ScaffoldMessenger.of(context).showSnackBar(
@@ -402,6 +411,57 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
         onCancel: () => Navigator.pop(context),
       ),
     );
+  }
+
+  // Método de impresión de cierre
+  Future<void> _imprimirCierre(
+    BuildContext context,
+    ResumenCorteCaja resumen,
+  ) async {
+    try {
+      final local = await IsarService().obtenerLocalActivo();
+      final selectedPrinter = ref.read(printerProvider);
+
+      debugPrint('🖨️ Imprimiendo cierre de caja - Total: ${resumen.totalVentas}');
+      debugPrint('📊 Métodos: ${resumen.totalesPorMetodo}');
+
+      await TicketService.imprimirTicketVenta(
+        context: context,
+        local: local,
+        items: [],
+        total: resumen.totalVentas,
+        metodoPago: 'Cierre de Caja',
+        montoRecibido: resumen.totalVentas,
+        cambio: 0.0,
+        impuesto: 0.0,
+        subtotal: resumen.totalVentas,
+        fechaVenta: DateTime.now(),
+        impresoraSeleccionada: selectedPrinter?.device,
+        tipo: TicketType.cierre, // ⭐ USAMOS EL TIPO CIERRE
+        totalesPorMetodo: resumen.totalesPorMetodo,
+        totalGeneral: resumen.totalVentas,
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Ticket de cierre impreso'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error en _imprimirCierre: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Cierre realizado, pero error al imprimir: $e'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
   }
 }
 

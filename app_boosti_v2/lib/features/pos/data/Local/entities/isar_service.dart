@@ -205,30 +205,27 @@ class IsarService {
   }
 
   /// Crea usuarios de ejemplo (admin y cajero) si la colección está vacía.
-  Future<void> _inicializarUsuariosDemo(Isar isar) async {
-    final count = await isar.usuarioEntitys.count();
-    if (count == 0) {
-      final adminDefault = UsuarioEntity()
-        ..nombre = 'Administrador'
-        ..pin = '1234'
-        ..rol = 'admin'
-        ..activo = true
-        ..estado = 'inactivo'
-        ..cajaAsignada = 'Caja Principal';
+ Future<void> _inicializarUsuariosDemo(Isar isar) async {
+  final count = await isar.usuarioEntitys.count();
+  if (count == 0) {
+    // ✅ Crear admin con email válido (para que pueda sincronizarse)
+    final adminDefault = UsuarioEntity()
+      ..nombre = 'Administrador'
+      ..email = 'admin@default.com'          // ← Email obligatorio
+      ..password = '123456'                   // ← Password para auth
+      ..pin = '1234'
+      ..rol = 'admin'
+      ..activo = true
+      ..estado = 'inactivo'
+      ..cajaAsignada = 'Caja Principal';
 
-      final cajeroDefault = UsuarioEntity()
-        ..nombre = 'Cajero 01'
-        ..pin = '1111'
-        ..rol = 'cajero'
-        ..activo = true
-        ..estado = 'inactivo'
-        ..cajaAsignada = 'Caja 01';
-
-      await isar.writeTxn(() async {
-        await isar.usuarioEntitys.putAll([adminDefault, cajeroDefault]);
-      });
-    }
+    // ⚠️ No guardamos supabaseId aquí, se creará en la primera sincronización
+    await isar.writeTxn(() async {
+      await isar.usuarioEntitys.put(adminDefault);
+    });
   }
+}
+
 
   // ==================== USUARIOS ====================
 
@@ -353,11 +350,18 @@ class IsarService {
   /// Valida las credenciales de login (nombre y PIN).
   Future<UsuarioEntity?> validarLogin(String nombre, String pin) async {
     final isar = await db;
+    final nombreNormalizado = nombre.trim();
+    final pinNormalizado = pin.trim();
+
+    if (nombreNormalizado.isEmpty || pinNormalizado.isEmpty) {
+      return null;
+    }
+
     try {
       return await isar.usuarioEntitys
           .filter()
-          .nombreEqualTo(nombre, caseSensitive: false)
-          .pinEqualTo(pin)
+          .nombreEqualTo(nombreNormalizado, caseSensitive: false)
+          .pinEqualTo(pinNormalizado)
           .and()
           .activoEqualTo(true)
           .findFirst();

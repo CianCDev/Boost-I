@@ -51,7 +51,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
     _animationController.forward();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final usuariosActualizados = await ref.refresh(usuariosProvider.future);
+      if (usuariosActualizados.isNotEmpty) {
+        debugPrint('✅ Usuarios recargados en login: ${usuariosActualizados.length}');
+      }
       _sincronizarUsuarios(showFeedback: false);
     });
   }

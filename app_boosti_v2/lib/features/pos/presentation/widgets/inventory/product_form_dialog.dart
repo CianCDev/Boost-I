@@ -17,9 +17,12 @@ import '../../../data/Local/entities/usuario_entity.dart';
 import '../../../data/Local/entities/marca_entity.dart';
 import '../../../data/Local/entities/isar_service.dart';
 import '../../providers/categorias_provider.dart';
+import '../../providers/productos_provider.dart';
 import '../../services/sync_service.dart';
 import '../../utils/responsive_helper.dart';
 import '../proveedores/crear_proveedor_dialog.dart';
+import '../shared/barcode_scanner_dialog.dart';
+import 'product_detail_dialog.dart'; // ✅ Importar el escáner
 
 // ignore: constant_identifier_names
 const String _DRAFT_KEY = 'product_form_draft';
@@ -164,6 +167,120 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     } finally {
       if (mounted) setState(() => _generandoCodigo = false);
     }
+  }
+
+  // ✅ NUEVO: Escanear código de barras
+  Future<void> _escanearCodigoBarras() async {
+    final codigo = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => const BarcodeScannerDialog(),
+    );
+
+    if (codigo == null || codigo.isEmpty) return;
+
+    // Verificar si el código ya existe
+    final productos = ref.read(productosProvider).items;
+    final productoExistente = productos.firstWhere(
+      (p) => p.codigoBarras == codigo,
+      orElse: () => ProductoEntity(),
+    );
+
+    if (productoExistente.id != 0) {
+      // Código ya registrado → preguntar qué hacer
+      final accion = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Código ya registrado'),
+          content: Text(
+            'El código "$codigo" pertenece a:\n\n'
+            '📦 ${productoExistente.nombre}\n'
+            '💰 \$${productoExistente.precioUnidad}\n\n'
+            '¿Qué deseas hacer?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'continuar'),
+              child: const Text('Crear nuevo de todos modos'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(context, 'editar'),
+              child: const Text('Editar existente'),
+            ),
+          ],
+        ),
+      );
+
+      if (accion == 'editar') {
+        // Cerrar formulario actual y abrir detalle/edición del producto existente
+        Navigator.pop(context);
+        // Mostrar detalle (desde el diálogo actual, no podemos abrir otro directamente)
+        // Delegamos la acción a quien llamó al formulario, pero mejor abrimos el detalle
+        // usando el contexto de la pantalla principal. Como esto es un diálogo, usamos
+        // el contexto del diálogo para abrir otro diálogo.
+        showDialog(
+          context: context,
+          builder: (context) => ProductDetailDialog(
+            producto: productoExistente,
+            esAdmin: widget.usuarioActual?.rol == 'admin',
+            onEditar: () {
+              Navigator.pop(context); // cerrar detalle
+              // Abrir formulario de edición con el producto existente
+              _mostrarFormularioEdicion(productoExistente);
+            },
+            onEliminar: () async {
+              // Eliminar producto (no implementado aquí, pero se puede delegar)
+              Navigator.pop(context);
+            },
+          ),
+        );
+        return;
+      }
+      // Si elige 'continuar', se rellena el código en el campo
+    }
+
+    // Si no existe o eligió continuar, rellenar el campo
+    _codigoController.text = codigo;
+    // Opcional: mostrar un SnackBar de confirmación
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('✅ Código escaneado: se ha rellenado el campo'),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  // Método auxiliar para abrir el formulario de edición desde el detalle
+  void _mostrarFormularioEdicion(ProductoEntity producto) {
+    showDialog(
+      context: context,
+      builder: (context) => ProductFormDialog(
+        producto: producto,
+        usuarioActual: widget.usuarioActual,
+        onGuardar: (productoEditado) async {
+          final productosNotifier = ref.read(productosProvider.notifier);
+          await productosNotifier.guardarProducto(
+            productoEditado,
+            widget.usuarioActual!,
+            esNuevo: false,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('✅ Producto actualizado correctamente'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            Navigator.pop(context);
+          }
+        },
+      ),
+    );
   }
 
   // ==================== PROVEEDORES ====================
@@ -900,7 +1017,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
                           child: Material(
                             elevation: 4,
                             borderRadius: BorderRadius.circular(12),
-                            color: Colors.transparent,
+                            color: isDark ? colorScheme.surface : Colors.white,
                             child: Container(
                               constraints: const BoxConstraints(maxHeight: 200),
                               child: ListView.builder(
@@ -935,7 +1052,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     );
   }
 
-  // ==================== TARJETA DE PROVEEDOR SELECCIONADO (CORREGIDA) ====================
+  // ==================== TARJETA DE PROVEEDOR SELECCIONADO ====================
   Widget _buildProveedorSeleccionadoCard(ColorScheme colorScheme) {
     final proveedor = _proveedorSeleccionado!;
     final isActivo = proveedor.activo;
@@ -1080,7 +1197,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: colorScheme.outline.withValues(alpha: 0.1),
@@ -1174,7 +1291,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
                           child: Material(
                             elevation: 4,
                             borderRadius: BorderRadius.circular(12),
-                            color: Colors.transparent,
+                            color: isDark ? colorScheme.surface : Colors.white,
                             child: Container(
                               constraints: const BoxConstraints(maxHeight: 200),
                               child: ListView.builder(
@@ -1507,13 +1624,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
             _buildBotonCodigo(
               icon: Icons.qr_code_scanner_rounded,
               label: 'Escanear',
-              onPressed: () {
-                _mostrarDialogoSimple(
-                  titulo: 'Escáner',
-                  mensaje: 'Función de escaneo disponible en el catálogo.',
-                  esError: false,
-                );
-              },
+              onPressed: _escanearCodigoBarras, // ✅ Ahora llama al escáner real
               color: colorScheme.secondary,
             ),
           ],
@@ -1810,7 +1921,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   }
 }
 
-// ==================== PANEL LATERAL DE PROVEEDORES (CORREGIDO) ====================
+// ==================== PANEL LATERAL DE PROVEEDORES ====================
 class _ProveedoresPanelDialog extends StatefulWidget {
   final List<ProveedorEntity> proveedores;
   final ProveedorEntity? seleccionado;

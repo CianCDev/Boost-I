@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/usuario_entity.dart';
+import '../services/sync_service.dart';
 import 'configuracion_empresa_screen.dart';
 import 'login_screen.dart';
 
@@ -25,9 +28,90 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _inicializarApp() async {
     await _pedirPermisos();
+
+    // ⚠️ DESCOMENTAR PARA EJECUTAR EL SCRIPT DE MANTENIMIENTO
+    // await _ejecutarScriptsMantenimiento();
+
+    await _diagnosticarLogin();
     await _verificarConfiguracion();
   }
 
+  // ============================================================
+  // DIAGNÓSTICO DE LOGIN
+  // ============================================================
+  Future<void> _diagnosticarLogin() async {
+    try {
+      final isar = IsarService();
+      final todos = await isar.obtenerUsuarios();
+
+      debugPrint('🔍 DIAGNÓSTICO DE USUARIOS EN ISAR:');
+      for (final u in todos) {
+        debugPrint(
+          '  - Nombre: "${u.nombre}" | PIN: "${u.pin}" | Activo: ${u.activo} | ID: ${u.id} | Email: ${u.email}',
+        );
+      }
+
+      final admin = await isar.validarLogin('Administrador', '1234');
+      debugPrint('🔍 Validación Administrador: ${admin != null ? "✅ OK" : "❌ FALLÓ"}');
+
+      final yan = await isar.validarLogin('yan camacaro', '1010');
+      debugPrint('🔍 Validación yan camacaro: ${yan != null ? "✅ OK" : "❌ FALLÓ"}');
+    } catch (e) {
+      debugPrint('❌ Error en _diagnosticarLogin: $e');
+    }
+  }
+
+  // ============================================================
+  // 🔧 SCRIPT DE MANTENIMIENTO (versión final)
+  // ============================================================
+/*Future<void> _ejecutarScriptsMantenimiento() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final flagKey = 'scripts_mantenimiento_v6'; // ← nueva clave
+    if (prefs.getBool(flagKey) == true) {
+      debugPrint('⚠️ Scripts de mantenimiento ya ejecutados. Omitiendo.');
+      return;
+    }
+
+    debugPrint('🛠️ Ejecutando script de corrección (ID 6)...');
+
+    final isar = IsarService();
+
+    // 1. Limpiar supabaseId del usuario ID 6
+    final usuario = await isar.obtenerUsuarioPorId(6);
+    if (usuario != null) {
+      usuario.supabaseId = null;
+      usuario.password = '101010';
+      usuario.pin = '1010';
+      await isar.guardarUsuario(usuario);
+      debugPrint('✅ supabaseId limpiado para "yan camacaro" (ID 6)');
+    } else {
+      debugPrint('⚠️ Usuario ID 6 no encontrado');
+    }
+
+    // 2. Sincronizar usuarios (se creará en auth.users y el trigger hará el resto)
+    final sync = SyncService();
+    await sync.sincronizarUsuariosASupabase();
+    debugPrint('✅ Sincronización completada');
+
+    // 3. Verificar resultado
+    final verificado = await isar.obtenerUsuarioPorId(6);
+    if (verificado != null && verificado.supabaseId != null && verificado.supabaseId!.isNotEmpty) {
+      debugPrint('✅ Usuario ID 6 sincronizado correctamente (ID: ${verificado.supabaseId})');
+    } else {
+      debugPrint('⚠️ Usuario ID 6 aún sin supabaseId. Revisa logs y trigger.');
+    }
+
+    await prefs.setBool(flagKey, true);
+    debugPrint('✅ Script de mantenimiento ejecutado correctamente.');
+  } catch (e) {
+    debugPrint('❌ Error en script de mantenimiento: $e');
+  }
+}*/
+
+  // ============================================================
+  // PERMISOS
+  // ============================================================
   Future<void> _pedirPermisos() async {
     try {
       final permisos = [
@@ -52,9 +136,7 @@ class _SplashScreenState extends State<SplashScreen> {
       await Future.delayed(const Duration(milliseconds: 500));
 
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
 
         if (url != null && anonKey != null && url.isNotEmpty && anonKey.isNotEmpty) {
           Navigator.pushReplacement(
@@ -71,9 +153,7 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (e) {
       debugPrint('❌ Error en _verificarConfiguracion: $e');
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const ConfiguracionEmpresaScreen()),
@@ -97,7 +177,7 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-             SvgPicture.asset(
+              SvgPicture.asset(
                 'assets/logo.svg',
                 width: 120,
                 height: 120,

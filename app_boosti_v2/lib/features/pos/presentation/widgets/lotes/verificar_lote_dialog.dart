@@ -149,7 +149,7 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
       }
 
       // 4. Pertenece a otro producto
-      if (alias != null && alias.productoId != widget.lote.productoId) {
+      if (alias.productoId != widget.lote.productoId) {
         final otroProducto = await _isar.obtenerProductoPorId(alias.productoId);
         setState(() {
           _errorMessage = 'Pertenece a "${otroProducto?.nombre ?? 'otro producto'}"';

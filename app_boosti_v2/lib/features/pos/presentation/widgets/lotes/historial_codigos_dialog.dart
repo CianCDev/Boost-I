@@ -31,6 +31,7 @@ class _HistorialCodigosDialogState extends ConsumerState<HistorialCodigosDialog>
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    // ignore: unused_local_variable
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Dialog(
