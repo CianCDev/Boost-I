@@ -94,7 +94,21 @@ const TelegramConfigEntitySchema = CollectionSchema(
   deserialize: _telegramConfigEntityDeserialize,
   deserializeProp: _telegramConfigEntityDeserializeProp,
   idName: r'id',
-  indexes: {},
+  indexes: {
+    r'usuarioId': IndexSchema(
+      id: -6806307564427522310,
+      name: r'usuarioId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'usuarioId',
+          type: IndexType.value,
+          caseSensitive: false,
+        )
+      ],
+    )
+  },
   links: {},
   embeddedSchemas: {},
   getId: _telegramConfigEntityGetId,
@@ -242,6 +256,15 @@ extension TelegramConfigEntityQueryWhereSort
       return query.addWhereClause(const IdWhereClause.any());
     });
   }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhere>
+      anyUsuarioId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'usuarioId'),
+      );
+    });
+  }
 }
 
 extension TelegramConfigEntityQueryWhere
@@ -309,6 +332,99 @@ extension TelegramConfigEntityQueryWhere
         lower: lowerId,
         includeLower: includeLower,
         upper: upperId,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhereClause>
+      usuarioIdEqualTo(int usuarioId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'usuarioId',
+        value: [usuarioId],
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhereClause>
+      usuarioIdNotEqualTo(int usuarioId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'usuarioId',
+              lower: [],
+              upper: [usuarioId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'usuarioId',
+              lower: [usuarioId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'usuarioId',
+              lower: [usuarioId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'usuarioId',
+              lower: [],
+              upper: [usuarioId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhereClause>
+      usuarioIdGreaterThan(
+    int usuarioId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'usuarioId',
+        lower: [usuarioId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhereClause>
+      usuarioIdLessThan(
+    int usuarioId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'usuarioId',
+        lower: [],
+        upper: [usuarioId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhereClause>
+      usuarioIdBetween(
+    int lowerUsuarioId,
+    int upperUsuarioId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'usuarioId',
+        lower: [lowerUsuarioId],
+        includeLower: includeLower,
+        upper: [upperUsuarioId],
         includeUpper: includeUpper,
       ));
     });

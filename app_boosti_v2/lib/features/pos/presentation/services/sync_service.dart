@@ -2024,77 +2024,66 @@ class SyncService {
 
   /// Descarga todas las configuraciones de Telegram desde Supabase.
   Future<void> descargarTelegramConfigDesdeSupabase() async {
-    try {
-      final response = await _supabase
-          .from('telegram_config')
-          .select()
-          .order('id_isar', ascending: true);
+  try {
+    final response = await _supabase
+        .from('telegram_config')
+        .select()
+        .order('id_isar', ascending: true);
 
-      if (response.isEmpty) {
-        debugPrint('ℹ️ No hay configuraciones de Telegram en Supabase para descargar');
-        return;
+    if (response.isEmpty) {
+      debugPrint('ℹ️ No hay configuraciones de Telegram en Supabase para descargar');
+      return;
+    }
+
+    debugPrint('🔄 Descargando ${response.length} configuraciones de Telegram desde Supabase...');
+
+    final locales = await _isarService.obtenerTodasTelegramConfigs();
+    final Map<int?, TelegramConfigEntity> localesPorUsuario = {
+      for (var c in locales) c.usuarioId: c
+    };
+
+    for (var data in response) {
+      final idIsar = data['id_isar'] as int?;
+      final usuarioId = data['usuario_id'] as int?;
+      
+      if (idIsar == null || usuarioId == null) {
+        debugPrint('⚠️ Configuración sin id_isar o usuario_id, omitiendo...');
+        continue;
       }
 
-      debugPrint('🔄 Descargando ${response.length} configuraciones de Telegram desde Supabase...');
+      final configNube = TelegramConfigEntity.fromSupabase(data);
+      final local = localesPorUsuario[usuarioId];
 
-      final locales = await _isarService.obtenerTodasTelegramConfigs();
-      final Map<int?, TelegramConfigEntity> localesPorUsuario = {
-        for (var c in locales) c.usuarioId: c
-      };
-
-      for (var data in response) {
-        final idIsar = data['id_isar'] as int?;
-        final usuarioId = data['usuario_id'] as int?;
+      if (local != null) {
+        // 🔥 Comparar fechas de actualización
+        final localUpdated = local.updatedAt ?? DateTime(1970);
+        final nubeUpdated = configNube.updatedAt ?? DateTime(1970);
         
-        if (idIsar == null || usuarioId == null) {
-          debugPrint('⚠️ Configuración sin id_isar o usuario_id, omitiendo...');
-          continue;
-        }
-
-        TelegramConfigEntity? local = localesPorUsuario[usuarioId];
-
-        final configNube = TelegramConfigEntity()
-          ..id = idIsar
-          ..usuarioId = usuarioId
-          ..supabaseId = data['id']
-          ..botToken = data['bot_token'] as String? ?? ''
-          ..chatId = data['chat_id'] as String? ?? ''
-          ..nombreChat = data['nombre_chat'] as String? ?? ''
-          ..enabled = data['enabled'] ?? true
-          ..notificarStockBajo = data['notificar_stock_bajo'] ?? true
-          ..notificarVentas = data['notificar_ventas'] ?? false
-          ..notificarPedidos = data['notificar_pedidos'] ?? false
-          ..comandosPermitidos = data['comandos_permitidos'] is List
-              ? List<String>.from(data['comandos_permitidos'])
-              : ['/ventas', '/stock', '/ayuda']
-          ..sincronizado = true
-          ..fechaSincronizacion = DateTime.now();
-
-        if (local != null) {
+        if (nubeUpdated.isAfter(localUpdated)) {
+          // La nube es más nueva → actualizar local
           configNube.id = local.id;
           await _isarService.guardarTelegramConfig(configNube);
-          debugPrint('🔄 Configuración de Telegram actualizada (usuario $usuarioId)');
+          debugPrint('🔄 Configuración de Telegram actualizada (usuario $usuarioId) - Nube más reciente');
         } else {
-          await _isarService.guardarTelegramConfig(configNube);
-          debugPrint('📥 Nueva configuración de Telegram creada (usuario $usuarioId)');
+          // La local es más nueva o igual → subir local (si está pendiente)
+          if (local.sincronizado == false) {
+            // La local ya está pendiente, se subirá en la próxima sincronización
+            debugPrint('⏳ Configuración local más reciente (usuario $usuarioId), pendiente de subida');
+          } else {
+            debugPrint('✅ Configuración local ya está sincronizada (usuario $usuarioId)');
+          }
         }
+      } else {
+        // No existe local, insertar
+        await _isarService.guardarTelegramConfig(configNube);
+        debugPrint('📥 Nueva configuración de Telegram creada (usuario $usuarioId)');
       }
-
-      final supabaseIds = response.map((d) => d['id'] as String).toSet();
-      final localesParaEliminar = locales.where((c) => 
-        c.supabaseId != null && !supabaseIds.contains(c.supabaseId)
-      ).toList();
-
-      for (var c in localesParaEliminar) {
-        await _isarService.eliminarTelegramConfig(c.id);
-        debugPrint('🗑️ Configuración de Telegram eliminada localmente (usuario ${c.usuarioId})');
-      }
-
-      debugPrint('✅ Descarga de configuraciones de Telegram completada');
-    } catch (e) {
-      debugPrint('❌ Error descargando configuraciones de Telegram: $e');
     }
+    // ... eliminar las que ya no existen en Supabase (opcional)
+  } catch (e) {
+    debugPrint('❌ Error descargando configuraciones de Telegram: $e');
   }
+}
 
   // ============================================================
   // PEDIDOS (CORREGIDO)
@@ -2251,7 +2240,7 @@ Future<void> sincronizarPedidosPendientes() async {
           await _isarService.obtenerRecepcionPorPedido(pedido.id);
       if (recepcion != null) {
         await _supabase.from('recepciones').insert({
-          'pedido_id': supabasePedidoId,
+          'pedido_id': supabasePedidoId, 
           'fecha_recepcion': recepcion.fechaRecepcion.toIso8601String(),
           'usuario_id': recepcion.usuarioId,
           'observaciones': recepcion.observaciones,
