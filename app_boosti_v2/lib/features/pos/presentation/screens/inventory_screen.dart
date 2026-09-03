@@ -1,5 +1,3 @@
-// inventory_screen.dart
-// Con estilo unificado y CustomAppBar
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
@@ -14,6 +12,7 @@ import '../providers/themes/app_colors.dart';
 import '../services/sync_service.dart';
 import '../services/printer_service.dart';
 import '../services/label_generator.dart';
+import '../services/label_pdf_generator.dart';
 import '../widgets/inventory/inventory_product_card.dart';
 import '../widgets/inventory/inventory_product_card_skeleton.dart';
 import '../widgets/inventory/inventory_search_bar.dart';
@@ -163,6 +162,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     );
   }
 
+  // ============================================================
+  // DIÁLOGO DE CANTIDAD DE ETIQUETAS (CON PDF)
+  // ============================================================
   void _mostrarDialogoCantidadEtiquetas() async {
     final state = ref.read(inventoryProvider);
     final productosSeleccionados = state.productosFiltrados
@@ -177,7 +179,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     }
 
     final isMobile = ResponsiveHelper.isMobile(context);
-    final result = await showDialog<Map<int, int>>(
+
+    await showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
@@ -232,6 +235,25 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Cancelar'),
                 ),
+                // Botón Generar PDF
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final validCantidades = Map<int, int>.from(cantidades)..removeWhere((key, value) => value < 1);
+                    if (validCantidades.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Ingresa al menos 1 etiqueta por producto')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(context);
+                    _generarPDFEtiquetas(validCantidades);
+                  },
+                  icon: const Icon(Icons.picture_as_pdf_rounded),
+                  label: const Text('Generar PDF'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700),
+                ),
+                const SizedBox(width: 8),
+                // Botón Imprimir
                 ElevatedButton(
                   onPressed: () {
                     final validCantidades = Map<int, int>.from(cantidades)..removeWhere((key, value) => value < 1);
@@ -241,7 +263,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                       );
                       return;
                     }
-                    Navigator.pop(context, validCantidades);
+                    Navigator.pop(context);
+                    _imprimirEtiquetasSeleccionadas(validCantidades);
                   },
                   child: const Text('Imprimir'),
                 ),
@@ -251,12 +274,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         );
       },
     );
-
-    if (result != null) {
-      await _imprimirEtiquetasSeleccionadas(result);
-    }
   }
 
+  // ============================================================
+  // IMPRESIÓN DE ETIQUETAS (TÉRMICA) - VERSIÓN ÚNICA Y CORREGIDA
+  // ============================================================
   Future<void> _imprimirEtiquetasSeleccionadas(Map<int, int> cantidades) async {
     final selectedPrinter = ref.read(printerProvider);
     if (selectedPrinter == null) {
@@ -268,13 +290,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
     final state = ref.read(inventoryProvider);
     final labels = <LabelItem>[];
+
     for (final entry in cantidades.entries) {
       final producto = state.productosFiltrados.firstWhere((p) => p.id == entry.key);
       labels.add(LabelItem(
         nombre: producto.nombre,
         precio: producto.precioUnidad,
         codigoBarras: producto.codigoBarras,
-        cantidad: entry.value,
+        cantidad: entry.value, // La impresora térmica repetirá esta cantidad
       ));
     }
 
@@ -300,12 +323,49 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
     if (result.success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('✅ ${labels.length} etiquetas impresas correctamente'), backgroundColor: const Color(0xFF10B981)),
+        SnackBar(content: Text('✅ ${labels.fold<int>(0, (sum, item) => sum + item.cantidad)} etiquetas impresas correctamente'), backgroundColor: const Color(0xFF10B981)),
       );
       ref.read(inventoryProvider.notifier).limpiarSeleccion();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('❌ Error al imprimir: ${result.message}'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  // ============================================================
+  // GENERACIÓN DE PDF - VERSIÓN CORREGIDA (REPITE ETIQUETAS)
+  // ============================================================
+  Future<void> _generarPDFEtiquetas(Map<int, int> cantidades) async {
+    final state = ref.read(inventoryProvider);
+    final labels = <LabelItem>[];
+
+    for (final entry in cantidades.entries) {
+      final producto = state.productosFiltrados.firstWhere((p) => p.id == entry.key);
+      final cantidad = entry.value;
+      // Repetir la etiqueta según la cantidad solicitada
+      for (var i = 0; i < cantidad; i++) {
+        labels.add(LabelItem(
+          nombre: producto.nombre,
+          precio: producto.precioUnidad,
+          codigoBarras: producto.codigoBarras,
+          cantidad: 1,
+        ));
+      }
+    }
+
+    try {
+      await LabelPdfGenerator.sharePdf(
+        labels: labels,
+        title: 'Etiquetas de Productos',
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ PDF generado y compartido correctamente'), backgroundColor: Color(0xFF10B981)),
+      );
+      ref.read(inventoryProvider.notifier).limpiarSeleccion();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Error al generar PDF: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -324,7 +384,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       final isAdmin = widget.usuarioLogueado.rol == 'admin';
       final state = ref.watch(inventoryProvider);
 
-      // Gradiente consistente con el catálogo
       final gradient = isDark
           ? const LinearGradient(
               begin: Alignment.centerLeft,
@@ -342,7 +401,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         appBar: CustomAppBar(
           title: isMobile ? 'Inventario' : 'Gestión de Inventario',
           showBackButton: true,
-          centerTitle: false, // Centrado desactivado para apegar el título a la izquierda
+          centerTitle: false,
           gradient: gradient,
           actions: [
             _buildActionButton(
@@ -355,9 +414,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               ),
               isTablet: ResponsiveHelper.isTablet(context),
             ),
-            const SizedBox(width: 8), // Gap entre botones
-
-            // Botón de reparar imágenes (solo admin)
+            const SizedBox(width: 8),
             if (isAdmin) ...[
               _buildActionButton(
                 context,
@@ -404,10 +461,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 },
                 isTablet: ResponsiveHelper.isTablet(context),
               ),
-              const SizedBox(width: 8), // Gap entre botones
+              const SizedBox(width: 8),
             ],
-
-            // Botón de gestionar categorías (solo admin)
             if (isAdmin) ...[
               _buildActionButton(
                 context,
@@ -421,10 +476,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                 },
                 isTablet: ResponsiveHelper.isTablet(context),
               ),
-              const SizedBox(width: 8), // Gap entre botones
+              const SizedBox(width: 8),
             ],
-
-            // Botón de generar código de barras
             _buildActionButton(
               context,
               icon: Icons.qr_code,
@@ -433,8 +486,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               isTablet: ResponsiveHelper.isTablet(context),
             ),
             const SizedBox(width: 12),
-
-            // Indicador de selección múltiple
             if (state.seleccionMultiple) ...[
               Row(
                 children: [
@@ -499,7 +550,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
               mainAxisSpacing: 12,
             ),
             itemCount: 6,
-           itemBuilder: (context, index) => const InventoryProductCardSkeleton(),
+            itemBuilder: (context, index) => const InventoryProductCardSkeleton(),
           )
         : Padding(
             padding: const EdgeInsets.all(12.0),
