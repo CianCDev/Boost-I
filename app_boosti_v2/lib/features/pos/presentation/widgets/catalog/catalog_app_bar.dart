@@ -8,6 +8,7 @@ import '../../utils/responsive_helper.dart';
 import '../../screens/inventory_screen.dart';
 import '../../screens/pos_menu_screen.dart';
 import '../../../data/Local/entities/usuario_entity.dart';
+import 'top_products_utils.dart';
 
 class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final UsuarioEntity? usuarioLogueado;
@@ -73,16 +74,28 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
         ),
       ),
       // 🔥 LOGO SVG EN BLANCO (reemplaza Image.asset)
-      leading: MouseRegion(
-      child: Padding(
-        padding: const EdgeInsets.all(10.0),
-        child: Icon(
-          Icons.storefront,
-          color: Colors.white,
-          size: isTablet ? 36 : 32,
-        ),
+      leadingWidth: isTablet ? 104 : 96,
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildActionButton(
+            context,
+            icon: Icons.trending_up_rounded,
+            tooltip: 'Productos destacados',
+            onPressed: () => showTopProducts(context),
+            isTablet: isTablet,
+          ),
+          const SizedBox(width: 4),
+          Padding(
+            padding: const EdgeInsets.all(10.0),
+            child: Icon(
+              Icons.storefront,
+              color: Colors.white,
+              size: isTablet ? 36 : 32,
+            ),
+          ),
+        ],
       ),
-    ),
       actions: [
         // Panel de Control
         _buildActionButton(
