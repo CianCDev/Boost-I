@@ -8,165 +8,202 @@ import '../../screens/inventory_screen.dart';
 import '../../screens/pos_menu_screen.dart';
 import '../../../data/Local/entities/usuario_entity.dart';
 import '../../utils/panel_utils.dart';
+import '../../utils/top_product_utils.dart';
+import 'search_bar.dart';
 import '../../controllers/bcv_controller.dart';
-import '../../utils/top_product_utils.dart'; // ✅ Import para abrir productos destacados
 
 class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final UsuarioEntity? usuarioLogueado;
+  final VoidCallback? onScanPressed;
+  final FocusNode? searchFocusNode;
 
-  const CatalogAppBar({super.key, this.usuarioLogueado});
+  const CatalogAppBar({
+    super.key,
+    this.usuarioLogueado,
+    this.onScanPressed,
+    this.searchFocusNode,
+  });
+
+  static final FocusNode _defaultFocusNode = FocusNode();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isMobile = ResponsiveHelper.isMobile(context);
+    final isDesktop = ResponsiveHelper.isDesktop(context);
     final isTablet = ResponsiveHelper.isTablet(context);
+    final isMobile = ResponsiveHelper.isMobile(context);
     final bcvState = ref.watch(bcvProvider);
     final lowStockCount = ref.read(catalogProvider.notifier).lowStockCount;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final LinearGradient gradient;
-    if (isDark) {
-      gradient = const LinearGradient(
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-        colors: [Color(0xFF10B981), Color(0xFF059669)],
-      );
-    } else {
-      gradient = const LinearGradient(
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-        colors: [Color(0xFF5352ED), Color(0xFF4840E8), Color(0xFF5955EE)],
+    final gradient = isDark
+        ? const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Color(0xFF10B981), Color(0xFF059669)],
+          )
+        : const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Color(0xFF5352ED), Color(0xFF4840E8), Color(0xFF5955EE)],
+          );
+
+    Widget buildActionButton({
+      required IconData icon,
+      required String tooltip,
+      required VoidCallback onPressed,
+    }) {
+      final btnSize = isMobile ? 36.0 : (isTablet ? 44.0 : 40.0);
+      final iSize = isMobile ? 20.0 : (isTablet ? 24.0 : 20.0);
+
+      return Tooltip(
+        message: tooltip,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              // ignore: unused_local_variable
+              bool hover = false;
+              return MouseRegion(
+                onEnter: (_) => setState(() => hover = true),
+                onExit: (_) => setState(() => hover = false),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: btnSize,
+                  height: btnSize,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: IconButton(
+                    icon: Icon(icon, color: Colors.white, size: iSize),
+                    onPressed: onPressed,
+                    padding: EdgeInsets.zero,
+                    splashRadius: btnSize * 0.6,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       );
     }
 
-    return AppBar(
+    final focusNode = searchFocusNode ?? _defaultFocusNode;
+    Widget safeSearchBar = ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 40),
+      child: CatalogSearchBar(
+        focusNode: focusNode,
+        onScanPressed: onScanPressed ?? () {},
+      ),
+    );
+
+    final appBar = AppBar(
       backgroundColor: Colors.transparent,
       foregroundColor: Colors.white,
-      elevation: 0,
-      centerTitle: false,
+      elevation: isMobile ? 2 : 4,
+      centerTitle: isMobile,
       flexibleSpace: Container(
         decoration: BoxDecoration(gradient: gradient),
       ),
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(1),
-        child: Container(
-          height: 1,
-          color: Colors.white.withValues(alpha: 0.15),
+      // 🔥 Leading: Siempre el botón de Destacados
+      leading: Center(
+        child: buildActionButton(
+          icon: Icons.whatshot_rounded,
+          tooltip: 'Destacados (F3)',
+          onPressed: () => showTopProducts(context),
         ),
       ),
-      title: Text(
-        isMobile ? '' : 'Catálogo',
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: isTablet ? 22 : 18,
-          color: Colors.white,
-        ),
-      ),
-      // 🔥 LEADING: solo el botón de Productos Destacados (sin ícono de tienda)
-      leading: _buildActionButton(
-        context,
-        icon: Icons.whatshot_rounded, // ✅ Ícono más visible (fuego)
-        tooltip: 'Productos destacados',
-        onPressed: () => showTopProducts(context),
-        isTablet: isTablet,
-      ),
+      // 📌 Title: BCV en móvil, SearchBar en escritorio
+      title: isMobile
+          ? _BcvBadge(
+              bcvState: bcvState,
+              onTap: () => ref.read(bcvProvider).actualizarTasa(),
+              isTablet: isTablet,
+              isMobile: isMobile,
+            )
+          : (isDesktop
+              ? safeSearchBar
+              : Text(
+                  'Catálogo',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: isTablet ? 22 : 18,
+                    color: Colors.white,
+                  ),
+                )),
+      // 📋 Actions: Panel rápido, Inventario, POS, (y en escritorio BCV + Avatar)
       actions: [
-        // Botón del panel lateral
-        _buildActionButton(
-          context,
+        buildActionButton(
           icon: Icons.menu_rounded,
-          tooltip: 'Panel rápido',
+          tooltip: 'Panel rápido (F4)',
           onPressed: () => showSidePanel(context),
-          isTablet: isTablet,
         ),
         const SizedBox(width: 6),
-
-        // Botón de Panel de Control POS
-        _buildActionButton(
-          context,
+        Tooltip(
+          message: 'Inventario',
+          child: Center(
+            child: _InventoryBadge(
+              lowStockCount: lowStockCount,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => InventoryScreen(
+                    usuarioLogueado: usuarioLogueado!,
+                    showAppBar: true,
+                  ),
+                ),
+              ),
+              isTablet: isTablet,
+              isMobile: isMobile,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        buildActionButton(
           icon: Icons.grid_view_rounded,
-          tooltip: 'Panel de Control POS',
+          tooltip: 'Panel POS',
           onPressed: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const PosMenuScreen()),
           ),
-          isTablet: isTablet,
         ),
-        const SizedBox(width: 6),
-
-        // Botón de inventario
-        Tooltip(
-          message: 'Ir a Gestión de Inventario',
-          child: _InventoryBadge(
-            lowStockCount: lowStockCount,
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => InventoryScreen(
-                  usuarioLogueado: usuarioLogueado!,
-                  showAppBar: true,
+        // En escritorio mostramos BCV y Avatar
+        if (!isMobile) ...[
+          const SizedBox(width: 12),
+          Center(
+            child: _BcvBadge(
+              bcvState: bcvState,
+              onTap: () => ref.read(bcvProvider).actualizarTasa(),
+              isTablet: isTablet,
+              isMobile: isMobile,
+            ),
+          ),
+          if (usuarioLogueado != null) ...[
+            const SizedBox(width: 12),
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: CircleAvatar(
+                radius: isTablet ? 20 : 16,
+                backgroundColor: Colors.white.withValues(alpha: 0.2),
+                child: Text(
+                  usuarioLogueado!.nombre[0].toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ),
-            isTablet: isTablet,
-          ),
-        ),
-        const SizedBox(width: 4),
-
-        // Badge BCV
-        Tooltip(
-          message: 'Tasa oficial BCV (Haz clic para actualizar)',
-          child: _BcvBadge(
-            bcvState: bcvState,
-            onTap: () => ref.read(bcvProvider).actualizarTasa(),
-            isTablet: isTablet,
-          ),
-        ),
-        const SizedBox(width: 8),
+          ],
+        ],
+        if (isMobile) const SizedBox(width: 8), // Margen final
       ],
     );
-  }
 
-  // Widget reutilizable para botones de acción del AppBar
-  Widget _buildActionButton(
-    BuildContext context, {
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onPressed,
-    required bool isTablet,
-  }) {
-    final size = isTablet ? 48.0 : 40.0;
-    final iconSize = isTablet ? 26.0 : 22.0;
-
-    bool isHovered = false;
-
-    return Tooltip(
-      message: tooltip,
-      child: StatefulBuilder(
-        builder: (context, setState) {
-          return MouseRegion(
-            cursor: SystemMouseCursors.click,
-            onEnter: (_) => setState(() => isHovered = true),
-            onExit: (_) => setState(() => isHovered = false),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: isHovered ? 0.15 : 0.08),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: IconButton(
-                icon: Icon(icon, color: Colors.white, size: iconSize),
-                onPressed: onPressed,
-                padding: EdgeInsets.zero,
-                splashRadius: isTablet ? 28 : 22,
-                mouseCursor: SystemMouseCursors.click,
-              ),
-            ),
-          );
-        },
-      ),
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(kToolbarHeight),
+      child: appBar,
     );
   }
 
@@ -174,22 +211,23 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
 
-// Widget para el badge de inventario (sin cambios)
 class _InventoryBadge extends StatelessWidget {
   final int lowStockCount;
   final VoidCallback onPressed;
   final bool isTablet;
+  final bool isMobile;
 
   const _InventoryBadge({
     required this.lowStockCount,
     required this.onPressed,
     required this.isTablet,
+    required this.isMobile,
   });
 
   @override
   Widget build(BuildContext context) {
     bool isHovered = false;
-    final size = isTablet ? 48.0 : 40.0;
+    final size = isMobile ? 36.0 : (isTablet ? 44.0 : 40.0);
 
     return StatefulBuilder(
       builder: (context, setState) {
@@ -205,15 +243,18 @@ class _InventoryBadge extends StatelessWidget {
                 width: size,
                 height: size,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: isHovered ? 0.15 : 0.08),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white.withValues(alpha: isHovered ? 0.2 : 0.1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.inventory_2_outlined, color: Colors.white),
+                  icon: Icon(
+                    Icons.inventory_2_outlined,
+                    color: Colors.white,
+                    size: isMobile ? 20 : (isTablet ? 24 : 20),
+                  ),
                   onPressed: onPressed,
                   padding: EdgeInsets.zero,
-                  splashRadius: isTablet ? 28 : 22,
-                  mouseCursor: SystemMouseCursors.click,
+                  splashRadius: size * 0.6,
                 ),
               ),
               if (lowStockCount > 0)
@@ -222,16 +263,17 @@ class _InventoryBadge extends StatelessWidget {
                   top: -4,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF97316),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF97316),
                       shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5), // Borde para mayor legibilidad
                     ),
                     constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                     child: Text(
                       '$lowStockCount',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 9,
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,
@@ -246,21 +288,23 @@ class _InventoryBadge extends StatelessWidget {
   }
 }
 
-// Widget para el badge de BCV (sin cambios)
 class _BcvBadge extends StatelessWidget {
   final BcvController bcvState;
   final VoidCallback onTap;
   final bool isTablet;
+  final bool isMobile;
 
   const _BcvBadge({
     required this.bcvState,
     required this.onTap,
     required this.isTablet,
+    required this.isMobile,
   });
 
   @override
   Widget build(BuildContext context) {
     bool isHovered = false;
+    final fontSize = isMobile ? 12.0 : (isTablet ? 15.0 : 13.0); 
 
     return StatefulBuilder(
       builder: (context, setState) {
@@ -272,62 +316,51 @@ class _BcvBadge extends StatelessWidget {
             onTap: onTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
+              // Diseño tipo "Píldora" optimizado
               padding: EdgeInsets.symmetric(
-                horizontal: isTablet ? 16 : 12,
-                vertical: isTablet ? 8 : 6,
+                horizontal: isMobile ? 12 : (isTablet ? 16 : 12),
+                vertical: isMobile ? 6 : (isTablet ? 8 : 6),
               ),
-              margin: const EdgeInsets.only(left: 4, right: 8),
               decoration: BoxDecoration(
-                color: isHovered
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : (bcvState.cargando ? Colors.white.withValues(alpha: 0.15) : Colors.transparent),
+                color: Colors.white.withValues(alpha: isHovered || bcvState.cargando ? 0.2 : 0.15),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: bcvState.cargando
-                      ? Colors.white.withValues(alpha: 0.3)
-                      : Colors.white.withValues(alpha: 0.8),
-                  width: 1.5,
+                  color: Colors.white.withValues(alpha: isHovered ? 0.9 : 0.4),
+                  width: 1.2,
                 ),
               ),
               child: AnimatedSize(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  transitionBuilder: (Widget child, Animation<double> animation) {
-                    return FadeTransition(opacity: animation, child: child);
-                  },
-                  child: bcvState.cargando
-                      ? SizedBox(
-                          key: const ValueKey('loading'),
-                          width: isTablet ? 18 : 14,
-                          height: isTablet ? 18 : 14,
-                          child: const CircularProgressIndicator(
-                            strokeWidth: 2,
+                child: bcvState.cargando
+                    ? SizedBox(
+                        width: isMobile ? 14 : 18,
+                        height: isMobile ? 14 : 18,
+                        child: const CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.currency_exchange,
+                            size: isMobile ? 15 : (isTablet ? 20 : 16),
                             color: Colors.white,
                           ),
-                        )
-                      : Row(
-                          key: const ValueKey('loaded'),
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.currency_exchange,
-                              size: isTablet ? 20 : 16,
+                          const SizedBox(width: 6),
+                          Text(
+                            // Se eliminó la palabra "BCV:" en móvil para que sea más compacto y elegante
+                            isMobile ? 'Bs. ${bcvState.tasa.toStringAsFixed(2)}' : 'BCV: Bs. ${bcvState.tasa.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: fontSize,
                               color: Colors.white,
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'BCV: Bs. ${bcvState.tasa.toStringAsFixed(2)}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: isTablet ? 15 : 13,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
+                          ),
+                        ],
+                      ),
               ),
             ),
           ),

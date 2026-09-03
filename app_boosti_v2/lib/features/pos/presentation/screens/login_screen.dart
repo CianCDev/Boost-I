@@ -1,6 +1,7 @@
 // lib/features/pos/presentation/screens/login_screen.dart
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -220,11 +221,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color.fromARGB(255, 13, 9, 63),
-              Color.fromARGB(255, 81, 61, 153),
-              Color.fromARGB(255, 130, 97, 174),
+              Color(0xFF0A0E27),  // Azul oscuro profundo
+              Color(0xFF1A1A4E),
+              Color(0xFF2D1B69),
+              Color(0xFF4C2B8C),
             ],
-            stops: [0.0, 0.5, 1.0],
+            stops: [0.0, 0.3, 0.7, 1.0],
           ),
         ),
         child: SafeArea(
@@ -244,108 +246,125 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               : EdgeInsets.zero,
                           padding: EdgeInsets.all(paddingSize),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.98),
-                            borderRadius: BorderRadius.circular(24),
+                            // 🧊 Glassmorphism
+                            color: Colors.white.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(32),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              width: 1.5,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.25),
-                                blurRadius: 40,
-                                offset: const Offset(0, 20),
+                                color: Colors.black.withValues(alpha: 0.4),
+                                blurRadius: 50,
+                                offset: const Offset(0, 30),
+                              ),
+                              BoxShadow(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                                blurRadius: 60,
+                                offset: const Offset(0, 0),
                               ),
                             ],
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              width: 1,
-                            ),
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _buildLogo(logoSize, isMobile),
-                              const SizedBox(height: 16),
-                              Center(
-                                child: Text(
-                                  'Inicia sesión para acceder al POS',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: isMobile ? 13 : 15,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              _buildPinMode(isMobile, isTablet, usuariosOrdenados),
-                              if (_errorMessage != null) ...[
-                                const SizedBox(height: 16),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red.shade50,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.red.shade200),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.error_outline,
-                                          color: Colors.red.shade700, size: 18),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          _errorMessage!,
-                                          style: TextStyle(
-                                            color: Colors.red.shade700,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w500,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(32),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                              child: Container(
+                                padding: EdgeInsets.all(paddingSize),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    _buildLogo(logoSize, isMobile),
+                                    const SizedBox(height: 16),
+                                    Center(
+                                      child: Text(
+                                        'Inicia sesión para acceder al POS',
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.8),
+                                          fontSize: isMobile ? 13 : 15,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    _buildPinMode(isMobile, isTablet, usuariosOrdenados),
+                                    if (_errorMessage != null) ...[
+                                      const SizedBox(height: 16),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 10),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: Colors.red.withValues(alpha: 0.3),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 24),
-                              _buildLoginButton(buttonHeight, isMobile),
-                              const SizedBox(height: 16),
-                              Center(
-                                child: Text(
-                                  'PIN de ejemplo: $ejemploPins',
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 10 : 12,
-                                    color: Colors.grey.shade500,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Center(
-                                child: TextButton(
-                                  onPressed: _isLoading ? null : () => _sincronizarUsuarios(),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        _isLoading
-                                            ? Icons.sync_rounded
-                                            : Icons.cloud_sync_rounded,
-                                        size: 16,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Sincronizar usuarios',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.error_outline,
+                                                color: Colors.red.shade300, size: 18),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                _errorMessage!,
+                                                style: TextStyle(
+                                                  color: Colors.red.shade300,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
-                                  ),
+                                    const SizedBox(height: 24),
+                                    _buildLoginButton(buttonHeight, isMobile),
+                                    const SizedBox(height: 16),
+                                    Center(
+                                      child: Text(
+                                        'PIN de ejemplo: $ejemploPins',
+                                        style: TextStyle(
+                                          fontSize: isMobile ? 10 : 12,
+                                          color: Colors.white.withValues(alpha: 0.5),
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Center(
+                                      child: TextButton(
+                                        onPressed: _isLoading ? null : () => _sincronizarUsuarios(),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              _isLoading
+                                                  ? Icons.sync_rounded
+                                                  : Icons.cloud_sync_rounded,
+                                              size: 16,
+                                              color: Colors.white.withValues(alpha: 0.6),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'Sincronizar usuarios',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.white.withValues(alpha: 0.6),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
@@ -373,16 +392,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color.fromARGB(255, 67, 16, 185),
-                Color.fromARGB(255, 36, 107, 219),
+                Color(0xFF10B981),
+                Color(0xFF059669),
               ],
             ),
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                blurRadius: 30,
-                offset: const Offset(0, 8),
+                color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                blurRadius: 40,
+                offset: const Offset(0, 12),
               ),
             ],
           ),
@@ -398,8 +417,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color.fromARGB(255, 16, 83, 185),
-              Color.fromARGB(255, 100, 59, 246),
+              Color(0xFF10B981),
+              Color(0xFF34D399),
             ],
           ).createShader(bounds),
           child: Text(
@@ -416,7 +435,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  // 🔥 Selector de usuarios REDISEÑADO
   Widget _buildPinMode(bool isMobile, bool isTablet, List<UsuarioEntity> usuarios) {
     final fontSizeLabel = isMobile ? 13.0 : 15.0;
 
@@ -428,89 +446,101 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: fontSizeLabel,
-            color: Colors.grey.shade700,
+            color: Colors.white.withValues(alpha: 0.8),
           ),
         ),
         const SizedBox(height: 8),
-        // 🔥 Nuevo diseño: Card con borde y sombra, con un icono de usuario
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.grey.shade300, width: 1),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: _selectedUserId,
-                isExpanded: true,
-                icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
-                style: TextStyle(
-                  fontSize: isMobile ? 16 : 18,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF0F172A),
+        // 🔥 Dropdown con glassmorphism
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  width: 1.2,
                 ),
-                items: usuarios.map((u) {
-                  final isAdmin = u.rol == 'admin';
-                  return DropdownMenuItem<int>(
-                    value: u.id,
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: isAdmin
-                              ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
-                              : const Color(0xFF10B981).withValues(alpha: 0.15),
-                          child: Icon(
-                            isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
-                            size: 18,
-                            color: isAdmin ? const Color(0xFF3B82F6) : const Color(0xFF10B981),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                u.nombre,
-                                style: TextStyle(
-                                  fontWeight: isAdmin ? FontWeight.bold : FontWeight.normal,
-                                  fontSize: isMobile ? 14 : 16,
-                                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: _selectedUserId,
+                    isExpanded: true,
+                    icon: Icon(Icons.keyboard_arrow_down,
+                        color: Colors.white.withValues(alpha: 0.6)),
+                    style: TextStyle(
+                      fontSize: isMobile ? 16 : 18,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                    ),
+                    dropdownColor: const Color(0xFF1A1A4E),
+                    items: usuarios.map((u) {
+                      final isAdmin = u.rol == 'admin';
+                      return DropdownMenuItem<int>(
+                        value: u.id,
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: isAdmin
+                                  ? const Color(0xFF3B82F6).withValues(alpha: 0.2)
+                                  : const Color(0xFF10B981).withValues(alpha: 0.2),
+                              child: Icon(
+                                isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
+                                size: 18,
+                                color: isAdmin ? const Color(0xFF3B82F6) : const Color(0xFF10B981),
                               ),
-                              if (isAdmin)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    'ADMIN',
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    u.nombre,
                                     style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF3B82F6),
+                                      fontWeight: isAdmin ? FontWeight.bold : FontWeight.normal,
+                                      fontSize: isMobile ? 14 : 16,
+                                      color: Colors.white,
                                     ),
                                   ),
-                                ),
-                            ],
-                          ),
+                                  if (isAdmin)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF3B82F6).withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        'ADMIN',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: const Color(0xFF3B82F6),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    _selectedUserId = val;
-                    _errorMessage = null;
-                  });
-                  if (val != null) _saveSelectedUser(val);
-                },
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        _selectedUserId = val;
+                        _errorMessage = null;
+                      });
+                      if (val != null) _saveSelectedUser(val);
+                    },
+                  ),
+                ),
               ),
             ),
           ),
@@ -521,53 +551,70 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: fontSizeLabel,
-            color: Colors.grey.shade700,
+            color: Colors.white.withValues(alpha: 0.8),
           ),
         ),
         const SizedBox(height: 8),
-        TextFormField(
-          controller: _pinController,
-          obscureText: _obscurePin,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          style: TextStyle(
-            fontSize: isMobile ? 16 : 20,
-            letterSpacing: 4,
-          ),
-          decoration: InputDecoration(
-            hintText: 'Ingresa tu PIN',
-            hintStyle: TextStyle(
-              fontSize: isMobile ? 14 : 16,
-              color: Colors.grey.shade400,
-              letterSpacing: 0.5,
-              fontWeight: FontWeight.w400,
-            ),
-            counterText: '',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 12.0),
-              child: Icon(Icons.lock_outline_rounded,
-                  color: Colors.grey.shade500, size: isTablet ? 28 : 24),
-            ),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: Colors.grey.shade500,
-                size: isTablet ? 28 : 24,
+        // 🔥 Campo PIN con glassmorphism
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: TextFormField(
+              controller: _pinController,
+              obscureText: _obscurePin,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              style: TextStyle(
+                fontSize: isMobile ? 16 : 20,
+                letterSpacing: 4,
+                color: Colors.white,
               ),
-              onPressed: () => setState(() => _obscurePin = !_obscurePin),
+              decoration: InputDecoration(
+                hintText: 'Ingresa tu PIN',
+                hintStyle: TextStyle(
+                  fontSize: isMobile ? 14 : 16,
+                  color: Colors.white.withValues(alpha: 0.4),
+                  letterSpacing: 0.5,
+                  fontWeight: FontWeight.w400,
+                ),
+                counterText: '',
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.06),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.5),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
+                ),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 12.0),
+                  child: Icon(Icons.lock_outline_rounded,
+                      color: Colors.white.withValues(alpha: 0.5), size: isTablet ? 28 : 24),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                    color: Colors.white.withValues(alpha: 0.5),
+                    size: isTablet ? 28 : 24,
+                  ),
+                  onPressed: () => setState(() => _obscurePin = !_obscurePin),
+                ),
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isTablet ? 22 : 18),
+              ),
+              onFieldSubmitted: (_) => _loginWithPin(),
             ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isTablet ? 22 : 18),
           ),
-          onFieldSubmitted: (_) => _loginWithPin(),
         ),
       ],
     );
@@ -585,6 +632,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             borderRadius: BorderRadius.circular(14),
           ),
           elevation: 0,
+          shadowColor: const Color(0xFF10B981).withValues(alpha: 0.3),
         ),
         onPressed: _isLoading || _selectedUserId == null ? null : _loginWithPin,
         child: _isLoading

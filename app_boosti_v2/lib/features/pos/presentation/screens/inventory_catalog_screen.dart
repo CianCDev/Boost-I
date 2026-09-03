@@ -226,7 +226,11 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     if (widget.showAppBar) {
       return Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-        appBar: CatalogAppBar(usuarioLogueado: widget.usuarioLogueado),
+        appBar: CatalogAppBar(
+          usuarioLogueado: widget.usuarioLogueado,
+          onScanPressed: _scanBarcode,
+          searchFocusNode: _searchFocusNode,
+        ),
         body: contenido,
       );
     } else {
@@ -328,20 +332,23 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   Widget _buildCatalogPanel(int crossAxisCount, double childAspectRatio, List<ProductoEntity> productosFiltrados) {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
+    final isDesktop = ResponsiveHelper.isDesktop(context);
     final colorScheme = Theme.of(context).colorScheme;
 
-    // ✅ Usamos `productosFiltrados` de la lista pasada, no volvemos a leer el provider
     final isEmpty = productosFiltrados.isEmpty;
 
     return Padding(
       padding: EdgeInsets.all(isTablet ? 24.0 : 16.0),
       child: Column(
         children: [
-          CatalogSearchBar(
-            focusNode: _searchFocusNode,
-            onScanPressed: _scanBarcode,
-          ),
-          const SizedBox(height: 12),
+          // 🔥 Solo mostrar el searchBar en móvil/tablet (NO en escritorio)
+          if (!isDesktop) ...[
+            CatalogSearchBar(
+              focusNode: _searchFocusNode,
+              onScanPressed: _scanBarcode,
+            ),
+            const SizedBox(height: 12),
+          ],
           const CategoryChips(),
           Expanded(
             child: RefreshIndicator(
