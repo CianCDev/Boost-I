@@ -488,6 +488,7 @@ class SyncService {
           'marca_supabase_id': p.marcaSupabaseId,
           'precio_unidad': _limpiarNumero(p.precioUnidad, 0.0),
           'stock': _limpiarNumero(p.stock, 0.0),
+          'ventas_acumuladas': _limpiarNumero(p.ventasAcumuladas, 0.0),
           'stock_minimo': _limpiarNumero(p.stockMinimo, 5.0),
           'es_pesado': p.esPesado,
           'categoria': p.categoria,
@@ -584,6 +585,9 @@ class SyncService {
           ..marcaSupabaseId = data['marca_supabase_id'] as String?
           ..precioUnidad = (data['precio_unidad'] as num?)?.toDouble() ?? 0.0
           ..stock = (data['stock'] as num?)?.toDouble() ?? 0.0
+          ..ventasAcumuladas = (data['ventas_acumuladas'] as num?)?.toDouble() ??
+              productoLocal?.ventasAcumuladas ??
+              0.0
           ..stockMinimo = (data['stock_minimo'] as num?)?.toDouble() ?? 5.0
           ..esPesado = data['es_pesado'] ?? false
           ..categoria = data['categoria'] ?? ''

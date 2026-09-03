@@ -111,7 +111,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
                               // ✅ Grid inferior (2 columnas en escritorio)
                               if (isMobile) ...[
-                                TopProductsList(productos: estado.topProductos),
+                                const TopProductsList(),
                                 const SizedBox(height: 16),
                                 LowStockList(productos: estado.stockBajo),
                                 const SizedBox(height: 16),
@@ -127,9 +127,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                       flex: isTablet ? 5 : 5,
                                       child: Column(
                                         children: [
-                                          TopProductsList(
-                                            productos: estado.topProductos,
-                                          ),
+                                          const TopProductsList(),
                                           const SizedBox(height: 16),
                                           LowStockList(
                                             productos: estado.stockBajo,

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../data/Local/entities/producto_entity.dart';
+import '../../providers/top_products_provider.dart';
 
 /// Lista de productos más vendidos con ranking.
-class TopProductsList extends StatelessWidget {
-  final List<Map<String, dynamic>> productos;
-
-  const TopProductsList({super.key, required this.productos});
+class TopProductsList extends ConsumerWidget {
+  const TopProductsList({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final productos = ref.watch(topProductosProvider);
     final isMobile = MediaQuery.of(context).size.width < 600;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mostrar = productos.take(isMobile ? 3 : 5).toList();
@@ -76,8 +78,8 @@ class TopProductsList extends StatelessWidget {
     );
   }
 
-  Widget _buildItem(Map<String, dynamic> item, int index, bool isMobile, bool isDark) {
-    final cantidad = (item['cantidad'] as double).toStringAsFixed(0);
+  Widget _buildItem(ProductoEntity item, int index, bool isMobile, bool isDark) {
+    final cantidad = item.ventasAcumuladas.toStringAsFixed(0);
     final colorRanking = index == 0
         ? Colors.amber.shade600
         : index == 1
@@ -126,7 +128,7 @@ class TopProductsList extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              item['nombre'] ?? '',
+              item.nombre,
               style: TextStyle(
                 fontSize: isMobile ? 12 : 14,
                 fontWeight: FontWeight.w500,
