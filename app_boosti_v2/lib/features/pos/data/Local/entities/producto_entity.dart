@@ -14,6 +14,7 @@ class ProductoEntity {
   String nombre = '';
   double precioUnidad = 0.0;
   double stock = 0.0;
+  double ventasAcumuladas = 0.0;
   bool esPesado = false;
 
   // ──────────────── Categoría ────────────────
@@ -68,6 +69,7 @@ class ProductoEntity {
     this.nombre = '',
     this.precioUnidad = 0.0,
     this.stock = 0.0,
+    this.ventasAcumuladas = 0.0,
     this.esPesado = false,
     this.categoria = 'General',
     this.categoriaId,
@@ -104,6 +106,7 @@ class ProductoEntity {
       marcaSupabaseId: json['marca_supabase_id'] as String?,
       precioUnidad: (json['precio_unidad'] as num?)?.toDouble() ?? 0.0,
       stock: (json['stock'] as num?)?.toDouble() ?? 0.0,
+      ventasAcumuladas: (json['ventas_acumuladas'] as num?)?.toDouble() ?? 0.0,
       esPesado: json['es_pesado'] as bool? ?? false,
       categoria: json['categoria'] as String? ?? 'General',
       categoriaId: json['categoria_id'] as int?,
@@ -140,6 +143,7 @@ class ProductoEntity {
       'marca_supabase_id': marcaSupabaseId,
       'precio_unidad': precioUnidad,
       'stock': stock,
+      'ventas_acumuladas': ventasAcumuladas,
       'es_pesado': esPesado,
       'categoria': categoria,
       'categoria_id': categoriaId,

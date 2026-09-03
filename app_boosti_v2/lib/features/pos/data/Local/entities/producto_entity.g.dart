@@ -152,8 +152,13 @@ const ProductoEntitySchema = CollectionSchema(
       name: r'updatedByName',
       type: IsarType.string,
     ),
-    r'version': PropertySchema(
+    r'ventasAcumuladas': PropertySchema(
       id: 27,
+      name: r'ventasAcumuladas',
+      type: IsarType.double,
+    ),
+    r'version': PropertySchema(
+      id: 28,
       name: r'version',
       type: IsarType.long,
     )
@@ -298,7 +303,8 @@ void _productoEntitySerialize(
   writer.writeDateTime(offsets[24], object.updatedAt);
   writer.writeLong(offsets[25], object.updatedBy);
   writer.writeString(offsets[26], object.updatedByName);
-  writer.writeLong(offsets[27], object.version);
+  writer.writeDouble(offsets[27], object.ventasAcumuladas);
+  writer.writeLong(offsets[28], object.version);
 }
 
 ProductoEntity _productoEntityDeserialize(
@@ -336,7 +342,8 @@ ProductoEntity _productoEntityDeserialize(
     updatedAt: reader.readDateTimeOrNull(offsets[24]),
     updatedBy: reader.readLongOrNull(offsets[25]),
     updatedByName: reader.readStringOrNull(offsets[26]),
-    version: reader.readLongOrNull(offsets[27]) ?? 0,
+    ventasAcumuladas: reader.readDoubleOrNull(offsets[27]) ?? 0.0,
+    version: reader.readLongOrNull(offsets[28]) ?? 0,
   );
   return object;
 }
@@ -403,6 +410,8 @@ P _productoEntityDeserializeProp<P>(
     case 26:
       return (reader.readStringOrNull(offset)) as P;
     case 27:
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 28:
       return (reader.readLongOrNull(offset) ?? 0) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -3555,6 +3564,72 @@ extension ProductoEntityQueryFilter
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      ventasAcumuladasEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'ventasAcumuladas',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      ventasAcumuladasGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'ventasAcumuladas',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      ventasAcumuladasLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'ventasAcumuladas',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      ventasAcumuladasBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'ventasAcumuladas',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
       versionEqualTo(int value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
@@ -3984,6 +4059,20 @@ extension ProductoEntityQuerySortBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByVentasAcumuladas() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ventasAcumuladas', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByVentasAcumuladasDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ventasAcumuladas', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> sortByVersion() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'version', Sort.asc);
@@ -4377,6 +4466,20 @@ extension ProductoEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByVentasAcumuladas() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ventasAcumuladas', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByVentasAcumuladasDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ventasAcumuladas', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> thenByVersion() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'version', Sort.asc);
@@ -4587,6 +4690,13 @@ extension ProductoEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByVentasAcumuladas() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'ventasAcumuladas');
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QDistinct> distinctByVersion() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'version');
@@ -4774,6 +4884,13 @@ extension ProductoEntityQueryProperty
       updatedByNameProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'updatedByName');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, double, QQueryOperations>
+      ventasAcumuladasProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'ventasAcumuladas');
     });
   }
 

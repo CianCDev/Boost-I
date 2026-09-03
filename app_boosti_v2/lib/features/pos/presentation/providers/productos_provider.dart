@@ -52,6 +52,7 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
       // Comparar campos que afectan la UI
       if (a[i].id != b[i].id) return false;
       if (a[i].stock != b[i].stock) return false;
+      if (a[i].ventasAcumuladas != b[i].ventasAcumuladas) return false;
       if (a[i].precioUnidad != b[i].precioUnidad) return false;
       if (a[i].nombre != b[i].nombre) return false;
       if (a[i].imagenUrl != b[i].imagenUrl) return false;

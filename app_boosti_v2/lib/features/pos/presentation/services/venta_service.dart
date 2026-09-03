@@ -68,9 +68,11 @@ class VentaService {
 
         final stockTotal = await isar.obtenerStockTotalPorProducto(productoId);
         producto.stock = stockTotal;
+        final cantidadVendida = cartState.items
+            .where((item) => int.tryParse(item.producto.id) == productoId)
+            .fold<double>(0.0, (total, item) => total + item.cantidad);
+        producto.ventasAcumuladas += cantidadVendida;
         await isar.guardarProducto(producto);
-        
-
 
         // Registrar movimiento de inventario (ya se hizo en descontarLote)
       }
