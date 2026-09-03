@@ -10,6 +10,7 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dar
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/pedido_card.dart';
 import '../../widgets/sales/sales_history_filter_bar.dart';
 import '../../utils/responsive_helper.dart';
+import '../../widgets/appbar.dart'; // ✅ Import CustomAppBar
 
 class PedidosProveedorScreen extends ConsumerStatefulWidget {
   const PedidosProveedorScreen({super.key});
@@ -95,12 +96,10 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   List<PedidoEntity> _filtrarPedidos(List<PedidoEntity> todos) {
     var filtrados = todos;
 
-    // Filtro por estado
     if (_estadoFiltro != null) {
       filtrados = filtrados.where((p) => p.estado == _estadoFiltro).toList();
     }
 
-    // Filtro por período
     filtrados = filtrados
         .where((p) => _perteneceAlPeriodo(p.fechaPedido, _periodoSeleccionado))
         .toList();
@@ -113,50 +112,83 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     final localDestinoId = _localDestinoId ?? 1;
     final isMobile = ResponsiveHelper.isMobile(context);
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // 🔥 Usamos pedidosListProvider (sin filtro de estado) para evitar recarga al cambiar filtro
     final pedidosAsync = ref.watch(pedidosListProvider(localDestinoId));
 
     return Scaffold(
-      backgroundColor: colorScheme.surfaceContainerLow,
-      appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          _buildResumenPedidos(pedidosAsync),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: isMobile ? 8.0 : 16.0, vertical: 4.0),
-            child: SalesHistoryFilterBar(
-              selectedPeriod: _periodoSeleccionado,
-              onPeriodChanged: (periodo) => setState(() => _periodoSeleccionado = periodo),
-              isMobile: isMobile,
-              isTablet: ResponsiveHelper.isTablet(context),
-              mesesDropdown: _listaMesesDropdown,
-              mesSeleccionado: _mesSeleccionado,
-              aniosDisponibles: _aniosDisponibles,
-              anioSeleccionado: _anioSeleccionado,
-              onMesChanged: (mes) => setState(() => _mesSeleccionado = mes),
-              onAnioChanged: (anio) => setState(() => _anioSeleccionado = anio),
-            ),
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF0F4F8),
+      appBar: CustomAppBar(
+        title: 'Pedidos a Proveedores',
+        showBackButton: true,
+        centerTitle: false,
+        actions: [
+          PopupMenuButton<int>(
+            icon: const Icon(Icons.storefront_rounded, color: Colors.white),
+            onSelected: (value) => setState(() => _localDestinoId = value),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 1, child: Text('Local Principal')),
+              PopupMenuItem(value: 2, child: Text('Local Secundario')),
+            ],
           ),
-          _buildFiltroEstado(),
-          Expanded(
-            child: pedidosAsync.when(
-              data: (todos) {
-                final pedidosFiltrados = _filtrarPedidos(todos);
-                return _buildContent(pedidosFiltrados);
-              },
-              loading: () => _buildLoadingState(),
-              error: (err, stack) => _buildErrorState(err),
-            ),
+          IconButton(
+            onPressed: () {
+              ref.invalidate(pedidosListProvider(_localDestinoId ?? 1));
+              setState(() {});
+              _animationController.forward(from: 0.0);
+            },
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
           ),
         ],
+      ),
+      body: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 800),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            children: [
+              _buildResumenPedidos(pedidosAsync, isDark),
+              const SizedBox(height: 12),
+              Padding(
+                padding: EdgeInsets.zero,
+                child: SalesHistoryFilterBar(
+                  selectedPeriod: _periodoSeleccionado,
+                  onPeriodChanged: (periodo) => setState(() => _periodoSeleccionado = periodo),
+                  isMobile: isMobile,
+                  isTablet: ResponsiveHelper.isTablet(context),
+                  mesesDropdown: _listaMesesDropdown,
+                  mesSeleccionado: _mesSeleccionado,
+                  aniosDisponibles: _aniosDisponibles,
+                  anioSeleccionado: _anioSeleccionado,
+                  onMesChanged: (mes) => setState(() => _mesSeleccionado = mes),
+                  onAnioChanged: (anio) => setState(() => _anioSeleccionado = anio),
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildFiltroEstado(colorScheme, isDark, isMobile),
+              const SizedBox(height: 8),
+              Expanded(
+                child: pedidosAsync.when(
+                  data: (todos) {
+                    final pedidosFiltrados = _filtrarPedidos(todos);
+                    return _buildContent(pedidosFiltrados);
+                  },
+                  loading: () => _buildLoadingState(),
+                  error: (err, stack) => _buildErrorState(err, colorScheme),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
       floatingActionButton: _buildFloatingButton(),
     );
   }
 
   // ==========================================
-  // CONTENIDO CON ANIMACIÓN DE ENTRADA
+  // CONTENIDO CON ANIMACIÓN
   // ==========================================
   Widget _buildContent(List<PedidoEntity> pedidos) {
     return FadeTransition(
@@ -188,45 +220,10 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: const Text('Pedidos a Proveedores', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-      flexibleSpace: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
-          ),
-        ),
-      ),
-      backgroundColor: Colors.transparent,
-      elevation: 2,
-      foregroundColor: Colors.white,
-      actions: [
-        PopupMenuButton<int>(
-          icon: const Icon(Icons.storefront_rounded, color: Colors.white),
-          onSelected: (value) => setState(() => _localDestinoId = value),
-          itemBuilder: (context) => const [
-            PopupMenuItem(value: 1, child: Text('Local Principal')),
-            PopupMenuItem(value: 2, child: Text('Local Secundario')),
-          ],
-        ),
-        IconButton(
-          onPressed: () {
-            // Recargar forzado: invalidar provider y reiniciar animación
-            ref.invalidate(pedidosListProvider(_localDestinoId ?? 1));
-            setState(() {});
-            _animationController.forward(from: 0.0);
-          },
-          icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildResumenPedidos(AsyncValue<List<PedidoEntity>> pedidosAsync) {
-    final colorScheme = Theme.of(context).colorScheme;
+  // ==========================================
+  // RESUMEN DE CONTADORES (RESPONSIVE)
+  // ==========================================
+  Widget _buildResumenPedidos(AsyncValue<List<PedidoEntity>> pedidosAsync, bool isDark) {
     return pedidosAsync.when(
       data: (todos) {
         final pedidos = _filtrarPedidos(todos);
@@ -236,26 +233,24 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
         final cancelados = pedidos.where((p) => p.estado == EstadoPedido.cancelado).length;
 
         return Container(
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: colorScheme.surface,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.5),
+              width: 1.5,
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildContadorItem('Total', total, Colors.blue.shade600),
-              _buildContadorItem('Pendientes', pendientes, Colors.orange.shade600),
-              _buildContadorItem('Recibidos', recibidos, Colors.green.shade600),
-              _buildContadorItem('Cancelados', cancelados, Colors.red.shade600),
+              _buildContadorItem('Total', total, const Color(0xFF8B5CF6), isDark),
+              _buildContadorItem('Pendientes', pendientes, Colors.orange.shade600, isDark),
+              _buildContadorItem('Recibidos', recibidos, Colors.green.shade600, isDark),
+              _buildContadorItem('Cancelados', cancelados, Colors.red.shade600, isDark),
             ],
           ),
         );
@@ -265,33 +260,37 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  Widget _buildContadorItem(String label, int count, Color color) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Text(
-          count.toString(),
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: colorScheme.onSurfaceVariant,
+  Widget _buildContadorItem(String label, int count, Color color, bool isDark) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            count.toString(),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
-        ),
-      ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 
   // ==========================================
-  // FILTRO POR ESTADO (CON HOVER Y ANIMACIÓN)
+  // FILTRO POR ESTADO (COMPACTO)
   // ==========================================
-  Widget _buildFiltroEstado() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isMobile = ResponsiveHelper.isMobile(context);
-
+  Widget _buildFiltroEstado(ColorScheme colorScheme, bool isDark, bool isMobile) {
     final List<Map<String, dynamic>> opciones = [
       {'valor': null, 'etiqueta': 'Todos', 'icono': Icons.list_rounded},
       {'valor': EstadoPedido.pendiente, 'etiqueta': 'Pendientes', 'icono': Icons.hourglass_top_rounded},
@@ -299,65 +298,64 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
       {'valor': EstadoPedido.cancelado, 'etiqueta': 'Cancelados', 'icono': Icons.cancel_rounded},
     ];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.white.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.5),
+          width: 1.5,
         ),
-        padding: const EdgeInsets.all(4),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: opciones.map((opcion) {
-              final bool esSeleccionado = _estadoFiltro == opcion['valor'];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                child: _EstadoChip(
-                  key: ValueKey(opcion['etiqueta']),
-                  selected: esSeleccionado,
-                  icon: opcion['icono'],
-                  label: opcion['etiqueta'],
-                  onTap: () {
-                    setState(() {
-                      _estadoFiltro = opcion['valor'];
-                    });
-                    // Reiniciamos la animación al cambiar de filtro
-                    _animationController.forward(from: 0.0);
-                  },
-                  isMobile: isMobile,
-                  colorScheme: colorScheme,
-                ),
-              );
-            }).toList(),
-          ),
+      ),
+      padding: const EdgeInsets.all(6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: opciones.map((opcion) {
+            final bool esSeleccionado = _estadoFiltro == opcion['valor'];
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2.0),
+              child: _EstadoChip(
+                key: ValueKey(opcion['etiqueta']),
+                selected: esSeleccionado,
+                icon: opcion['icono'],
+                label: opcion['etiqueta'],
+                onTap: () {
+                  setState(() {
+                    _estadoFiltro = opcion['valor'];
+                  });
+                  _animationController.forward(from: 0.0);
+                },
+                isMobile: isMobile,
+                colorScheme: colorScheme,
+                isDark: isDark,
+              ),
+            );
+          }).toList(),
         ),
       ),
     );
   }
 
   // ==========================================
-  // LISTA DE PEDIDOS CON ANIMACIÓN ESCALONADA
+  // LISTA DE PEDIDOS
   // ==========================================
   Widget _buildListaPedidos(List<PedidoEntity> pedidos) {
-    if (pedidos.isEmpty) {
-      return _buildEmptyState();
-    }
+    if (pedidos.isEmpty) return _buildEmptyState();
 
     return RefreshIndicator(
       onRefresh: () async {
-        // Recargar datos desde la nube/local
         ref.invalidate(pedidosListProvider(_localDestinoId ?? 1));
-        // Esperar a que se recargue
         await Future.delayed(const Duration(milliseconds: 300));
         setState(() {});
         _animationController.forward(from: 0.0);
       },
       child: AnimationLimiter(
         child: ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: pedidos.length,
           itemBuilder: (context, index) {
             final pedido = pedidos[index];
@@ -392,37 +390,44 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   }
 
   // ==========================================
-  // ESTADO VACÍO
+  // ESTADOS VACÍO, CARGA Y ERROR
   // ==========================================
   Widget _buildEmptyState() {
-    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 120,
-            height: 120,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               color: const Color(0xFF8B5CF6).withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.inbox_rounded, size: 60, color: Color(0xFF8B5CF6)),
+            child: const Icon(Icons.inbox_rounded, size: 40, color: Color(0xFF8B5CF6)),
           ),
           const SizedBox(height: 16),
           Text(
             'No hay pedidos',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             _estadoFiltro == null
-                ? 'Comienza creando tu primer pedido\npresionando el botón +'
+                ? 'Comienza creando tu primer pedido'
                 : 'No hay pedidos en este estado',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? Colors.white54 : Colors.black54,
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           if (_estadoFiltro != null)
             ElevatedButton.icon(
               onPressed: () => setState(() => _estadoFiltro = null),
@@ -431,7 +436,6 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF8B5CF6),
                 foregroundColor: Colors.white,
-                elevation: 2,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
@@ -453,17 +457,16 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  Widget _buildErrorState(Object error) {
-    final colorScheme = Theme.of(context).colorScheme;
+  Widget _buildErrorState(Object error, ColorScheme colorScheme) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.error_outline_rounded, size: 60, color: colorScheme.error),
           const SizedBox(height: 16),
-          Text('Error al cargar los pedidos', style: TextStyle(fontSize: 16, color: colorScheme.onSurface)),
+          Text('Error al cargar los pedidos', style: TextStyle(color: colorScheme.onSurface)),
           const SizedBox(height: 8),
-          Text(error.toString(), style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+          Text(error.toString(), style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12), textAlign: TextAlign.center),
         ],
       ),
     );
@@ -480,7 +483,6 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
           builder: (_) => const CrearPedidoDialog(),
         );
         if (result == true) {
-          // Recargar datos después de crear un pedido
           ref.invalidate(pedidosListProvider(_localDestinoId ?? 1));
           setState(() {});
           _animationController.forward(from: 0.0);
@@ -489,13 +491,14 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
       backgroundColor: const Color(0xFF8B5CF6),
       foregroundColor: Colors.white,
       elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: const Icon(Icons.add_rounded, size: 32),
     );
   }
 }
 
 // ==========================================
-// CHIP DE ESTADO (CON HOVER Y ANIMACIÓN)
+// CHIP DE ESTADO (RESPONSIVE Y COMPACTO)
 // ==========================================
 class _EstadoChip extends StatefulWidget {
   final bool selected;
@@ -504,6 +507,7 @@ class _EstadoChip extends StatefulWidget {
   final VoidCallback onTap;
   final bool isMobile;
   final ColorScheme colorScheme;
+  final bool isDark;
 
   const _EstadoChip({
     super.key,
@@ -513,6 +517,7 @@ class _EstadoChip extends StatefulWidget {
     required this.onTap,
     required this.isMobile,
     required this.colorScheme,
+    required this.isDark,
   });
 
   @override
@@ -524,13 +529,11 @@ class _EstadoChipState extends State<_EstadoChip> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = widget.colorScheme;
-    final isMobile = widget.isMobile;
-
-    final double fontSize = isMobile ? 12 : 14;
-    final double iconSize = isMobile ? 16 : 18;
-    final double verticalPadding = isMobile ? 6 : 8;
-    final double horizontalPadding = isMobile ? 10 : 16;
+    final bool isMobile = widget.isMobile;
+    final double iconSize = isMobile ? 14 : 18;
+    final double fontSize = isMobile ? 10 : 14;
+    final double paddingHoriz = isMobile ? 6 : 16;
+    final double paddingVert = isMobile ? 4 : 8;
     final double borderRadius = isMobile ? 8 : 12;
 
     return MouseRegion(
@@ -541,10 +544,7 @@ class _EstadoChipState extends State<_EstadoChip> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(
-            vertical: verticalPadding,
-            horizontal: horizontalPadding,
-          ),
+          padding: EdgeInsets.symmetric(vertical: paddingVert, horizontal: paddingHoriz),
           decoration: BoxDecoration(
             color: widget.selected ? const Color(0xFF8B5CF6) : Colors.transparent,
             borderRadius: BorderRadius.circular(borderRadius),
@@ -553,7 +553,7 @@ class _EstadoChipState extends State<_EstadoChip> {
                   ? const Color(0xFF8B5CF6)
                   : (isHovering
                       ? const Color(0xFF8B5CF6).withValues(alpha: 0.5)
-                      : colorScheme.outline.withValues(alpha: 0.3)),
+                      : (widget.isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE5E7EB))),
               width: widget.selected ? 1.5 : 1.0,
             ),
             boxShadow: widget.selected
@@ -572,15 +572,15 @@ class _EstadoChipState extends State<_EstadoChip> {
               Icon(
                 widget.icon,
                 size: iconSize,
-                color: widget.selected ? Colors.white : colorScheme.onSurfaceVariant,
+                color: widget.selected ? Colors.white : (widget.isDark ? Colors.white70 : Colors.black54),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               Text(
-                widget.label,
+                isMobile ? widget.label.substring(0, 1) : widget.label,
                 style: TextStyle(
                   fontSize: fontSize,
                   fontWeight: widget.selected ? FontWeight.bold : FontWeight.w500,
-                  color: widget.selected ? Colors.white : colorScheme.onSurfaceVariant,
+                  color: widget.selected ? Colors.white : (widget.isDark ? Colors.white70 : Colors.black54),
                 ),
               ),
             ],

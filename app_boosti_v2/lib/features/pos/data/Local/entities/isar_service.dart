@@ -227,6 +227,8 @@ class IsarService {
 }
 
 
+
+
   // ==================== USUARIOS ====================
 
   /// Obtiene un usuario por su ID de Supabase.
@@ -932,6 +934,17 @@ class IsarService {
     });
   }
 
+  /// Consulta las ventas recientes desde una fecha determinada.
+  Future<Query<MovimientoInventarioEntity>>
+      queryMovimientosVentaRecientes(DateTime desde) async {
+    final isar = await db;
+    return isar.movimientoInventarioEntitys
+        .filter()
+        .tipoMovimientoEqualTo('Venta')
+        .fechaGreaterThan(desde)
+        .build();
+  }
+
   /// Obtiene movimientos pendientes de sincronización.
   Future<List<MovimientoInventarioEntity>>
       obtenerMovimientosPendientesSync() async {
@@ -1087,6 +1100,19 @@ class IsarService {
       final pedido = await isar.pedidoEntitys.get(id);
       if (pedido != null) {
         pedido.estado = nuevoEstado;
+        await isar.pedidoEntitys.put(pedido);
+      }
+    });
+  }
+
+  /// Cancela un pedido y lo deja pendiente de sincronización.
+  Future<void> cancelarPedido(int id) async {
+    await actualizarEstadoPedido(id, EstadoPedido.cancelado);
+    final isar = await db;
+    await isar.writeTxn(() async {
+      final pedido = await isar.pedidoEntitys.get(id);
+      if (pedido != null) {
+        pedido.sincronizado = false;
         await isar.pedidoEntitys.put(pedido);
       }
     });
@@ -1337,6 +1363,20 @@ class IsarService {
     return await isar.localEntitys.filter().activoEqualTo(true).findFirst();
   }
 
+  /// Cuenta productos asociados al departamento mediante su categoría.
+  /// ProductoEntity aún no tiene una relación departamentoId.
+  Future<int> contarProductosPorDepartamento(int departamentoId) async {
+    final isar = await db;
+    final departamento = await isar.departamentoEntitys.get(departamentoId);
+    if (departamento == null) return 0;
+
+    final nombreDepartamento = departamento.nombre.trim().toLowerCase();
+    final productos = await isar.productoEntitys.where().findAll();
+    return productos
+        .where((producto) => producto.categoria.trim().toLowerCase() == nombreDepartamento)
+        .length;
+  }
+
   /// Elimina un local solo si no tiene pedidos asociados.
   Future<bool> eliminarLocal(int id) async {
     final isar = await db;
@@ -1425,7 +1465,7 @@ class IsarService {
 
   /// Lista departamentos, opcionalmente por local y solo activos.
   Future<List<DepartamentoEntity>> obtenerDepartamentos({
-    bool soloActivos = true,
+    bool? soloActivos = true,
     int? localId,
   }) async {
     final isar = await db;
@@ -1438,7 +1478,7 @@ class IsarService {
     } else {
       departamentos = await isar.departamentoEntitys.where().findAll();
     }
-    if (soloActivos) {
+    if (soloActivos == true) {
       departamentos = departamentos.where((d) => d.activo).toList();
     }
     return departamentos;

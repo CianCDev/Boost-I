@@ -1,11 +1,11 @@
 // lib/features/pos/presentation/widgets/lotes/editar_lote_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+
 import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/shared/barcode_scanner_dialog.dart';
-import 'package:app_boosti_v2/features/pos/presentation/utils/input_decoration_helper.dart';
+
 
 class EditarLoteDialog extends ConsumerStatefulWidget {
   final LoteEntity lote;
@@ -164,7 +164,7 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    Theme.of(context).brightness == Brightness.dark;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),

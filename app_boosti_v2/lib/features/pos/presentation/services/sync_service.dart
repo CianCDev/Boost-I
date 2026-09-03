@@ -7,7 +7,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:uuid/uuid.dart';
-import 'package:collection/collection.dart';
 
 // Entidades locales
 import '../../data/Local/entities/categoria_entity.dart';
@@ -25,8 +24,6 @@ import '../../data/Local/entities/pedido_entity.dart';
 import '../../data/Local/entities/detalle_pedido_entity.dart';
 import '../../data/Local/entities/local_entity.dart';
 import '../../data/Local/entities/departamento_entity.dart';
-import '../../data/Local/entities/codigo_barra_alia_entity.dart';
-import '../../data/Local/entities/lote_entity.dart';
 import '../../data/Local/entities/telegram_config_entity.dart';
 import '../../data/Local/entities/marca_entity.dart';
 import '../../data/Local/entities/movimiento_lote_entity.dart';
@@ -47,7 +44,7 @@ class SyncService {
   // ============================================================
   // SUSCRIPCIONES REALTIME Y CALLBACK
   // ============================================================
-  List<RealtimeChannel> _channels = [];
+  final List<RealtimeChannel> _channels = [];
   final VoidCallback? onDataChanged;
 
   SyncService({this.onDataChanged});

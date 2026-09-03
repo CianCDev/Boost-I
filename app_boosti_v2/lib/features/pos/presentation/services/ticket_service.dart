@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:io';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
@@ -285,7 +287,7 @@ class TicketService {
               pw.Text('\$${item.total.toStringAsFixed(2)}'),
             ],
           );
-        }).toList(),
+        }),
         pw.Divider(),
         pw.SizedBox(height: 8),
         pw.Row(
@@ -396,7 +398,7 @@ class TicketService {
               pw.Text('\$${entry.value.toStringAsFixed(2)}'),
             ],
           );
-        }).toList(),
+        }),
         pw.Divider(),
         pw.SizedBox(height: 8),
         pw.Row(

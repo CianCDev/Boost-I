@@ -60,9 +60,12 @@ dependencies:
   collection: ^1.19.1
   flutter_keyboard_visibility: ^6.0.0
 
+  provider: ^6.1.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_lints: ^5.0.0
   analyzer: ^5.13.0
   build_runner: ^2.4.13
   isar_generator: ^3.1.0+1

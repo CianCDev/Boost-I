@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,7 +9,7 @@ import '../../data/Local/entities/log_entity.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../providers/usuario_provider.dart';
-import '../providers/themes/app_colors.dart';
+
 
 class PersonnelManagementDialog extends ConsumerStatefulWidget {
   const PersonnelManagementDialog({super.key});
@@ -629,6 +631,7 @@ class _PersonnelManagementDialogState
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
+    // ignore: unused_local_variable
     final isTablet = ResponsiveHelper.isTablet(context);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;

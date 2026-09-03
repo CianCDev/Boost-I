@@ -426,6 +426,8 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
       debugPrint('📊 Métodos: ${resumen.totalesPorMetodo}');
 
       await TicketService.imprimirTicketVenta(
+        // ignore: use_build_context_synchronously
+        // ignore: use_build_context_synchronously
         context: context,
         local: local,
         items: [],

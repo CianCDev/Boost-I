@@ -1,14 +1,12 @@
 // lib/features/pos/presentation/screens/telegram/telegram_config_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:app_boosti_v2/features/pos/presentation/providers/telegram_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/telegram_config_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/input_decoration_helper.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/telegram/telegram_service.dart';
-import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/isar_provider.dart';
 
 class TelegramConfigScreen extends ConsumerStatefulWidget {
@@ -189,7 +187,6 @@ class _TelegramConfigScreenState extends ConsumerState<TelegramConfigScreen> {
           '💾 Configuración guardada en Isar con ${config.comandosPermitidos.length} comandos: ${config.comandosPermitidos}');
 
       // 2. Subir a Supabase
-      final syncService = SyncService();
       debugPrint('⬆️ Configuración subida a Supabase');
 
       // 3. Reiniciar el bot con la nueva configuración

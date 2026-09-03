@@ -130,7 +130,7 @@ class ClosingPaymentCard extends ConsumerWidget {
                     ),
                   ),
                 );
-              }).toList(),
+              }),
               const SizedBox(height: 12),
               // Total general (suma de todos los métodos)
               Container(

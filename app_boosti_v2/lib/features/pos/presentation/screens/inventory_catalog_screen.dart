@@ -1,3 +1,4 @@
+// lib/features/pos/presentation/screens/inventory_catalog_screen.dart
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:async';
@@ -7,11 +8,15 @@ import 'package:app_boosti_v2/features/pos/presentation/widgets/catalog/catalog_
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:provider/provider.dart' as provider;
+
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../controllers/cart_controller.dart';
 import '../providers/catalog_provider.dart';
 import '../providers/bcv_provider.dart';
+import '../providers/panel/panel_provider.dart';
+import '../controllers/panel_controller.dart';
 import '../widgets/catalog/category_chips.dart';
 import '../widgets/catalog/fixed_cart_summary.dart';
 import '../widgets/catalog/product_card.dart';
@@ -196,10 +201,24 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   }
 
   // ============================================================
-  // BUILD OPTIMIZADO
+  // BUILD PRINCIPAL CON MultiProvider
   // ============================================================
   @override
   Widget build(BuildContext context) {
+    // Envolvemos con los providers del panel lateral
+    return provider.MultiProvider(
+      providers: [
+        provider.ChangeNotifierProvider(create: (_) => PanelProvider()),
+        provider.Provider(create: (_) => PanelController()),
+      ],
+      child: _buildScaffold(context),
+    );
+  }
+
+  // ============================================================
+  // SCAFFOLD
+  // ============================================================
+  Widget _buildScaffold(BuildContext context) {
     final contenido = RepaintBoundary(
       child: _buildBody(context),
     );

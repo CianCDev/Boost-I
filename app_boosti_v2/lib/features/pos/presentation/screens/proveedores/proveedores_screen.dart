@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
@@ -11,6 +12,8 @@ import 'package:app_boosti_v2/features/pos/presentation/widgets/proveedores/crea
 import 'package:app_boosti_v2/features/pos/presentation/widgets/proveedores/detalle_proveedor_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/proveedor_card.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
+import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
 
 class ProveedoresScreen extends ConsumerStatefulWidget {
   const ProveedoresScreen({super.key});
@@ -143,21 +146,20 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     }
   }
 
-  // ==================== ELIMINACIÓN PROFESIONAL (SIN BORRAR PRODUCTOS) ====================
+  // ==================== ELIMINACIÓN PROFESIONAL ====================
   Future<void> _eliminarProveedor(ProveedorEntity proveedor) async {
     final isar = ref.read(isarServiceProvider);
     final productosAsociados = await isar.obtenerProductosPorProveedor(proveedor.id);
 
-    // Si no tiene productos, eliminación simple con confirmación
     if (productosAsociados.isEmpty) {
       await _confirmarYEliminar(proveedor);
       return;
     }
 
-    // Si tiene productos, mostramos diálogo con opciones
     final action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Eliminar Proveedor con Productos'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -207,19 +209,17 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     if (action == 'cancel') return;
 
     if (action == 'unlink') {
-      // Desvincular productos (proveedorId = null) y eliminar proveedor
       await _desvincularYEliminar(proveedor, productosAsociados);
     } else if (action == 'reassign') {
-      // Reasignar productos a otro proveedor y luego eliminar
       await _reasignarYEliminar(proveedor, productosAsociados);
     }
   }
 
-  // Confirmación simple para proveedores sin productos
   Future<void> _confirmarYEliminar(ProveedorEntity proveedor) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Eliminar Proveedor'),
         content: Text('¿Estás seguro de eliminar a "${proveedor.nombre}"? Esta acción no se puede deshacer.'),
         actions: [
@@ -241,19 +241,16 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     }
   }
 
-  // Desvincular productos (proveedorId = null) y eliminar proveedor
   Future<void> _desvincularYEliminar(ProveedorEntity proveedor, List<ProductoEntity> productos) async {
     final isar = ref.read(isarServiceProvider);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     try {
-      // 1. Desvincular productos (proveedorId = null)
       for (var producto in productos) {
         producto.proveedorId = null;
         await isar.guardarProducto(producto);
       }
 
-      // 2. Eliminar proveedor
       final exito = await isar.eliminarProveedor(proveedor.id);
       if (exito) {
         if (proveedor.supabaseId != null && proveedor.supabaseId!.isNotEmpty) {
@@ -291,12 +288,10 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     }
   }
 
-  // Reasignar productos a otro proveedor y luego eliminar
   Future<void> _reasignarYEliminar(ProveedorEntity proveedor, List<ProductoEntity> productos) async {
     final isar = ref.read(isarServiceProvider);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-    // Obtener otros proveedores activos (excluyendo el actual)
     final otrosProveedores = await isar.obtenerProveedores(soloActivos: true);
     otrosProveedores.removeWhere((p) => p.id == proveedor.id);
 
@@ -312,10 +307,10 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
       return;
     }
 
-    // Mostrar selector de proveedor destino
     final proveedorDestino = await showDialog<ProveedorEntity>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Seleccionar proveedor destino'),
         content: SizedBox(
           width: double.maxFinite,
@@ -344,14 +339,12 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
 
     if (proveedorDestino == null) return;
 
-    // Reasignar productos
     try {
       for (var producto in productos) {
         producto.proveedorId = proveedorDestino.id;
         await isar.guardarProducto(producto);
       }
 
-      // Eliminar proveedor original
       final exito = await isar.eliminarProveedor(proveedor.id);
       if (exito) {
         if (proveedor.supabaseId != null && proveedor.supabaseId!.isNotEmpty) {
@@ -389,7 +382,6 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     }
   }
 
-  // Ejecutar eliminación simple (sin productos asociados)
   Future<void> _ejecutarEliminacion(ProveedorEntity proveedor) async {
     final isar = ref.read(isarServiceProvider);
     final syncService = SyncService();
@@ -436,196 +428,268 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
   // ==================== BUILD Y UI ====================
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final colorScheme = Theme.of(context).colorScheme;
+
     final proveedoresAsync = ref.watch(proveedoresConFiltroProvider((
       query: _queryBusqueda,
       mostrarInactivos: _mostrarInactivos,
       productoId: _productoFiltroId,
     )));
-    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: colorScheme.surfaceContainerLow,
-      appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          _buildSearchBar(),
-          _buildFiltros(colorScheme),
-          Expanded(
-            child: proveedoresAsync.when(
-              data: (proveedores) => _buildListaProveedores(proveedores),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, stack) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline_rounded, size: 60, color: colorScheme.error),
-                    const SizedBox(height: 16),
-                    Text('Error al cargar proveedores', style: TextStyle(color: colorScheme.onSurface)),
-                    const SizedBox(height: 8),
-                    Text(err.toString(), style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => ref.invalidate(proveedoresConFiltroProvider((
-                        query: _queryBusqueda,
-                        mostrarInactivos: _mostrarInactivos,
-                        productoId: _productoFiltroId,
-                      ))),
-                      child: const Text('Reintentar'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF0F4F8),
+      appBar: CustomAppBar(
+        title: isMobile ? 'Proveedores' : 'Gestión de Proveedores',
+        showBackButton: true,
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: _isSyncing
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.sync_rounded, color: Colors.white),
+            onPressed: _isSyncing ? null : _sincronizarProveedoresForzada,
+            tooltip: 'Sincronizar',
+          ),
+          IconButton(
+            onPressed: () {
+              ref.invalidate(proveedoresConFiltroProvider((
+                query: _queryBusqueda,
+                mostrarInactivos: _mostrarInactivos,
+                productoId: _productoFiltroId,
+              )));
+              _cargarProductos();
+            },
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            tooltip: 'Recargar lista',
           ),
         ],
+      ),
+      body: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 800),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            children: [
+              _buildSearchBar(colorScheme, isDark),
+              const SizedBox(height: 12),
+              _buildFiltros(colorScheme, isDark),
+              const SizedBox(height: 8),
+              Expanded(
+                child: proveedoresAsync.when(
+                  data: (proveedores) => _buildListaProveedores(proveedores, colorScheme, isDark),
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (err, stack) => _buildErrorState(err, colorScheme),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
       floatingActionButton: _buildFloatingButton(),
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: const Text('Proveedores', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-      flexibleSpace: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
-          ),
-        ),
-      ),
-      backgroundColor: Colors.transparent,
-      elevation: 2,
-      foregroundColor: Colors.white,
-      actions: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            IconButton(
-              icon: _isSyncing
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.sync_rounded, color: Colors.white),
-              onPressed: _isSyncing ? null : _sincronizarProveedoresForzada,
-              tooltip: 'Sincronización forzada (sube todos los proveedores)',
-            ),
-          ],
-        ),
-        IconButton(
-          onPressed: () {
-            ref.invalidate(proveedoresConFiltroProvider((
-              query: _queryBusqueda,
-              mostrarInactivos: _mostrarInactivos,
-              productoId: _productoFiltroId,
-            )));
-            _cargarProductos();
-          },
-          icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-          tooltip: 'Recargar lista',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSearchBar() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: 'Buscar por nombre o empresa...',
-          prefixIcon: Icon(Icons.search_rounded, color: colorScheme.onSurfaceVariant),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: colorScheme.surface,
-          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-        ),
-        onChanged: (value) {
-          if (_debounce?.isActive ?? false) _debounce!.cancel();
-          _debounce = Timer(const Duration(milliseconds: 400), () {
-            setState(() => _queryBusqueda = value);
-          });
-        },
-      ),
-    );
-  }
-
-  Widget _buildFiltros(ColorScheme colorScheme) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'activos', label: Text('Activos'), icon: Icon(Icons.check_circle_rounded)),
-              ButtonSegment(value: 'inactivos', label: Text('Inactivos'), icon: Icon(Icons.cancel_rounded)),
-            ],
-            selected: {_mostrarInactivos ? 'inactivos' : 'activos'},
-            onSelectionChanged: (Set<String> newSelection) {
-              setState(() => _mostrarInactivos = newSelection.first == 'inactivos');
-              ref.invalidate(proveedoresConFiltroProvider((
-                query: _queryBusqueda,
-                mostrarInactivos: _mostrarInactivos,
-                productoId: _productoFiltroId,
-              )));
-            },
-            style: SegmentedButton.styleFrom(
-              selectedForegroundColor: Colors.white,
-              selectedBackgroundColor: const Color(0xFF8B5CF6),
-              foregroundColor: colorScheme.onSurfaceVariant,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  // ============================================================
+  // SEARCH BAR CON GLASSMORPHISM
+  // ============================================================
+  Widget _buildSearchBar(ColorScheme colorScheme, bool isDark) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : Colors.white.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.white.withValues(alpha: 0.5),
+              width: 1.5,
             ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: DropdownButtonFormField<int?>(
-            initialValue: _productoFiltroId,
-            hint: Text('Filtrar por producto', style: TextStyle(color: colorScheme.onSurfaceVariant)),
-            isExpanded: true,
+          child: TextField(
             decoration: InputDecoration(
-              prefixIcon: Icon(Icons.inventory_2_rounded, size: 20, color: colorScheme.onSurfaceVariant),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+              hintText: 'Buscar por nombre o empresa...',
+              hintStyle: TextStyle(
+                color: isDark ? Colors.white54 : Colors.black54,
               ),
-              filled: true,
-              fillColor: colorScheme.surface,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: isDark ? Colors.white54 : Colors.black54,
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
             ),
-            items: [
-              DropdownMenuItem<int?>(value: null, child: Text('Todos los productos', style: TextStyle(color: colorScheme.onSurface))),
-              ..._productos.map((p) => DropdownMenuItem<int?>(value: p.id, child: Text(p.nombre, style: TextStyle(color: colorScheme.onSurface)))),
-            ],
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black87,
+            ),
             onChanged: (value) {
-              setState(() => _productoFiltroId = value);
-              ref.invalidate(proveedoresConFiltroProvider((
-                query: _queryBusqueda,
-                mostrarInactivos: _mostrarInactivos,
-                productoId: _productoFiltroId,
-              )));
+              if (_debounce?.isActive ?? false) _debounce!.cancel();
+              _debounce = Timer(const Duration(milliseconds: 400), () {
+                setState(() => _queryBusqueda = value);
+              });
             },
-            icon: Icon(Icons.arrow_drop_down, color: colorScheme.onSurfaceVariant),
           ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildListaProveedores(List<ProveedorEntity> proveedores) {
-    if (proveedores.isEmpty) return _buildEmptyState();
+  // ============================================================
+  // FILTROS CON GLASSMORPHISM
+  // ============================================================
+  Widget _buildFiltros(ColorScheme colorScheme, bool isDark) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.white.withValues(alpha: 0.5),
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            children: [
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'activos',
+                    label: Text('Activos'),
+                    icon: Icon(Icons.check_circle_rounded, size: 18),
+                  ),
+                  ButtonSegment(
+                    value: 'inactivos',
+                    label: Text('Inactivos'),
+                    icon: Icon(Icons.cancel_rounded, size: 18),
+                  ),
+                ],
+                selected: {_mostrarInactivos ? 'inactivos' : 'activos'},
+                onSelectionChanged: (Set<String> newSelection) {
+                  setState(() => _mostrarInactivos = newSelection.first == 'inactivos');
+                  ref.invalidate(proveedoresConFiltroProvider((
+                    query: _queryBusqueda,
+                    mostrarInactivos: _mostrarInactivos,
+                    productoId: _productoFiltroId,
+                  )));
+                },
+                style: SegmentedButton.styleFrom(
+                  selectedForegroundColor: Colors.white,
+                  selectedBackgroundColor: const Color(0xFF8B5CF6),
+                  foregroundColor: isDark ? Colors.white70 : Colors.black54,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  side: BorderSide.none,
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int?>(
+                initialValue: _productoFiltroId,
+                hint: Text(
+                  'Filtrar por producto',
+                  style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
+                ),
+                isExpanded: true,
+                decoration: InputDecoration(
+                  prefixIcon: Icon(
+                    Icons.inventory_2_rounded,
+                    size: 20,
+                    color: isDark ? Colors.white54 : Colors.black54,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.black.withValues(alpha: 0.05),
+                      width: 1,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.black.withValues(alpha: 0.05),
+                      width: 1,
+                    ),
+                  ),
+                  filled: true,
+                  fillColor: isDark
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.black.withValues(alpha: 0.02),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                items: [
+                  DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text(
+                      'Todos los productos',
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                    ),
+                  ),
+                  ..._productos.map((p) => DropdownMenuItem<int?>(
+                    value: p.id,
+                    child: Text(
+                      p.nombre,
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  )),
+                ],
+                onChanged: (value) {
+                  setState(() => _productoFiltroId = value);
+                  ref.invalidate(proveedoresConFiltroProvider((
+                    query: _queryBusqueda,
+                    mostrarInactivos: _mostrarInactivos,
+                    productoId: _productoFiltroId,
+                  )));
+                },
+                icon: Icon(
+                  Icons.arrow_drop_down,
+                  color: isDark ? Colors.white54 : Colors.black54,
+                ),
+                dropdownColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // LISTA CON CARDS GLASSMORPHISM
+  // ============================================================
+  Widget _buildListaProveedores(List<ProveedorEntity> proveedores, ColorScheme colorScheme, bool isDark) {
+    if (proveedores.isEmpty) return _buildEmptyState(colorScheme, isDark);
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -638,7 +702,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
       },
       child: AnimationLimiter(
         child: ListView.builder(
-          padding: const EdgeInsets.only(left: 12, right: 12, top: 8, bottom: 88),
+          padding: const EdgeInsets.only(bottom: 16),
           itemCount: proveedores.length,
           itemBuilder: (context, index) {
             final proveedor = proveedores[index];
@@ -666,22 +730,35 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
-    final colorScheme = Theme.of(context).colorScheme;
+  // ============================================================
+  // ESTADOS VACÍO Y ERROR
+  // ============================================================
+  Widget _buildEmptyState(ColorScheme colorScheme, bool isDark) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.business_center_rounded, size: 80, color: colorScheme.outline),
+          Icon(
+            Icons.business_center_rounded,
+            size: 80,
+            color: isDark ? Colors.white24 : Colors.grey.shade400,
+          ),
           const SizedBox(height: 16),
           Text(
             'No hay proveedores',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Crea tu primer proveedor',
-            style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? Colors.white54 : Colors.black54,
+            ),
           ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
@@ -691,7 +768,43 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF8B5CF6),
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(Object error, ColorScheme colorScheme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline_rounded, size: 60, color: colorScheme.error),
+          const SizedBox(height: 16),
+          Text(
+            'Error al cargar proveedores',
+            style: TextStyle(color: colorScheme.onSurface),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            error.toString(),
+            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {
+              ref.invalidate(proveedoresConFiltroProvider((
+                query: _queryBusqueda,
+                mostrarInactivos: _mostrarInactivos,
+                productoId: _productoFiltroId,
+              )));
+            },
+            child: const Text('Reintentar'),
           ),
         ],
       ),
@@ -704,10 +817,14 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
       backgroundColor: const Color(0xFF8B5CF6),
       foregroundColor: Colors.white,
       elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: const Icon(Icons.add_rounded, size: 32),
     );
   }
 
+  // ============================================================
+  // ACCIONES
+  // ============================================================
   void _navegarACrear() {
     showDialog(
       context: context,

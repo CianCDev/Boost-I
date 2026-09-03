@@ -1,13 +1,11 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
-import 'package:app_boosti_v2/features/pos/presentation/utils/input_decoration_helper.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
-import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
-
 import '../dialogos_genericos/error_dialog.dart';
-import '../dialogos_genericos/succes.dialog.dart';
+import '../dialogos_genericos/succes_dialog.dart';
 
 class CrearLocalDialog extends ConsumerStatefulWidget {
   final LocalEntity? local;
@@ -54,7 +52,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Por favor, corrige los campos marcados en rojo.'),
+          content: Text('Por favor, corrige los campos requeridos.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -92,241 +90,299 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
           context: context,
           builder: (_) => SuccessDialog(
             title: widget.local == null ? 'Local creado' : 'Local actualizado',
-            content: widget.local == null
-                ? 'El local se ha creado correctamente.'
-                : 'El local se ha actualizado correctamente.',
+            content: 'Se ha guardado correctamente.',
           ),
         );
         if (mounted) Navigator.pop(context, true);
       }
-      // Sincronizar en segundo plano
-      _sincronizarEnSegundoPlano();
+      Future.microtask(() async {
+        try {
+          await SyncService().sincronizarLocalesPendientes();
+        } catch (_) {}
+      });
     } catch (e) {
       if (mounted) {
         await showDialog(
           context: context,
-          builder: (_) => ErrorDialog(
-            title: 'Error al guardar',
-            content: e.toString(),
-          ),
+          builder: (_) => ErrorDialog(title: 'Error al guardar', content: e.toString()),
         );
         setState(() => _isSaving = false);
       }
     }
   }
 
-  void _sincronizarEnSegundoPlano() {
-    Future.microtask(() async {
-      try {
-        await SyncService().sincronizarLocalesPendientes();
-        debugPrint('✅ Locales sincronizados con Supabase en segundo plano');
-      } catch (e) {
-        debugPrint('⚠️ Error al sincronizar locales en segundo plano: $e');
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final esEdicion = widget.local != null;
-    final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isMobile = ResponsiveHelper.isMobile(context);
 
-    final double dialogPadding = isMobile ? 16 : 24;
-    final double titleFontSize = isMobile ? 18 : 22;
-    final double fieldFontSize = isMobile ? 14 : 16;
+    // Colores base dinámicos para inputs
+    final fillColor = isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF9FAFB);
+    final borderColor = isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE5E7EB);
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      elevation: 8,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: 600,
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
-        ),
-        padding: EdgeInsets.all(dialogPadding),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: isDark ? Colors.black.withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: 500,
+              maxHeight: MediaQuery.of(context).size.height * 0.9,
             ),
-          ],
-        ),
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Título
-                Row(
-                  children: [
-                    Icon(
-                      esEdicion ? Icons.edit_rounded : Icons.add_business_rounded,
-                      color: const Color(0xFF8B5CF6),
-                      size: 28,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        esEdicion ? 'Editar Local' : 'Nuevo Local',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: titleFontSize,
-                          color: colorScheme.onSurface,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.close_rounded, color: colorScheme.onSurfaceVariant),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.95)
+                  : Colors.white.withValues(alpha: 0.98),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.white,
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                  blurRadius: 40,
+                  offset: const Offset(0, 10),
                 ),
-                const SizedBox(height: 16),
-
-                // Nombre
-                TextFormField(
-                  controller: _nombreController,
-                  style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
-                  decoration: InputDecorationHelper.build(
-                    context: context,
-                    label: 'Nombre del Local *',
-                    prefixIcon: Icons.storefront_rounded,
-                    isDark: isDark,
-                  ),
-                  validator: (v) => v!.trim().isEmpty ? 'Requerido' : null,
-                ),
-                const SizedBox(height: 16),
-
-                // Dirección
-                TextFormField(
-                  controller: _direccionController,
-                  style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
-                  decoration: InputDecorationHelper.build(
-                    context: context,
-                    label: 'Dirección',
-                    prefixIcon: Icons.location_on_rounded,
-                    isDark: isDark,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Teléfono
-                TextFormField(
-                  controller: _telefonoController,
-                  style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecorationHelper.build(
-                    context: context,
-                    label: 'Teléfono',
-                    prefixIcon: Icons.phone_rounded,
-                    isDark: isDark,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Email
-                TextFormField(
-                  controller: _emailController,
-                  style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecorationHelper.build(
-                    context: context,
-                    label: 'Correo electrónico',
-                    prefixIcon: Icons.email_rounded,
-                    isDark: isDark,
-                  ),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return null;
-                    final emailRegExp = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-                    if (!emailRegExp.hasMatch(v.trim())) {
-                      return 'Correo inválido';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // RIF (NUEVO)
-                TextFormField(
-                  controller: _rifController,
-                  style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
-                  decoration: InputDecorationHelper.build(
-                    context: context,
-                    label: 'RIF',
-                    prefixIcon: Icons.assignment_rounded,
-                    isDark: isDark,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Activo
-                SwitchListTile(
-                  title: Text(
-                    'Local activo',
-                    style: TextStyle(color: colorScheme.onSurface, fontSize: fieldFontSize),
-                  ),
-                  value: _activo,
-                  onChanged: (value) => setState(() => _activo = value),
-                  activeThumbColor: const Color(0xFF8B5CF6),
-                  contentPadding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 24),
-
-                // Botones
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _isSaving ? null : () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          side: BorderSide(color: colorScheme.outline),
-                        ),
-                        child: Text(
-                          'Cancelar',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: fieldFontSize),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _isSaving ? null : _guardar,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8B5CF6),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : Text(
-                                esEdicion ? 'Actualizar' : 'Crear',
-                                style: TextStyle(fontSize: fieldFontSize),
-                              ),
-                      ),
-                    ),
-                  ],
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 5),
                 ),
               ],
+            ),
+            child: SingleChildScrollView(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // TÍTULO
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF8B5CF6).withValues(alpha: 0.4),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            esEdicion ? Icons.edit_rounded : Icons.add_business_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            esEdicion ? 'Editar Local' : 'Nuevo Local',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 22,
+                              color: isDark ? Colors.white : const Color(0xFF111827),
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close_rounded, color: isDark ? Colors.white54 : Colors.black54),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // NOMBRE
+                    TextFormField(
+                      controller: _nombreController,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: _inputDecor('Nombre del Local *', Icons.storefront_rounded, fillColor, borderColor, isDark),
+                      validator: (v) => v!.trim().isEmpty ? 'Requerido' : null,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // DIRECCIÓN
+                    TextFormField(
+                      controller: _direccionController,
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                      decoration: _inputDecor('Dirección', Icons.location_on_rounded, fillColor, borderColor, isDark),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // TELÉFONO
+                    TextFormField(
+                      controller: _telefonoController,
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                      keyboardType: TextInputType.phone,
+                      decoration: _inputDecor('Teléfono', Icons.phone_rounded, fillColor, borderColor, isDark),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // EMAIL
+                    TextFormField(
+                      controller: _emailController,
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: _inputDecor('Correo electrónico', Icons.email_rounded, fillColor, borderColor, isDark),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return null;
+                        final emailRegExp = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+                        if (!emailRegExp.hasMatch(v.trim())) {
+                          return 'Correo inválido';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // RIF
+                    TextFormField(
+                      controller: _rifController,
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                      decoration: _inputDecor('RIF', Icons.assignment_rounded, fillColor, borderColor, isDark),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ACTIVO
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _activo
+                            ? const Color(0xFF10B981).withValues(alpha: 0.1)
+                            : isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: _activo
+                              ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                              : isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE5E7EB),
+                        ),
+                      ),
+                      child: SwitchListTile(
+                        title: Text(
+                          _activo ? 'Local Activo' : 'Local Inactivo',
+                          style: TextStyle(
+                            color: _activo
+                                ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                                : (isDark ? Colors.white70 : Colors.black54),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        value: _activo,
+                        onChanged: (value) => setState(() => _activo = value),
+                        activeThumbColor: const Color(0xFF10B981),
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+
+                    // BOTONES
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: _isSaving ? null : () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: Text(
+                              'Cancelar',
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black54,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: _isSaving ? null : _guardar,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF8B5CF6),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: _isSaving
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    esEdicion ? 'Guardar Cambios' : 'Crear Local',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  InputDecoration _inputDecor(String label, IconData icon, Color fill, Color border, bool isDark) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(
+        color: isDark ? Colors.white60 : Colors.black54,
+        fontWeight: FontWeight.normal,
+      ),
+      prefixIcon: Icon(icon, color: const Color(0xFF8B5CF6)),
+      filled: true,
+      fillColor: fill,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: border, width: 1),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
     );
   }
 }

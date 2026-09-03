@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dart';
+import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 
 class EstadoChip extends StatelessWidget {
   final EstadoPedido estado;
@@ -8,25 +9,29 @@ class EstadoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
     final color = _getColor(estado);
     final icon = _getIcon(estado);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 6 : 10,
+        vertical: isMobile ? 2 : 4,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
+          Icon(icon, size: isMobile ? 12 : 14, color: color),
           const SizedBox(width: 4),
           Text(
-            estado.name.toUpperCase(),
+            isMobile ? estado.name.substring(0, 1).toUpperCase() : estado.name.toUpperCase(),
             style: TextStyle(
-              fontSize: 11,
+              fontSize: isMobile ? 9 : 11,
               fontWeight: FontWeight.w600,
               color: color,
             ),

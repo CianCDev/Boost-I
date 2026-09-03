@@ -3,8 +3,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../data/Local/entities/isar_service.dart';
-import '../../data/Local/entities/usuario_entity.dart';
-import '../services/sync_service.dart';
 import 'configuracion_empresa_screen.dart';
 import 'login_screen.dart';
 

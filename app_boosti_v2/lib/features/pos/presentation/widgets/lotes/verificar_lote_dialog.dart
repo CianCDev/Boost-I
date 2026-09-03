@@ -91,6 +91,7 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
       // 3. No existe, preguntar si crear alias
       if (alias == null) {
         final crearAlias = await showDialog<bool>(
+          // ignore: use_build_context_synchronously
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Nuevo código de barras'),

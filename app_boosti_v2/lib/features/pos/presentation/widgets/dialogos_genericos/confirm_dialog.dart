@@ -12,7 +12,7 @@ class ConfirmDialog extends StatelessWidget {
     required this.title,
     required this.content,
     this.confirmText = 'Confirmar',
-    this.confirmColor = Colors.red,
+    this.confirmColor = Colors.red, required Null Function() onConfirm,
   });
 
   @override

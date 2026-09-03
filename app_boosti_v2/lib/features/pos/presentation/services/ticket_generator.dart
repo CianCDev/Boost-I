@@ -140,18 +140,18 @@ class TicketGenerator {
 
     // Totales
     bytes += generator.text(
+        // ignore: prefer_interpolation_to_compose_strings
         'Subtotal:'.padRight(32) + '\$${subtotal.toStringAsFixed(2)}');
     bytes += generator.text(
-        'Impuesto:'.padRight(32) + '\$${impuesto.toStringAsFixed(2)}');
+        '${'Impuesto:'.padRight(32)}\$${impuesto.toStringAsFixed(2)}');
     bytes += generator.text(
-      'TOTAL:'.padRight(32) + '\$${total.toStringAsFixed(2)}',
+      '${'TOTAL:'.padRight(32)}\$${total.toStringAsFixed(2)}',
       styles: const PosStyles(bold: true, height: PosTextSize.size2),
     );
     bytes += generator.text('--------------------------------');
 
     bytes += generator.text(
-        'Método: $metodoPago'.padRight(32) +
-            'Recibido: \$${montoRecibido.toStringAsFixed(2)}');
+        '${'Método: $metodoPago'.padRight(32)}Recibido: \$${montoRecibido.toStringAsFixed(2)}');
     bytes += generator.text(
         'Vuelto: \$${vuelto.toStringAsFixed(2)}'.padRight(40));
 
@@ -234,7 +234,7 @@ class TicketGenerator {
         styles: const PosStyles(bold: true));
     for (var entry in totalesPorMetodo.entries) {
       final linea =
-          '${entry.key}:'.padRight(25) + '\$${entry.value.toStringAsFixed(2)}';
+          '${'${entry.key}:'.padRight(25)}\$${entry.value.toStringAsFixed(2)}';
       bytes += generator.text(linea);
     }
 
@@ -242,7 +242,7 @@ class TicketGenerator {
 
     // Total general
     bytes += generator.text(
-      'TOTAL GENERAL:'.padRight(25) + '\$${totalGeneral.toStringAsFixed(2)}',
+      '${'TOTAL GENERAL:'.padRight(25)}\$${totalGeneral.toStringAsFixed(2)}',
       styles: const PosStyles(bold: true, height: PosTextSize.size2),
     );
 
