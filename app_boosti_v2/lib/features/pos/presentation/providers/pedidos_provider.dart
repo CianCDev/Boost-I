@@ -83,12 +83,15 @@ final registrarRecepcionProvider = FutureProvider.family<void, ({
   for (var detalle in detalles) {
     final lote = LoteEntity()
       ..productoId = detalle.productoId
+      ..localId = pedido.localDestinoId 
       ..cantidadInicial = detalle.cantidad
       ..cantidadRestante = detalle.cantidad
       ..fechaIngreso = DateTime.now()
       ..fechaVencimiento = datos.fechasVencimiento?[detalle.productoId]
       ..costoUnitario = datos.costosUnitarios?[detalle.productoId] ?? detalle.precioUnidad
       ..estado = 'pendiente'
+      ..proveedorId = pedido.proveedorNombre
+      ..proveedorNombre = pedido.proveedorNombre 
       ..sincronizado = false;
 
     await isar.guardarLote(lote);

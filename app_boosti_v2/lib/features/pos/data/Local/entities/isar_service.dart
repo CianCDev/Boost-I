@@ -1739,6 +1739,72 @@ class IsarService {
     }
   }
 
+  /// Obtiene todos los lotes de un local específico
+Future<List<LoteEntity>> obtenerLotesPorLocal(int localId) async {
+  final isar = await db;
+  return await isar.loteEntitys
+      .filter()
+      .localIdEqualTo(localId)
+      .findAll();
+}
+
+/// Obtiene lotes de un local con filtro de estado
+Future<List<LoteEntity>> obtenerLotesPorLocalYEstado(int localId, String estado) async {
+  final isar = await db;
+  return await isar.loteEntitys
+      .filter()
+      .localIdEqualTo(localId)
+      .estadoEqualTo(estado)
+      .findAll();
+}
+
+/// Obtiene todos los lotes de un producto en un local específico
+Future<List<LoteEntity>> obtenerLotesPorProductoYLocal(int productoId, int localId) async {
+  final isar = await db;
+  return await isar.loteEntitys
+      .filter()
+      .productoIdEqualTo(productoId)
+      .localIdEqualTo(localId)
+      .findAll();
+}
+
+/// Migra lotes existentes (sin local) al local activo
+Future<Map<String, dynamic>> migrarLotesConLocal() async {
+  final isar = await db;
+  
+  // Buscar lotes sin local (localId == 0 o null)
+  final lotesSinLocal = await isar.loteEntitys
+      .filter()
+      .localIdEqualTo(0)
+      .findAll();
+  
+  if (lotesSinLocal.isEmpty) {
+    return {'success': true, 'actualizados': 0, 'mensaje': 'Todos los lotes ya tienen local asignado'};
+  }
+  
+  // Obtener el primer local activo como fallback
+  final localActivo = await isar.localEntitys
+      .filter()
+      .activoEqualTo(true)
+      .findFirst();
+  
+  final int localFallback = localActivo?.id ?? 1;
+  
+  for (var lote in lotesSinLocal) {
+    lote.localId = localFallback;
+    lote.sincronizado = false; // Marcar para resincronizar
+    await isar.writeTxn(() async {
+      await isar.loteEntitys.put(lote);
+    });
+  }
+  
+  return {
+    'success': true,
+    'actualizados': lotesSinLocal.length,
+    'mensaje': '${lotesSinLocal.length} lotes actualizados al local $localFallback',
+  };
+}
+
   /// Asigna supabaseId a productos que no lo tienen, consultando Supabase.
   Future<int> asignarSupabaseIdsAFaltantes() async {
     final isar = await db;

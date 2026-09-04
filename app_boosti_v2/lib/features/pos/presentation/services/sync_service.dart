@@ -7,7 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:uuid/uuid.dart';
-
+import '../../data/Local/entities/lote_entity.dart';
 // Entidades locales
 import '../../data/Local/entities/categoria_entity.dart';
 import '../../data/Local/entities/gasto_entity.dart';
@@ -1678,6 +1678,7 @@ class SyncService {
         final data = {
           'id_isar': lote.id,
           'producto_id_fk': productoIdFk,
+          'local_id': lote.localId, 
           'codigo_lote_proveedor': lote.codigoLoteProveedor,
           'cantidad_inicial': lote.cantidadInicial,
           'cantidad_restante': lote.cantidadRestante,
@@ -1711,38 +1712,74 @@ class SyncService {
   // MOVIMIENTOS DE LOTE
   // ============================================================
 
-  Future<void> sincronizarMovimientosLotePendientes() async {
-    try {
-      final pendientes = await _isarService.obtenerMovimientosLotePendientesSync();
-      if (pendientes.isEmpty) {
-        debugPrint('ℹ️ No hay movimientos de lote pendientes');
-        return;
-      }
 
-      debugPrint('🔄 Sincronizando ${pendientes.length} movimientos de lote...');
 
-      for (var mov in pendientes) {
-        final data = mov.toSupabaseJson();
-        final lote = await _isarService.obtenerLotePorId(mov.loteId);
-        if (lote != null && lote.supabaseId == null) {
-          await sincronizarLotesPendientes();
-        }
 
-        try {
-          await _supabase.from('movimientos_lotes').upsert(data, onConflict: 'id_isar').select();
-          mov.sincronizado = true;
-          mov.fechaSincronizacion = DateTime.now();
-          await _isarService.guardarMovimientoLote(mov);
-          debugPrint('✅ Movimiento de lote ${mov.id} sincronizado');
-        } catch (e) {
-          debugPrint('❌ Error sincronizando movimiento ${mov.id}: $e');
-        }
-      }
-      debugPrint('✅ Movimientos de lote sincronizados');
-    } catch (e) {
-      debugPrint('❌ Error general en sincronizarMovimientosLotePendientes: $e');
+Future<void> descargarLotesDesdeSupabase() async {
+  try {
+    // ✅ Descargar TODOS los lotes (sin filtrar por local)
+    final response = await _supabase
+        .from('lotes')
+        .select()
+        .order('fecha_ingreso', ascending: false);
+
+    if (response.isEmpty) {
+      debugPrint('ℹ️ No hay lotes en Supabase para descargar');
+      return;
     }
+
+    debugPrint('🔄 Descargando ${response.length} lotes desde Supabase...');
+
+    int creados = 0, actualizados = 0;
+
+    for (var data in response) {
+      final idIsar = data['id_isar'] as int?;
+      if (idIsar == null) continue;
+
+      final loteNube = LoteEntity.fromSupabase(data);
+      final existente = await _isarService.obtenerLotePorId(idIsar);
+
+      if (existente != null) {
+        // Actualizar solo si hay cambios
+        bool cambios = false;
+        if (existente.cantidadRestante != loteNube.cantidadRestante) {
+          existente.cantidadRestante = loteNube.cantidadRestante;
+          cambios = true;
+        }
+        if (existente.estado != loteNube.estado) {
+          existente.estado = loteNube.estado;
+          cambios = true;
+        }
+        if (existente.localId != loteNube.localId) {
+          existente.localId = loteNube.localId;
+          cambios = true;
+        }
+        if (existente.proveedorId != loteNube.proveedorId) {
+          existente.proveedorId = loteNube.proveedorId;
+          cambios = true;
+        }
+        if (existente.proveedorNombre != loteNube.proveedorNombre) {
+          existente.proveedorNombre = loteNube.proveedorNombre;
+          cambios = true;
+        }
+
+        if (cambios) {
+          existente.sincronizado = true;
+          existente.fechaSincronizacion = DateTime.now();
+          await _isarService.guardarLote(existente);
+          actualizados++;
+        }
+      } else {
+        await _isarService.guardarLote(loteNube);
+        creados++;
+      }
+    }
+
+    debugPrint('✅ Lotes sincronizados: $creados creados, $actualizados actualizados');
+  } catch (e) {
+    debugPrint('❌ Error descargando lotes: $e');
   }
+}
 
   Future<void> descargarMovimientosLoteDesdeSupabase() async {
     try {

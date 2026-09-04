@@ -1,0 +1,278 @@
+[33mcommit 00f0cc6a64e26eed5c4f4a8cf10d87972df5de5f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/Diegodevelop[m[33m, [m[1;31morigin/feature/Diegodevelop[m[33m)[m
+Author: DiegoPro18 <torrealbad815@gmail.com>
+Date:   Mon Aug 3 08:36:32 2026 -0400
+
+    feat:Tema oscuro agregado y diseño responsive solucionado hasta los momentos
+
+[33mcommit 1eb1bdbe11f2606713e258715427d8eeeb63ade1[m
+Merge: 8584b21 8d264f3
+Author: DiegoPro18 <torrealbad815@gmail.com>
+Date:   Mon Aug 3 03:53:55 2026 -0400
+
+    Merge remote-tracking branch 'origin/feature/Diegodevelop' into feature/Diegodevelop
+
+[33mcommit 8584b210c2fc274482c29423871ad856a1d38654[m
+Author: DiegoPro18 <torrealbad815@gmail.com>
+Date:   Mon Aug 3 03:29:30 2026 -0400
+
+    wip:Cambios antes de marge con main
+
+[33mcommit 8d264f37028fe2ccc8a30c8f46ca612c9bcfe6a0[m
+Merge: 4c3ef51 e41947c
+Author: D4vDev <126197964+CianCDev@users.noreply.github.com>
+Date:   Sun Aug 2 16:39:19 2026 -0400
+
+    Merge branch 'main' into feature/Diegodevelop
+
+[33mcommit e41947c8e8c1b53f7c5e548065f55a9116771293[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Sun Aug 2 16:32:33 2026 -0400
+
+    rama de respaldo
+
+[33mcommit 4c3ef51a83273c4c8ee358f65074137adae8d08f[m
+Author: DiegoPro18 <torrealbad815@gmail.com>
+Date:   Sun Aug 2 16:18:09 2026 -0400
+
+    feat:se resolvieron errores y se agrego tema oscuro
+
+[33mcommit 62a2dce98ca1046aa7e6309fd7c6e83db841ce9b[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Sun Aug 2 16:09:36 2026 -0400
+
+    TODO Registro de Auditoría (Logs de Acciones): Guardar en Isar y subir a Supabase cada acción crítica (cambio de PIN, modificación de precio con autorización, eliminación de usuario). Esto es fundamental para la contabilidad y la seguridad a largo plazo.
+
+[33mcommit 3689cad7eb9670e57d8415a61e6174623e751e9c[m
+Author: DiegoPro18 <torrealbad815@gmail.com>
+Date:   Sun Aug 2 16:08:50 2026 -0400
+
+    feat:No recuerdo pero cambie las politicas
+
+[33mcommit 83c8e80f62084b4a7fc4a57c154e10871596ae68[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Sun Aug 2 09:42:45 2026 -0400
+
+    Falta arreglar errores
+
+[33mcommit 1e2452f2bfb9e7b49547b532c3a62e20c4468e1e[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Sun Aug 2 00:28:50 2026 -0400
+
+    casi terminado todo el apartado grafico y funcional. TODO ! El Realtime de Supabase
+
+[33mcommit a00c5c00d61def6e1a8e972ccff22074c9e59ebc[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Sat Aug 1 16:23:46 2026 -0400
+
+    inventory screen y modal de cobro arreglado
+
+[33mcommit 08738b0ab4c1a559f0a3bff4293ae509db338908[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Fri Jul 31 16:16:39 2026 -0400
+
+    esperanza
+
+[33mcommit e301eae2389fe71cc844f0c402ff5210f6f924c8[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Fri Jul 31 14:11:39 2026 -0400
+
+    Todo finoooooo
+
+[33mcommit 5ee0ba74c0989b17e554ef32311e66860c230da5[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Thu Jul 30 23:59:20 2026 -0400
+
+    EL REINICIO
+
+[33mcommit a122d2cd06ed45b677d53a3cb103eb899f0357ab[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Thu Jul 30 22:13:20 2026 -0400
+
+    resueltos los problemas de archivos no responsive
+
+[33mcommit f554cb2237edfe2b5e3dffe2749b905c1a68b4c8[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Thu Jul 30 19:59:09 2026 -0400
+
+    resueltos los errores relacionados a las propiedades responsive, dependencias actualizadas y optimizado codigo de pos_screen.dart, login_screen.
+
+[33mcommit aff3bff6389f898c5a750e36c39241856173ffcd[m
+Merge: 63ed033 357e35d
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Wed Jul 29 21:26:40 2026 -0400
+
+    no se que es
+
+[33mcommit 357e35d38f9189ef862fb4ed8b19450c68102984[m
+Author: DiegoPro18 <torrealbad815@gmail.com>
+Date:   Wed Jul 29 16:35:57 2026 -0400
+
+    feat: acomodar los microservicios que conectan con supabase
+
+[33mcommit 63ed033d947e148163e4b8c245116233b8e7e21c[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Wed Jul 29 11:43:38 2026 -0400
+
+    muchos cambios
+
+[33mcommit afcb15cb2d3825d0a8a2d85aadacc1520b2a4952[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Wed Jul 29 00:19:14 2026 -0400
+
+    Config-driven sync: add assets/config.json and pubspec entry; extend UsuarioEntity with email/supabaseUid; add guardarUsuario in IsarService; add POS user management dialog; attempt Supabase auth in LoginScreen; extend microservice with /api/usuarios endpoint
+
+[33mcommit e5b8556c3993a80d6fc849abb62d586e4faffa64[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Tue Jul 28 23:55:39 2026 -0400
+
+    Add sync microservice scaffold and update SyncService to call microservice endpoints with API key
+
+[33mcommit 8a939dadec67ef23daf73cc8c95fd709203cd109[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Tue Jul 28 23:37:39 2026 -0400
+
+    Inventory: store usuarioActual.nombre in MovimientoInventario, determine movimiento type (ENTRADA_INICIAL/AJUSTE_MANUAL/SALIDA), save absolute cantidad and show SnackBar on change
+
+[33mcommit e926578e3f543106c43c1f9fadc3583e26996a40[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Tue Jul 28 23:35:01 2026 -0400
+
+    Inventory: registrar MovimientoInventario al guardar producto y usar usuarioActual from provider; disparar sincronización
+
+[33mcommit 03121253e5c21cb50609570001b730e32a1460b6[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Tue Jul 28 23:25:26 2026 -0400
+
+    Agregar MovimientoInventarioEntity y métodos IsarService/SyncService para registrar y sincronizar movimientos de inventario
+    
+    Mantener usuarioActual provider/nombres existentes; añadir endpoints de sync hipotéticos.
+
+[33mcommit 38558c15e04012371eff9e94f8753b41f9974b28[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Tue Jul 28 23:21:32 2026 -0400
+
+    Refactor InventoryScreen: make it a ConsumerStatefulWidget, use provider-compatible constructor and add SyncService placeholder; implement UI improvements per request
+    
+    No changes to other files' variables.
+
+[33mcommit e060cc837a4a7084ea9d7afb4ee47e4ee446b7d1[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Tue Jul 28 23:10:51 2026 -0400
+
+    Renombrar variable usuarioActual a usuarioLogueado en pantallas POS e inventario
+    
+    Unifica nombres de parámetros y referencias del usuario de sesión.
+    
+    Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+
+[33mcommit cf7aa0daf59d2a8a7b4e3e899662302b7ca37dbd[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Tue Jul 28 12:24:25 2026 -0400
+
+    cambios x
+
+[33mcommit 2a496ac3f59c0ba50d8bcf3d51999192ddcd8983[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Tue Jul 28 10:39:44 2026 -0400
+
+    se agrego el retorno del nombre de usuario al appbar y otras cosas
+
+[33mcommit 98c8cadec4229555fcd06ec215fd3dfa84b71cce[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Mon Jul 27 23:11:41 2026 -0400
+
+    agregar muchas cosas
+
+[33mcommit 58fff195e4f9f14f1b8f376e99f65e73903966fe[m
+Merge: cbd0dc6 08a919d
+Author: D4vDev <126197964+CianCDev@users.noreply.github.com>
+Date:   Mon Jul 27 18:50:51 2026 -0400
+
+    Merge pull request #3 from CianCDev/feature/Diegodevelop
+    
+    Feature/diegodevelop
+
+[33mcommit 08a919d1b60aae9a1ded30b0542918730c1ae5b5[m
+Merge: 0d87434 cbd0dc6
+Author: D4vDev <126197964+CianCDev@users.noreply.github.com>
+Date:   Mon Jul 27 18:50:37 2026 -0400
+
+    Merge branch 'main' into feature/Diegodevelop
+
+[33mcommit cbd0dc6c7030954f68e0c1fe8a45c529c198c41c[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Mon Jul 27 17:34:49 2026 -0400
+
+    solucionado error en el sales history
+
+[33mcommit 0d874345741dafbc016b09d22c05e9e251690aed[m[33m ([m[1;31morigin/feature/Diegodevelop-v2[m[33m)[m
+Author: DiegoPro18 <torrealbad815@gmail.com>
+Date:   Mon Jul 27 15:55:58 2026 -0400
+
+    feat: diseño de pantalla de descanso por inactividad del sistema
+
+[33mcommit 3611015f717f70ba8e9ba6330984191ac35ae36d[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Mon Jul 27 11:47:34 2026 -0400
+
+    se crea rama diego
+
+[33mcommit 1635cac829ee4d58844dc51a24a9655a9f88d437[m[33m ([m[1;32mmain[m[33m)[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Mon Jul 27 11:36:38 2026 -0400
+
+    se conecta la bd supabase
+
+[33mcommit d89a8fdbb6085d4bbffabc9e433913ab9a03f990[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Mon Jul 27 10:08:43 2026 -0400
+
+    errores corregidos
+
+[33mcommit faa8a9afecf86f4b88413c8d337c569279170d42[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Mon Jul 27 08:57:24 2026 -0400
+
+    nuevos modulos
+
+[33mcommit 8de99f0427332e2782db55de606a834ba4f0f664[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Sun Jul 26 19:25:28 2026 -0400
+
+    Se implementaron las nuevas funcionalidades, ahora tenemos la tasa del bcv actualizada al dia, inventario, botones en el POS y varias cosas mas.
+
+[33mcommit 874718c9114ac9c69a44951fc59913e370a3478c[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Sun Jul 26 15:57:06 2026 -0400
+
+    se arreglaron multiples errores de sintaxis y del lint de flutter, agregan archivos build.yaml y especificaciones en el analysis_options.yaml
+
+[33mcommit 857c8129573227403e29685fb982400dacbb7503[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Sat Jul 25 19:46:23 2026 -0400
+
+    se realizaron trabajos en la interfaz, autocompletado, listado de productos, conexion a bd local y de forma sincronizada, se agregaron dependencias y todo el trabajo de la ventana de registros
+
+[33mcommit f8c29d75902355a1285345f0022b4e8e68724a74[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Sat Jul 25 13:50:47 2026 -0400
+
+    se agregan las ventanas de catalogo, los modales de cobro y la impresion de los tickets, ventana de cierre de caja y de registro de ventas por fecha.
+
+[33mcommit a315b20b96aefae77348f627fb7e57c69b6b59da[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Fri Jul 24 17:03:02 2026 -0400
+
+    Primer push de la app, interfaz grafica junto a la funcionalidad del flujo de cobros
+
+[33mcommit 90e060b8e45976f8c7a4b1595b9cc2017fac1737[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Fri Jul 24 12:08:55 2026 -0400
+
+    first pull
+
+[33mcommit 2d861349e4ce559fc4eb6ecfaa2af747ab129b7c[m
+Author: IanCDev <camacaroyan@gmail.com>
+Date:   Fri Jul 24 11:59:54 2026 -0400
+
+    Initial commit
