@@ -95,7 +95,7 @@ class _DetalleLoteDialogState extends ConsumerState<DetalleLoteDialog> {
                       child: Column(
                         children: [
                           _buildInfoRow('Producto ID', '${lote.productoId}'),
-                          _buildInfoRow('Código de barras', lote.codigoBarrasLote ?? 'No asignado'),
+                          _buildInfoRow('Código de barras', lote.codigoLoteProveedor ?? 'No asignado'),
                           _buildInfoRow('Estado', lote.estado.toUpperCase()),
                           _buildInfoRow('Cantidad inicial', '${lote.cantidadInicial}'),
                           _buildInfoRow('Cantidad restante', '${lote.cantidadRestante}'),

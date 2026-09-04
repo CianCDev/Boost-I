@@ -28,7 +28,7 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
   @override
   void initState() {
     super.initState();
-    _codigoController.text = widget.lote.codigoBarrasLote ?? '';
+    _codigoController.text = widget.lote.codigoLoteProveedor ?? '';
     _cargarProductoNombre();
 
     if (widget.lote.fechaVencimiento != null) {
@@ -138,7 +138,7 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
 
     try {
       final lote = widget.lote;
-      lote.codigoBarrasLote = codigo;
+      lote.codigoLoteProveedor = codigo;
       lote.fechaVencimiento = nuevaFecha;
       lote.sincronizado = false;
 

@@ -12,8 +12,8 @@ class LoteEntity {
   @Index()
   late int productoId;
 
-  String? codigoLoteProveedor;
-  String? codigoBarrasLote;
+  String? codigoLoteProveedor; // ✅ Cambiado para coincidir con la BD
+  // 🔥 ELIMINAMOS 'codigoBarrasLote' o lo dejamos como alias, pero usamos el nuevo nombre.
 
   double cantidadInicial = 0.0;
   double cantidadRestante = 0.0;
@@ -36,9 +36,8 @@ class LoteEntity {
     return {
       'id': supabaseId,
       'id_isar': id,
-      'producto_id': productoId,
-      'codigo_lote_proveedor': codigoLoteProveedor,
-      'codigo_barras_lote': codigoBarrasLote,
+      'producto_id_fk': productoId,
+      'codigo_lote_proveedor': codigoLoteProveedor, // ✅ Cambiado
       'cantidad_inicial': cantidadInicial,
       'cantidad_restante': cantidadRestante,
       'fecha_ingreso': fechaIngreso.toIso8601String(),
@@ -54,9 +53,8 @@ class LoteEntity {
     return LoteEntity()
       ..id = json['id_isar'] as int? ?? Isar.autoIncrement
       ..supabaseId = json['id'] as String?
-      ..productoId = json['producto_id'] as int
-      ..codigoLoteProveedor = json['codigo_lote_proveedor'] as String?
-      ..codigoBarrasLote = json['codigo_barras_lote'] as String?
+      ..productoId = json['producto_id_fk'] as int
+      ..codigoLoteProveedor = json['codigo_lote_proveedor'] as String? // ✅ Cambiado
       ..cantidadInicial = (json['cantidad_inicial'] as num?)?.toDouble() ?? 0.0
       ..cantidadRestante = (json['cantidad_restante'] as num?)?.toDouble() ?? 0.0
       ..fechaIngreso = DateTime.parse(json['fecha_ingreso'] as String)

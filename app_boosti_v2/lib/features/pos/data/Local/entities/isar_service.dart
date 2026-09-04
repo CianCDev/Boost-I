@@ -1853,7 +1853,7 @@ class IsarService {
       if (lote == null) return false;
       if (lote.estado != 'pendiente') return false;
 
-      lote.codigoBarrasLote = codigoBarras;
+      lote.codigoLoteProveedor = codigoBarras;
       lote.cantidadRestante = cantidadRecibida;
       lote.estado = 'activo';
       lote.sincronizado = false;
@@ -1940,9 +1940,9 @@ class IsarService {
         .productoIdEqualTo(productoId)
         .findAll();
     for (var l in lotes) {
-      if (l.codigoBarrasLote != null && l.codigoBarrasLote!.isNotEmpty) {
+      if (l.codigoLoteProveedor != null && l.codigoLoteProveedor!.isNotEmpty) {
         items.add(HistorialCodigoItem(
-          codigo: l.codigoBarrasLote!,
+          codigo: l.codigoLoteProveedor!,
           proveedorNombre: proveedorNombre,
           fechaIngreso: l.fechaIngreso,
           fechaVencimiento: l.fechaVencimiento,

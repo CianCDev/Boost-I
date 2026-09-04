@@ -27,53 +27,48 @@ const LoteEntitySchema = CollectionSchema(
       name: r'cantidadRestante',
       type: IsarType.double,
     ),
-    r'codigoBarrasLote': PropertySchema(
-      id: 2,
-      name: r'codigoBarrasLote',
-      type: IsarType.string,
-    ),
     r'codigoLoteProveedor': PropertySchema(
-      id: 3,
+      id: 2,
       name: r'codigoLoteProveedor',
       type: IsarType.string,
     ),
     r'costoUnitario': PropertySchema(
-      id: 4,
+      id: 3,
       name: r'costoUnitario',
       type: IsarType.double,
     ),
     r'estado': PropertySchema(
-      id: 5,
+      id: 4,
       name: r'estado',
       type: IsarType.string,
     ),
     r'fechaIngreso': PropertySchema(
-      id: 6,
+      id: 5,
       name: r'fechaIngreso',
       type: IsarType.dateTime,
     ),
     r'fechaSincronizacion': PropertySchema(
-      id: 7,
+      id: 6,
       name: r'fechaSincronizacion',
       type: IsarType.dateTime,
     ),
     r'fechaVencimiento': PropertySchema(
-      id: 8,
+      id: 7,
       name: r'fechaVencimiento',
       type: IsarType.dateTime,
     ),
     r'productoId': PropertySchema(
-      id: 9,
+      id: 8,
       name: r'productoId',
       type: IsarType.long,
     ),
     r'sincronizado': PropertySchema(
-      id: 10,
+      id: 9,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'supabaseId': PropertySchema(
-      id: 11,
+      id: 10,
       name: r'supabaseId',
       type: IsarType.string,
     )
@@ -152,12 +147,6 @@ int _loteEntityEstimateSize(
 ) {
   var bytesCount = offsets.last;
   {
-    final value = object.codigoBarrasLote;
-    if (value != null) {
-      bytesCount += 3 + value.length * 3;
-    }
-  }
-  {
     final value = object.codigoLoteProveedor;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -181,16 +170,15 @@ void _loteEntitySerialize(
 ) {
   writer.writeDouble(offsets[0], object.cantidadInicial);
   writer.writeDouble(offsets[1], object.cantidadRestante);
-  writer.writeString(offsets[2], object.codigoBarrasLote);
-  writer.writeString(offsets[3], object.codigoLoteProveedor);
-  writer.writeDouble(offsets[4], object.costoUnitario);
-  writer.writeString(offsets[5], object.estado);
-  writer.writeDateTime(offsets[6], object.fechaIngreso);
-  writer.writeDateTime(offsets[7], object.fechaSincronizacion);
-  writer.writeDateTime(offsets[8], object.fechaVencimiento);
-  writer.writeLong(offsets[9], object.productoId);
-  writer.writeBool(offsets[10], object.sincronizado);
-  writer.writeString(offsets[11], object.supabaseId);
+  writer.writeString(offsets[2], object.codigoLoteProveedor);
+  writer.writeDouble(offsets[3], object.costoUnitario);
+  writer.writeString(offsets[4], object.estado);
+  writer.writeDateTime(offsets[5], object.fechaIngreso);
+  writer.writeDateTime(offsets[6], object.fechaSincronizacion);
+  writer.writeDateTime(offsets[7], object.fechaVencimiento);
+  writer.writeLong(offsets[8], object.productoId);
+  writer.writeBool(offsets[9], object.sincronizado);
+  writer.writeString(offsets[10], object.supabaseId);
 }
 
 LoteEntity _loteEntityDeserialize(
@@ -202,17 +190,16 @@ LoteEntity _loteEntityDeserialize(
   final object = LoteEntity();
   object.cantidadInicial = reader.readDouble(offsets[0]);
   object.cantidadRestante = reader.readDouble(offsets[1]);
-  object.codigoBarrasLote = reader.readStringOrNull(offsets[2]);
-  object.codigoLoteProveedor = reader.readStringOrNull(offsets[3]);
-  object.costoUnitario = reader.readDoubleOrNull(offsets[4]);
-  object.estado = reader.readString(offsets[5]);
-  object.fechaIngreso = reader.readDateTime(offsets[6]);
-  object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[7]);
-  object.fechaVencimiento = reader.readDateTimeOrNull(offsets[8]);
+  object.codigoLoteProveedor = reader.readStringOrNull(offsets[2]);
+  object.costoUnitario = reader.readDoubleOrNull(offsets[3]);
+  object.estado = reader.readString(offsets[4]);
+  object.fechaIngreso = reader.readDateTime(offsets[5]);
+  object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[6]);
+  object.fechaVencimiento = reader.readDateTimeOrNull(offsets[7]);
   object.id = id;
-  object.productoId = reader.readLong(offsets[9]);
-  object.sincronizado = reader.readBool(offsets[10]);
-  object.supabaseId = reader.readStringOrNull(offsets[11]);
+  object.productoId = reader.readLong(offsets[8]);
+  object.sincronizado = reader.readBool(offsets[9]);
+  object.supabaseId = reader.readStringOrNull(offsets[10]);
   return object;
 }
 
@@ -230,22 +217,20 @@ P _loteEntityDeserializeProp<P>(
     case 2:
       return (reader.readStringOrNull(offset)) as P;
     case 3:
-      return (reader.readStringOrNull(offset)) as P;
-    case 4:
       return (reader.readDoubleOrNull(offset)) as P;
-    case 5:
+    case 4:
       return (reader.readString(offset)) as P;
-    case 6:
+    case 5:
       return (reader.readDateTime(offset)) as P;
+    case 6:
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 7:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 8:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 9:
       return (reader.readLong(offset)) as P;
-    case 10:
+    case 9:
       return (reader.readBool(offset)) as P;
-    case 11:
+    case 10:
       return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -779,160 +764,6 @@ extension LoteEntityQueryFilter
         upper: upper,
         includeUpper: includeUpper,
         epsilon: epsilon,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteIsNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNull(
-        property: r'codigoBarrasLote',
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteIsNotNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNotNull(
-        property: r'codigoBarrasLote',
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteEqualTo(
-    String? value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteGreaterThan(
-    String? value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        include: include,
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteLessThan(
-    String? value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.lessThan(
-        include: include,
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteBetween(
-    String? lower,
-    String? upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.between(
-        property: r'codigoBarrasLote',
-        lower: lower,
-        includeLower: includeLower,
-        upper: upper,
-        includeUpper: includeUpper,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteContains(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.contains(
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteMatches(String pattern, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.matches(
-        property: r'codigoBarrasLote',
-        wildcard: pattern,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteIsEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'codigoBarrasLote',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteIsNotEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'codigoBarrasLote',
-        value: '',
       ));
     });
   }
@@ -1816,19 +1647,6 @@ extension LoteEntityQuerySortBy
     });
   }
 
-  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> sortByCodigoBarrasLote() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'codigoBarrasLote', Sort.asc);
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy>
-      sortByCodigoBarrasLoteDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'codigoBarrasLote', Sort.desc);
-    });
-  }
-
   QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy>
       sortByCodigoLoteProveedor() {
     return QueryBuilder.apply(this, (query) {
@@ -1968,19 +1786,6 @@ extension LoteEntityQuerySortThenBy
       thenByCantidadRestanteDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cantidadRestante', Sort.desc);
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> thenByCodigoBarrasLote() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'codigoBarrasLote', Sort.asc);
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy>
-      thenByCodigoBarrasLoteDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'codigoBarrasLote', Sort.desc);
     });
   }
 
@@ -2124,14 +1929,6 @@ extension LoteEntityQueryWhereDistinct
     });
   }
 
-  QueryBuilder<LoteEntity, LoteEntity, QDistinct> distinctByCodigoBarrasLote(
-      {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'codigoBarrasLote',
-          caseSensitive: caseSensitive);
-    });
-  }
-
   QueryBuilder<LoteEntity, LoteEntity, QDistinct> distinctByCodigoLoteProveedor(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -2210,13 +2007,6 @@ extension LoteEntityQueryProperty
       cantidadRestanteProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'cantidadRestante');
-    });
-  }
-
-  QueryBuilder<LoteEntity, String?, QQueryOperations>
-      codigoBarrasLoteProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'codigoBarrasLote');
     });
   }
 

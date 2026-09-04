@@ -68,7 +68,7 @@ class LotesState {
       final q = searchQuery.toLowerCase();
       resultado = resultado.where((l) {
         return l.id.toString().contains(q) ||
-            (l.codigoBarrasLote?.toLowerCase().contains(q) ?? false);
+            (l.codigoLoteProveedor?.toLowerCase().contains(q) ?? false);
       }).toList();
     }
 

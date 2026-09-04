@@ -91,7 +91,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
-    );
+    ); 
     _cargarEstadoSync();
     _cargarEstadoTurno();
     _animationController.forward();
@@ -106,6 +106,8 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   // ============================================================
   // MÉTODOS DE NEGOCIO
   // ============================================================
+  
+  
   Future<void> _cargarEstadoSync() async {
     final pendientes = await _isarService.obtenerVentasPendientesSync();
     if (mounted) {
@@ -444,6 +446,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     debugPrint('📌 $mensaje');
     await Future.delayed(const Duration(milliseconds: 300));
   }
+
 
   // ============================================================
   // OTRAS ACCIONES
@@ -858,6 +861,8 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         ),
       );
     }
+
+    
 
     secciones.add(
       MenuSection(

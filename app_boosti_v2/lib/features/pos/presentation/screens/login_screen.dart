@@ -121,7 +121,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // LOGIN
+  // LOGIN (CON SINCRONIZACIÓN INICIAL)
   // ============================================================
   void _loginWithPin() async {
     final authState = ref.read(authProvider);
@@ -160,6 +160,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       if (user != null) {
         ref.read(usuarioActualProvider.notifier).setUsuario(user);
         await _saveSelectedUser(user.id);
+
+        // 🔥 Sincronizar datos esenciales para el nuevo dispositivo
+        try {
+          final syncService = SyncService();
+          await syncService.descargarLocalesDesdeSupabase();  // Para obtener UUID
+          await syncService.descargarPedidosDesdeSupabase();  // Para obtener pedidos
+          debugPrint('✅ Sincronización inicial completada después del login');
+        } catch (e) {
+          debugPrint('⚠️ Error en sincronización inicial: $e');
+          // No bloqueamos el login si falla
+        }
+
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
