@@ -12,6 +12,8 @@ import '../controllers/cart_controller.dart';
 import '../providers/bcv_provider.dart';
 import '../providers/lock_provider.dart';
 import '../services/ticket_service.dart';
+import '../services/sync_service.dart';
+import '../services/sync_utils.dart';
 import '../widgets/cart_table_widget.dart';
 import '../widgets/cobrar_dialog.dart';
 import '../widgets/pos_summary_panel.dart';
@@ -114,7 +116,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
     setState(() => _sincronizando = true);
     try {
-      final sincronizadas = await _isarService.sincronizarVentasConServidor();
+      final sincronizadas = await SyncService().sincronizarVentasPendientes();
       await _actualizarContadorSync();
 
       if (mounted) {
@@ -674,16 +676,18 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
 
     if (resultado != null && resultado['procesado'] == true && mounted) {
       try {
-        final String ventaIdStr = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+        final String ventaIdStr = generarUuidV4();
         final DateTime ahora = DateTime.now();
         final double totalBsCalculado = cartState.total * tasaActual;
 
         final itemsIsar = cartState.items.map((cartItem) {
           return VentaItemEntity()
             ..nombreProducto = cartItem.producto.nombre
-            ..precioUnidad = cartItem.producto.precioUnidad
+            ..precioUnidad = cartItem.precioUnitario
             ..cantidad = cartItem.cantidad.toDouble()
-            ..subtotal = cartItem.producto.precioUnidad * cartItem.cantidad.toDouble();
+            ..subtotal = cartItem.subtotal
+            ..precioOriginal = cartItem.esDescuentoEspecial ? cartItem.producto.precioUnidad : null
+            ..esDescuentoEspecial = cartItem.esDescuentoEspecial;
         }).toList();
 
         final nuevaVentaEntity = VentaEntity()
@@ -698,6 +702,11 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
           ..documento= resultado['documento'] ?? 'V-00000000'
           ..empleado = _cajeroActual
           ..items = itemsIsar
+          ..tieneDescuentoEspecial = itemsIsar.any((item) => item.esDescuentoEspecial)
+          ..montoDescuentoTotal = itemsIsar.fold<double>(
+            0.0,
+            (total, item) => total + ((item.precioOriginal ?? item.precioUnidad) - item.precioUnidad) * item.cantidad,
+          )
           ..sincronizado = false;
 
         await _isarService.guardarVenta(nuevaVentaEntity);
@@ -737,6 +746,7 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
             ),
           );
         }
+
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1434,6 +1444,9 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                 onEliminarItem: (index) {
                   ref.read(cartProvider.notifier).eliminarItem(index);
                 },
+                onPrecioEspecialChanged: (index, precio) {
+                  ref.read(cartProvider.notifier).establecerPrecioEspecial(index, precio);
+                },
               ),
             ),
           ),
@@ -1585,6 +1598,9 @@ class _PosDesktopScreenState extends ConsumerState<PosDesktopScreen> {
                 },
                 onEliminarItem: (index) {
                   ref.read(cartProvider.notifier).eliminarItem(index);
+                },
+                onPrecioEspecialChanged: (index, precio) {
+                  ref.read(cartProvider.notifier).establecerPrecioEspecial(index, precio);
                 },
               ),
             ),
