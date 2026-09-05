@@ -7,9 +7,11 @@ import 'package:app_boosti_v2/features/pos/presentation/widgets/lotes/detalle_lo
 import 'package:app_boosti_v2/features/pos/presentation/widgets/lotes/detalle_lote/lotes_product_list.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/lotes/detalle_lote/lotes_codigo_tab.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
-// ✅ IMPORT CORREGIDO
 import 'package:app_boosti_v2/features/pos/presentation/screens/lotes/lotes_detalle_screen.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/local_actual_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/categorias_provider.dart';
 
 class LotesDashboardScreen extends ConsumerStatefulWidget {
   const LotesDashboardScreen({super.key});
@@ -44,46 +46,129 @@ class _LotesDashboardScreenState extends ConsumerState<LotesDashboardScreen>
     final isMobile = ResponsiveHelper.isMobile(context);
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0F172A)
-          : const Color(0xFFF0F4F8),
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF0F4F8),
       appBar: CustomAppBar(
         title: 'Gestión de Lotes',
         showBackButton: true,
         actions: [
+          // Selector de local
+          Consumer(
+            builder: (context, ref, child) {
+              final localesAsync = ref.watch(localesProvider);
+              final currentLocalId = ref.watch(localActualProvider);
+              return localesAsync.when(
+                data: (locales) {
+                  return PopupMenuButton<int>(
+                    icon: const Icon(Icons.storefront_rounded, color: Colors.white),
+                    onSelected: (id) async {
+                      await ref.read(localActualProvider.notifier).setLocalActual(id);
+                      notifier.recargar();
+                    },
+                    itemBuilder: (context) {
+                      return locales.map((local) {
+                        final isSelected = currentLocalId == local.id;
+                        return PopupMenuItem<int>(
+                          value: local.id,
+                          child: Row(
+                            children: [
+                              if (isSelected)
+                                const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(local.nombre)),
+                            ],
+                          ),
+                        );
+                      }).toList();
+                    },
+                  );
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const Icon(Icons.error_outline, color: Colors.white),
+              );
+            },
+          ),
+          // Filtro de categoría
+          Consumer(
+            builder: (context, ref, child) {
+              final categoriasAsync = ref.watch(categoriasProvider);
+              final categoriaSeleccionada = state.categoriaFiltro;
+              return categoriasAsync.when(
+                data: (categorias) {
+                  final items = ['Todas', ...categorias.map((c) => c.nombre)];
+                  return PopupMenuButton<String>(
+                    icon: const Icon(Icons.filter_alt_rounded, color: Colors.white),
+                    onSelected: (value) => notifier.setCategoriaFiltro(value),
+                    itemBuilder: (context) {
+                      return items.map((cat) {
+                        return PopupMenuItem<String>(
+                          value: cat,
+                          child: Row(
+                            children: [
+                              if (cat == categoriaSeleccionada)
+                                const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                              const SizedBox(width: 8),
+                              Text(cat),
+                            ],
+                          ),
+                        );
+                      }).toList();
+                    },
+                  );
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const Icon(Icons.error_outline, color: Colors.white),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
             onPressed: notifier.recargar,
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Tarjetas de resumen
-          LotesSummaryCards(
-            pendientes: state.lotesPendientes.length,
-            activos: state.lotesActivos.length,
-            proximosAVencer: _contarProximosAVencer(state.lotesActivos),
-            historial: state.lotesHistorial.length,
-          ),
-          const SizedBox(height: 8),
-
-          // Búsqueda + Tabs integrados
-          _buildSearchAndTabs(isDark, isMobile),
-
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildLotesPorProducto(state.lotesPendientes, _searchQuery, 'pendiente'),
-                _buildLotesPorProducto(state.lotesActivos, _searchQuery, 'activo'),
-                _buildLotesPorProducto(state.lotesHistorial, _searchQuery, 'historial'),
-                const LotesCodigosTab(),
-              ],
-            ),
-          ),
-        ],
-      ),
+      body: state.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : state.error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 8),
+                      Text('Error: ${state.error}'),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: notifier.recargar,
+                        child: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: [
+                    // Tarjetas de resumen
+                    LotesSummaryCards(
+                      pendientes: state.lotesPendientes.length,
+                      activos: state.lotesActivos.length,
+                      proximosAVencer: _contarProximosAVencer(state.lotesActivos),
+                      historial: state.lotesHistorial.length,
+                    ),
+                    const SizedBox(height: 8),
+                    // Barra de búsqueda y tabs
+                    _buildSearchAndTabs(isDark, isMobile),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildLotesPorProducto(state.lotesPendientes, _searchQuery, 'pendiente'),
+                          _buildLotesPorProducto(state.lotesActivos, _searchQuery, 'activo'),
+                          _buildLotesPorProducto(state.lotesHistorial, _searchQuery, 'historial'),
+                          const LotesCodigosTab(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
     );
   }
 
@@ -92,20 +177,13 @@ class _LotesDashboardScreenState extends ConsumerState<LotesDashboardScreen>
       margin: const EdgeInsets.symmetric(horizontal: 12),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.05)
-            : Colors.white.withValues(alpha: 0.5),
+        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.white.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
+        // ✅ ELIMINADO: border: Border.all(...)  <--- LÍNEA GRIS ELIMINADA
       ),
       child: Column(
         children: [
-          // Barra de búsqueda compacta
+          // Barra de búsqueda
           Row(
             children: [
               Expanded(
@@ -145,7 +223,7 @@ class _LotesDashboardScreenState extends ConsumerState<LotesDashboardScreen>
                 ),
             ],
           ),
-          // Tabs con badges
+          // Tabs sin línea divisoria
           TabBar(
             controller: _tabController,
             indicator: BoxDecoration(
@@ -168,6 +246,8 @@ class _LotesDashboardScreenState extends ConsumerState<LotesDashboardScreen>
               fontSize: isMobile ? 11 : 13,
               fontWeight: FontWeight.w500,
             ),
+            // ✅ Eliminamos dividerColor para que no muestre línea inferior
+            dividerColor: Colors.transparent,
             tabs: [
               _buildTab(Icons.hourglass_top_rounded, 'Pend.', 0),
               _buildTab(Icons.check_circle_rounded, 'Activos', 0),
@@ -270,7 +350,6 @@ class _LotesDashboardScreenState extends ConsumerState<LotesDashboardScreen>
       lotes: filtrados,
       estado: estado,
       onLoteTap: (lote) {
-        // ✅ AHORA USA EL IMPORT CORRECTO
         Navigator.push(
           context,
           MaterialPageRoute(

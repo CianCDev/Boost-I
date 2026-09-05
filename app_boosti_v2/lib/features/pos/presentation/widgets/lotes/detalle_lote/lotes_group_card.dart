@@ -1,13 +1,12 @@
 // lib/features/pos/presentation/widgets/lotes/detalle_lote/lotes_group_card.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // ✅ Import necesario
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/themes/app_colors.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/lotes/detalle_lote/asignar_codigo_lote_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/lotes_provider.dart';
 
-// ✅ Convertir a ConsumerStatefulWidget
 class LotesGroupCard extends ConsumerStatefulWidget {
   final int productoId;
   final List<LoteEntity> lotes;
@@ -28,7 +27,6 @@ class LotesGroupCard extends ConsumerStatefulWidget {
   ConsumerState<LotesGroupCard> createState() => _LotesGroupCardState();
 }
 
-// ✅ Cambiar a ConsumerState
 class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
   String? _productoNombre;
   double _stockTotal = 0;
@@ -61,14 +59,10 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.white.withValues(alpha: 0.7),
+        color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.white.withValues(alpha: 0.5),
+          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.5),
           width: 1.5,
         ),
         boxShadow: [
@@ -81,16 +75,14 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
       ),
       child: Column(
         children: [
-          // Header del producto (click para expandir)
+          // Header del producto
           InkWell(
             onTap: () => setState(() => _isExpanded = !_isExpanded),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.03)
-                    : Colors.grey.shade50,
+                color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.shade50,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               ),
               child: Row(
@@ -101,11 +93,7 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
                       color: primaryGreen.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(
-                      Icons.inventory_2_rounded,
-                      color: primaryGreen,
-                      size: 20,
-                    ),
+                    child: Icon(Icons.inventory_2_rounded, color: primaryGreen, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -170,9 +158,7 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
                   ),
                   const SizedBox(width: 6),
                   Icon(
-                    _isExpanded
-                        ? Icons.expand_less_rounded
-                        : Icons.expand_more_rounded,
+                    _isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
                     color: isDark ? Colors.white54 : Colors.black54,
                     size: 22,
                   ),
@@ -183,9 +169,7 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
           // Lista de lotes (expandible)
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 300),
-            crossFadeState: _isExpanded
-                ? CrossFadeState.showFirst
-                : CrossFadeState.showSecond,
+            crossFadeState: _isExpanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,
             firstChild: Column(
               children: widget.lotes.map((lote) {
                 return _buildLoteTile(context, lote);
@@ -206,23 +190,29 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
     // Calcular días restantes para vencimiento
     String diasTexto = '';
     Color diasColor = Colors.green;
+    bool proximoAVencer = false;
     if (lote.fechaVencimiento != null) {
       final dias = lote.fechaVencimiento!.difference(DateTime.now()).inDays;
       if (dias < 0) {
         diasTexto = 'VENCIDO';
         diasColor = Colors.red;
+        proximoAVencer = false;
       } else if (dias <= 3) {
         diasTexto = '¡$dias días!';
         diasColor = Colors.red.shade700;
+        proximoAVencer = true;
       } else if (dias <= 7) {
         diasTexto = '¡$dias días!';
         diasColor = Colors.orange.shade600;
+        proximoAVencer = true;
       } else if (dias <= 15) {
         diasTexto = '$dias días';
         diasColor = Colors.amber.shade600;
+        proximoAVencer = false;
       } else {
         diasTexto = '$dias días';
         diasColor = Colors.green.shade600;
+        proximoAVencer = false;
       }
     }
 
@@ -232,13 +222,11 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.03)
-              : Colors.grey.shade50,
+          color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: estadoLoteColor.withValues(alpha: 0.15),
-            width: 1,
+            color: proximoAVencer ? Colors.orange.withValues(alpha: 0.5) : estadoLoteColor.withValues(alpha: 0.15),
+            width: proximoAVencer ? 2 : 1,
           ),
         ),
         child: Row(
@@ -325,11 +313,7 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Icon(
-                        Icons.qr_code,
-                        size: 12,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                      ),
+                      Icon(Icons.qr_code, size: 12, color: isDark ? Colors.white54 : Colors.black54),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -346,11 +330,7 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Icon(
-                        Icons.inventory_2_rounded,
-                        size: 12,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                      ),
+                      Icon(Icons.inventory_2_rounded, size: 12, color: isDark ? Colors.white54 : Colors.black54),
                       const SizedBox(width: 4),
                       Text(
                         '${lote.cantidadRestante} kg',
@@ -361,11 +341,7 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Icon(
-                        Icons.calendar_today,
-                        size: 12,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                      ),
+                      Icon(Icons.calendar_today, size: 12, color: isDark ? Colors.white54 : Colors.black54),
                       const SizedBox(width: 4),
                       Text(
                         '${lote.fechaIngreso.day}/${lote.fechaIngreso.month}/${lote.fechaIngreso.year}',
@@ -376,11 +352,7 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
                       ),
                       if (lote.proveedorNombre != null && lote.proveedorNombre!.isNotEmpty) ...[
                         const SizedBox(width: 12),
-                        Icon(
-                          Icons.business_center_rounded,
-                          size: 12,
-                          color: isDark ? Colors.white54 : Colors.black54,
-                        ),
+                        Icon(Icons.business_center_rounded, size: 12, color: isDark ? Colors.white54 : Colors.black54),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
@@ -398,57 +370,33 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
                 ],
               ),
             ),
-            // ✅ Botón de acción según el estado del lote
+            // Botón de acción según estado
             if (lote.estado == 'pendiente') ...[
               Tooltip(
                 message: 'Activar lote (asignar código y vencimiento)',
-                child: InkWell(
-                  onTap: () async {
+                child: ElevatedButton.icon(
+                  onPressed: () async {
                     final result = await showDialog<bool>(
                       context: context,
                       builder: (_) => AsignarCodigoLoteDialog(lote: lote),
                     );
                     if (result == true && mounted) {
-                      // ✅ CORREGIDO: usamos ref.read (ConsumerState tiene ref)
                       ref.read(lotesProvider.notifier).recargar();
                     }
                   },
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
+                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 16),
+                  label: const Text('Activar', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.orange.withValues(alpha: 0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.qr_code_scanner_rounded,
-                          size: 16,
-                          color: Colors.orange,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Activar',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
               ),
               const SizedBox(width: 8),
             ],
-
             // Flecha de navegación (solo para lotes activos o historial)
             if (lote.estado != 'pendiente')
               Icon(
@@ -462,46 +410,31 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
     );
   }
 
-  // ==================== MÉTODOS AUXILIARES ====================
-
   Color _getEstadoColor(String estado) {
     switch (estado) {
-      case 'pendiente':
-        return Colors.orange;
-      case 'activo':
-        return Colors.green;
-      case 'historial':
-        return Colors.grey;
-      default:
-        return Colors.grey;
+      case 'pendiente': return Colors.orange;
+      case 'activo': return Colors.green;
+      case 'historial': return Colors.grey;
+      default: return Colors.grey;
     }
   }
 
   String _getEstadoLabel(String estado) {
     switch (estado) {
-      case 'pendiente':
-        return '⏳ Pendiente';
-      case 'activo':
-        return '✅ Activo';
-      case 'historial':
-        return '📋 Historial';
-      default:
-        return estado;
+      case 'pendiente': return '⏳ Pendiente';
+      case 'activo': return '✅ Activo';
+      case 'historial': return '📋 Historial';
+      default: return estado;
     }
   }
 
   Color _getEstadoLoteColor(String estado) {
     switch (estado) {
-      case 'pendiente':
-        return Colors.orange.shade600;
-      case 'activo':
-        return Colors.green.shade600;
-      case 'agotado':
-        return Colors.red.shade600;
-      case 'vencido':
-        return Colors.purple.shade600;
-      default:
-        return Colors.grey;
+      case 'pendiente': return Colors.orange.shade600;
+      case 'activo': return Colors.green.shade600;
+      case 'agotado': return Colors.red.shade600;
+      case 'vencido': return Colors.purple.shade600;
+      default: return Colors.grey;
     }
   }
 }
