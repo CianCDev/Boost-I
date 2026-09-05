@@ -350,6 +350,25 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                     ],
                   ),
                 ),
+                if (venta.tieneDescuentoEspecial) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFFFED7AA)),
+                    ),
+                    child: const Text(
+                      'Dscto.',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFC2410C),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

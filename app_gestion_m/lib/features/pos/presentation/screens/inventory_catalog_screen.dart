@@ -10,6 +10,7 @@ import '../../domain/models/product_item.dart';
 import '../controllers/cart_controller.dart';
 import '../providers/bcv_provider.dart';
 import '../services/ticket_service.dart';
+import '../services/sync_utils.dart';
 import '../widgets/cobrar_dialog.dart';
 import '../utils/responsive_helper.dart';
 
@@ -292,16 +293,18 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   Future<void> _procesarYGuardarVentaIsar(String metodoPago, double cambio, double recibido, double tasaActual) async {
     try {
       final cartState = ref.read(cartProvider);
-      final String ventaIdStr = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+      final String ventaIdStr = generarUuidV4();
       final DateTime ahora = DateTime.now();
       final double totalBsCalculado = cartState.total * tasaActual;
 
       final itemsIsar = cartState.items.map((cartItem) {
         return VentaItemEntity()
           ..nombreProducto = cartItem.producto.nombre
-          ..precioUnidad = cartItem.producto.precioUnidad
+          ..precioUnidad = cartItem.precioUnitario
           ..cantidad = cartItem.cantidad.toDouble()
-          ..subtotal = cartItem.producto.precioUnidad * cartItem.cantidad.toDouble();
+          ..subtotal = cartItem.subtotal
+          ..precioOriginal = cartItem.esDescuentoEspecial ? cartItem.producto.precioUnidad : null
+          ..esDescuentoEspecial = cartItem.esDescuentoEspecial;
       }).toList();
 
       final nuevaVenta = VentaEntity()
@@ -316,6 +319,11 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         ..documento = 'V-00000000'
         ..empleado = widget.usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
         ..items = itemsIsar
+        ..tieneDescuentoEspecial = itemsIsar.any((item) => item.esDescuentoEspecial)
+        ..montoDescuentoTotal = itemsIsar.fold<double>(
+          0.0,
+          (total, item) => total + ((item.precioOriginal ?? item.precioUnidad) - item.precioUnidad) * item.cantidad,
+        )
         ..sincronizado = false;
 
       await _isarService.guardarVenta(nuevaVenta);
@@ -344,6 +352,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
       } catch (e) {
         debugPrint('Error al procesar ticket PDF: $e');
       }
+
 
       if (!mounted) return;
 
