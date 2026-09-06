@@ -1245,6 +1245,33 @@ class IsarService {
         .findFirst();
   }
 
+ /// Busca un proveedor por su nombre (exacto o parcial) y retorna el primero encontrado.
+Future<ProveedorEntity?> obtenerProveedorPorNombre(String nombre) async {
+  final isar = await db;
+  final nombreLimpio = nombre.trim();
+  if (nombreLimpio.isEmpty) return null;
+  
+  // Búsqueda exacta primero
+  var proveedor = await isar.proveedorEntitys
+      .filter()
+      .nombreEqualTo(nombreLimpio, caseSensitive: false)
+      .findFirst();
+  
+  // Si no se encuentra exacto, buscar por coincidencia parcial
+  proveedor ??= await isar.proveedorEntitys
+      .filter()
+      .nombreContains(nombreLimpio, caseSensitive: false)
+      .findFirst();
+  
+  return proveedor;
+}
+
+/// Obtiene el UUID de un proveedor por su nombre (utilidad)
+Future<String?> obtenerSupabaseIdProveedorPorNombre(String nombre) async {
+  final proveedor = await obtenerProveedorPorNombre(nombre);
+  return proveedor?.supabaseId;
+}  
+
   /// Actualiza el estado de sincronización de un proveedor.
   Future<void> actualizarSyncStatusProveedor(int id, bool sincronizado) async {
     final isar = await db;

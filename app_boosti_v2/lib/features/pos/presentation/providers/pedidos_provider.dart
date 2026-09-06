@@ -81,18 +81,20 @@ final registrarRecepcionProvider = FutureProvider.family<void, ({
 
   // ✅ CREAR LOTES
   for (var detalle in detalles) {
-    final lote = LoteEntity()
-      ..productoId = detalle.productoId
-      ..localId = pedido.localDestinoId 
-      ..cantidadInicial = detalle.cantidad
-      ..cantidadRestante = detalle.cantidad
-      ..fechaIngreso = DateTime.now()
-      ..fechaVencimiento = datos.fechasVencimiento?[detalle.productoId]
-      ..costoUnitario = datos.costosUnitarios?[detalle.productoId] ?? detalle.precioUnidad
-      ..estado = 'pendiente'
-      ..proveedorId = pedido.proveedorNombre
-      ..proveedorNombre = pedido.proveedorNombre 
-      ..sincronizado = false;
+    final proveedorUuid = await isar.obtenerSupabaseIdProveedorPorNombre(pedido.proveedorNombre);
+
+final lote = LoteEntity()
+  ..productoId = detalle.productoId
+  ..localId = pedido.localDestinoId
+  ..cantidadInicial = detalle.cantidad
+  ..cantidadRestante = detalle.cantidad
+  ..fechaIngreso = DateTime.now()
+  ..fechaVencimiento = datos.fechasVencimiento?[detalle.productoId]
+  ..costoUnitario = datos.costosUnitarios?[detalle.productoId] ?? detalle.precioUnidad
+  ..estado = 'pendiente'
+  ..proveedorId = proveedorUuid  // ✅ UUID válido o null
+  ..proveedorNombre = pedido.proveedorNombre  // ✅ El nombre sigue siendo útil para mostrar
+  ..sincronizado = false;
 
     await isar.guardarLote(lote);
 
