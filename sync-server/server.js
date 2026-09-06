@@ -153,6 +153,56 @@ app.post('/api/usuarios', async (req, res) => {
   }
 });
 
+app.post('/api/ventas/sync', async (req, res) => {
+  try {
+    if (!verifyApiKey(req)) return res.status(401).json({ error: 'Unauthorized' });
+
+    const venta = req.body || {};
+    if (!venta.id || !Array.isArray(venta.detalles)) {
+      return res.status(400).json({ error: 'id y detalles requeridos' });
+    }
+
+    const ventaRow = {
+      id: venta.id,
+      fecha: venta.fecha ?? new Date().toISOString(),
+      subtotal: venta.subtotal ?? 0,
+      impuesto: venta.impuesto ?? 0,
+      total: venta.total ?? 0,
+      tasa_bcv: venta.tasa_bcv ?? 0,
+      total_bolivares: venta.total_bolivares ?? 0,
+      metodo_pago: venta.metodo_pago ?? 'Efectivo',
+      documento: venta.documento ?? null,
+      empleado_nombre: venta.empleado_nombre ?? venta.empleado ?? 'Sin asignar',
+      sync_status: 'synced',
+      tiene_descuento_especial: !!venta.tiene_descuento_especial,
+      monto_descuento_total: venta.monto_descuento_total ?? 0,
+    };
+
+    const { error: ventaError } = await supabase.from('ventas').upsert([ventaRow], { onConflict: 'id' });
+    if (ventaError) return res.status(500).json({ error: ventaError.message });
+
+    await supabase.from('detalle_ventas').delete().eq('venta_id_fk', venta.id);
+    if (venta.detalles.length > 0) {
+      const detalles = venta.detalles.map((detalle) => ({
+        venta_id_fk: venta.id,
+        nombre_producto: detalle.nombre_producto,
+        precio_unidad: detalle.precio_unidad ?? 0,
+        cantidad: detalle.cantidad ?? 0,
+        subtotal: detalle.subtotal ?? 0,
+        precio_original: detalle.precio_original ?? null,
+        es_descuento_especial: !!detalle.es_descuento_especial,
+      }));
+      const { error: detalleError } = await supabase.from('detalle_ventas').insert(detalles);
+      if (detalleError) return res.status(500).json({ error: detalleError.message });
+    }
+
+    return res.status(201).json({ ok: true, id: venta.id, detalles: venta.detalles.length });
+  } catch (e) {
+    console.error('Server error /api/ventas/sync', e);
+    return res.status(500).json({ error: 'server_error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Sync server listening on :${PORT}`);
 });
