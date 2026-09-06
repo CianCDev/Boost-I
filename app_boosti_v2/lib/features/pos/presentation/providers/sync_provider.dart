@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/sync_service.dart';
 import 'catalog_provider.dart';
 import 'categorias_provider.dart';
+import 'clientes/clientes_provider.dart';
 import 'dashboard_provider.dart';
 import 'departamentos_provider.dart';
 import 'inventory_provider.dart';
@@ -30,6 +31,8 @@ final syncServiceProvider = Provider<SyncService>((ref) {
       // ref.invalidate(gastosProvider);    // NO LO TIENES, así que comentado
       // proveedoresProvider no existe como tal, pero invalidamos el que se usa
       ref.invalidate(proveedoresConFiltroProvider);
+       ref.invalidate(clientesProvider);
+      ref.invalidate(clientesFrecuentesProvider);
     },
   );
 });

@@ -24,7 +24,7 @@ import '../../services/sync_service.dart';
 import '../../utils/responsive_helper.dart';
 import '../proveedores/crear_proveedor_dialog.dart';
 import '../shared/barcode_scanner_dialog.dart';
-import 'product_detail_dialog.dart'; // ✅ Importar el escáner
+import 'product_detail_dialog.dart';
 
 // ignore: constant_identifier_names
 const String _DRAFT_KEY = 'product_form_draft';
@@ -67,6 +67,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   late String _categoriaSeleccionada;
   int? _categoriaIdSeleccionada;
   late bool _esPesado;
+  late bool _activo; // 🔥 NUEVO: estado activo/inactivo
   String _imagenUrlPreview = '';
   XFile? _imagenSeleccionada;
   bool _subiendoImagen = false;
@@ -102,6 +103,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     _categoriaIdSeleccionada = p?.categoriaId;
     _categoriaSeleccionada = p?.categoria ?? 'General';
     _esPesado = p?.esPesado ?? false;
+    _activo = p?.activo ?? true; // 🔥 Inicializar con el valor existente o true
     _imagenUrlPreview = p?.imagenUrl ?? '';
 
     _cargarProveedores();
@@ -137,6 +139,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       'stockMin': _stockMinController.text,
       'categoria': _categoriaSeleccionada,
       'esPesado': _esPesado,
+      'activo': _activo,
       'proveedorNombre': _proveedorNombreController.text,
       'proveedorTel': _proveedorTelController.text,
       'imagenUrl': _imagenUrlPreview,
@@ -171,7 +174,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     }
   }
 
-  // ✅ NUEVO: Escanear código de barras
   Future<void> _escanearCodigoBarras() async {
     final codigo = await showDialog<String>(
       context: context,
@@ -181,7 +183,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
 
     if (codigo == null || codigo.isEmpty) return;
 
-    // Verificar si el código ya existe
     final productos = ref.read(productosProvider).items;
     final productoExistente = productos.firstWhere(
       (p) => p.codigoBarras == codigo,
@@ -189,7 +190,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     );
 
     if (productoExistente.id != 0) {
-      // Código ya registrado → preguntar qué hacer
       final accion = await showDialog<String>(
         context: context,
         builder: (context) => AlertDialog(
@@ -218,36 +218,26 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       );
 
       if (accion == 'editar') {
-        // Cerrar formulario actual y abrir detalle/edición del producto existente
         Navigator.pop(context);
-        // Mostrar detalle (desde el diálogo actual, no podemos abrir otro directamente)
-        // Delegamos la acción a quien llamó al formulario, pero mejor abrimos el detalle
-        // usando el contexto de la pantalla principal. Como esto es un diálogo, usamos
-        // el contexto del diálogo para abrir otro diálogo.
         showDialog(
           context: context,
           builder: (context) => ProductDetailDialog(
             producto: productoExistente,
             esAdmin: widget.usuarioActual?.rol == 'admin',
             onEditar: () {
-              Navigator.pop(context); // cerrar detalle
-              // Abrir formulario de edición con el producto existente
+              Navigator.pop(context);
               _mostrarFormularioEdicion(productoExistente);
             },
             onEliminar: () async {
-              // Eliminar producto (no implementado aquí, pero se puede delegar)
               Navigator.pop(context);
             },
           ),
         );
         return;
       }
-      // Si elige 'continuar', se rellena el código en el campo
     }
 
-    // Si no existe o eligió continuar, rellenar el campo
     _codigoController.text = codigo;
-    // Opcional: mostrar un SnackBar de confirmación
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('✅ Código escaneado: se ha rellenado el campo'),
@@ -257,7 +247,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     );
   }
 
-  // Método auxiliar para abrir el formulario de edición desde el detalle
   void _mostrarFormularioEdicion(ProductoEntity producto) {
     showDialog(
       context: context,
@@ -296,7 +285,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       debugPrint('📦 [ProductForm] Proveedores cargados: ${proveedores.length}');
       setState(() {
         _proveedores = proveedores;
-        // Si el producto tiene un proveedor asignado, seleccionarlo
         if (widget.producto?.proveedorId != null) {
           _proveedorSeleccionado = proveedores.firstWhereOrNull(
             (p) => p.id == widget.producto!.proveedorId,
@@ -522,11 +510,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       }
       producto.codigoBarras = _codigoController.text.trim();
       producto.nombre = _nombreController.text.trim();
-
-      // ✅ Asignar marca
       producto.marcaSupabaseId = _marcaSeleccionada?.supabaseId;
       producto.marca = _marcaSeleccionada?.nombre ?? '';
-
       producto.imagenUrl = imagenUrlFinal;
       producto.precioUnidad = double.tryParse(_precioController.text) ?? 0.0;
       producto.stock = double.tryParse(_stockController.text) ?? 0.0;
@@ -534,14 +519,12 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       producto.categoriaId = _categoriaIdSeleccionada;
       producto.categoria = _categoriaSeleccionada;
       producto.esPesado = _esPesado;
-
-      // ✅ Asignar proveedor
+      producto.activo = _activo; // 🔥 Asignar el valor del switch
       producto.proveedorId = _proveedorSeleccionado?.id;
       producto.proveedorNombre = _proveedorSeleccionado?.nombre ?? '';
       producto.proveedorTelefono = _proveedorSeleccionado?.telefono ?? '';
       producto.proveedorEmail = _proveedorSeleccionado?.email ?? '';
       producto.proveedorDireccion = _proveedorSeleccionado?.direccion ?? '';
-
       producto.updatedAt = DateTime.now();
 
       await widget.onGuardar(producto);
@@ -818,6 +801,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
           _campoCategoriaSelector(colorScheme, isDark),
           const SizedBox(height: 16),
           _buildSwitchPesado(colorScheme, colorScheme.primary),
+          const SizedBox(height: 12),
+          _buildSwitchActivo(colorScheme, colorScheme.primary), // 🔥 NUEVO
           const SizedBox(height: 16),
           _buildImageSection(colorScheme, isDark, isMobile),
           const SizedBox(height: 16),
@@ -883,6 +868,58 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
         onChanged: (val) => setState(() => _esPesado = val),
         activeThumbColor: color,
         activeTrackColor: color.withValues(alpha: 0.3),
+        tileColor: Colors.transparent,
+        dense: true,
+      ),
+    );
+  }
+
+  // ==================== SWITCH ACTIVO/INACTIVO ====================
+  Widget _buildSwitchActivo(ColorScheme colorScheme, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.outline.withValues(alpha: 0.1),
+        ),
+      ),
+      child: SwitchListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+        title: Row(
+          children: [
+            Icon(
+              _activo ? Icons.check_circle_outline : Icons.cancel_outlined,
+              color: _activo ? Colors.green : Colors.red,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _activo ? 'Producto activo' : 'Producto inactivo',
+              style: TextStyle(
+                fontSize: 16,
+                color: _activo ? Colors.green : Colors.red,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        subtitle: Text(
+          _activo
+              ? 'El producto estará disponible en el catálogo'
+              : 'El producto no aparecerá en el catálogo',
+          style: TextStyle(
+            fontSize: 12,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+        value: _activo,
+        onChanged: (val) => setState(() => _activo = val),
+        activeThumbColor: color,
+        activeTrackColor: color.withValues(alpha: 0.3),
+        inactiveThumbColor: Colors.red,
+        inactiveTrackColor: Colors.red.withValues(alpha: 0.2),
         tileColor: Colors.transparent,
         dense: true,
       ),
@@ -1074,7 +1111,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Título
             Row(
               children: [
                 Icon(
@@ -1095,8 +1131,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
               ],
             ),
             const SizedBox(height: 6),
-
-            // Nombre
             Text(
               proveedor.nombre,
               style: TextStyle(
@@ -1107,36 +1141,26 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-
             const SizedBox(height: 4),
-
-            // Teléfono
             if (proveedor.telefono != null && proveedor.telefono!.isNotEmpty)
               _buildDetailRow(
                 icon: Icons.phone_rounded,
                 text: proveedor.telefono!,
                 colorScheme: colorScheme,
               ),
-
-            // Email
             if (proveedor.email != null && proveedor.email!.isNotEmpty)
               _buildDetailRow(
                 icon: Icons.email_rounded,
                 text: proveedor.email!,
                 colorScheme: colorScheme,
               ),
-
-            // Dirección
             if (proveedor.direccion != null && proveedor.direccion!.isNotEmpty)
               _buildDetailRow(
                 icon: Icons.location_on_rounded,
                 text: proveedor.direccion!,
                 colorScheme: colorScheme,
               ),
-
             const SizedBox(height: 4),
-
-            // Estado activo/inactivo
             Row(
               children: [
                 Icon(
@@ -1161,7 +1185,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     );
   }
 
-  // Método auxiliar para construir cada fila de detalle
   Widget _buildDetailRow({
     required IconData icon,
     required String text,
@@ -1626,7 +1649,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
             _buildBotonCodigo(
               icon: Icons.qr_code_scanner_rounded,
               label: 'Escanear',
-              onPressed: _escanearCodigoBarras, // ✅ Ahora llama al escáner real
+              onPressed: _escanearCodigoBarras,
               color: colorScheme.secondary,
             ),
           ],

@@ -26,10 +26,18 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
   }
 
   Future<void> cargarProductos() async {
+    // Si el provider fue destruido antes de empezar, abortamos
+    if (!mounted) return; 
     state = state.copyWith(isLoading: true);
+    
     try {
       final productos = await _isar.obtenerProductos();
+      
+      // 🔥 Validación crucial: Evita actualizar el estado si el widget/provider ya se cerró
+      if (!mounted) return; 
+      
       final currentItems = state.items;
+      
       // 🔥 Comparar antes de actualizar
       if (!_listasSonIguales(currentItems, productos)) {
         state = state.copyWith(items: productos, isLoading: false);
@@ -39,6 +47,8 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
         debugPrint('ℹ️ [ProductosNotifier] Sin cambios en productos');
       }
     } catch (e) {
+      // 🔥 Verificar también en caso de error asíncrono
+      if (!mounted) return; 
       state = state.copyWith(isLoading: false);
       debugPrint('❌ [ProductosNotifier] Error: $e');
       rethrow;

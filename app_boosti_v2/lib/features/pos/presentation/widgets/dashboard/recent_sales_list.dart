@@ -108,8 +108,9 @@ class RecentSalesList extends StatelessWidget {
   Widget _buildItem(VentaEntity venta, int index, bool isMobile, bool isDark) {
     final colorMetodo = _getMetodoPagoColor(venta.metodoPago);
     final iconMetodo = _getMetodoPagoIcon(venta.metodoPago);
+    final fecha = venta.fecha ?? DateTime.now();
     final hora =
-        '${venta.fecha.hour.toString().padLeft(2, '0')}:${venta.fecha.minute.toString().padLeft(2, '0')}';
+      '${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}';
 
     int cantidadArticulos = 0;
     if (venta.items.isNotEmpty) {
@@ -173,7 +174,7 @@ class RecentSalesList extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      venta.empleado,
+                      venta.empleadoNombre,
                       style: TextStyle(
                         fontSize: isMobile ? 10 : 12,
                         color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,

@@ -21,6 +21,12 @@ class SalesHistoryItem extends StatefulWidget {
 class _SalesHistoryItemState extends State<SalesHistoryItem> {
   bool isHovering = false;
 
+  // 🔥 Función para acortar el ID
+  String _shortId(String id) {
+    if (id.length <= 12) return id;
+    return '${id.substring(0, 12)}...';
+  }
+
   void _showDetailDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -34,7 +40,7 @@ class _SalesHistoryItemState extends State<SalesHistoryItem> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final venta = widget.venta;
-    final fechaLocal = venta.fecha.toLocal();
+    final fechaLocal = (venta.fecha ?? DateTime.now()).toLocal();
     final double tasaVentaValida =
         (venta.tasaBcv.isNaN || venta.tasaBcv <= 0) ? 0.0 : venta.tasaBcv;
     final double totalBsVentaValido =
@@ -42,7 +48,6 @@ class _SalesHistoryItemState extends State<SalesHistoryItem> {
             ? (venta.total * tasaVentaValida)
             : venta.totalBolivares;
 
-    // Mapeo de colores e iconos por método de pago
     final Map<String, Color> coloresMetodo = {
       'Efectivo': const Color(0xFF10B981),
       'Tarjeta': const Color(0xFF3B82F6),
@@ -58,7 +63,6 @@ class _SalesHistoryItemState extends State<SalesHistoryItem> {
     final Color colorMetodo = coloresMetodo[venta.metodoPago] ?? Colors.grey;
     final IconData iconMetodo = iconosMetodo[venta.metodoPago] ?? Icons.more_horiz_rounded;
 
-    // Tamaños adaptativos según dispositivo
     final double fontSizeId = widget.isTablet ? 22 : 15;
     final double fontSizeFecha = widget.isTablet ? 16 : 11;
     final double fontSizeTotalUSD = widget.isTablet ? 26 : 16;
@@ -110,7 +114,6 @@ class _SalesHistoryItemState extends State<SalesHistoryItem> {
           ),
           child: Row(
             children: [
-              // Icono de método de pago
               Container(
                 width: iconContainerSize,
                 height: iconContainerSize,
@@ -125,8 +128,6 @@ class _SalesHistoryItemState extends State<SalesHistoryItem> {
                 ),
               ),
               const SizedBox(width: 16),
-
-              // Información principal
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,18 +135,38 @@ class _SalesHistoryItemState extends State<SalesHistoryItem> {
                     Row(
                       children: [
                         Flexible(
-                          child: Text(
-                            'Venta #${venta.ventaIdString}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: fontSizeId,
-                              color: colorScheme.onSurface,
+                          child: Tooltip(
+                            message: 'ID completo: ${venta.ventaIdString}',
+                            child: Text(
+                              'Venta #${_shortId(venta.ventaIdString)}', // 🔥 ID acortado
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: fontSizeId,
+                                color: colorScheme.onSurface,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (venta.tieneDescuentoEspecial) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Dscto.',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFFF59E0B),
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(width: 8),
-                        // Badge de tasa
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -181,10 +202,7 @@ class _SalesHistoryItemState extends State<SalesHistoryItem> {
                   ],
                 ),
               ),
-
               const SizedBox(width: 12),
-
-              // Totales
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
@@ -208,10 +226,7 @@ class _SalesHistoryItemState extends State<SalesHistoryItem> {
                   ),
                 ],
               ),
-
               const SizedBox(width: 8),
-
-              // Icono de navegación (más grande en tablet)
               Icon(
                 Icons.chevron_right,
                 color: colorScheme.onSurfaceVariant,

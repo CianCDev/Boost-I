@@ -1,5 +1,4 @@
 // lib/features/pos/presentation/controllers/cart_controller.dart
-// ignore: unused_import
 // ignore_for_file: unrelated_type_equality_checks
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -97,6 +96,7 @@ class CartNotifier extends StateNotifier<CartState> {
 
       itemsActualizados[indexExistente] = itemExistente.copyWith(
         cantidad: nuevaCantidad,
+        // Mantiene precioOriginal y esDescuentoEspecial del item existente
       );
 
       state = state.copyWith(items: itemsActualizados);
@@ -111,6 +111,8 @@ class CartNotifier extends StateNotifier<CartState> {
       final nuevoItem = CartItem(
         producto: producto,
         cantidad: cantidadInicial,
+        precioOriginal: producto.precioUnidad,      // Guardamos el precio original
+        esDescuentoEspecial: false,                 // Por defecto sin descuento
       );
       state = state.copyWith(items: [...state.items, nuevoItem]);
     }
@@ -160,17 +162,56 @@ class CartNotifier extends StateNotifier<CartState> {
     if (index < 0 || index >= state.items.length) {
       return;
     }
-
     final itemsActualizados = List<CartItem>.from(state.items)..removeAt(index);
     state = state.copyWith(items: itemsActualizados);
   }
 
-  /// ✅ Elimina un ítem del carrito comparando el ID como String (sin conversión a int)
+  /// Elimina un ítem del carrito comparando el ID como String
   void eliminarItemPorId(dynamic productoId) {
     final idStr = productoId.toString();
     state = state.copyWith(
       items: state.items.where((item) => item.producto.id.toString() != idStr).toList(),
     );
+  }
+
+  /// 🔥 NUEVO: Aplica un precio especial a un producto del carrito
+  void aplicarDescuentoEspecial(String productoId, double nuevoPrecio) {
+    if (nuevoPrecio <= 0) return;
+
+    final index = state.items.indexWhere((item) => item.producto.id == productoId);
+    if (index == -1) return;
+
+    final item = state.items[index];
+    // Clonamos el producto con el nuevo precio
+    final productoModificado = item.producto.copyWith(precioUnidad: nuevoPrecio);
+
+    final itemsActualizados = List<CartItem>.from(state.items);
+    itemsActualizados[index] = item.copyWith(
+      producto: productoModificado,
+      esDescuentoEspecial: true,
+      // precioOriginal se mantiene
+    );
+
+    state = state.copyWith(items: itemsActualizados);
+  }
+
+  /// 🔥 NUEVO: Restaura el precio original de un producto con descuento
+  void restaurarPrecioOriginal(String productoId) {
+    final index = state.items.indexWhere((item) => item.producto.id == productoId);
+    if (index == -1) return;
+
+    final item = state.items[index];
+    if (!item.esDescuentoEspecial) return; // No tiene descuento
+
+    final productoOriginal = item.producto.copyWith(precioUnidad: item.precioOriginal);
+
+    final itemsActualizados = List<CartItem>.from(state.items);
+    itemsActualizados[index] = item.copyWith(
+      producto: productoOriginal,
+      esDescuentoEspecial: false,
+    );
+
+    state = state.copyWith(items: itemsActualizados);
   }
 
   void limpiarCarrito() {

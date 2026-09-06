@@ -7,12 +7,14 @@ class CartTableWidget extends StatefulWidget {
   final List<CartItem> items;
   final Function(int index, double nuevaCantidad) onCantidadChanged;
   final Function(int index) onEliminarItem;
+  final Function(int index, double? precio) onPrecioEspecialChanged;
 
   const CartTableWidget({
     super.key,
     required this.items,
     required this.onCantidadChanged,
     required this.onEliminarItem,
+    required this.onPrecioEspecialChanged,
   });
 
   @override
@@ -140,7 +142,7 @@ class _CartTableWidgetState extends State<CartTableWidget> {
               ),
               DataCell(
                 Text(
-                  '\$${item.producto.precioUnidad.toStringAsFixed(2)}',
+                  '\$${item.precioUnitario.toStringAsFixed(2)}',
                   style: TextStyle(fontSize: fontSize),
                 ),
               ),
@@ -171,12 +173,26 @@ class _CartTableWidgetState extends State<CartTableWidget> {
                 ),
               ),
               DataCell(
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 22),
-                  onPressed: () {
-                    _controllers.remove(index)?.dispose();
-                    widget.onEliminarItem(index);
-                  },
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        item.esDescuentoEspecial ? Icons.discount : Icons.discount_outlined,
+                        color: item.esDescuentoEspecial ? Colors.orange : Colors.blueGrey,
+                        size: 20,
+                      ),
+                      tooltip: 'Descuento especial',
+                      onPressed: () => _editarPrecioEspecial(context, index, item),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 22),
+                      onPressed: () {
+                        _controllers.remove(index)?.dispose();
+                        widget.onEliminarItem(index);
+                      },
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -221,7 +237,8 @@ class _CartTableWidgetState extends State<CartTableWidget> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '\$${item.producto.precioUnidad.toStringAsFixed(2)} / ${esPesado ? 'kg' : 'unid'}',
+                  '\$${item.precioUnitario.toStringAsFixed(2)} / ${esPesado ? 'kg' : 'unid'}'
+                  '${item.esDescuentoEspecial ? '  Dscto.' : ''}',
                   style: TextStyle(
                     fontSize: fontSize * 0.8,
                     color: Colors.grey.shade600,
@@ -295,6 +312,17 @@ class _CartTableWidgetState extends State<CartTableWidget> {
 
                 // Botón eliminar
                 IconButton(
+                  icon: Icon(
+                    item.esDescuentoEspecial ? Icons.discount : Icons.discount_outlined,
+                    color: item.esDescuentoEspecial ? Colors.orange : Colors.blueGrey,
+                    size: 20,
+                  ),
+                  tooltip: 'Descuento especial',
+                  onPressed: () => _editarPrecioEspecial(context, index, item),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                ),
+                IconButton(
                   icon: const Icon(Icons.close, color: Colors.redAccent, size: 20),
                   onPressed: () {
                     _controllers.remove(index)?.dispose();
@@ -309,6 +337,49 @@ class _CartTableWidgetState extends State<CartTableWidget> {
         ],
       ),
     );
+  }
+
+  Future<void> _editarPrecioEspecial(BuildContext context, int index, CartItem item) async {
+    final controller = TextEditingController(
+      text: item.esDescuentoEspecial ? item.precioUnitario.toStringAsFixed(2) : '',
+    );
+    final precio = await showDialog<double?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Descuento especial'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Precio final',
+            prefixText: '\$ ',
+            hintText: item.producto.precioUnidad.toStringAsFixed(2),
+          ),
+        ),
+        actions: [
+          if (item.esDescuentoEspecial)
+            TextButton(
+              onPressed: () => Navigator.pop(context, 0.0),
+              child: const Text('Quitar'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, double.tryParse(controller.text)),
+            child: const Text('Aplicar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (precio == 0.0) {
+      widget.onPrecioEspecialChanged(index, null);
+    } else if (precio != null) {
+      widget.onPrecioEspecialChanged(index, precio);
+    }
   }
 
   // ==========================================

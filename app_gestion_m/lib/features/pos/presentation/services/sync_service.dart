@@ -10,6 +10,7 @@ import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/movimiento_inventario_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
+import 'sync_utils.dart';
 
 /// Servicio encargado de sincronizar las ventas, catálogo y movimientos (Isar DB)
 /// hacia la base de datos remota en la nube (Supabase).
@@ -28,10 +29,11 @@ class SyncService {
 
   /// Cabeceras de autorización centralizadas
   Map<String, String> _authHeaders() {
+    final authorization = 'Bearer $_syncApiKey';
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $_syncApiKey',
-    };
+    }..['Authorization'] = authorization;
   }
 
   /// Carga la configuración desde assets/config.json solo una vez
@@ -109,8 +111,11 @@ class SyncService {
   Future<bool> _enviarVentaAlServidor(VentaEntity venta) async {
     await _loadConfig();
     try {
+      if (!esUuidV4(venta.ventaIdString)) {
+        venta.ventaIdString = generarUuidV4();
+      }
       final payload = {
-        'venta_id': venta.ventaIdString,
+        'id': venta.ventaIdString,
         'fecha': venta.fecha.toIso8601String(),
         'subtotal': venta.subtotal,
         'impuesto': venta.impuesto,
@@ -118,16 +123,28 @@ class SyncService {
         'tasa_bcv': venta.tasaBcv,
         'total_bolivares': venta.totalBolivares,
         'metodo_pago': venta.metodoPago,
-        'documento': venta.documento,
-        'empleado': venta.empleado,
+        'documento': documentoParaSupabase(venta.documento),
+        'empleado_nombre': venta.empleado,
+        'sync_status': 'synced',
+        'tiene_descuento_especial': venta.tieneDescuentoEspecial,
+        'monto_descuento_total': venta.montoDescuentoTotal,
       };
+      final detallesPayload = venta.items.map((item) => {
+        'venta_id_fk': venta.ventaIdString,
+        'nombre_producto': item.nombreProducto,
+        'precio_unidad': item.precioUnidad,
+        'cantidad': item.cantidad,
+        'subtotal': item.subtotal,
+        'precio_original': item.precioOriginal,
+        'es_descuento_especial': item.esDescuentoEspecial,
+      }).toList();
 
       // Intentar primero con el microservicio
       try {
         final response = await http.post(
           Uri.parse('$_syncServerUrl/api/ventas/sync'),
           headers: _authHeaders(),
-          body: jsonEncode(payload),
+          body: jsonEncode({...payload, 'detalles': detallesPayload}),
         ).timeout(const Duration(seconds: 10));
 
         if (response.statusCode == 200 || response.statusCode == 201) {
@@ -139,20 +156,10 @@ class SyncService {
       }
 
       // Fallback: intentar con Supabase directo
-      final responseVenta = await _supabase.from('ventas').insert(payload).select('id').single();
-      final int ventaIdPk = responseVenta['id'];
-
-      if (venta.items.isNotEmpty) {
-        final List<Map<String, dynamic>> itemsPayload = venta.items.map((item) {
-          return {
-            'venta_id_fk': ventaIdPk,
-            'nombre_producto': item.nombreProducto,
-            'precio_unidad': item.precioUnidad,
-            'cantidad': item.cantidad,
-            'subtotal': item.subtotal,
-          };
-        }).toList();
-        await _supabase.from('detalle_ventas').insert(itemsPayload);
+      await _supabase.from('ventas').upsert(payload, onConflict: 'id');
+      await _supabase.from('detalle_ventas').delete().eq('venta_id_fk', venta.ventaIdString);
+      if (detallesPayload.isNotEmpty) {
+        await _supabase.from('detalle_ventas').insert(detallesPayload);
       }
 
       debugPrint('✅ Venta ${venta.ventaIdString} sincronizada vía Supabase directo');
@@ -161,6 +168,7 @@ class SyncService {
       debugPrint('🚫 [Supabase] Error al insertar venta ${venta.ventaIdString}: $e');
       return false;
     }
+
   }
 
   // ==========================================

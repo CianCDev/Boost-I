@@ -160,8 +160,10 @@ Future<void> inicializar({int? usuarioId}) async {
       final inicio = DateTime(hoy.year, hoy.month, hoy.day);
       final fin = inicio.add(const Duration(days: 1));
 
-      final ventasHoy = ventas.where((v) =>
-          v.fecha.isAfter(inicio) && v.fecha.isBefore(fin)).toList();
+      final ventasHoy = ventas.where((v) {
+        final fecha = v.fecha;
+        return fecha != null && fecha.isAfter(inicio) && fecha.isBefore(fin);
+      }).toList();
 
       if (ventasHoy.isEmpty) return '📭 No hay ventas hoy.';
 

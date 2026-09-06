@@ -13,7 +13,7 @@ import '../widgets/sales/sales_history_filter_bar.dart';
 import '../widgets/sales/sales_history_summary_cards.dart';
 import '../widgets/sales/sales_history_search_bar.dart';
 import '../widgets/sales/sales_history_list.dart';
-import '../widgets/appbar.dart'; // Importación del CustomAppBar
+import '../widgets/appbar.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
   final bool showAppBar;
@@ -61,21 +61,29 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   // ============================================================
-  // CARGA Y FILTRADO (sin cambios)
+  // CARGA Y FILTRADO
   // ============================================================
   Future<void> _cargarVentas() async {
     setState(() => _isLoading = true);
     try {
+      // Sincronizar desde Supabase (si falla, continuamos con datos locales)
       try {
         await SyncService().descargarVentasDesdeSupabase();
       } catch (_) {}
 
       final ventas = await _isarService.obtenerVentas();
-      ventas.sort((a, b) => b.fecha.compareTo(a.fecha));
+      ventas.sort((a, b) {
+        final fechaA = a.fecha ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final fechaB = b.fecha ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return fechaB.compareTo(fechaA);
+      });
 
+      // Calcular años disponibles para el filtro
       int anioMinimo = DateTime.now().year;
       if (ventas.isNotEmpty) {
-        anioMinimo = ventas.map((v) => v.fecha.toLocal().year).reduce((a, b) => a < b ? a : b);
+        anioMinimo = ventas
+          .map((v) => (v.fecha ?? DateTime.now()).toLocal().year)
+          .reduce((a, b) => a < b ? a : b);
       }
       final int anioActual = DateTime.now().year;
 
@@ -85,12 +93,14 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       }
 
       if (mounted) {
-        _todasLasVentas = ventas;
-        _listaAniosDisponibles = anios;
-        if (!_listaAniosDisponibles.contains(_anioSeleccionadoDropdown)) {
-          _anioSeleccionadoDropdown = anioActual;
-        }
-        _isLoading = false;
+        setState(() {
+          _todasLasVentas = ventas;
+          _listaAniosDisponibles = anios;
+          if (!_listaAniosDisponibles.contains(_anioSeleccionadoDropdown)) {
+            _anioSeleccionadoDropdown = anioActual;
+          }
+          _isLoading = false;
+        });
         _aplicarFiltros();
       }
     } catch (e) {
@@ -137,11 +147,14 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
 
   void _aplicarFiltros() {
     final filtradas = _todasLasVentas.where((venta) {
-      final coincidePeriodo = _perteneceAlPeriodo(venta.fecha, _periodoSeleccionado);
+      final coincidePeriodo = _perteneceAlPeriodo(
+        venta.fecha ?? DateTime.fromMillisecondsSinceEpoch(0),
+        _periodoSeleccionado,
+      );
       final query = _searchQuery.toLowerCase().trim();
       final coincideId = venta.ventaIdString.toLowerCase().contains(query);
-      final coincideEmpleado = venta.empleado.toLowerCase().contains(query);
-      final coincideCliente = venta.documento.toLowerCase().contains(query);
+      final coincideEmpleado = venta.empleadoNombre.toLowerCase().contains(query);
+      final coincideCliente = venta.documento.toString().contains(query);
       final coincideBusqueda = query.isEmpty || coincideId || coincideEmpleado || coincideCliente;
       final coincideMetodo = _metodoSeleccionado == 'Todos' ||
           venta.metodoPago.toLowerCase() == _metodoSeleccionado.toLowerCase();
@@ -166,7 +179,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   }
 
   // ============================================================
-  // EXPORTAR CSV (sin cambios)
+  // EXPORTAR CSV
   // ============================================================
   Future<void> _exportarCSV() async {
     if (_ventasFiltradas.isEmpty) {
@@ -183,7 +196,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
       buffer.writeln('ID Venta;Fecha;Empleado;Método Pago;Total USD;Total Bs.');
 
       for (var venta in _ventasFiltradas) {
-        final fechaLocal = venta.fecha.toLocal();
+        final fechaLocal = (venta.fecha ?? DateTime.now()).toLocal();
         final String fechaStr =
             '${fechaLocal.day}/${fechaLocal.month}/${fechaLocal.year} ${fechaLocal.hour}:${fechaLocal.minute}';
         final double tasaVentaValida =
@@ -194,7 +207,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
             : venta.totalBolivares;
 
         buffer.writeln(
-            '${venta.ventaIdString};$fechaStr;${venta.empleado};${venta.metodoPago};${venta.total.toStringAsFixed(2)};${totalBsVentaValido.toStringAsFixed(2)}');
+            '${venta.ventaIdString};$fechaStr;${venta.empleadoNombre};${venta.metodoPago};${venta.total.toStringAsFixed(2)};${totalBsVentaValido.toStringAsFixed(2)}');
       }
 
       final directory = await getApplicationDocumentsDirectory();
@@ -236,8 +249,6 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
 
     final double hPadding = isTablet ? 32.0 : 12.0;
     final double vPadding = isTablet ? 24.0 : 12.0;
-    // ignore: unused_local_variable
-    final double fontSizeTitle = isTablet ? 26 : 18;
 
     final body = _isLoading
         ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
@@ -303,7 +314,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Buscador + Filtros de método (centrados)
+                  // Buscador + Filtros de método
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: hPadding),
                     child: SalesHistorySearchBar(
@@ -324,7 +335,7 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Lista de ventas (ocupa el espacio restante)
+                  // Lista de ventas (usando el campo de la entidad)
                   Expanded(
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: hPadding),

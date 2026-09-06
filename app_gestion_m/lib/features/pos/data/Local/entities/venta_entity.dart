@@ -17,6 +17,8 @@ class VentaEntity {
   late String documento;
   late String empleado;
   late bool sincronizado;
+  bool tieneDescuentoEspecial = false;
+  double montoDescuentoTotal = 0.0;
 
   List<VentaItemEntity> items = [];
 }
@@ -28,4 +30,6 @@ class VentaItemEntity {
   late double precioUnidad;
   late double cantidad;
   late double subtotal;
+  double? precioOriginal;
+  bool esDescuentoEspecial = false;
 }

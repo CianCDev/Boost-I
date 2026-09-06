@@ -10,7 +10,7 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.
 import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/proveedores/crear_proveedor_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/proveedores/detalle_proveedor_dialog.dart';
-import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/proveedor_card.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/proveedores/proveedor_card.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
@@ -881,7 +881,8 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
 
     try {
       if (proveedor.activo) {
-        await ref.read(desactivarProveedorProvider(proveedor.id).future);
+        await ref.read(proveedoresProvider.notifier).desactivarProveedor(proveedor.id);
+
       } else {
         final actualizado = ProveedorEntity()
           ..id = proveedor.id
@@ -895,7 +896,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
           ..sincronizado = false
           ..fechaSincronizacion = proveedor.fechaSincronizacion
           ..email = proveedor.email;
-        await ref.read(guardarProveedorProvider(actualizado).future);
+          await ref.read(proveedoresProvider.notifier).guardarProveedor(actualizado);
         await _sincronizarProveedores();
       }
 

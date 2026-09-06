@@ -14,6 +14,7 @@ import '../providers/auth_provider.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/usuario_entity.dart';
 import '../widgets/menu/turno_status_banner.dart';
 import 'audit_log_screen.dart';
 import 'cash_closing_screen.dart';
@@ -883,11 +884,16 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   // ============================================================
   @override
   Widget build(BuildContext context) {
+    ref.listen<UsuarioEntity?>(usuarioActualProvider, (previous, next) {
+      if (previous?.id != next?.id) {
+        _cargarEstadoTurno();
+      }
+    });
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final theme = Theme.of(context);
     final tieneTurno = _turnoAbierto != null;
-    final usuario = ref.read(usuarioActualProvider);
+    final usuario = ref.watch(usuarioActualProvider);
     final esAdmin = usuario?.rol == 'admin';
 
     final secciones = _getMenuSections()

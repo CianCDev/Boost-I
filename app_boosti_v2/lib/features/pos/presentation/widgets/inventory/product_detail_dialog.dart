@@ -33,7 +33,7 @@ class ProductDetailDialog extends ConsumerWidget {
 
     // Obtener el proveedor si existe
     final proveedorAsync = producto.proveedorId != null
-        ? ref.watch(proveedorPorIdProvider(producto.proveedorId!))
+        ?  ref.watch(proveedorPorIdAsyncProvider(producto.proveedorId!)) 
         : const AsyncValue<ProveedorEntity?>.data(null);
 
     return Dialog(

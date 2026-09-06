@@ -38,7 +38,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
 
     // Estilo igual que InventoryProductCard
     final Color cardBackground = isDark
-        ? const Color.fromARGB(255, 9, 17, 32)
+        ?cardDark
         : Colors.white;
 
     final Color cardBorderColor = isDark

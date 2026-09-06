@@ -150,6 +150,20 @@ class CartNotifier extends StateNotifier<CartState> {
     state = state.copyWith(items: itemsActualizados);
   }
 
+  void establecerPrecioEspecial(int index, double? precio) {
+    if (index < 0 || index >= state.items.length) return;
+    final item = state.items[index];
+    if (precio != null && (precio <= 0 || precio >= item.producto.precioUnidad)) {
+      return;
+    }
+    final itemsActualizados = List<CartItem>.from(state.items);
+    itemsActualizados[index] = item.copyWith(
+      precioEspecial: precio,
+      quitarPrecioEspecial: precio == null,
+    );
+    state = state.copyWith(items: itemsActualizados);
+  }
+
   /// Elimina un ítem específico del carrito por su índice
   void eliminarItem(int index) {
     if (index < 0 || index >= state.items.length) return;

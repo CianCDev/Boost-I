@@ -1,16 +1,21 @@
 import 'package:isar/isar.dart';
+
 part 'detalle_venta_entity.g.dart';
 
-@Collection()
+@collection
 class DetalleVentaEntity {
   Id id = Isar.autoIncrement;
 
-  // ✅ Referencia al ID de la venta padre (relación manual)
-  late int ventaId; // ← Este campo vincula con VentaEntity.id
-
   int? productoId;
-  late String nombreProducto;
-  late double precioUnidad;
-  late double cantidad;
-  late double subtotal;
+  String nombreProducto = '';
+  double precioUnidad = 0.0;
+  double? precioOriginal;
+  bool? esDescuentoEspecial = false;
+  double cantidad = 0.0;
+  double subtotal = 0.0;
+
+  // Llave foránea para relacionarlo con la venta localmente y en Supabase
+  String? ventaIdFk; 
+  
+  String? syncStatus = 'pending';
 }
