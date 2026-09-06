@@ -15,7 +15,7 @@ class InventoryState {
 
   const InventoryState({
     this.filtroBusqueda = '',
-    this.categoriaSeleccionadaNombre = 'Todas', // 🔥 Siempre String
+    this.categoriaSeleccionadaNombre = 'Todas',
     this.soloStockBajo = false,
     this.seleccionMultiple = false,
     this.productosSeleccionados = const {},
@@ -49,14 +49,8 @@ class InventoryState {
 
 class InventoryNotifier extends StateNotifier<InventoryState> {
   final Ref ref;
-  // ignore: unused_field
-  late final ProviderSubscription _subscription;
 
   InventoryNotifier(this.ref) : super(const InventoryState()) {
-    _subscription = ref.listen(productosProvider, (_, next) {
-      debugPrint('📢 [InventoryNotifier] ProductosProvider cambió');
-      _aplicarFiltros(next.isLoading);
-    });
     final productosState = ref.read(productosProvider);
     _aplicarFiltros(productosState.isLoading);
   }
@@ -64,14 +58,16 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
   void _aplicarFiltros(bool isLoading) {
     final productos = ref.read(productosProvider).items;
     final query = state.filtroBusqueda.toLowerCase().trim();
-    final categoriaNombre = state.categoriaSeleccionadaNombre; // String
+    final categoriaNombre = state.categoriaSeleccionadaNombre;
     final soloStockBajo = state.soloStockBajo;
 
     final filtrados = productos.where((p) {
+      // 🔥 Filtrar solo productos activos
+      if (!p.activo) return false;
+
       final coincideTexto = p.nombre.toLowerCase().contains(query) ||
           p.codigoBarras.toLowerCase().contains(query);
 
-      // Si la categoría es "Todas", mostrar todos
       bool coincideCategoria;
       if (categoriaNombre == 'Todas') {
         coincideCategoria = true;

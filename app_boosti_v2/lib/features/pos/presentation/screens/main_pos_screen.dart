@@ -8,8 +8,9 @@ import 'pos_menu_screen.dart';
 import '../utils/responsive_helper.dart';
 
 class MainPosScreen extends ConsumerStatefulWidget {
-  final UsuarioEntity usuarioLogueado;
-  const MainPosScreen({super.key, required this.usuarioLogueado});
+  @Deprecated('Use usuarioActualProvider instead.')
+  final UsuarioEntity? usuarioLogueado;
+  const MainPosScreen({super.key, this.usuarioLogueado});
 
   @override
   ConsumerState<MainPosScreen> createState() => _MainPosScreenState();
@@ -51,11 +52,9 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
         physics: const BouncingScrollPhysics(),
         children: [
           InventoryScreen(
-            usuarioLogueado: widget.usuarioLogueado,
             showAppBar: false,
           ),
           InventoryCatalogScreen(
-            usuarioLogueado: widget.usuarioLogueado,
             showAppBar: false,
           ),
           PosMenuScreen(showAppBar: false), // ✅ único y con parámetro

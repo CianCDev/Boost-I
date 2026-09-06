@@ -15,6 +15,7 @@ class ProductoEntity {
   double precioUnidad = 0.0;
   double stock = 0.0;
   bool esPesado = false;
+  bool activo = true;
 
   // ──────────────── Categoría ────────────────
   String categoria = 'General';
@@ -41,7 +42,7 @@ class ProductoEntity {
 
   // ──────────────── Stock y configuración ────────────────
   double stockMinimo = 5.0;
-  bool activo = true;
+  
 
   // ──────────────── Imagen ────────────────
   String? imagenUrl;
@@ -129,6 +130,7 @@ class ProductoEntity {
       version: json['version'] as int? ?? 0,
     );
   }
+  
 
   // ──────────────── Convertir a JSON para Supabase ────────────────
   Map<String, dynamic> toJson() {

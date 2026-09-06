@@ -26,6 +26,24 @@ class ProductItem {
     );
   }
 
+  ProductItem copyWith({
+    String? id,
+    String? codigoBarras,
+    String? nombre,
+    double? precioUnidad,
+    bool? esPesado,
+    String? categoria,
+  }) {
+    return ProductItem(
+      id: id ?? this.id,
+      codigoBarras: codigoBarras ?? this.codigoBarras,
+      nombre: nombre ?? this.nombre,
+      precioUnidad: precioUnidad ?? this.precioUnidad,
+      esPesado: esPesado ?? this.esPesado,
+      categoria: categoria ?? this.categoria,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

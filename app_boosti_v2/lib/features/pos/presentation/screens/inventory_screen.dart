@@ -7,6 +7,7 @@ import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/inventory_provider.dart';
 import '../providers/productos_provider.dart';
+import '../providers/usuario_provider.dart';
 import '../providers/esc_pos_provider.dart';
 import '../providers/themes/app_colors.dart';
 import '../services/sync_service.dart';
@@ -27,13 +28,14 @@ import '../widgets/appbar.dart';
 import '../widgets/inventory/categorias_management_dialog.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
-  final UsuarioEntity usuarioLogueado;
+  @Deprecated('Use usuarioActualProvider instead.')
+  final UsuarioEntity? usuarioLogueado;
   final String? codigoBarrasInicial;
   final bool showAppBar;
 
   const InventoryScreen({
     super.key,
-    required this.usuarioLogueado,
+    this.usuarioLogueado,
     this.codigoBarrasInicial,
     this.showAppBar = true,
   });
@@ -45,6 +47,11 @@ class InventoryScreen extends ConsumerStatefulWidget {
 class _InventoryScreenState extends ConsumerState<InventoryScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
+
+  UsuarioEntity get usuarioActual =>
+      ref.read(usuarioActualProvider) ??
+      widget.usuarioLogueado ??
+      (throw StateError('No hay usuario autenticado para Inventario'));
 
   @override
   void initState() {
@@ -110,20 +117,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   void _mostrarFormularioProducto({ProductoEntity? productoAEditar, String? codigoBarrasPrecargado}) {
-    final esAdmin = widget.usuarioLogueado.rol == 'admin';
+    final esAdmin = usuarioActual.rol == 'admin';
     if (!esAdmin) return;
 
     showDialog(
       context: context,
       builder: (context) => ProductFormDialog(
         producto: productoAEditar,
-        usuarioActual: widget.usuarioLogueado,
+        usuarioActual: usuarioActual,
         onGuardar: (producto) async {
           final productosNotifier = ref.read(productosProvider.notifier);
           if (productoAEditar == null) {
-            await productosNotifier.guardarProducto(producto, widget.usuarioLogueado, esNuevo: true);
+            await productosNotifier.guardarProducto(producto, usuarioActual, esNuevo: true);
           } else {
-            await productosNotifier.guardarProducto(producto, widget.usuarioLogueado, esNuevo: false);
+            await productosNotifier.guardarProducto(producto, usuarioActual, esNuevo: false);
           }
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -144,14 +151,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       context: context,
       builder: (context) => ProductDetailDialog(
         producto: producto,
-        esAdmin: widget.usuarioLogueado.rol == 'admin',
+        esAdmin: usuarioActual.rol == 'admin',
         onEditar: () {
           Navigator.pop(context);
           _mostrarFormularioProducto(productoAEditar: producto);
         },
         onEliminar: () async {
           final productosNotifier = ref.read(productosProvider.notifier);
-          await productosNotifier.eliminarProducto(producto.id, widget.usuarioLogueado);
+          await productosNotifier.eliminarProducto(producto.id, usuarioActual);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Producto eliminado correctamente'), backgroundColor: Color(0xFF10B981)),
@@ -376,12 +383,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   @override
   Widget build(BuildContext context) {
     debugPrint('🔵 [InventoryScreen] build ejecutado');
+    ref.watch(usuarioActualProvider);
     final contenido = _buildBody(context);
 
     if (widget.showAppBar) {
       final isMobile = ResponsiveHelper.isMobile(context);
       final isDark = Theme.of(context).brightness == Brightness.dark;
-      final isAdmin = widget.usuarioLogueado.rol == 'admin';
+      final isAdmin = usuarioActual.rol == 'admin';
       final state = ref.watch(inventoryProvider);
 
       final gradient = isDark
@@ -687,7 +695,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   // FAB
   // ============================================================
   Widget? _buildFAB(BuildContext context) {
-    final isAdmin = widget.usuarioLogueado.rol == 'admin';
+    final isAdmin = usuarioActual.rol == 'admin';
     if (!isAdmin) return null;
 
     final state = ref.watch(inventoryProvider);

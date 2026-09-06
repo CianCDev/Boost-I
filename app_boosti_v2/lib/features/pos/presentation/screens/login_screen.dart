@@ -33,6 +33,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
+  // ============================================================
+  // INIT
+  // ============================================================
   @override
   void initState() {
     super.initState();
@@ -53,11 +56,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _animationController.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // 1. 🔥 CRÍTICO: Cargar usuarios locales en el authProvider de inmediato
+      await ref.read(authProvider.notifier).loadUsuarios();
+
+      // 2. Refrescar el provider secundario (opcional)
       final usuariosActualizados = await ref.refresh(usuariosProvider.future);
       if (usuariosActualizados.isNotEmpty) {
         debugPrint('✅ Usuarios recargados en login: ${usuariosActualizados.length}');
       }
-      _sincronizarUsuarios(showFeedback: false);
+
+      // 3. Validar que el usuario guardado todavía exista en la lista
+      _validateSelectedUser();
+
+      // 4. Ejecutar sincronización en segundo plano sin bloquear la UI
+      _sincronizarUsuarios(showFeedback: false, isInitialLoad: true);
     });
   }
 
@@ -72,31 +84,60 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   // CARGA DE USUARIO SELECCIONADO
   // ============================================================
   Future<void> _loadSelectedUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedId = prefs.getInt('selected_user_id');
-    if (savedId != null) {
-      final authState = ref.read(authProvider);
-      final exists = authState.usuarios.any((u) => u.id == savedId);
-      if (exists && mounted) {
-        setState(() => _selectedUserId = savedId);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedId = prefs.getInt('selected_user_id');
+      if (savedId != null && mounted) {
+        setState(() {
+          _selectedUserId = savedId;
+        });
       }
+    } catch (e) {
+      debugPrint('Error cargando el usuario guardado: $e');
     }
   }
 
   Future<void> _saveSelectedUser(int userId) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('selected_user_id', userId);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('selected_user_id', userId);
+    } catch (e) {
+      debugPrint('Error guardando el usuario seleccionado: $e');
+    }
+  }
+
+  void _validateSelectedUser() {
+    final authState = ref.read(authProvider);
+    if (_selectedUserId != null) {
+      final exists = authState.usuarios.any((u) => u.id == _selectedUserId);
+      if (!exists && authState.usuarios.isNotEmpty) {
+        setState(() {
+          _selectedUserId = authState.usuarios.first.id;
+        });
+        _saveSelectedUser(_selectedUserId!);
+      }
+    } else if (authState.usuarios.isNotEmpty) {
+      setState(() {
+        _selectedUserId = authState.usuarios.first.id;
+      });
+      _saveSelectedUser(_selectedUserId!);
+    }
   }
 
   // ============================================================
   // SINCRONIZACIÓN
   // ============================================================
-  Future<void> _sincronizarUsuarios({bool showFeedback = true}) async {
+  Future<void> _sincronizarUsuarios({
+    bool showFeedback = true,
+    bool isInitialLoad = false,
+  }) async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+
+    // Solo mostramos el spinner si es una acción manual del usuario
+    if (!isInitialLoad) setState(() => _isLoading = true);
+
     try {
       await SyncService().sincronizarUsuariosASupabase();
-      await ref.read(authProvider.notifier).loadUsuarios();
       if (showFeedback && mounted) {
         _showSnackbar('✅ Usuarios sincronizados', Colors.green);
       }
@@ -105,7 +146,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         _showSnackbar('⚠️ Error sincronizando: $e', Colors.red);
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      // Siempre recargar locales (incluso si falla la sincronización)
+      await ref.read(authProvider.notifier).loadUsuarios();
+      // Actualizar el usuario seleccionado por si hubo cambios
+      _validateSelectedUser();
+      if (mounted && !isInitialLoad) setState(() => _isLoading = false);
     }
   }
 
@@ -113,10 +158,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+        ),
         backgroundColor: color,
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
       ),
     );
   }
@@ -199,6 +248,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final usuariosOrdenados = List<UsuarioEntity>.from(authState.usuarios)
       ..sort((a, b) => a.nombre.compareTo(b.nombre));
 
+    // Si no hay usuario seleccionado pero hay usuarios, seleccionar el primero
     if (_selectedUserId == null && usuariosOrdenados.isNotEmpty) {
       _selectedUserId = usuariosOrdenados.first.id;
     }
@@ -221,7 +271,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF0A0E27),  // Azul oscuro profundo
+              Color(0xFF0A0E27),
               Color(0xFF1A1A4E),
               Color(0xFF2D1B69),
               Color(0xFF4C2B8C),
@@ -246,7 +296,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               : EdgeInsets.zero,
                           padding: EdgeInsets.all(paddingSize),
                           decoration: BoxDecoration(
-                            // 🧊 Glassmorphism
                             color: Colors.white.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(32),
                             border: Border.all(
@@ -338,7 +387,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     const SizedBox(height: 8),
                                     Center(
                                       child: TextButton(
-                                        onPressed: _isLoading ? null : () => _sincronizarUsuarios(),
+                                        onPressed: _isLoading
+                                            ? null
+                                            : () => _sincronizarUsuarios(showFeedback: true),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
@@ -450,7 +501,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
         ),
         const SizedBox(height: 8),
-        // 🔥 Dropdown con glassmorphism
         ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: BackdropFilter(
@@ -555,7 +605,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
         ),
         const SizedBox(height: 8),
-        // 🔥 Campo PIN con glassmorphism
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: BackdropFilter(

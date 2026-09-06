@@ -119,7 +119,7 @@ class CartBottomSheet extends ConsumerWidget {
     );
   }
 
-  // ---------- LISTA DE PRODUCTOS ----------
+  // ---------- LISTA DE PRODUCTOS (con indicadores de descuento) ----------
   Widget _buildProductList(
     List cartItems,
     bool isTablet,
@@ -132,10 +132,11 @@ class CartBottomSheet extends ConsumerWidget {
       itemBuilder: (context, index) {
         final item = cartItems[index];
         final subtotal = item.producto.precioUnidad * item.cantidad;
+        final tieneDescuento = item.esDescuentoEspecial;
 
         return Dismissible(
           key: ValueKey(item.producto.id),
-          direction: DismissDirection.endToStart, // Solo deslizar de derecha a izquierda
+          direction: DismissDirection.endToStart,
           background: Container(
             alignment: Alignment.centerRight,
             padding: const EdgeInsets.only(right: 20),
@@ -152,14 +153,12 @@ class CartBottomSheet extends ConsumerWidget {
           ),
           confirmDismiss: (direction) async {
             HapticFeedback.lightImpact();
-            // Retorna true si el usuario confirma en el diálogo, false si cancela
             return await _confirmarEliminarProducto(
               context,
               item.producto.nombre,
             );
           },
           onDismissed: (direction) {
-            // Solo se ejecuta si confirmDismiss retornó true
             ref.read(cartProvider.notifier).eliminarItemPorId(item.producto.id.toString());
             _mostrarDialogoEliminado(context, item.producto.nombre);
           },
@@ -179,28 +178,68 @@ class CartBottomSheet extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        item.producto.nombre,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: isTablet ? 20 : 15,
-                          color: colorScheme.onSurface,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              item.producto.nombre,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: isTablet ? 20 : 15,
+                                color: colorScheme.onSurface,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (tieneDescuento) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'Dscto.',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFFF59E0B),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        '${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)} x \$${item.producto.precioUnidad.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: colorScheme.onSurfaceVariant,
-                          fontSize: isTablet ? 16 : 13,
-                        ),
+                      Row(
+                        children: [
+                          if (tieneDescuento) ...[
+                            Text(
+                              '\$${item.precioOriginal.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: isTablet ? 14 : 12,
+                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                                decoration: TextDecoration.lineThrough,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            '${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)} x \$${item.producto.precioUnidad.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: tieneDescuento ? const Color(0xFFF59E0B) : colorScheme.onSurfaceVariant,
+                              fontSize: isTablet ? 16 : 13,
+                              fontWeight: tieneDescuento ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                // Precio
+                // Precio subtotal
                 Flexible(
                   flex: 2,
                   child: Container(
@@ -211,13 +250,13 @@ class CartBottomSheet extends ConsumerWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: isTablet ? 20 : 16,
-                        color: primaryGreen,
+                        color: tieneDescuento ? const Color(0xFFF59E0B) : primaryGreen,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
-                // Botón eliminar explícito (para mouse / desktop)
+                // Botón eliminar
                 IconButton(
                   icon: Icon(Icons.close_rounded, size: isTablet ? 28 : 22),
                   color: redError,
@@ -359,7 +398,7 @@ class CartBottomSheet extends ConsumerWidget {
     );
   }
 
-  // ---------- DIÁLOGO: CONFIRMAR LIMPIAR ----------
+  // ---------- DIÁLOGOS ----------
   void _confirmarLimpiar(BuildContext parentContext, WidgetRef ref) {
     showDialog(
       context: parentContext,
@@ -394,7 +433,6 @@ class CartBottomSheet extends ConsumerWidget {
     );
   }
 
-  // ---------- DIÁLOGO: CONFIRMAR ELIMINAR PRODUCTO ----------
   Future<bool?> _confirmarEliminarProducto(
     BuildContext parentContext,
     String nombre,
@@ -427,7 +465,6 @@ class CartBottomSheet extends ConsumerWidget {
     );
   }
 
-  // ---------- DIÁLOGO: PRODUCTO ELIMINADO (solo informativo) ----------
   void _mostrarDialogoEliminado(BuildContext context, String nombre) {
     showDialog(
       context: context,

@@ -106,7 +106,7 @@ class CartSidebar extends ConsumerWidget {
             ),
           ),
 
-          // Lista de items con Dismissible y mayor separación en el precio
+          // Lista de items (con indicadores de descuento)
           Expanded(
             child: cartState.items.isEmpty
                 ? Center(
@@ -137,6 +137,7 @@ class CartSidebar extends ConsumerWidget {
                       final item = cartState.items[index];
                       final subtotal = item.producto.precioUnidad * item.cantidad;
                       final key = '${item.producto.id}_$index';
+                      final tieneDescuento = item.esDescuentoEspecial;
 
                       return Container(
                         decoration: BoxDecoration(
@@ -181,23 +182,63 @@ class CartSidebar extends ConsumerWidget {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          item.producto.nombre,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            fontSize: isTablet ? 15 : 13,
-                                            color: textColor,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                        Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                item.producto.nombre,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w500,
+                                                  fontSize: isTablet ? 15 : 13,
+                                                  color: textColor,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            if (tieneDescuento) ...[
+                                              const SizedBox(width: 4),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                                                  borderRadius: BorderRadius.circular(3),
+                                                ),
+                                                child: Text(
+                                                  'Dscto.',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: const Color(0xFFF59E0B),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                         const SizedBox(height: 2),
-                                        Text(
-                                          '${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)} x \$${item.producto.precioUnidad.toStringAsFixed(2)}',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: textSecondaryColor,
-                                          ),
+                                        Row(
+                                          children: [
+                                            if (tieneDescuento) ...[
+                                              Text(
+                                                '\$${item.precioOriginal.toStringAsFixed(2)}',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: textSecondaryColor.withValues(alpha: 0.5),
+                                                  decoration: TextDecoration.lineThrough,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 4),
+                                            ],
+                                            Text(
+                                              '${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)} x \$${item.producto.precioUnidad.toStringAsFixed(2)}',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: tieneDescuento ? const Color(0xFFF59E0B) : textSecondaryColor,
+                                                fontWeight: tieneDescuento ? FontWeight.w600 : FontWeight.normal,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
@@ -209,10 +250,9 @@ class CartSidebar extends ConsumerWidget {
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: isTablet ? 16 : 14,
-                                      color: primaryGreen,
+                                      color: tieneDescuento ? const Color(0xFFF59E0B) : primaryGreen,
                                     ),
                                   ),
-                                  // Espaciado directo entre el precio y el botón eliminar
                                   const SizedBox(width: 12),
                                   // Botón eliminar
                                   IconButton(

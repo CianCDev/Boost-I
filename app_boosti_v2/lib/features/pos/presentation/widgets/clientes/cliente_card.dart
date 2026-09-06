@@ -1,40 +1,35 @@
-// lib/features/pos/presentation/widgets/proveedores/proveedor_card.dart
 import 'package:flutter/material.dart';
-import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/cliente_entity.dart';
 
-class ProveedorCard extends StatefulWidget {
-  final ProveedorEntity proveedor;
+class ClienteCard extends StatefulWidget {
+  final ClienteEntity cliente;
   final VoidCallback onTap;
   final VoidCallback onEdit;
-  final VoidCallback onToggleActivo;
   final VoidCallback onDelete;
 
-  const ProveedorCard({
+  const ClienteCard({
     super.key,
-    required this.proveedor,
+    required this.cliente,
     required this.onTap,
     required this.onEdit,
-    required this.onToggleActivo,
     required this.onDelete,
   });
 
   @override
-  State<ProveedorCard> createState() => _ProveedorCardState();
+  State<ClienteCard> createState() => _ClienteCardState();
 }
 
-class _ProveedorCardState extends State<ProveedorCard> {
-  // Estado para controlar el hover de toda la card
+class _ClienteCardState extends State<ClienteCard> {
   bool isHovered = false;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    final bool activo = widget.proveedor.activo;
+    final bool activo = widget.cliente.activo;
     final Color estadoColor = activo ? const Color(0xFF10B981) : const Color(0xFFEF4444);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12), // Ajustado al mismo padding de departamentos
+      padding: const EdgeInsets.only(bottom: 12),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => isHovered = true),
@@ -59,7 +54,6 @@ class _ProveedorCardState extends State<ProveedorCard> {
                 blurRadius: isHovered ? 20 : 10,
                 offset: Offset(0, isHovered ? 8 : 4),
               ),
-              // Sombra de color del estado
               BoxShadow(
                 color: estadoColor.withValues(alpha: isHovered ? 0.15 : 0.05),
                 blurRadius: isHovered ? 15 : 8,
@@ -70,12 +64,10 @@ class _ProveedorCardState extends State<ProveedorCard> {
           child: InkWell(
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(16),
-            mouseCursor: SystemMouseCursors.click,
             child: Padding(
-              padding: const EdgeInsets.all(18), // Ajustado al padding interno de 18
+              padding: const EdgeInsets.all(18),
               child: Row(
                 children: [
-                  // Indicador de estado (barra lateral con brillo)
                   Container(
                     width: 4,
                     height: 48,
@@ -92,79 +84,48 @@ class _ProveedorCardState extends State<ProveedorCard> {
                     ),
                   ),
                   const SizedBox(width: 14),
-                  // Información principal
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          widget.proveedor.nombre,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18, // Tamaño fijo como en departamentos
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (widget.proveedor.empresa != null && widget.proveedor.empresa!.isNotEmpty)
-                          Text(
-                            widget.proveedor.empresa!,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: isDark ? Colors.white54 : Colors.black54,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        const SizedBox(height: 2),
-                        // Fila: Teléfono y RIF estructurados como los iconos de departamentos
                         Row(
                           children: [
-                            if (widget.proveedor.telefono != null && widget.proveedor.telefono!.isNotEmpty)
-                              Row(
-                                children: [
-                                  Icon(Icons.phone_rounded,
-                                      size: 14, color: isDark ? Colors.white54 : Colors.black54),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    widget.proveedor.telefono!,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: isDark ? Colors.white54 : Colors.black54,
-                                    ),
-                                  ),
-                                ],
+                            Flexible(
+                              child: Text(
+                                widget.cliente.nombre,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: isDark ? Colors.white : Colors.black87,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            if (widget.proveedor.telefono != null && widget.proveedor.telefono!.isNotEmpty &&
-                                widget.proveedor.cedula != null && widget.proveedor.cedula!.isNotEmpty)
+                            ),
+                            if (widget.cliente.frecuente) ...[
+                              const SizedBox(width: 8),
+                              const Icon(Icons.star_rounded, color: Color(0xFFF59E0B), size: 16),
+                            ]
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            if (widget.cliente.telefono != null && widget.cliente.telefono!.isNotEmpty)
+                              _buildInfoRow(Icons.phone_rounded, widget.cliente.telefono!, isDark),
+                            if (widget.cliente.telefono != null && widget.cliente.documento != null)
                               const SizedBox(width: 12),
-                            if (widget.proveedor.cedula != null && widget.proveedor.cedula!.isNotEmpty)
-                              Row(
-                                children: [
-                                  Icon(Icons.badge_rounded,
-                                      size: 14, color: isDark ? Colors.white54 : Colors.black54),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'RIF: ${widget.proveedor.cedula}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: isDark ? Colors.white54 : Colors.black54,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            if (widget.cliente.documento != null && widget.cliente.documento!.isNotEmpty)
+                              _buildInfoRow(Icons.badge_rounded, 'CI/RIF: ${widget.cliente.documento}', isDark),
                           ],
                         ),
                       ],
                     ),
                   ),
-                  // Estado + Botones de acción alineados a la derecha
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Badge de estado
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
@@ -185,7 +146,6 @@ class _ProveedorCardState extends State<ProveedorCard> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // Botones de acción organizados por bloques
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -193,24 +153,11 @@ class _ProveedorCardState extends State<ProveedorCard> {
                             icon: Icons.edit_rounded,
                             color: const Color(0xFF8B5CF6),
                             onPressed: widget.onEdit,
-                            tooltip: 'Editar',
-                            isDark: isDark,
-                          ),
-                          _buildActionButton(
-                            icon: widget.proveedor.activo
-                                ? Icons.pause_circle_outline_rounded
-                                : Icons.play_circle_outline_rounded,
-                            color: widget.proveedor.activo ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
-                            onPressed: widget.onToggleActivo,
-                            tooltip: widget.proveedor.activo ? 'Desactivar' : 'Activar',
-                            isDark: isDark,
                           ),
                           _buildActionButton(
                             icon: Icons.delete_outline_rounded,
                             color: const Color(0xFFEF4444),
                             onPressed: widget.onDelete,
-                            tooltip: 'Eliminar',
-                            isDark: isDark,
                           ),
                         ],
                       ),
@@ -225,34 +172,40 @@ class _ProveedorCardState extends State<ProveedorCard> {
     );
   }
 
-  // Estructura del botón de acción idéntica a la de departamentos
+  Widget _buildInfoRow(IconData icon, String text, bool isDark) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: isDark ? Colors.white54 : Colors.black54),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 12,
+            color: isDark ? Colors.white54 : Colors.black54,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildActionButton({
     required IconData icon,
     required Color color,
     required VoidCallback onPressed,
-    required String tooltip,
-    required bool isDark,
   }) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: onPressed,
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 2), // Margen estrecho idéntico
+          margin: const EdgeInsets.symmetric(horizontal: 2),
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: color.withValues(alpha: 0.25),
-              width: 1,
-            ),
+            border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
           ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: color,
-          ),
+          child: Icon(icon, size: 20, color: color),
         ),
       ),
     );

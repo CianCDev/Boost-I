@@ -7,10 +7,10 @@ import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../services/device_info.dart';
 import '../services/sync_service.dart';
-
+import 'usuario_provider.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier();
+  return AuthNotifier(ref);
 });
 
 class AuthState {
@@ -44,8 +44,9 @@ class AuthState {
 class AuthNotifier extends StateNotifier<AuthState> {
   final IsarService _isarService = IsarService();
   final SyncService _syncService = SyncService();
+  final Ref _ref;
 
-  AuthNotifier() : super(AuthState());
+  AuthNotifier(this._ref) : super(AuthState());
 
   Future<void> loadUsuarios() async {
     try {
@@ -70,91 +71,90 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<bool> loginWithPin(UsuarioEntity usuarioSeleccionado, String pin) async {
-  state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: true, errorMessage: null);
 
-  try {
-    // 1️⃣ Validar localmente (primero, siempre)
-    final usuarioValido = await _isarService.validarLogin(
-      usuarioSeleccionado.nombre,
-      pin,
-    );
+    try {
+      // 1️⃣ Validar localmente (primero, siempre)
+      final usuarioValido = await _isarService.validarLogin(
+        usuarioSeleccionado.nombre,
+        pin,
+      );
 
-    if (usuarioValido == null) {
+      if (usuarioValido == null) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'PIN incorrecto. Inténtalo de nuevo.',
+        );
+        return false;
+      }
+
+      // 2️⃣ Login exitoso localmente → intentar sincronizar con Supabase
+      if (usuarioValido.email != null && usuarioValido.email!.isNotEmpty) {
+        final password = usuarioValido.password ?? pin;
+        try {
+          await Supabase.instance.client.auth.signInWithPassword(
+            email: usuarioValido.email!,
+            password: password,
+          );
+          debugPrint('✅ Login en Supabase exitoso para ${usuarioValido.nombre}');
+        } catch (e) {
+          debugPrint('⚠️ Login en Supabase falló (modo offline): $e');
+        }
+      }
+
+      // 3️⃣ Actualizar estado local y en Supabase (device_id, estado)
+      await _isarService.guardarLog(
+        LogEntity()
+          ..accion = 'INICIO_SESION'
+          ..usuarioNombre = usuarioValido.nombre
+          ..usuarioRol = usuarioValido.rol
+          ..detalles = 'Inicio de sesión exitoso'
+          ..fecha = DateTime.now()
+          ..sincronizado = false,
+      );
+
+      // Actualizar estado a activo en Supabase
+      final successNube = await _syncService.actualizarEstadoUsuarioEnSupabase(
+        usuarioValido.id,
+        'activo',
+      );
+      if (successNube) {
+        debugPrint('✅ Estado actualizado en Supabase a activo para ${usuarioValido.nombre}');
+      } else {
+        debugPrint('⚠️ No se pudo actualizar estado en Supabase (continuamos)');
+      }
+
+      // Actualizar localmente
+      await _isarService.actualizarEstadoUsuario(usuarioValido.id, 'activo');
+      debugPrint('✅ Estado local actualizado a activo para ${usuarioValido.nombre}');
+
+      // Guardar device_id (si tiene supabaseUid)
+      final deviceId = await DeviceInfoService().getDeviceId();
+      if (usuarioValido.supabaseUid != null && usuarioValido.supabaseUid!.isNotEmpty) {
+        await Supabase.instance.client
+            .from('usuarios')
+            .update({'device_id': deviceId})
+            .eq('id', usuarioValido.supabaseUid!);
+      }
+
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'PIN incorrecto. Inténtalo de nuevo.',
+        currentUser: usuarioValido,
+        errorMessage: null,
+      );
+      _ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
+      // Cargar lista de usuarios para el diálogo de cambio
+      await loadUsuarios();
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Error al iniciar sesión: $e',
       );
       return false;
     }
-
-    // 2️⃣ Login exitoso localmente → intentar sincronizar con Supabase
-    //    (pero no bloquear el acceso si falla)
-    if (usuarioValido.email != null && usuarioValido.email!.isNotEmpty) {
-      // Usar la contraseña guardada en Isar (si existe), o el PIN como fallback
-      final password = usuarioValido.password ?? pin;
-      try {
-        await Supabase.instance.client.auth.signInWithPassword(
-          email: usuarioValido.email!,
-          password: password,
-        );
-        debugPrint('✅ Login en Supabase exitoso para ${usuarioValido.nombre}');
-      } catch (e) {
-        // Si falla, solo mostrar advertencia pero continuar (modo offline)
-        debugPrint('⚠️ Login en Supabase falló (modo offline): $e');
-        // No retornamos false, solo mostramos un snackbar después
-        // Podemos guardar el mensaje para mostrarlo al usuario
-      }
-    }
-
-    // 3️⃣ Actualizar estado local y en Supabase (device_id, estado)
-    await _isarService.guardarLog(
-      LogEntity()
-        ..accion = 'INICIO_SESION'
-        ..usuarioNombre = usuarioValido.nombre
-        ..usuarioRol = usuarioValido.rol
-        ..detalles = 'Inicio de sesión exitoso'
-        ..fecha = DateTime.now()
-        ..sincronizado = false,
-    );
-
-    // Actualizar estado a activo en Supabase
-    final successNube = await _syncService.actualizarEstadoUsuarioEnSupabase(
-      usuarioValido.id,
-      'activo',
-    );
-    if (successNube) {
-      debugPrint('✅ Estado actualizado en Supabase a activo para ${usuarioValido.nombre}');
-    } else {
-      debugPrint('⚠️ No se pudo actualizar estado en Supabase (continuamos)');
-    }
-
-    // Actualizar localmente
-    await _isarService.actualizarEstadoUsuario(usuarioValido.id, 'activo');
-    debugPrint('✅ Estado local actualizado a activo para ${usuarioValido.nombre}');
-
-    // Guardar device_id (si tiene supabaseUid)
-    final deviceId = await DeviceInfoService().getDeviceId();
-    if (usuarioValido.supabaseUid != null && usuarioValido.supabaseUid!.isNotEmpty) {
-      await Supabase.instance.client
-          .from('usuarios')
-          .update({'device_id': deviceId})
-          .eq('id', usuarioValido.supabaseUid!);
-    }
-
-    state = state.copyWith(
-      isLoading: false,
-      currentUser: usuarioValido,
-      errorMessage: null,
-    );
-    return true;
-  } catch (e) {
-    state = state.copyWith(
-      isLoading: false,
-      errorMessage: 'Error al iniciar sesión: $e',
-    );
-    return false;
   }
-}
+
   Future<bool> loginWithEmail(String email, String password) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
@@ -178,60 +178,119 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await supabase.from('usuarios').update({'device_id': deviceId}).eq('id', response.user!.id);
 
       state = state.copyWith(isLoading: false, currentUser: usuario, errorMessage: null);
+      _ref.read(usuarioActualProvider.notifier).setUsuario(usuario);
+      await loadUsuarios();
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: 'Error en login: $e');
       return false;
     }
   }
-Future<void> logout() async {
-  try {
-    if (state.currentUser != null) {
-      final userId = state.currentUser!.id;
-      final userName = state.currentUser!.nombre;
-      debugPrint('🚪 Cerrando sesión de $userName (ID: $userId)');
 
-      // 1. Actualizar estado en Supabase
-      final successNube = await _syncService.actualizarEstadoUsuarioEnSupabase(userId, 'inactivo');
-      if (successNube) {
-        debugPrint('✅ Estado actualizado en Supabase a inactivo para $userName');
-      } else {
-        debugPrint('⚠️ No se pudo actualizar estado en Supabase');
-      }
-
-      // 2. Actualizar estado local
-      await _isarService.actualizarEstadoUsuario(userId, 'inactivo');
-      debugPrint('✅ Estado local actualizado a inactivo para $userName');
-
-      // 3. 🔥 FORZAR sincronización desde Supabase para actualizar el monitor
-      try {
-        await _syncService.sincronizarUsuariosDesdeSupabase();
-        debugPrint('✅ Sincronización post-logout completada');
-      } catch (e) {
-        debugPrint('⚠️ Error en sincronización post-logout: $e');
-      }
+  // 🔥 NUEVO MÉTODO: Cambiar cajero sin cerrar sesión
+  Future<bool> cambiarCajero(UsuarioEntity nuevoCajero, String pin) async {
+    // 1. Validar PIN del nuevo cajero
+    final validado = await _isarService.validarLogin(nuevoCajero.nombre, pin);
+    if (validado == null) {
+      state = state.copyWith(errorMessage: 'PIN incorrecto para ${nuevoCajero.nombre}');
+      return false;
     }
-        await _isarService.guardarLog(
-      LogEntity()
-        ..accion = 'CIERRE_SESION'
-        ..usuarioNombre = state.currentUser!.nombre
-        ..usuarioRol = state.currentUser!.rol
-        ..detalles = 'Cierre de sesión'
-        ..fecha = DateTime.now()
-        ..sincronizado = false,
+
+    // 2. Obtener usuario actual
+    final usuarioActual = state.currentUser;
+    if (usuarioActual == null) {
+      state = state.copyWith(errorMessage: 'No hay usuario actual');
+      return false;
+    }
+
+    // 3. Marcar usuario actual como inactivo (local y remoto)
+    await _isarService.actualizarEstadoUsuario(usuarioActual.id, 'inactivo');
+    await _syncService.actualizarEstadoUsuarioEnSupabase(usuarioActual.id, 'inactivo');
+
+    // 4. Marcar nuevo usuario como activo
+    await _isarService.actualizarEstadoUsuario(nuevoCajero.id, 'activo');
+    await _syncService.actualizarEstadoUsuarioEnSupabase(nuevoCajero.id, 'activo');
+
+    // 5. (Opcional) Sincronizar usuarios desde Supabase para actualizar otros dispositivos
+    try {
+      await _syncService.sincronizarUsuariosDesdeSupabase();
+    } catch (e) {
+      debugPrint('⚠️ Error sincronizando usuarios después del cambio: $e');
+    }
+
+    // 6. Registrar log
+    await _isarService.guardarLog(LogEntity()
+      ..accion = 'CAMBIO_CAJERO'
+      ..usuarioNombre = usuarioActual.nombre
+      ..usuarioRol = usuarioActual.rol
+      ..detalles = 'Cambio de cajero de ${usuarioActual.nombre} a ${nuevoCajero.nombre}'
+      ..fecha = DateTime.now()
+      ..sincronizado = false
     );
 
-    // 4. Cerrar sesión en Supabase
-    await Supabase.instance.client.auth.signOut();
-    
-    // 5. Limpiar el estado del usuario actual
-    state = AuthState(usuarios: state.usuarios);
-    
-    debugPrint('✅ Logout completado correctamente');
-  } catch (e) {
-    debugPrint('❌ Error en logout: $e');
-    // Aún si falla, intentamos limpiar el estado
-    state = AuthState(usuarios: state.usuarios);
+    // 7. Actualizar estado global
+    state = state.copyWith(
+      currentUser: nuevoCajero,
+      errorMessage: null,
+    );
+    _ref.read(usuarioActualProvider.notifier).setUsuario(nuevoCajero);
+
+    // 8. Recargar lista de usuarios
+    await loadUsuarios();
+
+    return true;
   }
-}
+
+  Future<void> logout() async {
+    try {
+      if (state.currentUser != null) {
+        final userId = state.currentUser!.id;
+        final userName = state.currentUser!.nombre;
+        debugPrint('🚪 Cerrando sesión de $userName (ID: $userId)');
+
+        // 1. Actualizar estado en Supabase
+        final successNube = await _syncService.actualizarEstadoUsuarioEnSupabase(userId, 'inactivo');
+        if (successNube) {
+          debugPrint('✅ Estado actualizado en Supabase a inactivo para $userName');
+        } else {
+          debugPrint('⚠️ No se pudo actualizar estado en Supabase');
+        }
+
+        // 2. Actualizar estado local
+        await _isarService.actualizarEstadoUsuario(userId, 'inactivo');
+        debugPrint('✅ Estado local actualizado a inactivo para $userName');
+
+        // 3. 🔥 FORZAR sincronización desde Supabase para actualizar el monitor
+        try {
+          await _syncService.sincronizarUsuariosDesdeSupabase();
+          debugPrint('✅ Sincronización post-logout completada');
+        } catch (e) {
+          debugPrint('⚠️ Error en sincronización post-logout: $e');
+        }
+      }
+      await _isarService.guardarLog(
+        LogEntity()
+          ..accion = 'CIERRE_SESION'
+          ..usuarioNombre = state.currentUser?.nombre ?? 'Desconocido'
+          ..usuarioRol = state.currentUser?.rol ?? ''
+          ..detalles = 'Cierre de sesión'
+          ..fecha = DateTime.now()
+          ..sincronizado = false,
+      );
+
+      // 4. Cerrar sesión en Supabase
+      await Supabase.instance.client.auth.signOut();
+
+      // 5. Limpiar el estado del usuario actual
+      state = AuthState(usuarios: state.usuarios);
+      _ref.read(usuarioActualProvider.notifier).clearUsuario();
+
+      debugPrint('✅ Logout completado correctamente');
+    } catch (e) {
+      debugPrint('❌ Error en logout: $e');
+      // Aún si falla, intentamos limpiar el estado
+      state = AuthState(usuarios: state.usuarios);
+      _ref.read(usuarioActualProvider.notifier).clearUsuario();
+    }
+  }
 }

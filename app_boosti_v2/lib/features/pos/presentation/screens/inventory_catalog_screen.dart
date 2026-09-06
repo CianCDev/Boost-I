@@ -15,6 +15,7 @@ import '../../data/Local/entities/usuario_entity.dart';
 import '../controllers/cart_controller.dart';
 import '../providers/catalog_provider.dart';
 import '../providers/bcv_provider.dart';
+import '../providers/usuario_provider.dart';
 import '../providers/panel/panel_provider.dart';
 import '../controllers/panel_controller.dart';
 import '../widgets/catalog/category_chips.dart';
@@ -47,13 +48,18 @@ class InventoryCatalogScreen extends ConsumerStatefulWidget {
 }
 
 class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   final ScaleService _scaleService = ScaleService();
+  final PanelProvider _panelProvider = PanelProvider();
+  final PanelController _panelController = PanelController();
   late AnimationController _animationController;
   final FocusNode _searchFocusNode = FocusNode();
 
   StreamSubscription<double>? _weightSubscription;
   Timer? _pollingTimer;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -197,7 +203,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
 
   Future<void> _mostrarModalCobro() async {
     final actions = ref.read(catalogActionsProvider);
-    await actions.mostrarModalCobro(context, widget.usuarioLogueado);
+    await actions.mostrarModalCobro(context, ref.read(usuarioActualProvider));
   }
 
   // ============================================================
@@ -205,11 +211,14 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   // ============================================================
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     // Envolvemos con los providers del panel lateral
     return provider.MultiProvider(
       providers: [
-        provider.ChangeNotifierProvider(create: (_) => PanelProvider()),
-        provider.Provider(create: (_) => PanelController()),
+        provider.ChangeNotifierProvider<PanelProvider>(
+          create: (_) => _panelProvider,
+        ),
+        provider.Provider<PanelController>.value(value: _panelController),
       ],
       child: _buildScaffold(context),
     );
@@ -227,7 +236,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
       return Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
         appBar: CatalogAppBar(
-          usuarioLogueado: widget.usuarioLogueado,
           onScanPressed: _scanBarcode,
           searchFocusNode: _searchFocusNode,
         ),

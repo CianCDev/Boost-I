@@ -1,18 +1,26 @@
+// lib/features/pos/presentation/providers/lock_provider.dart
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'auth_provider.dart';
 
 class LockStateNotifier extends StateNotifier<bool> {
-  LockStateNotifier() : super(false);
+  final Ref ref;
+
+  LockStateNotifier(this.ref) : super(false);
 
   Future<void> _lockScreen({required String reason}) async {
-    if (state) return; // Si ya está bloqueado, evitamos múltiples registros
+    // Si ya está bloqueado o no hay usuario logueado, no hacer nada
+    if (state) return;
+    final authState = ref.read(authProvider);
+    if (authState.currentUser == null) return;
+
     state = true;
 
+    // Registrar en Supabase (opcional)
     try {
       final supabase = Supabase.instance.client;
       final userId = supabase.auth.currentUser?.id;
-
       if (userId != null) {
         await supabase.from('cashier_logs').insert({
           'user_id': userId,
@@ -26,17 +34,19 @@ class LockStateNotifier extends StateNotifier<bool> {
     }
   }
 
-  // Se activa por inactividad desde el UserActivityDetector
+  // Bloqueo por inactividad
   void lock() {
     _lockScreen(reason: 'inactivity');
   }
 
-  // Se activa manualmente desde el botón de la UI
+  // Bloqueo manual (botón)
   void manualRest() {
     _lockScreen(reason: 'manual');
   }
 
+  // Desbloqueo
   Future<void> unlock() async {
+    // Registrar en Supabase
     try {
       final supabase = Supabase.instance.client;
       final userId = supabase.auth.currentUser?.id;
@@ -55,5 +65,5 @@ class LockStateNotifier extends StateNotifier<bool> {
 }
 
 final lockProvider = StateNotifierProvider<LockStateNotifier, bool>((ref) {
-  return LockStateNotifier();
+  return LockStateNotifier(ref);
 });

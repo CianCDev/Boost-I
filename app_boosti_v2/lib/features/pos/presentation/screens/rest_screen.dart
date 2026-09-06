@@ -1,22 +1,30 @@
+// lib/features/pos/presentation/screens/rest_screen.dart
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_provider.dart';
 import '../providers/lock_provider.dart';
 import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/log_entity.dart';
+import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 
-  class RestScreen extends ConsumerStatefulWidget {
-  const RestScreen({super.key}); // <-- Eliminamos el required Stack child
+class RestScreen extends ConsumerStatefulWidget {
+  const RestScreen({super.key});
 
   @override
   ConsumerState<RestScreen> createState() => _RestScreenState();
 }
 
-class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProviderStateMixin {
+class _RestScreenState extends ConsumerState<RestScreen>
+    with SingleTickerProviderStateMixin {
   final IsarService _isarService = IsarService();
+  final SyncService _syncService = SyncService();
   final FocusNode _keyboardFocus = FocusNode();
-  
+
   String _enteredPin = '';
   String _errorMessage = '';
   bool _cargando = false;
@@ -33,7 +41,6 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    // Configuración de la animación de sacudida (Shake Effect)
     _shakeAnimation = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 0, end: 12), weight: 1),
       TweenSequenceItem(tween: Tween(begin: 12, end: -12), weight: 1),
@@ -52,12 +59,11 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
   void _triggerError(String message) {
     setState(() {
       _errorMessage = message;
-      _enteredPin = ''; // Limpieza segura de memoria
+      _enteredPin = '';
       _failedAttempts++;
     });
     _shakeController.forward(from: 0.0);
 
-    // Bloqueo temporal tras 5 intentos fallidos
     if (_failedAttempts >= 5) {
       setState(() => _isLockedOut = true);
       Timer(const Duration(seconds: 30), () {
@@ -82,25 +88,35 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
     });
 
     try {
-      final usuarios = await _isarService.obtenerUsuarios();
-      
-      // 🔒 Validamos que el PIN exista en la base de datos
-      final usuarioEncontrado = usuarios.where((u) => u.pin == _enteredPin).firstOrNull;
+      final authState = ref.read(authProvider);
+      final usuarioLogueado = authState.currentUser;
 
-      if (usuarioEncontrado != null) {
-        // 🛡️ RECOMENDACIÓN DE SEGURIDAD: Verifica si este usuario es el que inició la sesión
-        // Ejemplo con un provider ficticio (descomenta y adapta según tu código):
-        // final usuarioLogueado = ref.read(currentUserProvider);
-        // if (usuarioEncontrado.id != usuarioLogueado?.id) {
-        //   _triggerError('Este PIN no pertenece al cajero activo.');
-        //   setState(() => _cargando = false);
-        //   return;
-        // }
+      if (usuarioLogueado == null) {
+        if (mounted) _triggerError('No hay usuario activo. Vuelva a iniciar sesión.');
+        setState(() => _cargando = false);
+        return;
+      }
 
-        await _isarService.actualizarEstadoUsuario(usuarioEncontrado.id, 'activo');
+      if (usuarioLogueado.pin == _enteredPin) {
+        // Actualizar estado local y en Supabase
+        await _isarService.actualizarEstadoUsuario(usuarioLogueado.id, 'activo');
+        await _syncService.actualizarEstadoUsuarioEnSupabase(usuarioLogueado.id, 'activo');
+
+        await _isarService.guardarLog(
+          LogEntity()
+            ..accion = 'DESCANSO_FINALIZADO'
+            ..usuarioNombre = usuarioLogueado.nombre
+            ..usuarioRol = usuarioLogueado.rol
+            ..detalles = 'Usuario salió de modo descanso'
+            ..fecha = DateTime.now()
+            ..sincronizado = false,
+        );
+
         if (mounted) {
-          _enteredPin = ''; // Borrado de seguridad
+          _enteredPin = '';
           await ref.read(lockProvider.notifier).unlock();
+          // Volver a la pantalla anterior
+          Navigator.pop(context);
         }
       } else {
         if (mounted) _triggerError('PIN incorrecto. Intente de nuevo.');
@@ -194,8 +210,8 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
                   decoration: BoxDecoration(
                     color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(24),
-                    border: _errorMessage.isNotEmpty 
-                        ? Border.all(color: colorScheme.error, width: 2) 
+                    border: _errorMessage.isNotEmpty
+                        ? Border.all(color: colorScheme.error, width: 2)
                         : null,
                     boxShadow: [
                       BoxShadow(
@@ -228,7 +244,7 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _isLockedOut 
+                        _isLockedOut
                             ? 'Demasiados intentos fallidos.\nEspere 30 segundos.'
                             : 'Esta estación se encuentra pausada.\nIngrese su PIN para continuar.',
                         textAlign: TextAlign.center,
@@ -239,8 +255,8 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
                         ),
                       ),
                       const SizedBox(height: 32),
-                      
-                      // Indicadores Visuales del PIN (Círculos)
+
+                      // Indicadores de PIN
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(4, (index) {
@@ -251,11 +267,11 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
                             height: 20,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: isFilled 
-                                  ? (_errorMessage.isNotEmpty ? colorScheme.error : colorScheme.primary) 
+                              color: isFilled
+                                  ? (_errorMessage.isNotEmpty ? colorScheme.error : colorScheme.primary)
                                   : Colors.transparent,
                               border: Border.all(
-                                color: _errorMessage.isNotEmpty 
+                                color: _errorMessage.isNotEmpty
                                     ? colorScheme.error
                                     : (isFilled ? colorScheme.primary : colorScheme.outline),
                                 width: 2,
@@ -264,7 +280,7 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
                           );
                         }),
                       ),
-                      
+
                       if (_errorMessage.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         Text(
@@ -272,10 +288,10 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
                           style: TextStyle(color: colorScheme.error, fontSize: 13),
                         ),
                       ],
-                      
+
                       const SizedBox(height: 32),
 
-                      // Teclado Numérico Virtual
+                      // Teclado numérico
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -287,16 +303,14 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
                         ),
                         itemCount: 12,
                         itemBuilder: (context, index) {
-                          if (index == 9) return const SizedBox(); // Espacio vacío
+                          if (index == 9) return const SizedBox();
                           if (index == 11) {
-                            // Botón de borrar
                             return _NumpadButton(
                               icon: Icons.backspace_outlined,
                               onPressed: _onBackspacePressed,
                               isDisabled: _isLockedOut || _cargando,
                             );
                           }
-                          // Botones numéricos 0-9
                           final digit = index == 10 ? '0' : '${index + 1}';
                           return _NumpadButton(
                             label: digit,
@@ -305,7 +319,7 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
                           );
                         },
                       ),
-                      
+
                       if (_cargando) ...[
                         const SizedBox(height: 20),
                         CircularProgressIndicator(color: colorScheme.primary),
@@ -322,7 +336,7 @@ class _RestScreenState extends ConsumerState<RestScreen> with SingleTickerProvid
   }
 }
 
-// Widget auxiliar para los botones del teclado
+// Widget auxiliar
 class _NumpadButton extends StatelessWidget {
   final String? label;
   final IconData? icon;

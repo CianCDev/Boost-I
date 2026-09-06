@@ -1,3 +1,4 @@
+// lib/features/pos/presentation/providers/proveedores_provider.dart
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
@@ -6,24 +7,62 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart
 
 final isarServiceProvider = Provider<IsarService>((ref) => IsarService());
 
-// Provider con filtros
+final proveedoresProvider = StateNotifierProvider<ProveedoresNotifier, List<ProveedorEntity>>((ref) {
+  return ProveedoresNotifier(ref);
+});
+
+class ProveedoresNotifier extends StateNotifier<List<ProveedorEntity>> {
+  final Ref ref;
+
+  ProveedoresNotifier(this.ref) : super([]) {
+    cargarProveedores();
+  }
+
+  IsarService get _isar => ref.read(isarServiceProvider);
+
+  Future<void> cargarProveedores() async {
+    final todos = await _isar.obtenerProveedores(soloActivos: false);
+    if (!mounted) return;
+    state = todos;
+  }
+
+  Future<void> guardarProveedor(ProveedorEntity proveedor) async {
+    await _isar.guardarProveedor(proveedor);
+    await cargarProveedores();
+  }
+
+  Future<void> desactivarProveedor(int id) async {
+    await _isar.desactivarProveedor(id);
+    await cargarProveedores();
+  }
+}
+
+final proveedorPorIdProvider = Provider.family<ProveedorEntity?, int>((ref, id) {
+  final todos = ref.watch(proveedoresProvider);
+  return todos.firstWhereOrNull((p) => p.id == id);
+});
+
+// ✅ NUEVO: Para usar en diálogos que necesitan AsyncValue
+final proveedorPorIdAsyncProvider = FutureProvider.family<ProveedorEntity?, int>((ref, id) async {
+  final isar = ref.read(isarServiceProvider);
+  return await isar.obtenerProveedorPorId(id);
+});
+
 final proveedoresConFiltroProvider = FutureProvider.family<List<ProveedorEntity>, ({
   String query,
   bool mostrarInactivos,
   int? productoId,
 })>((ref, params) async {
-  final isar = ref.watch(isarServiceProvider);
-  
-  final todos = await isar.obtenerProveedores(soloActivos: false);
-  
+  final todos = ref.watch(proveedoresProvider);
+
   var resultado = todos.where((p) {
     if (params.mostrarInactivos) {
-      return !p.activo;
+      return true;
     } else {
       return p.activo;
     }
   }).toList();
-  
+
   if (params.query.isNotEmpty) {
     final q = params.query.toLowerCase();
     resultado = resultado.where((p) {
@@ -32,34 +71,18 @@ final proveedoresConFiltroProvider = FutureProvider.family<List<ProveedorEntity>
       return coincideNombre || coincideEmpresa;
     }).toList();
   }
-  
+
   if (params.productoId != null) {
+    final isar = ref.read(isarServiceProvider);
     final productos = await isar.obtenerProductos();
     final proveedoresIdsConProducto = productos
-        .where((p) => p.proveedorId == params.productoId)
+        .where((p) => p.id == params.productoId && p.proveedorId != null)
         .map((p) => p.proveedorId!)
         .toSet();
     resultado = resultado.where((p) => proveedoresIdsConProducto.contains(p.id)).toList();
   }
-  
+
   return resultado;
-});
-
-final proveedorPorIdProvider = FutureProvider.family<ProveedorEntity?, int>((ref, id) async {
-  final isar = ref.watch(isarServiceProvider);
-  final todos = await isar.obtenerProveedores(soloActivos: false);
-  return todos.firstWhereOrNull((p) => p.id == id);
-});
-
-// ✅ Provider único para guardar (crea o actualiza según el ID)
-final guardarProveedorProvider = FutureProvider.family<void, ProveedorEntity>((ref, proveedor) async {
-  final isar = ref.watch(isarServiceProvider);
-  await isar.guardarProveedor(proveedor);
-});
-
-final desactivarProveedorProvider = FutureProvider.family<void, int>((ref, id) async {
-  final isar = ref.watch(isarServiceProvider);
-  await isar.desactivarProveedor(id);
 });
 
 final productosPorProveedorProvider = FutureProvider.family<List<ProductoEntity>, int>((ref, proveedorId) async {

@@ -881,7 +881,8 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
 
     try {
       if (proveedor.activo) {
-        await ref.read(desactivarProveedorProvider(proveedor.id).future);
+        await ref.read(proveedoresProvider.notifier).desactivarProveedor(proveedor.id);
+
       } else {
         final actualizado = ProveedorEntity()
           ..id = proveedor.id
@@ -895,7 +896,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
           ..sincronizado = false
           ..fechaSincronizacion = proveedor.fechaSincronizacion
           ..email = proveedor.email;
-        await ref.read(guardarProveedorProvider(actualizado).future);
+          await ref.read(proveedoresProvider.notifier).guardarProveedor(actualizado);
         await _sincronizarProveedores();
       }
 

@@ -77,7 +77,7 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
     }
 
     try {
-      await ref.read(guardarProveedorProvider(proveedor).future);
+      await ref.read(proveedoresProvider.notifier).guardarProveedor(proveedor);
       final syncService = SyncService();
       await syncService.sincronizarProveedoresPendientes();
 

@@ -1,35 +1,33 @@
 // venta_entity.dart
 import 'package:isar/isar.dart';
-
 import 'detalle_venta_entity.dart';
+
 part 'venta_entity.g.dart';
 
-@Collection()
+@collection
 class VentaEntity {
   Id id = Isar.autoIncrement;
-
-  late String ventaIdString;
-  late DateTime fecha;
-  late double subtotal;
-  late double impuesto;
-  late double total;
-  late double tasaBcv;
-  late double totalBolivares;
-  late String metodoPago;
-  late String documento;
-  late String empleado;
-  // ... campos existentes ...
-  String? referencia; // para pago móvil
-  String? nombreCliente; // para pago móvil o punto
-  bool sincronizado = false;
-  int? turnoId;
   
+  @Index()
+  String? idSupabase; 
+  
+  DateTime? fecha;
+  double total = 0.0;
+  double subtotal = 0.0;
+  double impuesto = 0.0;
+  double tasaBcv = 0.0;
+  double totalBolivares = 0.0;
+  String metodoPago = '';
+  int documento = 0;
+  String empleado = 'Administrador / Catálogo';
+  String? syncStatus = 'pending';
 
-  @Ignore()
-  List<DetalleVentaEntity> items = [];
+  // 🔥 Nuevos campos
+  bool tieneDescuentoEspecial = false;
+  double montoDescuentoTotal = 0.0;
 
-  // ✅ Campo syncStatus
-  String syncStatus = 'pending';
+  final items = IsarLinks<DetalleVentaEntity>();
 
-
+  String get ventaIdString => idSupabase ?? '';
+  String get empleadoNombre => empleado;
 }

@@ -9,11 +9,9 @@ import 'package:app_boosti_v2/features/pos/presentation/controllers/cart_control
 import 'package:app_boosti_v2/features/pos/presentation/providers/esc_pos_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/ticket_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/ticket_generator.dart';
-// ignore: unused_import
-import 'package:app_boosti_v2/features/pos/presentation/providers/catalog_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/productos_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
-
+import 'package:uuid/uuid.dart';
 import '../../data/Local/entities/isar_service.dart';
 
 class VentaService {
@@ -34,8 +32,8 @@ class VentaService {
     final cartNotifier = _ref.read(cartProvider.notifier);
     
     try {
-      // 🔥 Descontar lotes y actualizar stock del producto principal
-      final productosAfectados = <int>{}; // IDs de productos afectados
+      // 1. Descontar lotes
+      final productosAfectados = <int>{};
 
       for (var cartItem in cartState.items) {
         final productoId = int.tryParse(cartItem.producto.id);
@@ -56,40 +54,50 @@ class VentaService {
           }
           cantidadPorDescontar -= descontar;
         }
-
-        // ✅ Marcar producto para actualizar stock
         productosAfectados.add(productoId);
       }
 
-      // ✅ Actualizar stock del producto principal (suma de lotes activos)
+      // 2. Actualizar stock
       for (var productoId in productosAfectados) {
         final producto = await isar.obtenerProductoPorId(productoId);
         if (producto == null) continue;
-
         final stockTotal = await isar.obtenerStockTotalPorProducto(productoId);
         producto.stock = stockTotal;
         await isar.guardarProducto(producto);
-        
-
-
-        // Registrar movimiento de inventario (ya se hizo en descontarLote)
       }
       
-      // Guardar venta
-      final ventaIdStr = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+      // 3. Preparar detalles de la venta
+      final nuevoUuidVenta = const Uuid().v4();
       final ahora = DateTime.now();
       final totalBsCalculado = cartState.total * tasaActual;
+
       final itemsIsar = cartState.items.map((cartItem) {
         return DetalleVentaEntity()
           ..productoId = int.tryParse(cartItem.producto.id)
           ..nombreProducto = cartItem.producto.nombre
           ..precioUnidad = cartItem.producto.precioUnidad
+          ..precioOriginal = cartItem.precioOriginal
+          ..esDescuentoEspecial = cartItem.esDescuentoEspecial
           ..cantidad = cartItem.cantidad.toDouble()
-          ..subtotal = cartItem.cantidad.toDouble() * cartItem.producto.precioUnidad;
+          ..subtotal = cartItem.cantidad.toDouble() * cartItem.producto.precioUnidad
+          ..syncStatus = 'pending'
+          ..ventaIdFk = nuevoUuidVenta;
       }).toList();
 
+      // Calcular descuentos totales
+      bool tieneDescuento = false;
+      double montoDescuentoTotal = 0.0;
+
+      for (var item in itemsIsar) {
+        if (item.esDescuentoEspecial == true && item.precioOriginal != null) {
+          tieneDescuento = true;
+          final descuento = (item.precioOriginal! - item.precioUnidad) * item.cantidad;
+          montoDescuentoTotal += descuento;
+        }
+      }
+
       final nuevaVenta = VentaEntity()
-        ..ventaIdString = ventaIdStr
+        ..idSupabase = nuevoUuidVenta
         ..fecha = ahora
         ..total = cartState.total
         ..subtotal = cartState.subtotal
@@ -97,37 +105,41 @@ class VentaService {
         ..tasaBcv = tasaActual
         ..totalBolivares = totalBsCalculado
         ..metodoPago = metodoPago
-        ..documento = '...'
+        ..documento = 0
         ..empleado = usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
-        ..items = itemsIsar.cast<DetalleVentaEntity>()
-        ..syncStatus = 'pending';
+        ..syncStatus = 'pending'
+        ..tieneDescuentoEspecial = tieneDescuento
+        ..montoDescuentoTotal = montoDescuentoTotal;
 
-      await isar.guardarVenta(nuevaVenta);
+      // 4. Guardar venta con sus detalles explícitamente
+      await isar.guardarVenta(
+        nuevaVenta,
+        detalles: itemsIsar, // 🔥 Pasar los detalles
+      );
+      debugPrint('✅ Venta guardada localmente con ${itemsIsar.length} detalles');
 
-      // ✅ Recargar productosProvider para actualizar stock en UI
+      // 5. Recargar productos y limpiar carrito
       final productosNotifier = _ref.read(productosProvider.notifier);
       await productosNotifier.cargarProductos();
-
-      // Limpiar carrito
       cartNotifier.limpiarCarrito();
       
-      // Imprimir ticket
-            final local = await IsarService().obtenerLocalActivo();
+      // 6. Imprimir ticket
+      final local = await IsarService().obtenerLocalActivo();
 
       try {
-        final ticketItems = cartState.items.map((item) {
+        final ticketItems = itemsIsar.map((detalle) {
           return TicketItem(
-            nombre: item.producto.nombre,
-            precio: item.producto.precioUnidad,
-            cantidad: item.cantidad.toDouble(),
-            esPesado: item.producto.esPesado,
+            nombre: detalle.nombreProducto,
+            precio: detalle.precioUnidad,
+            cantidad: detalle.cantidad,
+            esPesado: false,
           );
         }).toList();
 
         final selectedPrinter = _ref.read(printerProvider);
         await TicketService.imprimirTicketVenta(
           context: context,
-          local: local, // NUEVO
+          local: local,
           items: ticketItems,
           subtotal: cartState.subtotal,
           impuesto: cartState.impuesto,
@@ -139,7 +151,7 @@ class VentaService {
           impresoraSeleccionada: selectedPrinter?.device,
         );
       } catch (_) {
-        // Error al imprimir, ignorar
+        debugPrint('⚠️ Error silencioso al intentar imprimir el ticket');
       }
 
       if (context.mounted) {

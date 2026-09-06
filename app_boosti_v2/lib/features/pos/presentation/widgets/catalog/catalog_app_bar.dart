@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/bcv_provider.dart';
 import '../../providers/catalog_provider.dart';
+import '../../providers/usuario_provider.dart';
 import '../../utils/responsive_helper.dart';
 import '../../screens/inventory_screen.dart';
 import '../../screens/pos_menu_screen.dart';
@@ -28,6 +29,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final usuarioActual = ref.watch(usuarioActualProvider);
     final isDesktop = ResponsiveHelper.isDesktop(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final isMobile = ResponsiveHelper.isMobile(context);
@@ -148,7 +150,6 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => InventoryScreen(
-                    usuarioLogueado: usuarioLogueado!,
                     showAppBar: true,
                   ),
                 ),
@@ -178,7 +179,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
               isMobile: isMobile,
             ),
           ),
-          if (usuarioLogueado != null) ...[
+          if (usuarioActual != null) ...[
             const SizedBox(width: 12),
             Padding(
               padding: const EdgeInsets.only(right: 12),
@@ -186,7 +187,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 radius: isTablet ? 20 : 16,
                 backgroundColor: Colors.white.withValues(alpha: 0.2),
                 child: Text(
-                  usuarioLogueado!.nombre[0].toUpperCase(),
+                  usuarioActual.nombre[0].toUpperCase(),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,

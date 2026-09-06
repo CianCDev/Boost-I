@@ -139,15 +139,17 @@ class _ScanButton extends StatefulWidget {
 }
 
 class _ScanButtonState extends State<_ScanButton> {
-  // Las variables ahora están fuera de la función build
   bool isPressed = false;
   bool isHovered = false;
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Calcular factor de escala usando el estándar con llaves {}
+    // ✅ Tamaño fijo para el botón (cuadrado)
+    final double buttonSize = widget.isMobile ? 48.0 : 52.0;
+    final double iconSize = widget.isMobile ? 24.0 : 28.0;
+    final double borderRadius = widget.isMobile ? 14.0 : 16.0;
+
     double scaleFactor = 1.0;
-    
     if (isPressed) {
       scaleFactor = 0.92;
     } else if (isHovered) {
@@ -160,7 +162,6 @@ class _ScanButtonState extends State<_ScanButton> {
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(8),
-        // ✅ Corregido: Usando Border.all() en lugar de BorderSide()
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.1),
           width: 1,
@@ -183,13 +184,13 @@ class _ScanButtonState extends State<_ScanButton> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             curve: Curves.easeOut,
-            // ✅ Corregido: Usando Matrix4.diagonal3Values en vez del obsoleto ..scale()
+            width: buttonSize,
+            height: buttonSize,
             transform: Matrix4.diagonal3Values(scaleFactor, scaleFactor, 1.0),
             transformAlignment: Alignment.center,
-            padding: EdgeInsets.all(widget.isMobile ? 12 : 14),
             decoration: BoxDecoration(
               color: primaryGreen,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(borderRadius),
               boxShadow: isHovered
                   ? [
                       BoxShadow(
@@ -206,10 +207,13 @@ class _ScanButtonState extends State<_ScanButton> {
                       ),
                     ],
             ),
-            child: const Icon(
-              Icons.qr_code_scanner_rounded,
-              color: Colors.white,
-              size: 24,
+            // ✅ Ícono centrado dentro del contenedor
+            child: Center(
+              child: Icon(
+                Icons.qr_code_scanner_rounded,
+                color: Colors.white,
+                size: iconSize,
+              ),
             ),
           ),
         ),
