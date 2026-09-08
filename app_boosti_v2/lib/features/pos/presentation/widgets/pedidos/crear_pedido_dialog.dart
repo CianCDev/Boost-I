@@ -9,6 +9,9 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/detalle_pedido_en
 import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
+import '../../providers/local_actual_provider.dart';
+import '../../providers/isar_provider.dart';
+import '../../providers/usuario_provider.dart';
 
 class CrearPedidoDialog extends ConsumerStatefulWidget {
   const CrearPedidoDialog({super.key});
@@ -128,7 +131,7 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
     }).toList();
   }
 
-  // ==================== AGREGAR PRODUCTO (CORREGIDO) ====================
+  // ==================== AGREGAR PRODUCTO ====================
   void _agregarProducto() {
     if (_proveedorSeleccionado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -155,7 +158,6 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
 
     final productosAsync = ref.read(proveedores.productosPorProveedorProvider(_proveedorSeleccionado!.id));
     productosAsync.whenData((productos) {
-      // ✅ Buscar producto con orElse para evitar excepción
       final producto = productos.firstWhere(
         (p) => p.id == _productoSeleccionadoId,
         orElse: () => ProductoEntity(),
@@ -175,10 +177,8 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
         return;
       }
 
-      // Buscar si ya existe en el carrito
       final index = _detalles.indexWhere((d) => d.productoId == producto.id);
       if (index != -1) {
-        // Actualizar cantidad y subtotal
         if (_detalles[index].precioUnidad != precioUnitario) {
           _detalles[index].precioUnidad = precioUnitario;
         }
@@ -197,7 +197,6 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
         });
       }
 
-      // Limpiar selección y campos
       setState(() {
         _productoSeleccionadoId = null;
         _unidadesCantidadController.text = '1.0';
@@ -219,7 +218,7 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
     });
   }
 
-  // ==================== GUARDAR PEDIDO ====================
+  // ==================== GUARDAR PEDIDO (VERSIÓN PROFESIONAL) ====================
   Future<void> _guardarPedido() async {
     if (_proveedorSeleccionado == null || _detalles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -234,6 +233,51 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
     setState(() => _isSaving = true);
 
     try {
+      // ============================================================
+      // 1. OBTENER LOCAL ACTUAL (profesional y robusto)
+      // ============================================================
+      final isar = ref.read(pedidos.isarServiceProvider);
+      final localActualId = ref.read(localActualProvider);
+      
+      int localId = 1; // fallback
+      
+      if (localActualId != null) {
+        final local = await isar.obtenerLocalPorId(localActualId);
+        if (local != null && local.activo) {
+          localId = local.id;
+          debugPrint('✅ Local actual obtenido: ID=$localId, Nombre=${local.nombre}');
+        } else {
+          debugPrint('⚠️ Local actual (ID $localActualId) no existe o está inactivo. Buscando otro...');
+          // Buscar el primer local activo
+          final locales = await isar.obtenerLocales(soloActivos: true);
+          if (locales.isNotEmpty) {
+            localId = locales.first.id;
+            debugPrint('✅ Usando primer local activo: ID=$localId, Nombre=${locales.first.nombre}');
+          } else {
+            debugPrint('⚠️ No hay locales activos. Usando fallback ID=1');
+          }
+        }
+      } else {
+        debugPrint('⚠️ No hay local actual seleccionado. Buscando el primer local activo...');
+        final locales = await isar.obtenerLocales(soloActivos: true);
+        if (locales.isNotEmpty) {
+          localId = locales.first.id;
+          debugPrint('✅ Usando primer local activo: ID=$localId, Nombre=${locales.first.nombre}');
+        } else {
+          debugPrint('⚠️ No hay locales activos. Usando fallback ID=1');
+        }
+      }
+
+      // ============================================================
+      // 2. OBTENER USUARIO ACTUAL
+      // ============================================================
+      final usuario = ref.read(usuarioActualProvider);
+      final int usuarioId = usuario?.id ?? 1;
+      debugPrint('👤 Usuario actual: ID=$usuarioId, Nombre=${usuario?.nombre ?? 'Desconocido'}');
+
+      // ============================================================
+      // 3. CREAR PEDIDO
+      // ============================================================
       final pedido = PedidoEntity()
         ..proveedorNombre = _proveedorSeleccionado!.nombre
         ..proveedorCedula = _proveedorSeleccionado!.cedula
@@ -243,19 +287,43 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
         ..estado = EstadoPedido.pendiente
         ..observaciones = _observacionesController.text
         ..total = _detalles.fold<double>(0.0, (sum, d) => sum + d.subtotal)
-        ..localOrigenId = 1
-        ..localDestinoId = 1
-        ..usuarioId = 1
+        ..localOrigenId = localId      // ✅ Ahora usa el local correcto
+        ..localDestinoId = localId     // ✅ Ahora usa el local correcto
+        ..usuarioId = usuarioId
         ..sincronizado = false;
 
-      final isar = ref.read(pedidos.isarServiceProvider);
+      debugPrint('📦 Pedido creado con localOrigenId=$localId, localDestinoId=$localId, usuarioId=$usuarioId');
+
+      // ============================================================
+      // 4. GUARDAR EN ISAR
+      // ============================================================
       final pedidoId = await isar.guardarPedido(pedido);
       for (var detalle in _detalles) {
         detalle.pedidoId = pedidoId;
         await isar.guardarDetallePedido(detalle);
       }
-      await ref.read(pedidos.syncServiceProvider).sincronizarPedidosPendientes();
 
+      // ============================================================
+      // 5. SINCRONIZAR (con manejo de errores)
+      // ============================================================
+      try {
+        await ref.read(pedidos.syncServiceProvider).sincronizarPedidosPendientes();
+        debugPrint('✅ Pedido sincronizado exitosamente');
+      } catch (e) {
+        debugPrint('❌ Error sincronizando pedido automáticamente: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('⚠️ Pedido guardado, pero falló la sincronización automática: ${e.toString().substring(0, 100)}'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+
+      // ============================================================
+      // 6. FEEDBACK AL USUARIO
+      // ============================================================
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -266,9 +334,13 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
         Navigator.pop(context, true);
       }
     } catch (e) {
+      debugPrint('❌ Error guardando pedido: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('❌ Error al guardar el pedido: ${e.toString().substring(0, 100)}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -276,7 +348,7 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
     }
   }
 
-  // ==================== BUILD ====================
+  // ==================== BUILD (resto del código sin cambios) ====================
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;

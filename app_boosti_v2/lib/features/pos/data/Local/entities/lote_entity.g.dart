@@ -27,53 +27,63 @@ const LoteEntitySchema = CollectionSchema(
       name: r'cantidadRestante',
       type: IsarType.double,
     ),
-    r'codigoBarrasLote': PropertySchema(
-      id: 2,
-      name: r'codigoBarrasLote',
-      type: IsarType.string,
-    ),
     r'codigoLoteProveedor': PropertySchema(
-      id: 3,
+      id: 2,
       name: r'codigoLoteProveedor',
       type: IsarType.string,
     ),
     r'costoUnitario': PropertySchema(
-      id: 4,
+      id: 3,
       name: r'costoUnitario',
       type: IsarType.double,
     ),
     r'estado': PropertySchema(
-      id: 5,
+      id: 4,
       name: r'estado',
       type: IsarType.string,
     ),
     r'fechaIngreso': PropertySchema(
-      id: 6,
+      id: 5,
       name: r'fechaIngreso',
       type: IsarType.dateTime,
     ),
     r'fechaSincronizacion': PropertySchema(
-      id: 7,
+      id: 6,
       name: r'fechaSincronizacion',
       type: IsarType.dateTime,
     ),
     r'fechaVencimiento': PropertySchema(
-      id: 8,
+      id: 7,
       name: r'fechaVencimiento',
       type: IsarType.dateTime,
+    ),
+    r'localId': PropertySchema(
+      id: 8,
+      name: r'localId',
+      type: IsarType.long,
     ),
     r'productoId': PropertySchema(
       id: 9,
       name: r'productoId',
       type: IsarType.long,
     ),
-    r'sincronizado': PropertySchema(
+    r'proveedorId': PropertySchema(
       id: 10,
+      name: r'proveedorId',
+      type: IsarType.string,
+    ),
+    r'proveedorNombre': PropertySchema(
+      id: 11,
+      name: r'proveedorNombre',
+      type: IsarType.string,
+    ),
+    r'sincronizado': PropertySchema(
+      id: 12,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'supabaseId': PropertySchema(
-      id: 11,
+      id: 13,
       name: r'supabaseId',
       type: IsarType.string,
     )
@@ -105,6 +115,19 @@ const LoteEntitySchema = CollectionSchema(
       properties: [
         IndexPropertySchema(
           name: r'productoId',
+          type: IndexType.value,
+          caseSensitive: false,
+        )
+      ],
+    ),
+    r'localId': IndexSchema(
+      id: 1199848425898359622,
+      name: r'localId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'localId',
           type: IndexType.value,
           caseSensitive: false,
         )
@@ -152,18 +175,24 @@ int _loteEntityEstimateSize(
 ) {
   var bytesCount = offsets.last;
   {
-    final value = object.codigoBarrasLote;
-    if (value != null) {
-      bytesCount += 3 + value.length * 3;
-    }
-  }
-  {
     final value = object.codigoLoteProveedor;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
     }
   }
   bytesCount += 3 + object.estado.length * 3;
+  {
+    final value = object.proveedorId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.proveedorNombre;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   {
     final value = object.supabaseId;
     if (value != null) {
@@ -181,16 +210,18 @@ void _loteEntitySerialize(
 ) {
   writer.writeDouble(offsets[0], object.cantidadInicial);
   writer.writeDouble(offsets[1], object.cantidadRestante);
-  writer.writeString(offsets[2], object.codigoBarrasLote);
-  writer.writeString(offsets[3], object.codigoLoteProveedor);
-  writer.writeDouble(offsets[4], object.costoUnitario);
-  writer.writeString(offsets[5], object.estado);
-  writer.writeDateTime(offsets[6], object.fechaIngreso);
-  writer.writeDateTime(offsets[7], object.fechaSincronizacion);
-  writer.writeDateTime(offsets[8], object.fechaVencimiento);
+  writer.writeString(offsets[2], object.codigoLoteProveedor);
+  writer.writeDouble(offsets[3], object.costoUnitario);
+  writer.writeString(offsets[4], object.estado);
+  writer.writeDateTime(offsets[5], object.fechaIngreso);
+  writer.writeDateTime(offsets[6], object.fechaSincronizacion);
+  writer.writeDateTime(offsets[7], object.fechaVencimiento);
+  writer.writeLong(offsets[8], object.localId);
   writer.writeLong(offsets[9], object.productoId);
-  writer.writeBool(offsets[10], object.sincronizado);
-  writer.writeString(offsets[11], object.supabaseId);
+  writer.writeString(offsets[10], object.proveedorId);
+  writer.writeString(offsets[11], object.proveedorNombre);
+  writer.writeBool(offsets[12], object.sincronizado);
+  writer.writeString(offsets[13], object.supabaseId);
 }
 
 LoteEntity _loteEntityDeserialize(
@@ -202,17 +233,19 @@ LoteEntity _loteEntityDeserialize(
   final object = LoteEntity();
   object.cantidadInicial = reader.readDouble(offsets[0]);
   object.cantidadRestante = reader.readDouble(offsets[1]);
-  object.codigoBarrasLote = reader.readStringOrNull(offsets[2]);
-  object.codigoLoteProveedor = reader.readStringOrNull(offsets[3]);
-  object.costoUnitario = reader.readDoubleOrNull(offsets[4]);
-  object.estado = reader.readString(offsets[5]);
-  object.fechaIngreso = reader.readDateTime(offsets[6]);
-  object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[7]);
-  object.fechaVencimiento = reader.readDateTimeOrNull(offsets[8]);
+  object.codigoLoteProveedor = reader.readStringOrNull(offsets[2]);
+  object.costoUnitario = reader.readDoubleOrNull(offsets[3]);
+  object.estado = reader.readString(offsets[4]);
+  object.fechaIngreso = reader.readDateTime(offsets[5]);
+  object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[6]);
+  object.fechaVencimiento = reader.readDateTimeOrNull(offsets[7]);
   object.id = id;
+  object.localId = reader.readLong(offsets[8]);
   object.productoId = reader.readLong(offsets[9]);
-  object.sincronizado = reader.readBool(offsets[10]);
-  object.supabaseId = reader.readStringOrNull(offsets[11]);
+  object.proveedorId = reader.readStringOrNull(offsets[10]);
+  object.proveedorNombre = reader.readStringOrNull(offsets[11]);
+  object.sincronizado = reader.readBool(offsets[12]);
+  object.supabaseId = reader.readStringOrNull(offsets[13]);
   return object;
 }
 
@@ -230,22 +263,26 @@ P _loteEntityDeserializeProp<P>(
     case 2:
       return (reader.readStringOrNull(offset)) as P;
     case 3:
-      return (reader.readStringOrNull(offset)) as P;
-    case 4:
       return (reader.readDoubleOrNull(offset)) as P;
-    case 5:
+    case 4:
       return (reader.readString(offset)) as P;
-    case 6:
+    case 5:
       return (reader.readDateTime(offset)) as P;
+    case 6:
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 7:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 8:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 9:
       return (reader.readLong(offset)) as P;
     case 10:
-      return (reader.readBool(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 11:
+      return (reader.readStringOrNull(offset)) as P;
+    case 12:
+      return (reader.readBool(offset)) as P;
+    case 13:
       return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -276,6 +313,14 @@ extension LoteEntityQueryWhereSort
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(
         const IndexWhereClause.any(indexName: r'productoId'),
+      );
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterWhere> anyLocalId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'localId'),
       );
     });
   }
@@ -507,6 +552,96 @@ extension LoteEntityQueryWhere
         lower: [lowerProductoId],
         includeLower: includeLower,
         upper: [upperProductoId],
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdEqualTo(
+      int localId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'localId',
+        value: [localId],
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdNotEqualTo(
+      int localId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localId',
+              lower: [],
+              upper: [localId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localId',
+              lower: [localId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localId',
+              lower: [localId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localId',
+              lower: [],
+              upper: [localId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdGreaterThan(
+    int localId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'localId',
+        lower: [localId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdLessThan(
+    int localId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'localId',
+        lower: [],
+        upper: [localId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdBetween(
+    int lowerLocalId,
+    int upperLocalId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'localId',
+        lower: [lowerLocalId],
+        includeLower: includeLower,
+        upper: [upperLocalId],
         includeUpper: includeUpper,
       ));
     });
@@ -779,160 +914,6 @@ extension LoteEntityQueryFilter
         upper: upper,
         includeUpper: includeUpper,
         epsilon: epsilon,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteIsNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNull(
-        property: r'codigoBarrasLote',
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteIsNotNull() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(const FilterCondition.isNotNull(
-        property: r'codigoBarrasLote',
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteEqualTo(
-    String? value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteGreaterThan(
-    String? value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        include: include,
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteLessThan(
-    String? value, {
-    bool include = false,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.lessThan(
-        include: include,
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteBetween(
-    String? lower,
-    String? upper, {
-    bool includeLower = true,
-    bool includeUpper = true,
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.between(
-        property: r'codigoBarrasLote',
-        lower: lower,
-        includeLower: includeLower,
-        upper: upper,
-        includeUpper: includeUpper,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteContains(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.contains(
-        property: r'codigoBarrasLote',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteMatches(String pattern, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.matches(
-        property: r'codigoBarrasLote',
-        wildcard: pattern,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteIsEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'codigoBarrasLote',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
-      codigoBarrasLoteIsNotEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'codigoBarrasLote',
-        value: '',
       ));
     });
   }
@@ -1563,6 +1544,60 @@ extension LoteEntityQueryFilter
     });
   }
 
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition> localIdEqualTo(
+      int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'localId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      localIdGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'localId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition> localIdLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'localId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition> localIdBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'localId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
   QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition> productoIdEqualTo(
       int value) {
     return QueryBuilder.apply(this, (query) {
@@ -1614,6 +1649,314 @@ extension LoteEntityQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'proveedorId',
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'proveedorId',
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'proveedorId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'proveedorId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'proveedorId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'proveedorId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'proveedorId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'proveedorId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'proveedorId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'proveedorId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'proveedorId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'proveedorId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'proveedorNombre',
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'proveedorNombre',
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'proveedorNombre',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'proveedorNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'proveedorNombre',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'proveedorNombre',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      proveedorNombreIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'proveedorNombre',
+        value: '',
       ));
     });
   }
@@ -1816,19 +2159,6 @@ extension LoteEntityQuerySortBy
     });
   }
 
-  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> sortByCodigoBarrasLote() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'codigoBarrasLote', Sort.asc);
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy>
-      sortByCodigoBarrasLoteDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'codigoBarrasLote', Sort.desc);
-    });
-  }
-
   QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy>
       sortByCodigoLoteProveedor() {
     return QueryBuilder.apply(this, (query) {
@@ -1906,6 +2236,18 @@ extension LoteEntityQuerySortBy
     });
   }
 
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> sortByLocalId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> sortByLocalIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localId', Sort.desc);
+    });
+  }
+
   QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> sortByProductoId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'productoId', Sort.asc);
@@ -1915,6 +2257,31 @@ extension LoteEntityQuerySortBy
   QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> sortByProductoIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'productoId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> sortByProveedorId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> sortByProveedorIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> sortByProveedorNombre() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorNombre', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy>
+      sortByProveedorNombreDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorNombre', Sort.desc);
     });
   }
 
@@ -1968,19 +2335,6 @@ extension LoteEntityQuerySortThenBy
       thenByCantidadRestanteDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cantidadRestante', Sort.desc);
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> thenByCodigoBarrasLote() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'codigoBarrasLote', Sort.asc);
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy>
-      thenByCodigoBarrasLoteDesc() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'codigoBarrasLote', Sort.desc);
     });
   }
 
@@ -2073,6 +2427,18 @@ extension LoteEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> thenByLocalId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> thenByLocalIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localId', Sort.desc);
+    });
+  }
+
   QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> thenByProductoId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'productoId', Sort.asc);
@@ -2082,6 +2448,31 @@ extension LoteEntityQuerySortThenBy
   QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> thenByProductoIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'productoId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> thenByProveedorId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> thenByProveedorIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy> thenByProveedorNombre() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorNombre', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterSortBy>
+      thenByProveedorNombreDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'proveedorNombre', Sort.desc);
     });
   }
 
@@ -2121,14 +2512,6 @@ extension LoteEntityQueryWhereDistinct
   QueryBuilder<LoteEntity, LoteEntity, QDistinct> distinctByCantidadRestante() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'cantidadRestante');
-    });
-  }
-
-  QueryBuilder<LoteEntity, LoteEntity, QDistinct> distinctByCodigoBarrasLote(
-      {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'codigoBarrasLote',
-          caseSensitive: caseSensitive);
     });
   }
 
@@ -2172,9 +2555,30 @@ extension LoteEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<LoteEntity, LoteEntity, QDistinct> distinctByLocalId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'localId');
+    });
+  }
+
   QueryBuilder<LoteEntity, LoteEntity, QDistinct> distinctByProductoId() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'productoId');
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QDistinct> distinctByProveedorId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'proveedorId', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QDistinct> distinctByProveedorNombre(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'proveedorNombre',
+          caseSensitive: caseSensitive);
     });
   }
 
@@ -2210,13 +2614,6 @@ extension LoteEntityQueryProperty
       cantidadRestanteProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'cantidadRestante');
-    });
-  }
-
-  QueryBuilder<LoteEntity, String?, QQueryOperations>
-      codigoBarrasLoteProperty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'codigoBarrasLote');
     });
   }
 
@@ -2259,9 +2656,28 @@ extension LoteEntityQueryProperty
     });
   }
 
+  QueryBuilder<LoteEntity, int, QQueryOperations> localIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'localId');
+    });
+  }
+
   QueryBuilder<LoteEntity, int, QQueryOperations> productoIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'productoId');
+    });
+  }
+
+  QueryBuilder<LoteEntity, String?, QQueryOperations> proveedorIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'proveedorId');
+    });
+  }
+
+  QueryBuilder<LoteEntity, String?, QQueryOperations>
+      proveedorNombreProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'proveedorNombre');
     });
   }
 

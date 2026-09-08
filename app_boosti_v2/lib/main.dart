@@ -16,6 +16,8 @@ import 'features/pos/presentation/providers/lock_provider.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 import 'features/pos/presentation/providers/sync_provider.dart';
+// ✅ IMPORTACIÓN FALTANTE
+import 'features/pos/presentation/services/sync_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,7 +65,7 @@ void main() async {
   }
 
   // ============================================================
-  // 3. EJECUTAR APP (con un FutureBuilder para esperar Supabase)
+  // 3. EJECUTAR APP
   // ============================================================
   runApp(
     DevicePreview(
@@ -90,13 +92,28 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
   @override
   void initState() {
     super.initState();
-    // Iniciar Realtime y monitoreo solo si Supabase está inicializado
     if (widget.supabaseInitialized) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final syncService = ref.read(syncServiceProvider);
         syncService.iniciarSuscripcionesRealtime();
         syncService.iniciarMonitoreo();
+        _ejecutarSincronizacionInicial(syncService);
       });
+    }
+  }
+
+  Future<void> _ejecutarSincronizacionInicial(SyncService syncService) async {
+    try {
+      debugPrint('🚀 Ejecutando sincronización inicial desde main...');
+      // 1. Primero sincronizar locales
+      await syncService.descargarLocalesDesdeSupabase();
+      // 2. Luego sincronizar usuarios
+      await syncService.sincronizarUsuariosDesdeSupabase();
+      // 3. Finalmente descargar pedidos
+      await syncService.descargarPedidosDesdeSupabase();
+      debugPrint('✅ Sincronización inicial completada desde main');
+    } catch (e) {
+      debugPrint('⚠️ Error en sincronización inicial desde main: $e');
     }
   }
 

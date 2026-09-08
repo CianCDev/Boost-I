@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
+import 'package:app_boosti_v2/features/pos/presentation/screens/lotes/lotes_dashboard_screen.dart'; // ✅ NUEVA IMPORTACIÓN
 import 'package:app_boosti_v2/features/pos/presentation/screens/pedido/pedidos_screen.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/menu/diagnostico_lote_dialog.dart';
 import 'package:flutter/material.dart';
@@ -35,7 +36,6 @@ import '../screens/locales/locales_screen.dart';
 import '../screens/telegram/telegram_config_screen.dart';
 import '../widgets/appbar.dart';
 import '../widgets/menu/turno_closing_dialog.dart';
-import '../screens/lotes_screen.dart';
 
 class MenuOption {
   final String title;
@@ -107,6 +107,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   // ============================================================
   // MÉTODOS DE NEGOCIO
   // ============================================================
+
   Future<void> _cargarEstadoSync() async {
     final pendientes = await _isarService.obtenerVentasPendientesSync();
     if (mounted) {
@@ -191,7 +192,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     );
   }
 
-  // ✅ Helper para cargar Lottie con fallback (SIN lógica de sincronización)
   Widget _buildLottieWithFallback(String assetPath) {
     return Lottie.asset(
       assetPath,
@@ -357,7 +357,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          // ignore: deprecated_member_use
           return WillPopScope(
             onWillPop: () async => false,
             child: AlertDialog(
@@ -722,17 +721,22 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         onTap: _crearBackup,
         isAdminOnly: true,
       ),
+      // ==========================================================
+      // 🆕 APARTADO DE GESTIÓN DE LOTES (exclusivo admin)
+      // ==========================================================
       MenuOption(
-  title: 'Gestión de Lotes',
-  subtitle: 'Verificar y administrar lotes',
-  icon: Icons.inventory_2_rounded,
-  color: const Color(0xFF8B5CF6),
-  onTap: () => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const LotesScreen()),
-  ),
-  isAdminOnly: true,
-),
+        title: 'Gestión de Lotes',
+        subtitle: 'Verificar y administrar lotes por local',
+        icon: Icons.inventory_2_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const LotesDashboardScreen(), // ✅ Nueva pantalla
+          ),
+        ),
+        isAdminOnly: true,
+      ),
       MenuOption(
         title: 'Diagnóstico de Lotes',
         subtitle: 'Verificar estado del inventario por lotes',
@@ -744,6 +748,9 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         ),
         isAdminOnly: true,
       ),
+      // ==========================================================
+      // Fin del apartado de lotes
+      // ==========================================================
       MenuOption(
         title: 'Configurar Telegram',
         subtitle: 'Bot de notificaciones y comandos',
@@ -1106,7 +1113,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           return AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
-            // ignore: deprecated_member_use
             transform: hovered ? (Matrix4.identity()..scale(1.01)) : Matrix4.identity(),
             decoration: BoxDecoration(
               color: theme.cardColor,

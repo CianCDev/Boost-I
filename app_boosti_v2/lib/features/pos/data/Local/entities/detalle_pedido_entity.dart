@@ -6,7 +6,9 @@ part 'detalle_pedido_entity.g.dart';
 class DetallePedidoEntity {
   Id id = Isar.autoIncrement;
 
-  int? supabaseId; // UUID de Supabase (opcional)
+  // ✅ CORREGIDO: supabaseId debe ser String? (UUID)
+  String? supabaseId; // <-- CAMBIADO de int? a String?
+
   late int pedidoId;
   late int productoId;
   late String nombreProducto;
