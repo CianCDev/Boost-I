@@ -28,6 +28,7 @@ import '../../data/Local/entities/telegram_config_entity.dart';
 import '../../data/Local/entities/marca_entity.dart';
 import '../../data/Local/entities/movimiento_lote_entity.dart';
 import '../../data/Local/entities/cliente_entity.dart';
+import 'error_service.dart'; // ✅ NUEVO: Para monitoreo
 
 /// Servicio central de sincronización entre la base de datos local (Isar) y Supabase.
 class SyncService {
@@ -51,37 +52,49 @@ class SyncService {
   SyncService({this.onDataChanged});
 
   void iniciarSuscripcionesRealtime() {
-    _suscribirATabla('productos', () => descargarProductosDesdeSupabase());
-    _suscribirATabla('categorias', () => descargarCategoriasDesdeSupabase());
-    _suscribirATabla('marcas', () => descargarMarcasDesdeSupabase());
-    _suscribirATabla('locales', () => descargarLocalesDesdeSupabase());
-    _suscribirATabla('departamentos', () => descargarDepartamentosDesdeSupabase());
-    _suscribirATabla('usuarios', () => sincronizarUsuariosDesdeSupabase());
-    _suscribirATabla('gastos', () => descargarGastosDesdeSupabase());
-    _suscribirATabla('clientes', () => descargarClientesDesdeSupabase());
+    try {
+      _suscribirATabla('productos', () => descargarProductosDesdeSupabase());
+      _suscribirATabla('categorias', () => descargarCategoriasDesdeSupabase());
+      _suscribirATabla('marcas', () => descargarMarcasDesdeSupabase());
+      _suscribirATabla('locales', () => descargarLocalesDesdeSupabase());
+      _suscribirATabla('departamentos', () => descargarDepartamentosDesdeSupabase());
+      _suscribirATabla('usuarios', () => sincronizarUsuariosDesdeSupabase());
+      _suscribirATabla('gastos', () => descargarGastosDesdeSupabase());
+      _suscribirATabla('clientes', () => descargarClientesDesdeSupabase());
 
-    debugPrint('✅ Suscripciones Realtime iniciadas');
+      debugPrint('✅ Suscripciones Realtime iniciadas');
+    } catch (e, stack) {
+      ErrorService.captureError(e, stack: stack, hint: 'iniciarSuscripcionesRealtime_fallo');
+    }
   }
 
   void _suscribirATabla(String tabla, Future<void> Function() onCambio) {
-    final channel = _supabase
-        .channel('realtime:$tabla')
-        .onPostgresChanges(
-          schema: 'public',
-          table: tabla,
-          event: PostgresChangeEvent.all,
-          callback: (payload) {
-            debugPrint('🔄 Cambio detectado en $tabla, actualizando...');
-            onCambio();
-          },
-        )
-        .subscribe();
-    _channels.add(channel);
+    try {
+      final channel = _supabase
+          .channel('realtime:$tabla')
+          .onPostgresChanges(
+            schema: 'public',
+            table: tabla,
+            event: PostgresChangeEvent.all,
+            callback: (payload) {
+              debugPrint('🔄 Cambio detectado en $tabla, actualizando...');
+              onCambio();
+            },
+          )
+          .subscribe();
+      _channels.add(channel);
+    } catch (e, stack) {
+      ErrorService.captureError(e, stack: stack, hint: '_suscribirATabla_fallo', extras: {'tabla': tabla});
+    }
   }
 
   void detenerSuscripcionesRealtime() {
     for (var channel in _channels) {
-      channel.unsubscribe();
+      try {
+        channel.unsubscribe();
+      } catch (e) {
+        // Error silencioso al desconectar
+      }
     }
     _channels.clear();
     debugPrint('⏹️ Suscripciones Realtime detenidas');
@@ -114,8 +127,9 @@ class SyncService {
       _syncApiKey = map['syncApiKey'] ?? _syncApiKey;
       _configLoaded = true;
       debugPrint('🔧 SyncService: config cargada');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('⚠️ SyncService: usando valores por defecto: $e');
+      ErrorService.captureError(e, stack: stack, hint: '_loadConfig_fallo');
       _configLoaded = true;
     }
   }
@@ -226,8 +240,9 @@ class SyncService {
 
       debugPrint('✅ $sincronizados usuarios sincronizados con Supabase');
       onDataChanged?.call();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error general sincronizando usuarios: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarUsuariosASupabase_fallo');
     }
   }
 
@@ -283,8 +298,9 @@ class SyncService {
       }
       debugPrint('✅ Usuarios sincronizados desde Supabase');
       onDataChanged?.call();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando usuarios: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarUsuariosDesdeSupabase_fallo');
       rethrow;
     }
   }
@@ -293,8 +309,9 @@ class SyncService {
     try {
       final response = await _supabase.from('usuarios').select().order('nombre', ascending: true);
       return response;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error obteniendo usuarios desde Supabase: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'obtenerUsuariosDesdeSupabase_fallo');
       return [];
     }
   }
@@ -307,8 +324,10 @@ class SyncService {
           .eq('id_isar', userId)
           .select();
       return response.isNotEmpty;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error actualizando estado usuario: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'actualizarEstadoUsuarioEnSupabase_fallo',
+          extras: {'userId': userId, 'nuevoEstado': nuevoEstado});
       return false;
     }
   }
@@ -317,8 +336,10 @@ class SyncService {
     try {
       final response = await _supabase.from('usuarios').delete().eq('id_isar', userId).select();
       return response.isNotEmpty;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error eliminando usuario en Supabase: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'eliminarUsuarioEnSupabase_fallo',
+          extras: {'userId': userId});
       return false;
     }
   }
@@ -398,8 +419,9 @@ class SyncService {
         }
       }
       debugPrint('✅ Sincronización de proveedores completada');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error general en sincronizarProveedoresPendientes: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarProveedoresPendientes_fallo');
       rethrow;
     }
   }
@@ -447,8 +469,9 @@ class SyncService {
         }
       }
       onDataChanged?.call();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando proveedores: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarProveedoresDesdeSupabase_fallo');
       rethrow;
     }
   }
@@ -457,8 +480,10 @@ class SyncService {
     try {
       final response = await _supabase.from('proveedores').delete().eq('id', supabaseId).select();
       return response.isNotEmpty;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error eliminando proveedor en Supabase: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'eliminarProveedorEnSupabase_fallo',
+          extras: {'supabaseId': supabaseId});
       return false;
     }
   }
@@ -545,8 +570,9 @@ class SyncService {
 
       debugPrint('✅ ${productosLocales.length} productos sincronizados. $actualizados supabaseId actualizados.');
       return true;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('🚫 Error sincronizando productos: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarProductosASupabase_fallo');
       return false;
     }
   }
@@ -629,8 +655,9 @@ class SyncService {
       }
       debugPrint('✅ Productos sincronizados: ${response.length} actualizados/creados, $eliminados eliminados');
       onDataChanged?.call();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando productos: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarProductosDesdeSupabase_fallo');
       rethrow;
     }
   }
@@ -678,8 +705,10 @@ class SyncService {
         debugPrint('⚠️ No se eliminó ninguna fila (código: $codigoLimpio)');
         return false;
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error eliminando producto de Supabase: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'eliminarProductoEnSupabase_fallo',
+          extras: {'codigoBarras': codigoBarras});
       rethrow;
     }
   }
@@ -703,17 +732,24 @@ class SyncService {
       debugPrint('🔄 [SyncService] Sincronizando ${pendientes.length} ventas...');
 
       for (var venta in pendientes) {
-        final exito = await _enviarVentaAlServidor(venta);
-        if (exito) {
-          await _isarService.actualizarSyncStatusVenta(venta.id, 'synced');
-          ventasSincronizadas++;
-        } else {
+        try {
+          final exito = await _enviarVentaAlServidor(venta);
+          if (exito) {
+            await _isarService.actualizarSyncStatusVenta(venta.id, 'synced');
+            ventasSincronizadas++;
+          } else {
+            await _isarService.actualizarSyncStatusVenta(venta.id, 'failed');
+            debugPrint('⚠️ Venta ${venta.idSupabase} marcada como failed');
+          }
+        } catch (e, stack) {
+          ErrorService.captureError(e, stack: stack, hint: 'sincronizarVenta_individual_fallo',
+              extras: {'ventaId': venta.id, 'ventaSupabaseId': venta.idSupabase});
           await _isarService.actualizarSyncStatusVenta(venta.id, 'failed');
-          debugPrint('⚠️ Venta ${venta.idSupabase} marcada como failed');
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ [SyncService] Error general durante la sincronización: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarVentasPendientes_fallo');
     } finally {
       _isSyncing = false;
     }
@@ -777,8 +813,10 @@ class SyncService {
 
       debugPrint('✅ Venta ${venta.idSupabase} sincronizada vía Supabase directo');
       return true;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('🚫 [Supabase] Error al insertar venta ${venta.idSupabase}: $e');
+      ErrorService.captureError(e, stack: stack, hint: '_enviarVentaAlServidor_fallo',
+          extras: {'ventaId': venta.id, 'ventaSupabaseId': venta.idSupabase});
       return false;
     }
   }
@@ -885,8 +923,9 @@ class SyncService {
         }
       }
       debugPrint('✅ $insertadas ventas insertadas, $actualizadas actualizadas');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando ventas: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarVentasDesdeSupabase_fallo');
     }
   }
 
@@ -901,19 +940,26 @@ class SyncService {
 
       int sincronizados = 0;
       for (var mov in pendientes) {
-        final exito = await _enviarMovimientoAlServidor(mov);
-        if (exito) {
-          await _isarService.actualizarSyncStatusMovimiento(mov.id, 'synced');
-          sincronizados++;
-        } else {
+        try {
+          final exito = await _enviarMovimientoAlServidor(mov);
+          if (exito) {
+            await _isarService.actualizarSyncStatusMovimiento(mov.id, 'synced');
+            sincronizados++;
+          } else {
+            await _isarService.actualizarSyncStatusMovimiento(mov.id, 'failed');
+            debugPrint('⚠️ Movimiento ${mov.id} marcado como failed');
+          }
+        } catch (e, stack) {
+          ErrorService.captureError(e, stack: stack, hint: 'sincronizarMovimiento_individual_fallo',
+              extras: {'movimientoId': mov.id});
           await _isarService.actualizarSyncStatusMovimiento(mov.id, 'failed');
-          debugPrint('⚠️ Movimiento ${mov.id} marcado como failed');
         }
       }
       debugPrint('✅ $sincronizados movimientos sincronizados.');
       return sincronizados;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('🚫 [Supabase] Error al sincronizar movimientos: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarMovimientosInventario_fallo');
       return 0;
     }
   }
@@ -976,8 +1022,10 @@ class SyncService {
           return false;
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('🚫 Error enviando movimiento ${mov.id}: $e');
+      ErrorService.captureError(e, stack: stack, hint: '_enviarMovimientoAlServidor_fallo',
+          extras: {'movimientoId': mov.id});
       return false;
     }
   }
@@ -1016,8 +1064,9 @@ class SyncService {
         }
       }
       debugPrint('✅ $sincronizadas categorías sincronizadas con Supabase');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error general sincronizando categorías: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarCategorias_fallo');
     }
   }
 
@@ -1056,8 +1105,9 @@ class SyncService {
       }
       debugPrint('✅ [SyncService] $guardadas categorías guardadas/actualizadas en Isar');
       onDataChanged?.call();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando categorías: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarCategoriasDesdeSupabase_fallo');
     }
   }
 
@@ -1077,19 +1127,25 @@ class SyncService {
       int sincronizadas = 0;
 
       for (var marca in pendientes) {
-        final exito = await _enviarMarcaAlServidor(marca);
-        if (exito) {
-          await _isarService.actualizarSyncStatusMarca(marca.id, 'synced');
-          sincronizadas++;
-          debugPrint('✅ Marca ${marca.nombre} sincronizada');
-        } else {
-          await _isarService.actualizarSyncStatusMarca(marca.id, 'failed');
-          debugPrint('⚠️ Marca ${marca.nombre} marcada como failed');
+        try {
+          final exito = await _enviarMarcaAlServidor(marca);
+          if (exito) {
+            await _isarService.actualizarSyncStatusMarca(marca.id, 'synced');
+            sincronizadas++;
+            debugPrint('✅ Marca ${marca.nombre} sincronizada');
+          } else {
+            await _isarService.actualizarSyncStatusMarca(marca.id, 'failed');
+            debugPrint('⚠️ Marca ${marca.nombre} marcada como failed');
+          }
+        } catch (e, stack) {
+          ErrorService.captureError(e, stack: stack, hint: 'sincronizarMarca_individual_fallo',
+              extras: {'marcaId': marca.id});
         }
       }
       debugPrint('✅ $sincronizadas marcas sincronizadas con Supabase');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error sincronizando marcas: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarMarcasPendientes_fallo');
     }
   }
 
@@ -1112,8 +1168,10 @@ class SyncService {
 
       await _supabase.from('marcas').upsert(data, onConflict: 'id').select();
       return true;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('🚫 Error enviando marca ${marca.nombre}: $e');
+      ErrorService.captureError(e, stack: stack, hint: '_enviarMarcaAlServidor_fallo',
+          extras: {'marcaId': marca.id});
       return false;
     }
   }
@@ -1165,8 +1223,9 @@ class SyncService {
       }
       debugPrint('✅ [SyncService] $guardadas marcas insertadas, $actualizadas actualizadas');
       onDataChanged?.call();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando marcas: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarMarcasDesdeSupabase_fallo');
       rethrow;
     }
   }
@@ -1242,8 +1301,9 @@ class SyncService {
 
       debugPrint('✅ Gastos sincronizados: $insertados insertados, $actualizados actualizados');
       onDataChanged?.call();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando gastos desde Supabase: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarGastosDesdeSupabase_fallo');
       rethrow;
     }
   }
@@ -1263,20 +1323,27 @@ class SyncService {
       debugPrint('🔄 [SyncService] Sincronizando ${pendientes.length} gastos...');
 
       for (var gasto in pendientes) {
-        final exito = await _enviarGastoAlServidor(gasto);
-        if (exito) {
-          await _isarService.actualizarSyncStatusGasto(gasto.id, 'synced');
-          sincronizados++;
-          debugPrint('✅ Gasto ${gasto.id} sincronizado');
-        } else {
+        try {
+          final exito = await _enviarGastoAlServidor(gasto);
+          if (exito) {
+            await _isarService.actualizarSyncStatusGasto(gasto.id, 'synced');
+            sincronizados++;
+            debugPrint('✅ Gasto ${gasto.id} sincronizado');
+          } else {
+            await _isarService.actualizarSyncStatusGasto(gasto.id, 'failed');
+            debugPrint('⚠️ Gasto ${gasto.id} marcado como failed');
+          }
+        } catch (e, stack) {
+          ErrorService.captureError(e, stack: stack, hint: 'sincronizarGasto_individual_fallo',
+              extras: {'gastoId': gasto.id});
           await _isarService.actualizarSyncStatusGasto(gasto.id, 'failed');
-          debugPrint('⚠️ Gasto ${gasto.id} marcado como failed');
         }
       }
       debugPrint('✅ $sincronizados gastos sincronizados');
       return sincronizados;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error sincronizando gastos: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarGastosPendientes_fallo');
       return 0;
     } finally {
       _isSyncing = false;
@@ -1315,8 +1382,10 @@ class SyncService {
         debugPrint('✅ Gasto ${gasto.id} insertado correctamente.');
       }
       return true;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('🚫 Error al enviar gasto: $e');
+      ErrorService.captureError(e, stack: stack, hint: '_enviarGastoAlServidor_fallo',
+          extras: {'gastoId': gasto.id});
       return false;
     }
   }
@@ -1340,19 +1409,25 @@ class SyncService {
       debugPrint('🔄 [SyncService] Sincronizando ${pendientes.length} turnos...');
 
       for (var turno in pendientes) {
-        final exito = await _enviarTurnoAlServidor(turno);
-        if (exito) {
-          await _isarService.marcarTurnoComoSincronizado(turno.id);
-          sincronizados++;
-          debugPrint('✅ Turno ${turno.id} sincronizado');
-        } else {
-          debugPrint('⚠️ Turno ${turno.id} falló, se reintentará después');
+        try {
+          final exito = await _enviarTurnoAlServidor(turno);
+          if (exito) {
+            await _isarService.marcarTurnoComoSincronizado(turno.id);
+            sincronizados++;
+            debugPrint('✅ Turno ${turno.id} sincronizado');
+          } else {
+            debugPrint('⚠️ Turno ${turno.id} falló, se reintentará después');
+          }
+        } catch (e, stack) {
+          ErrorService.captureError(e, stack: stack, hint: 'sincronizarTurno_individual_fallo',
+              extras: {'turnoId': turno.id});
         }
       }
       debugPrint('✅ $sincronizados turnos sincronizados');
       return sincronizados;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error sincronizando turnos: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarTurnos_fallo');
       return 0;
     } finally {
       _isSyncing = false;
@@ -1385,8 +1460,10 @@ class SyncService {
         debugPrint('✅ Turno ${turno.id} actualizado correctamente');
       }
       return true;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('🚫 Error al enviar turno: $e');
+      ErrorService.captureError(e, stack: stack, hint: '_enviarTurnoAlServidor_fallo',
+          extras: {'turnoId': turno.id});
       return false;
     }
   }
@@ -1446,8 +1523,9 @@ class SyncService {
           debugPrint('❌ Error al sincronizar local ${local.nombre}: $e');
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error general en sincronizarLocalesPendientes: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarLocalesPendientes_fallo');
       rethrow;
     }
   }
@@ -1456,8 +1534,10 @@ class SyncService {
     try {
       final response = await _supabase.from('locales').delete().eq('id', supabaseId).select();
       return response.isNotEmpty;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error eliminando local en Supabase: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'eliminarLocalEnSupabase_fallo',
+          extras: {'supabaseId': supabaseId});
       return false;
     }
   }
@@ -1504,8 +1584,9 @@ class SyncService {
         }
       }
       onDataChanged?.call();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando locales: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarLocalesDesdeSupabase_fallo');
       rethrow;
     }
   }
@@ -1574,8 +1655,9 @@ class SyncService {
           debugPrint('❌ Error al sincronizar departamento ${departamento.nombre}: $e');
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error general en sincronizarDepartamentosPendientes: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarDepartamentosPendientes_fallo');
       rethrow;
     }
   }
@@ -1643,8 +1725,9 @@ class SyncService {
         }
       }
       onDataChanged?.call();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando departamentos: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarDepartamentosDesdeSupabase_fallo');
       rethrow;
     }
   }
@@ -1752,8 +1835,9 @@ class SyncService {
           await _isarService.guardarCliente(cliente);
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error general en sincronizarClientesPendientes: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarClientesPendientes_fallo');
     }
   }
 
@@ -1826,8 +1910,9 @@ class SyncService {
       }
 
       debugPrint('✅ $creados clientes creados, $actualizados actualizados localmente.');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando clientes: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarClientesDesdeSupabase_fallo');
     }
   }
 
@@ -1835,8 +1920,10 @@ class SyncService {
     try {
       final response = await _supabase.from('clientes').delete().eq('id', supabaseId).select();
       return response.isNotEmpty;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error eliminando cliente en Supabase: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'eliminarClienteEnSupabase_fallo',
+          extras: {'supabaseId': supabaseId});
       return false;
     }
   }
@@ -1879,13 +1966,14 @@ class SyncService {
         alias.fechaSincronizacion = DateTime.now();
         await _isarService.guardarCodigoAlias(alias);
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error sincronizando alias: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarAliasPendientes_fallo');
     }
   }
 
   // ============================================================
-  // LOTES (CORREGIDO)
+  // LOTES
   // ============================================================
 
   Future<void> sincronizarLotesPendientes() async {
@@ -1898,7 +1986,6 @@ class SyncService {
 
       debugPrint('🔄 Sincronizando ${pendientes.length} lotes con Supabase...');
 
-      // Obtener todos los productos de Supabase para validar existencia
       final productosSupabase = await _supabase.from('productos').select('id_isar, uuid');
       final Set<int> idsProductosEnSupabase = {};
       for (var p in productosSupabase) {
@@ -1906,16 +1993,13 @@ class SyncService {
       }
 
       for (var lote in pendientes) {
-        // Verificar si el producto existe en Isar
         final producto = await _isarService.obtenerProductoPorId(lote.productoId);
         if (producto == null) {
           debugPrint('⚠️ Lote ${lote.id} omitido: producto ${lote.productoId} no existe en Isar');
           continue;
         }
 
-        // Verificar si el producto existe en Supabase
         if (!idsProductosEnSupabase.contains(lote.productoId)) {
-          // Intentar sincronizar el producto primero
           debugPrint('🔄 Producto ${producto.nombre} (ID ${lote.productoId}) no existe en Supabase, creándolo...');
           await _supabase.from('productos').insert({
             'id_isar': lote.productoId,
@@ -1928,16 +2012,14 @@ class SyncService {
             'categoria': producto.categoria,
             'uuid': producto.supabaseId ?? const Uuid().v4(),
           });
-          // Agregar el ID al conjunto para futuros lotes
           idsProductosEnSupabase.add(lote.productoId);
           debugPrint('✅ Producto ${producto.nombre} creado en Supabase');
         }
 
-        // Payload del lote
         final data = {
           'id_isar': lote.id,
-          'producto_id_fk': lote.productoId,        // bigint (ID de Isar)
-          'local_id': lote.localId,                 // integer (ID de Isar)
+          'producto_id_fk': lote.productoId,
+          'local_id': lote.localId,
           'codigo_lote_proveedor': lote.codigoLoteProveedor,
           'cantidad_inicial': lote.cantidadInicial,
           'cantidad_restante': lote.cantidadRestante,
@@ -1945,7 +2027,7 @@ class SyncService {
           'fecha_vencimiento': lote.fechaVencimiento?.toIso8601String(),
           'estado': lote.estado,
           'costo_unitario': lote.costoUnitario,
-          'proveedor_id': lote.proveedorId,         // uuid (opcional)
+          'proveedor_id': lote.proveedorId,
           'proveedor_nombre': lote.proveedorNombre,
           'sincronizado': true,
           'fecha_sincronizacion': DateTime.now().toIso8601String(),
@@ -1970,8 +2052,9 @@ class SyncService {
         await _isarService.guardarLote(lote);
       }
       debugPrint('✅ ${pendientes.length} lotes sincronizados correctamente');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error sincronizando lotes: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarLotesPendientes_fallo');
       rethrow;
     }
   }
@@ -2005,13 +2088,12 @@ class SyncService {
 
         if (existente != null) {
           bool cambios = false;
-          
-          // ✅ Actualizar localId desde la nube (importante)
+
           if (existente.localId != loteNube.localId && loteNube.localId != 0) {
             existente.localId = loteNube.localId;
             cambios = true;
           }
-          
+
           if (existente.cantidadRestante != loteNube.cantidadRestante) {
             existente.cantidadRestante = loteNube.cantidadRestante;
             cambios = true;
@@ -2042,8 +2124,9 @@ class SyncService {
       }
 
       debugPrint('✅ Lotes sincronizados: $creados creados, $actualizados actualizados');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando lotes: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarLotesDesdeSupabase_fallo');
     }
   }
 
@@ -2074,8 +2157,9 @@ class SyncService {
         }
       }
       debugPrint('✅ Movimientos de lote descargados');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando movimientos de lote: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarMovimientosLoteDesdeSupabase_fallo');
     }
   }
 
@@ -2131,8 +2215,9 @@ class SyncService {
           debugPrint('❌ Error al sincronizar configuración (usuario ${config.usuarioId}): $e');
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error general en sincronizarTelegramConfigPendientes: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarTelegramConfigPendientes_fallo');
     }
   }
 
@@ -2184,13 +2269,14 @@ class SyncService {
           debugPrint('📥 Nueva configuración de Telegram creada (usuario $usuarioId)');
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando configuraciones de Telegram: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarTelegramConfigDesdeSupabase_fallo');
     }
   }
 
   // ============================================================
-  // PEDIDOS (CORREGIDO)
+  // PEDIDOS
   // ============================================================
 
   Future<void> sincronizarPedidosPendientes() async {
@@ -2203,14 +2289,12 @@ class SyncService {
 
       debugPrint('📦 Sincronizando ${pedidosPendientes.length} pedidos...');
 
-      // Obtener locales válidos de Supabase (para mapear id_isar -> uuid)
       final localesEnSupabase = await _supabase.from('locales').select('id, id_isar');
       final Map<int, String> idIsarAUuid = {};
       for (var row in localesEnSupabase) {
         idIsarAUuid[row['id_isar'] as int] = row['id'] as String;
       }
 
-      // Obtener local activo REAL
       final localActivo = await _isarService.obtenerLocalActivo();
       if (localActivo == null) {
         debugPrint('⚠️ No hay local activo. No se sincronizarán pedidos.');
@@ -2229,14 +2313,12 @@ class SyncService {
       for (var pedido in pedidosPendientes) {
         bool pedidoModificado = false;
 
-        // Validar localOrigenId (debe existir en Supabase)
         if (!idIsarAUuid.containsKey(pedido.localOrigenId)) {
           debugPrint('⚠️ Pedido ${pedido.id}: localOrigenId ${pedido.localOrigenId} NO existe en Supabase. Reasignando a $localActualId.');
           pedido.localOrigenId = localActualId;
           pedidoModificado = true;
         }
 
-        // Validar localDestinoId
         String? localDestinoUuid = idIsarAUuid[pedido.localDestinoId];
         if (localDestinoUuid == null) {
           debugPrint('⚠️ Pedido ${pedido.id}: localDestinoId ${pedido.localDestinoId} NO existe. Reasignando a local activo.');
@@ -2249,7 +2331,6 @@ class SyncService {
           await _isarService.guardarPedido(pedido);
         }
 
-        // Obtener UUID del usuario
         final String? usuarioUuid = await _obtenerSupabaseIdUsuario(pedido.usuarioId);
         if (usuarioUuid == null) {
           debugPrint('⚠️ Pedido ${pedido.id} omitido: usuario sin UUID');
@@ -2273,7 +2354,6 @@ class SyncService {
           'sync_status': 'synced',
         };
 
-        // Insertar y si falla, actualizar
         String? supabasePedidoId;
         try {
           final response = await _supabase
@@ -2309,7 +2389,6 @@ class SyncService {
           continue;
         }
 
-        // Insertar detalles
         final detalles = await _isarService.obtenerDetallesPorPedido(pedido.id);
         for (var detalle in detalles) {
           await _supabase.from('detalles_pedido').insert({
@@ -2322,7 +2401,6 @@ class SyncService {
           });
         }
 
-        // Insertar recepción
         final recepcion = await _isarService.obtenerRecepcionPorPedido(pedido.id);
         if (recepcion != null) {
           await _supabase.from('recepciones').insert({
@@ -2338,8 +2416,9 @@ class SyncService {
       }
 
       debugPrint('✅ Pedidos sincronizados correctamente.');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error sincronizando pedidos: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarPedidosPendientes_fallo');
       rethrow;
     }
   }
@@ -2482,8 +2561,9 @@ class SyncService {
       }
 
       debugPrint('✅ $guardados pedidos descargados y guardados correctamente.');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error descargando pedidos: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'descargarPedidosDesdeSupabase_fallo');
       rethrow;
     }
   }
@@ -2494,21 +2574,21 @@ class SyncService {
 
   Future<String?> _obtenerSupabaseIdLocal(int isarId) async {
     if (isarId <= 0) return null;
-    
+
     final isar = await _isarService.db;
     LocalEntity? local = await isar.localEntitys.get(isarId);
-    
+
     if (local != null && local.supabaseId != null && local.supabaseId!.isNotEmpty) {
       return local.supabaseId;
     }
-    
+
     try {
       final data = await _supabase
           .from('locales')
           .select('id')
           .eq('id_isar', isarId)
           .maybeSingle();
-      
+
       if (data != null) {
         final supabaseId = data['id'] as String?;
         if (supabaseId != null && supabaseId.isNotEmpty) {
@@ -2524,7 +2604,7 @@ class SyncService {
     } catch (e) {
       debugPrint('⚠️ Error obteniendo UUID del local $isarId: $e');
     }
-    
+
     return null;
   }
 
@@ -2538,58 +2618,55 @@ class SyncService {
     return producto?.supabaseId;
   }
 
- Future<int> _obtenerIsarIdLocal(String supabaseId) async {
-  if (supabaseId.isEmpty) return 0;
-  
-  // ✅ Si el valor es numérico, tratarlo como id_isar
-  final numericId = int.tryParse(supabaseId);
-  if (numericId != null) {
-    debugPrint('⚠️ Se recibió id_isar numérico en lugar de UUID: $numericId. Buscando local...');
-    final local = await _isarService.obtenerLocalPorId(numericId);
-    if (local != null) {
-      debugPrint('✅ Local encontrado por id_isar: ${local.nombre} (ID: ${local.id})');
-      return local.id;
+  Future<int> _obtenerIsarIdLocal(String supabaseId) async {
+    if (supabaseId.isEmpty) return 0;
+
+    final numericId = int.tryParse(supabaseId);
+    if (numericId != null) {
+      debugPrint('⚠️ Se recibió id_isar numérico en lugar de UUID: $numericId. Buscando local...');
+      final local = await _isarService.obtenerLocalPorId(numericId);
+      if (local != null) {
+        debugPrint('✅ Local encontrado por id_isar: ${local.nombre} (ID: ${local.id})');
+        return local.id;
+      }
+      return 0;
+    }
+
+    final uuidRegex = RegExp(
+        r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+        caseSensitive: false);
+    if (!uuidRegex.hasMatch(supabaseId)) {
+      debugPrint('⚠️ UUID inválido: $supabaseId');
+      return 0;
+    }
+
+    final local = await _isarService.obtenerLocalPorSupabaseId(supabaseId);
+    if (local != null) return local.id;
+
+    try {
+      final data = await _supabase
+          .from('locales')
+          .select()
+          .eq('id', supabaseId)
+          .maybeSingle();
+      if (data != null) {
+        final nuevoLocal = LocalEntity()
+          ..supabaseId = supabaseId
+          ..nombre = data['nombre'] ?? 'Local Sincronizado'
+          ..activo = data['activo'] ?? true
+          ..sincronizado = true;
+        await _isarService.guardarLocal(nuevoLocal);
+        return nuevoLocal.id;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error obteniendo local desde Supabase: $e');
     }
     return 0;
   }
-  
-  // Validar formato UUID
-  final uuidRegex = RegExp(
-      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-      caseSensitive: false);
-  if (!uuidRegex.hasMatch(supabaseId)) {
-    debugPrint('⚠️ UUID inválido: $supabaseId');
-    return 0;
-  }
-
-  final local = await _isarService.obtenerLocalPorSupabaseId(supabaseId);
-  if (local != null) return local.id;
-
-  // Si no existe en Isar, intentar descargarlo de Supabase
-  try {
-    final data = await _supabase
-        .from('locales')
-        .select()
-        .eq('id', supabaseId)
-        .maybeSingle();
-    if (data != null) {
-      final nuevoLocal = LocalEntity()
-        ..supabaseId = supabaseId
-        ..nombre = data['nombre'] ?? 'Local Sincronizado'
-        ..activo = data['activo'] ?? true
-        ..sincronizado = true;
-      await _isarService.guardarLocal(nuevoLocal);
-      return nuevoLocal.id;
-    }
-  } catch (e) {
-    debugPrint('⚠️ Error obteniendo local desde Supabase: $e');
-  }
-  return 0;
-} 
 
   Future<int> _obtenerIsarIdUsuario(String supabaseId) async {
     if (supabaseId.isEmpty) return 0;
-    
+
     final usuario = await _isarService.obtenerUsuarioPorSupabaseId(supabaseId);
     if (usuario != null) return usuario.id;
 
@@ -2627,7 +2704,7 @@ class SyncService {
 
   Future<int> _obtenerIsarIdProducto(String supabaseId) async {
     if (supabaseId.isEmpty) return 0;
-    
+
     final producto = await _isarService.obtenerProductoPorSupabaseId(supabaseId);
     if (producto != null) return producto.id;
 
@@ -2666,47 +2743,53 @@ class SyncService {
   // ============================================================
 
   Future<int> repararImagenesFaltantes() async {
-    debugPrint('🔍 [SyncService] Iniciando reparación de imágenes...');
-    final productos = await _isarService.obtenerProductos();
-    final supabase = Supabase.instance.client;
-    int reparados = 0;
+    try {
+      debugPrint('🔍 [SyncService] Iniciando reparación de imágenes...');
+      final productos = await _isarService.obtenerProductos();
+      final supabase = Supabase.instance.client;
+      int reparados = 0;
 
-    final allFiles = await supabase.storage.from('productos').list();
-    debugPrint('📁 [SyncService] Archivos en Storage: ${allFiles.length}');
+      final allFiles = await supabase.storage.from('productos').list();
+      debugPrint('📁 [SyncService] Archivos en Storage: ${allFiles.length}');
 
-    final Map<String, String> archivosPorCodigo = {};
-    for (var file in allFiles) {
-      final name = file.name;
-      for (var p in productos) {
-        if (name.startsWith(p.codigoBarras)) {
-          archivosPorCodigo[p.codigoBarras] = name;
-          break;
+      final Map<String, String> archivosPorCodigo = {};
+      for (var file in allFiles) {
+        final name = file.name;
+        for (var p in productos) {
+          if (name.startsWith(p.codigoBarras)) {
+            archivosPorCodigo[p.codigoBarras] = name;
+            break;
+          }
         }
       }
-    }
 
-    for (var p in productos) {
-      if (p.imagenUrl != null && p.imagenUrl!.isNotEmpty) continue;
+      for (var p in productos) {
+        if (p.imagenUrl != null && p.imagenUrl!.isNotEmpty) continue;
 
-      final fileName = archivosPorCodigo[p.codigoBarras];
-      if (fileName != null) {
-        final publicUrl = supabase.storage.from('productos').getPublicUrl(fileName);
-        p.imagenUrl = publicUrl;
-        await _isarService.guardarProducto(p);
-        reparados++;
-        debugPrint('🖼️ Imagen reparada para ${p.nombre}');
-      } else {
-        debugPrint('⚠️ No se encontró imagen para ${p.nombre} (código: ${p.codigoBarras})');
+        final fileName = archivosPorCodigo[p.codigoBarras];
+        if (fileName != null) {
+          final publicUrl = supabase.storage.from('productos').getPublicUrl(fileName);
+          p.imagenUrl = publicUrl;
+          await _isarService.guardarProducto(p);
+          reparados++;
+          debugPrint('🖼️ Imagen reparada para ${p.nombre}');
+        } else {
+          debugPrint('⚠️ No se encontró imagen para ${p.nombre} (código: ${p.codigoBarras})');
+        }
       }
-    }
 
-    if (reparados > 0) {
-      debugPrint('✅ $reparados imágenes reparadas, sincronizando con Supabase...');
-      await sincronizarProductosASupabase();
-    } else {
-      debugPrint('ℹ️ No se encontraron imágenes faltantes.');
+      if (reparados > 0) {
+        debugPrint('✅ $reparados imágenes reparadas, sincronizando con Supabase...');
+        await sincronizarProductosASupabase();
+      } else {
+        debugPrint('ℹ️ No se encontraron imágenes faltantes.');
+      }
+      return reparados;
+    } catch (e, stack) {
+      debugPrint('❌ Error reparando imágenes: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'repararImagenesFaltantes_fallo');
+      return 0;
     }
-    return reparados;
   }
 
   // ============================================================
@@ -2714,49 +2797,54 @@ class SyncService {
   // ============================================================
 
   Future<void> sincronizarTodo() async {
-    debugPrint('🔄 [SyncService] Iniciando sincronización completa...');
+    try {
+      debugPrint('🔄 [SyncService] Iniciando sincronización completa...');
 
-    await descargarCategoriasDesdeSupabase();
-    await sincronizarCategorias();
+      await descargarCategoriasDesdeSupabase();
+      await sincronizarCategorias();
 
-    await descargarMarcasDesdeSupabase();
-    await sincronizarMarcasPendientes();
+      await descargarMarcasDesdeSupabase();
+      await sincronizarMarcasPendientes();
 
-    await sincronizarProductosASupabase();
-    await descargarProductosDesdeSupabase();
+      await sincronizarProductosASupabase();
+      await descargarProductosDesdeSupabase();
 
-    await sincronizarVentasPendientes();
-    await descargarVentasDesdeSupabase();
+      await sincronizarVentasPendientes();
+      await descargarVentasDesdeSupabase();
 
-    await sincronizarMovimientosInventario();
-    await sincronizarTurnos();
+      await sincronizarMovimientosInventario();
+      await sincronizarTurnos();
 
-    await sincronizarUsuariosASupabase();
-    await sincronizarUsuariosDesdeSupabase();
+      await sincronizarUsuariosASupabase();
+      await sincronizarUsuariosDesdeSupabase();
 
-    await sincronizarGastosPendientes();
-    await descargarGastosDesdeSupabase();
+      await sincronizarGastosPendientes();
+      await descargarGastosDesdeSupabase();
 
-    await sincronizarPedidosPendientes();
-    await descargarPedidosDesdeSupabase();
+      await sincronizarPedidosPendientes();
+      await descargarPedidosDesdeSupabase();
 
-    await sincronizarProveedoresPendientes();
-    await descargarProveedoresDesdeSupabase();
+      await sincronizarProveedoresPendientes();
+      await descargarProveedoresDesdeSupabase();
 
-    await sincronizarAliasPendientes();
-    await sincronizarLotesPendientes();
-    await descargarLotesDesdeSupabase();
+      await sincronizarAliasPendientes();
+      await sincronizarLotesPendientes();
+      await descargarLotesDesdeSupabase();
 
-    await sincronizarLocalesPendientes();
-    await descargarLocalesDesdeSupabase();
-    await sincronizarDepartamentosPendientes();
-    await descargarDepartamentosDesdeSupabase();
+      await sincronizarLocalesPendientes();
+      await descargarLocalesDesdeSupabase();
+      await sincronizarDepartamentosPendientes();
+      await descargarDepartamentosDesdeSupabase();
 
-    await sincronizarTelegramConfigPendientes();
-    await descargarTelegramConfigDesdeSupabase();
+      await sincronizarTelegramConfigPendientes();
+      await descargarTelegramConfigDesdeSupabase();
 
-    debugPrint('✅ Sincronización completa finalizada.');
-    onDataChanged?.call();
+      debugPrint('✅ Sincronización completa finalizada.');
+      onDataChanged?.call();
+    } catch (e, stack) {
+      debugPrint('❌ Error en sincronización completa: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarTodo_fallo');
+    }
   }
 
   Future<Map<String, int>> sincronizarTodoConResumen() async {
@@ -2851,8 +2939,9 @@ class SyncService {
         'departamentos': departamentos,
         'telegram': telegram,
       };
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error en sincronización completa con resumen: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'sincronizarTodoConResumen_fallo');
       rethrow;
     }
   }

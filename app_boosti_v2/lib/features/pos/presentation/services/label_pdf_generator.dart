@@ -1,10 +1,12 @@
 // lib/features/pos/presentation/services/label_pdf_generator.dart
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart' show debugPrint;
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
-import 'package:flutter/material.dart' show debugPrint;
+import 'package:open_filex/open_filex.dart';
 import 'label_generator.dart';
 
 class LabelPdfGenerator {
@@ -15,7 +17,6 @@ class LabelPdfGenerator {
   }) async {
     final pdf = pw.Document();
 
-    // Configuración de página A4 con márgenes reducidos para más espacio
     final pageFormat = PdfPageFormat.a4.copyWith(
       marginTop: 15,
       marginBottom: 15,
@@ -23,7 +24,6 @@ class LabelPdfGenerator {
       marginRight: 15,
     );
 
-    // Etiquetas por página (2 columnas x 3 filas = 6 etiquetas más grandes)
     final labelsPerPage = 6;
 
     for (var i = 0; i < labels.length; i += labelsPerPage) {
@@ -37,7 +37,6 @@ class LabelPdfGenerator {
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
-                  // Título centrado
                   pw.Text(
                     title,
                     style: pw.TextStyle(
@@ -47,12 +46,11 @@ class LabelPdfGenerator {
                     ),
                   ),
                   pw.SizedBox(height: 12),
-                  // Grid de etiquetas (2 columnas)
                   pw.GridView(
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 16,
-                    childAspectRatio: 0.75, // Más ancho que alto
+                    childAspectRatio: 0.75,
                     children: pageLabels.map((label) {
                       return _buildLabelCard(label);
                     }).toList(),
@@ -68,7 +66,6 @@ class LabelPdfGenerator {
     return pdf.save();
   }
 
-  /// Construye una tarjeta de etiqueta mejorada
   static pw.Widget _buildLabelCard(LabelItem label) {
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -91,7 +88,6 @@ class LabelPdfGenerator {
         mainAxisAlignment: pw.MainAxisAlignment.center,
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
-          // Nombre del producto (más grande)
           pw.Text(
             label.nombre,
             style: pw.TextStyle(
@@ -103,7 +99,6 @@ class LabelPdfGenerator {
             maxLines: 2,
           ),
           pw.SizedBox(height: 6),
-          // Precio (más grande)
           pw.Text(
             '\$${label.precio.toStringAsFixed(2)}',
             style: pw.TextStyle(
@@ -113,14 +108,12 @@ class LabelPdfGenerator {
             ),
           ),
           pw.SizedBox(height: 8),
-          // Código de barras (más grande)
           if (label.codigoBarras != null && label.codigoBarras!.isNotEmpty)
             pw.Container(
               height: 50,
               child: _buildBarcodeWidget(label.codigoBarras!),
             ),
           pw.SizedBox(height: 6),
-          // Código en texto (más visible)
           if (label.codigoBarras != null && label.codigoBarras!.isNotEmpty)
             pw.Text(
               label.codigoBarras!,
@@ -135,18 +128,16 @@ class LabelPdfGenerator {
     );
   }
 
-  /// Genera el código de barras para el PDF (con tamaño aumentado)
   static pw.Widget _buildBarcodeWidget(String code) {
     try {
       return pw.BarcodeWidget(
         barcode: pw.Barcode.code128(),
         data: code,
-        width: 140, // Más ancho
-        height: 50, // Más alto
+        width: 140,
+        height: 50,
         drawText: false,
       );
     } catch (e) {
-      // Fallback: mostrar solo texto
       return pw.Text(
         code,
         style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
@@ -154,19 +145,22 @@ class LabelPdfGenerator {
     }
   }
 
-  /// Genera y comparte el PDF usando printing
+  /// Genera y abre el PDF sin depender de printing/pdfium
   static Future<void> sharePdf({
     required List<LabelItem> labels,
     String title = 'Etiquetas',
   }) async {
     try {
       final pdfBytes = await generateLabelPdf(labels: labels, title: title);
-      await Printing.sharePdf(
-        bytes: pdfBytes,
-        filename: 'etiquetas_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
+
+      final tempDir = await getTemporaryDirectory();
+      final file = File(
+          '${tempDir.path}/etiquetas_${DateTime.now().millisecondsSinceEpoch}.pdf');
+      await file.writeAsBytes(pdfBytes);
+
+      await OpenFilex.open(file.path);
     } catch (e) {
-      debugPrint('❌ Error al generar/compartir PDF: $e');
+      debugPrint('❌ Error al generar/abrir PDF: $e');
       rethrow;
     }
   }
