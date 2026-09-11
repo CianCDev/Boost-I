@@ -51,7 +51,7 @@ const DetallePedidoEntitySchema = CollectionSchema(
     r'supabaseId': PropertySchema(
       id: 6,
       name: r'supabaseId',
-      type: IsarType.long,
+      type: IsarType.string,
     )
   },
   estimateSize: _detallePedidoEntityEstimateSize,
@@ -75,6 +75,12 @@ int _detallePedidoEntityEstimateSize(
 ) {
   var bytesCount = offsets.last;
   bytesCount += 3 + object.nombreProducto.length * 3;
+  {
+    final value = object.supabaseId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -90,7 +96,7 @@ void _detallePedidoEntitySerialize(
   writer.writeDouble(offsets[3], object.precioUnidad);
   writer.writeLong(offsets[4], object.productoId);
   writer.writeDouble(offsets[5], object.subtotal);
-  writer.writeLong(offsets[6], object.supabaseId);
+  writer.writeString(offsets[6], object.supabaseId);
 }
 
 DetallePedidoEntity _detallePedidoEntityDeserialize(
@@ -107,7 +113,7 @@ DetallePedidoEntity _detallePedidoEntityDeserialize(
   object.precioUnidad = reader.readDouble(offsets[3]);
   object.productoId = reader.readLong(offsets[4]);
   object.subtotal = reader.readDouble(offsets[5]);
-  object.supabaseId = reader.readLongOrNull(offsets[6]);
+  object.supabaseId = reader.readStringOrNull(offsets[6]);
   return object;
 }
 
@@ -131,7 +137,7 @@ P _detallePedidoEntityDeserializeProp<P>(
     case 5:
       return (reader.readDouble(offset)) as P;
     case 6:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -754,49 +760,58 @@ extension DetallePedidoEntityQueryFilter on QueryBuilder<DetallePedidoEntity,
   }
 
   QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
-      supabaseIdEqualTo(int? value) {
+      supabaseIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'supabaseId',
         value: value,
+        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
       supabaseIdGreaterThan(
-    int? value, {
+    String? value, {
     bool include = false,
+    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         include: include,
         property: r'supabaseId',
         value: value,
+        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
       supabaseIdLessThan(
-    int? value, {
+    String? value, {
     bool include = false,
+    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.lessThan(
         include: include,
         property: r'supabaseId',
         value: value,
+        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
       supabaseIdBetween(
-    int? lower,
-    int? upper, {
+    String? lower,
+    String? upper, {
     bool includeLower = true,
     bool includeUpper = true,
+    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
@@ -805,6 +820,77 @@ extension DetallePedidoEntityQueryFilter on QueryBuilder<DetallePedidoEntity,
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
+      supabaseIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
+      supabaseIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
+      supabaseIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'supabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
+      supabaseIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'supabaseId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
+      supabaseIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'supabaseId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
+      supabaseIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'supabaseId',
+        value: '',
       ));
     });
   }
@@ -1078,9 +1164,9 @@ extension DetallePedidoEntityQueryWhereDistinct
   }
 
   QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QDistinct>
-      distinctBySupabaseId() {
+      distinctBySupabaseId({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'supabaseId');
+      return query.addDistinctBy(r'supabaseId', caseSensitive: caseSensitive);
     });
   }
 }
@@ -1134,7 +1220,7 @@ extension DetallePedidoEntityQueryProperty
     });
   }
 
-  QueryBuilder<DetallePedidoEntity, int?, QQueryOperations>
+  QueryBuilder<DetallePedidoEntity, String?, QQueryOperations>
       supabaseIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'supabaseId');

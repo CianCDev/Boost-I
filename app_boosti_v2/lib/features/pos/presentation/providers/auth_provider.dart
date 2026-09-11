@@ -7,6 +7,7 @@ import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../services/device_info.dart';
 import '../services/sync_service.dart';
+import '../services/error_service.dart'; // ✅ NUEVO
 import 'usuario_provider.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
@@ -143,10 +144,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
         errorMessage: null,
       );
       _ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
+      
+      // ✅ REGISTRAR USUARIO EN EL MONITOREO
+      ErrorService.setUser(
+        usuarioValido.id.toString(),
+        usuarioValido.email,
+        usuarioValido.nombre,
+      );
+      
       // Cargar lista de usuarios para el diálogo de cambio
       await loadUsuarios();
       return true;
-    } catch (e) {
+    } catch (e, stack) {
+      // ✅ REPORTAR ERROR
+      ErrorService.captureError(
+        e,
+        stack: stack,
+        hint: 'loginWithPin_fallo',
+        extras: {
+          'usuario': usuarioSeleccionado.nombre,
+          'pinLength': pin.length,
+        },
+      );
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Error al iniciar sesión: $e',
@@ -179,9 +198,24 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       state = state.copyWith(isLoading: false, currentUser: usuario, errorMessage: null);
       _ref.read(usuarioActualProvider.notifier).setUsuario(usuario);
+      
+      // ✅ REGISTRAR USUARIO EN EL MONITOREO
+      ErrorService.setUser(
+        usuario.id.toString(),
+        usuario.email,
+        usuario.nombre,
+      );
+      
       await loadUsuarios();
       return true;
-    } catch (e) {
+    } catch (e, stack) {
+      // ✅ REPORTAR ERROR
+      ErrorService.captureError(
+        e,
+        stack: stack,
+        hint: 'loginWithEmail_fallo',
+        extras: {'email': email},
+      );
       state = state.copyWith(isLoading: false, errorMessage: 'Error en login: $e');
       return false;
     }
@@ -234,6 +268,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       errorMessage: null,
     );
     _ref.read(usuarioActualProvider.notifier).setUsuario(nuevoCajero);
+    
+    // ✅ ACTUALIZAR USUARIO EN MONITOREO
+    ErrorService.setUser(
+      nuevoCajero.id.toString(),
+      nuevoCajero.email,
+      nuevoCajero.nombre,
+    );
 
     // 8. Recargar lista de usuarios
     await loadUsuarios();
@@ -286,8 +327,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       _ref.read(usuarioActualProvider.notifier).clearUsuario();
 
       debugPrint('✅ Logout completado correctamente');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('❌ Error en logout: $e');
+      ErrorService.captureError(e, stack: stack, hint: 'logout_fallo');
       // Aún si falla, intentamos limpiar el estado
       state = AuthState(usuarios: state.usuarios);
       _ref.read(usuarioActualProvider.notifier).clearUsuario();

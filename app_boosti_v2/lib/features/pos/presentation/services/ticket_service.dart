@@ -7,7 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+// quitar: package:printing/printing.dart
+import 'package:open_filex/open_filex.dart';
 import '../../domain/models/printer_models.dart';
 import '../../domain/enums/printer_error.dart';
 import '../../data/Local/entities/local_entity.dart';
@@ -147,12 +148,13 @@ class TicketService {
     );
 
     final bytes = await pdf.save();
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => bytes,
-      name: _generarNombreArchivo(tipo),
-    );
 
-    _guardarEnDiscoSilencioso(bytes, tipo: tipo);
+    final tempDir = await getTemporaryDirectory();
+    final file = File('${tempDir.path}/${_generarNombreArchivo(tipo)}.pdf');
+    await file.writeAsBytes(bytes);
+
+    await OpenFilex.open(file.path);
+    await _guardarEnDiscoSilencioso(bytes, tipo: tipo);
   }
 
   // ============================================================
@@ -194,8 +196,9 @@ class TicketService {
     double? totalGeneral,
   }) async {
     final pdf = pw.Document();
-    await PdfGoogleFonts.robotoRegular(); // Forzamos carga para tener la fuente
 
+    // Quitar: await PdfGoogleFonts.robotoRegular();
+    // Usar fuente pura de PDF, sin descarga externa
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.roll80.copyWith(
@@ -307,7 +310,8 @@ class TicketService {
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
-            pw.Text('TOTAL:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.Text('TOTAL:',
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
             pw.Text('\$${total.toStringAsFixed(2)}',
                 style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
           ],
@@ -410,8 +414,7 @@ class TicketService {
             ),
             pw.Text(
               '\$${totalGeneral.toStringAsFixed(2)}',
-              style: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold, fontSize: 14),
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
             ),
           ],
         ),
@@ -502,16 +505,11 @@ class TicketService {
   }) async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    debugPrint('📄 Generando PDF para código: $codigo');
-
     try {
       final pdf = pw.Document();
-      pw.Font fontRegular;
-      try {
-        fontRegular = await PdfGoogleFonts.robotoRegular();
-      } catch (_) {
-        fontRegular = pw.Font.helvetica();
-      }
+
+      // Quitar PdfGoogleFonts y usar la fuente interna de PDF
+      final fontRegular = pw.Font.helvetica();
 
       final pageFormat = PdfPageFormat.roll80.copyWith(
         marginLeft: 10,
@@ -531,7 +529,8 @@ class TicketService {
                 children: [
                   pw.Text(
                     'Código de Barras',
-                    style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(
+                        fontSize: 14, fontWeight: pw.FontWeight.bold),
                   ),
                   pw.SizedBox(height: 10),
                   pw.Image(pw.MemoryImage(imageBytes), width: 200, height: 80),
@@ -548,18 +547,14 @@ class TicketService {
       );
 
       final bytes = await pdf.save();
-      debugPrint('✅ PDF generado, tamaño: ${bytes.length} bytes');
-
-      // Guardar copia en disco (tipo codigo)
       await _guardarEnDiscoSilencioso(bytes, tipo: TicketType.codigo);
 
-      // Mostrar diálogo de impresión del sistema
-      debugPrint('📤 Abriendo diálogo de impresión del sistema...');
-      await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => bytes,
-        name: _generarNombreArchivo(TicketType.codigo),
-      );
-      debugPrint('✅ Diálogo de impresión cerrado');
+      final tempDir = await getTemporaryDirectory();
+      final file = File(
+          '${tempDir.path}/${_generarNombreArchivo(TicketType.codigo)}.pdf');
+      await file.writeAsBytes(bytes);
+
+      await OpenFilex.open(file.path);
     } catch (e) {
       debugPrint('❌ Error en imprimirCodigoBarras: $e');
       rethrow;

@@ -9,6 +9,7 @@ import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/auth_provider.dart';
 import '../providers/usuario_provider.dart';
 import '../services/sync_service.dart';
+import '../services/error_service.dart'; // ✅ NUEVO
 import '../utils/responsive_helper.dart';
 import 'inventory_catalog_screen.dart';
 
@@ -171,7 +172,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // LOGIN
+  // LOGIN (CON SINCRONIZACIÓN INICIAL)
   // ============================================================
   void _loginWithPin() async {
     final authState = ref.read(authProvider);
@@ -209,7 +210,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       final user = ref.read(authProvider).currentUser;
       if (user != null) {
         ref.read(usuarioActualProvider.notifier).setUsuario(user);
+        
+        // ✅ REGISTRAR USUARIO EN MONITOREO
+        ErrorService.setUser(
+          user.id.toString(),
+          user.email,
+          user.nombre,
+        );
+        
         await _saveSelectedUser(user.id);
+
+        // 🔥 Sincronizar datos esenciales para el nuevo dispositivo
+        try {
+          final syncService = SyncService();
+          await syncService.descargarLocalesDesdeSupabase();  // Para obtener UUID
+          await syncService.descargarPedidosDesdeSupabase();  // Para obtener pedidos
+          debugPrint('✅ Sincronización inicial completada después del login');
+        } catch (e) {
+          debugPrint('⚠️ Error en sincronización inicial: $e');
+          // No bloqueamos el login si falla
+        }
+
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),

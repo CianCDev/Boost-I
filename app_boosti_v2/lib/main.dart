@@ -16,9 +16,23 @@ import 'features/pos/presentation/providers/lock_provider.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 import 'features/pos/presentation/providers/sync_provider.dart';
+import 'features/pos/presentation/services/sync_service.dart';
+
+// ✅ NUEVAS IMPORTACIONES PARA MONITOREO Y BACKUP
+import 'features/pos/presentation/services/error_service.dart';
+import 'features/pos/presentation/services/backup_service.dart';
+import 'features/pos/presentation/services/ota_update_service.dart';
 
 void main() async {
+
+  debugPrint('🚀 OTA TEST - VERSION 2 - ${DateTime.now()}');
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ============================================================
+  // ✅ 0. INICIALIZAR MONITOREO Y BACKUP
+  // ============================================================
+  await ErrorService.init(); // Inicializa Sentry + Crashlytics
+  BackupService.register(); // Programa el backup cada 12h
 
   // ============================================================
   // 1. INICIALIZAR SUPABASE (de forma síncrona con await)
@@ -44,7 +58,8 @@ void main() async {
       supabaseInitialized = false;
     }
   } else {
-    debugPrint('⚠️ No hay configuración de Supabase, se mostrará pantalla de configuración');
+    debugPrint(
+        '⚠️ No hay configuración de Supabase, se mostrará pantalla de configuración');
   }
 
   // ============================================================
@@ -57,13 +72,23 @@ void main() async {
 
   try {
     final actualizados = await isarService.asignarSupabaseIdsAFaltantes();
-    debugPrint('✅ Migración de supabaseId: $actualizados productos actualizados.');
+    debugPrint(
+        '✅ Migración de supabaseId: $actualizados productos actualizados.');
   } catch (e) {
     debugPrint('❌ Error en migración de supabaseId: $e');
   }
 
   // ============================================================
-  // 3. EJECUTAR APP (con un FutureBuilder para esperar Supabase)
+  // 3. ARRANCAR COMPROBACIÓN SILENCIOSA DE OTA
+  // ============================================================
+  try {
+    OtaUpdateService.checkForUpdateSilently();
+  } catch (_) {
+    // Nunca bloquear el arranque.
+  }
+
+  // ============================================================
+  // 4. EJECUTAR APP
   // ============================================================
   runApp(
     DevicePreview(
@@ -90,13 +115,25 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
   @override
   void initState() {
     super.initState();
-    // Iniciar Realtime y monitoreo solo si Supabase está inicializado
     if (widget.supabaseInitialized) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final syncService = ref.read(syncServiceProvider);
         syncService.iniciarSuscripcionesRealtime();
         syncService.iniciarMonitoreo();
+        _ejecutarSincronizacionInicial(syncService);
       });
+    }
+  }
+
+  Future<void> _ejecutarSincronizacionInicial(SyncService syncService) async {
+    try {
+      debugPrint('🚀 Ejecutando sincronización inicial desde main...');
+      await syncService.descargarLocalesDesdeSupabase();
+      await syncService.sincronizarUsuariosDesdeSupabase();
+      await syncService.descargarPedidosDesdeSupabase();
+      debugPrint('✅ Sincronización inicial completada desde main');
+    } catch (e) {
+      debugPrint('⚠️ Error en sincronización inicial desde main: $e');
     }
   }
 

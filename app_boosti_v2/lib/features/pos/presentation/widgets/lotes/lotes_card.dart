@@ -127,13 +127,13 @@ class LoteCard extends StatelessWidget {
                   const SizedBox(height: 8),
 
                   // Código de barras del lote
-                  if (lote.codigoBarrasLote != null && lote.codigoBarrasLote!.isNotEmpty)
+                  if (lote.codigoLoteProveedor != null && lote.codigoLoteProveedor!.isNotEmpty)
                     Row(
                       children: [
                         Icon(Icons.qr_code, size: 14, color: colorScheme.onSurfaceVariant),
                         const SizedBox(width: 6),
                         Text(
-                          'Código: ${lote.codigoBarrasLote}',
+                          'Código: ${lote.codigoLoteProveedor}',
                           style: TextStyle(
                             fontSize: 13,
                             color: colorScheme.onSurfaceVariant,

@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
+import 'package:app_boosti_v2/features/pos/presentation/screens/lotes/lotes_dashboard_screen.dart';
 import 'package:app_boosti_v2/features/pos/presentation/screens/pedido/pedidos_screen.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/menu/diagnostico_lote_dialog.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +24,7 @@ import '../widgets/monitor_empleado_widget.dart' as monitor;
 import '../widgets/gestion_personal_dialog.dart';
 import '../../presentation/providers/usuario_provider.dart';
 import '../services/backup_service.dart';
+import '../services/error_service.dart'; // ✅ NUEVO
 import 'login_screen.dart';
 import 'gastos_screen.dart';
 import '../../data/Local/entities/turno_entity.dart';
@@ -35,7 +37,6 @@ import '../screens/locales/locales_screen.dart';
 import '../screens/telegram/telegram_config_screen.dart';
 import '../widgets/appbar.dart';
 import '../widgets/menu/turno_closing_dialog.dart';
-import '../screens/lotes_screen.dart';
 
 class MenuOption {
   final String title;
@@ -107,20 +108,29 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   // ============================================================
   // MÉTODOS DE NEGOCIO
   // ============================================================
+
   Future<void> _cargarEstadoSync() async {
-    final pendientes = await _isarService.obtenerVentasPendientesSync();
-    if (mounted) {
-      setState(() => _ventasPendientesSync = pendientes.length);
+    try {
+      final pendientes = await _isarService.obtenerVentasPendientesSync();
+      if (mounted) {
+        setState(() => _ventasPendientesSync = pendientes.length);
+      }
+    } catch (e, stack) {
+      ErrorService.captureError(e, stack: stack, hint: 'cargarEstadoSync_fallo');
     }
   }
 
   Future<void> _cargarEstadoTurno() async {
-    final usuario = ref.read(usuarioActualProvider);
-    if (usuario != null) {
-      final turno = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
-      if (mounted) {
-        setState(() => _turnoAbierto = turno);
+    try {
+      final usuario = ref.read(usuarioActualProvider);
+      if (usuario != null) {
+        final turno = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
+        if (mounted) {
+          setState(() => _turnoAbierto = turno);
+        }
       }
+    } catch (e, stack) {
+      ErrorService.captureError(e, stack: stack, hint: 'cargarEstadoTurno_fallo');
     }
   }
 
@@ -191,7 +201,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     );
   }
 
-  // ✅ Helper para cargar Lottie con fallback (SIN lógica de sincronización)
   Widget _buildLottieWithFallback(String assetPath) {
     return Lottie.asset(
       assetPath,
@@ -263,7 +272,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   }
 
   // ============================================================
-  // CERRAR TURNO
+  // CERRAR TURNO (CON BACKUP)
   // ============================================================
   Future<void> _cerrarTurno() async {
     final usuario = ref.read(usuarioActualProvider);
@@ -310,31 +319,54 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     );
 
     if (confirm == true) {
-      turnoAbierto.montoFinal = montoFinal;
-      turnoAbierto.fechaCierre = DateTime.now();
-      turnoAbierto.estado = 'cerrado';
-      turnoAbierto.syncStatus = 'pending';
+      try {
+        turnoAbierto.montoFinal = montoFinal;
+        turnoAbierto.fechaCierre = DateTime.now();
+        turnoAbierto.estado = 'cerrado';
+        turnoAbierto.syncStatus = 'pending';
 
-      await _isarService.guardarTurno(turnoAbierto);
-      await _isarService.actualizarEstadoUsuario(usuario.id, 'inactivo');
-      await _syncService.sincronizarTurnos();
-      await _isarService.guardarLog(
-        LogEntity()
-          ..accion = 'CIERRE_TURNO'
-          ..usuarioNombre = usuario.nombre
-          ..usuarioRol = usuario.rol
-          ..detalles = 'Monto final: \$${montoFinal.toStringAsFixed(2)}'
-          ..fecha = DateTime.now()
-          ..sincronizado = false,
-      );
-
-      await _cargarEstadoTurno();
-
-      if (mounted) {
-        _mostrarDialogoExito(
-          'Turno cerrado',
-          'El turno se ha cerrado correctamente.\nMonto final: \$${montoFinal.toStringAsFixed(2)}',
+        await _isarService.guardarTurno(turnoAbierto);
+        await _isarService.actualizarEstadoUsuario(usuario.id, 'inactivo');
+        await _syncService.sincronizarTurnos();
+        await _isarService.guardarLog(
+          LogEntity()
+            ..accion = 'CIERRE_TURNO'
+            ..usuarioNombre = usuario.nombre
+            ..usuarioRol = usuario.rol
+            ..detalles = 'Monto final: \$${montoFinal.toStringAsFixed(2)}'
+            ..fecha = DateTime.now()
+            ..sincronizado = false,
         );
+
+        // ✅ BACKUP AL CERRAR TURNO
+        try {
+          final backupService = BackupService();
+          final exito = await backupService.crearBackupPorTurno();
+          if (exito) {
+            debugPrint('✅ Backup generado al cerrar turno');
+          } else {
+            debugPrint('⚠️ Error generando backup al cerrar turno');
+          }
+        } catch (e, stack) {
+          ErrorService.captureError(e, stack: stack, hint: 'backup_cerrar_turno_fallo');
+          debugPrint('❌ Error crítico al generar backup al cerrar turno: $e');
+        }
+
+        await _cargarEstadoTurno();
+
+        if (mounted) {
+          _mostrarDialogoExito(
+            'Turno cerrado',
+            'El turno se ha cerrado correctamente.\nMonto final: \$${montoFinal.toStringAsFixed(2)}',
+          );
+        }
+      } catch (e, stack) {
+        ErrorService.captureError(e, stack: stack, hint: 'cerrarTurno_fallo');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('❌ Error al cerrar turno: $e'), backgroundColor: Colors.red),
+          );
+        }
       }
     }
   }
@@ -357,7 +389,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
-          // ignore: deprecated_member_use
           return WillPopScope(
             onWillPop: () async => false,
             child: AlertDialog(
@@ -433,6 +464,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         ),
       );
       debugPrint('❌ Error en sincronización: $e');
+      ErrorService.captureError(e, hint: 'sincronizarTodo_fallo');
     } finally {
       if (mounted) {
         setState(() => _sincronizando = false);
@@ -528,17 +560,26 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   }
 
   Future<void> _crearBackup() async {
-    final backupService = BackupService();
-    final exito = await backupService.crearBackupYCompartir();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(exito
-              ? '✅ Backup creado y compartido'
-              : '❌ Error al crear el backup'),
-          backgroundColor: exito ? const Color(0xFF10B981) : Colors.red,
-        ),
-      );
+    try {
+      final backupService = BackupService();
+      final exito = await backupService.crearBackupYCompartir();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(exito
+                ? '✅ Backup creado y compartido'
+                : '❌ Error al crear el backup'),
+            backgroundColor: exito ? const Color(0xFF10B981) : Colors.red,
+          ),
+        );
+      }
+    } catch (e, stack) {
+      ErrorService.captureError(e, stack: stack, hint: 'crearBackup_manual_fallo');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Error al crear backup: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -722,17 +763,22 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         onTap: _crearBackup,
         isAdminOnly: true,
       ),
+      // ==========================================================
+      // 🆕 APARTADO DE GESTIÓN DE LOTES (exclusivo admin)
+      // ==========================================================
       MenuOption(
-  title: 'Gestión de Lotes',
-  subtitle: 'Verificar y administrar lotes',
-  icon: Icons.inventory_2_rounded,
-  color: const Color(0xFF8B5CF6),
-  onTap: () => Navigator.push(
-    context,
-    MaterialPageRoute(builder: (context) => const LotesScreen()),
-  ),
-  isAdminOnly: true,
-),
+        title: 'Gestión de Lotes',
+        subtitle: 'Verificar y administrar lotes por local',
+        icon: Icons.inventory_2_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const LotesDashboardScreen(),
+          ),
+        ),
+        isAdminOnly: true,
+      ),
       MenuOption(
         title: 'Diagnóstico de Lotes',
         subtitle: 'Verificar estado del inventario por lotes',
@@ -744,6 +790,9 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         ),
         isAdminOnly: true,
       ),
+      // ==========================================================
+      // Fin del apartado de lotes
+      // ==========================================================
       MenuOption(
         title: 'Configurar Telegram',
         subtitle: 'Bot de notificaciones y comandos',
@@ -753,6 +802,46 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           context,
           MaterialPageRoute(builder: (context) => const TelegramConfigScreen()),
         ),
+        isAdminOnly: true,
+      ),
+      // ==========================================================
+      // 🧪 BOTONES DE PRUEBA PARA MONITOREO (solo admin)
+      // ==========================================================
+      MenuOption(
+        title: '🧪 Probar Error Controlado',
+        subtitle: 'Envía un error de prueba a Sentry',
+        icon: Icons.bug_report_rounded,
+        color: Colors.orange,
+        onTap: () {
+          ErrorService.captureError(
+            Exception('🧪 Error de prueba desde el menú'),
+            hint: 'prueba_menu_error',
+            extras: {
+              'usuario': usuario?.nombre ?? 'Desconocido',
+              'timestamp': DateTime.now().toString(),
+              'plataforma': 'Windows',
+            },
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Error enviado a Sentry'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        },
+        isAdminOnly: true,
+      ),
+      MenuOption(
+        title: '💥 Probar Crash Fatal',
+        subtitle: 'Provoca un crash para verificar Crashlytics/Sentry',
+        icon: Icons.error_outline_rounded,
+        color: Colors.red,
+        onTap: () {
+          // Este crash será capturado por el handler global de Flutter
+          // y enviado a Sentry (y a Crashlytics si está disponible)
+          throw Exception('💥 CRASH FATAL DE PRUEBA DESDE EL MENÚ');
+        },
         isAdminOnly: true,
       ),
     ];
@@ -1106,7 +1195,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           return AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
-            // ignore: deprecated_member_use
             transform: hovered ? (Matrix4.identity()..scale(1.01)) : Matrix4.identity(),
             decoration: BoxDecoration(
               color: theme.cardColor,

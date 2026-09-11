@@ -70,7 +70,7 @@ class _LotesScreenState extends ConsumerState<LotesScreen>
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.refresh_rounded, color: Colors.white),
-            onPressed: state.isLoading ? null : notifier.refresh,
+            onPressed: state.isLoading ? null : notifier.recargar,
           ),
         ],
       ),
@@ -286,7 +286,7 @@ class _LotesScreenState extends ConsumerState<LotesScreen>
     }
 
     return RefreshIndicator(
-      onRefresh: notifier.refresh,
+      onRefresh: notifier.recargar,
       child: AnimationLimiter(
         child: ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

@@ -1,16 +1,18 @@
-// ignore_for_file: unused_local_variable
-
+// lib/features/pos/presentation/screens/pedido/pedidos_screen.dart
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/crear_pedido_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/detalle_pedido_dialog.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/pedido_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:app_boosti_v2/features/pos/presentation/providers/pedidos_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dart';
-import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/pedido_card.dart';
+import '../../providers/pedidos_provider.dart';
+import '../../providers/locales_provider.dart';
+import '../../providers/local_actual_provider.dart'; // ✅ Import agregado
 import '../../widgets/sales/sales_history_filter_bar.dart';
 import '../../utils/responsive_helper.dart';
-import '../../widgets/appbar.dart'; // ✅ Import CustomAppBar
+import '../../widgets/appbar.dart';
+import '../../../data/Local/entities/local_entity.dart';
 
 class PedidosProveedorScreen extends ConsumerStatefulWidget {
   const PedidosProveedorScreen({super.key});
@@ -22,7 +24,7 @@ class PedidosProveedorScreen extends ConsumerStatefulWidget {
 class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     with SingleTickerProviderStateMixin {
   EstadoPedido? _estadoFiltro;
-  int? _localDestinoId;
+  String? _localDestinoUuid;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -61,9 +63,6 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     super.dispose();
   }
 
-  // ==========================================
-  // FILTROS EN MEMORIA
-  // ==========================================
   bool _perteneceAlPeriodo(DateTime fecha, String periodo) {
     final now = DateTime.now();
     final fechaLocal = fecha.toLocal();
@@ -109,12 +108,9 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
 
   @override
   Widget build(BuildContext context) {
-    final localDestinoId = _localDestinoId ?? 1;
     final isMobile = ResponsiveHelper.isMobile(context);
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final pedidosAsync = ref.watch(pedidosListProvider(localDestinoId));
 
     return Scaffold(
       backgroundColor: isDark
@@ -125,19 +121,81 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
         showBackButton: true,
         centerTitle: false,
         actions: [
-          PopupMenuButton<int>(
-            icon: const Icon(Icons.storefront_rounded, color: Colors.white),
-            onSelected: (value) => setState(() => _localDestinoId = value),
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 1, child: Text('Local Principal')),
-              PopupMenuItem(value: 2, child: Text('Local Secundario')),
-            ],
+          // PopupMenu dinámico con locales reales
+          Consumer(
+            builder: (context, ref, child) {
+              final localesAsync = ref.watch(localesProvider);
+              return localesAsync.when(
+                data: (locales) {
+                  if (locales.isEmpty) {
+                    return const Icon(Icons.storefront_rounded, color: Colors.white);
+                  }
+                  if (_localDestinoUuid == null && locales.isNotEmpty) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      setState(() {
+                        _localDestinoUuid = locales.first.supabaseId;
+                      });
+                    });
+                  }
+                  return PopupMenuButton<String>(
+                    icon: const Icon(Icons.storefront_rounded, color: Colors.white),
+                    onSelected: (value) async {
+                      // 1️⃣ Actualizar el filtro de la lista
+                      setState(() => _localDestinoUuid = value);
+                      ref.invalidate(pedidosListProvider(value));
+
+                      // 2️⃣ 🔥 Actualizar el provider del local actual
+                      final localEncontrado = locales.firstWhere(
+                        (l) => l.supabaseId == value,
+                        orElse: () => LocalEntity(),
+                      );
+                      if (localEncontrado.id != 0) {
+                        await ref
+                            .read(localActualProvider.notifier)
+                            .setLocalActual(localEncontrado.id);
+                      }
+                    },
+                    itemBuilder: (context) {
+                      return locales.map((local) {
+                        final isSelected = _localDestinoUuid == local.supabaseId;
+                        return PopupMenuItem<String>(
+                          value: local.supabaseId,
+                          child: Row(
+                            children: [
+                              if (isSelected)
+                                const Icon(Icons.check_circle_rounded,
+                                    color: Color(0xFF10B981), size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(local.nombre)),
+                            ],
+                          ),
+                        );
+                      }).toList();
+                    },
+                  );
+                },
+                loading: () => const SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    ),
+                  ),
+                ),
+                error: (err, stack) => const Icon(Icons.error_outline, color: Colors.white),
+              );
+            },
           ),
           IconButton(
             onPressed: () {
-              ref.invalidate(pedidosListProvider(_localDestinoId ?? 1));
-              setState(() {});
-              _animationController.forward(from: 0.0);
+              if (_localDestinoUuid != null) {
+                ref.invalidate(pedidosListProvider(_localDestinoUuid!));
+                setState(() {});
+                _animationController.forward(from: 0.0);
+              }
             },
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
           ),
@@ -149,7 +207,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             children: [
-              _buildResumenPedidos(pedidosAsync, isDark),
+              _buildResumenPedidos(isDark),
               const SizedBox(height: 12),
               Padding(
                 padding: EdgeInsets.zero,
@@ -170,14 +228,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
               _buildFiltroEstado(colorScheme, isDark, isMobile),
               const SizedBox(height: 8),
               Expanded(
-                child: pedidosAsync.when(
-                  data: (todos) {
-                    final pedidosFiltrados = _filtrarPedidos(todos);
-                    return _buildContent(pedidosFiltrados);
-                  },
-                  loading: () => _buildLoadingState(),
-                  error: (err, stack) => _buildErrorState(err, colorScheme),
-                ),
+                child: _buildPedidosList(isDark, colorScheme),
               ),
             ],
           ),
@@ -187,43 +238,11 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  // ==========================================
-  // CONTENIDO CON ANIMACIÓN
-  // ==========================================
-  Widget _buildContent(List<PedidoEntity> pedidos) {
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 400),
-        switchInCurve: Curves.easeInOut,
-        switchOutCurve: Curves.easeInOut,
-        transitionBuilder: (Widget child, Animation<double> animation) {
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.06),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-              )),
-              child: child,
-            ),
-          );
-        },
-        child: KeyedSubtree(
-          key: ValueKey('pedidos_${_estadoFiltro?.name ?? 'todos'}_${pedidos.length}'),
-          child: _buildListaPedidos(pedidos),
-        ),
-      ),
-    );
-  }
-
-  // ==========================================
-  // RESUMEN DE CONTADORES (RESPONSIVE)
-  // ==========================================
-  Widget _buildResumenPedidos(AsyncValue<List<PedidoEntity>> pedidosAsync, bool isDark) {
+  Widget _buildResumenPedidos(bool isDark) {
+    if (_localDestinoUuid == null) {
+      return const SizedBox.shrink();
+    }
+    final pedidosAsync = ref.watch(pedidosListProvider(_localDestinoUuid!));
     return pedidosAsync.when(
       data: (todos) {
         final pedidos = _filtrarPedidos(todos);
@@ -287,9 +306,6 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  // ==========================================
-  // FILTRO POR ESTADO (COMPACTO)
-  // ==========================================
   Widget _buildFiltroEstado(ColorScheme colorScheme, bool isDark, bool isMobile) {
     final List<Map<String, dynamic>> opciones = [
       {'valor': null, 'etiqueta': 'Todos', 'icono': Icons.list_rounded},
@@ -340,60 +356,87 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  // ==========================================
-  // LISTA DE PEDIDOS
-  // ==========================================
-  Widget _buildListaPedidos(List<PedidoEntity> pedidos) {
-    if (pedidos.isEmpty) return _buildEmptyState();
+  Widget _buildPedidosList(bool isDark, ColorScheme colorScheme) {
+    if (_localDestinoUuid == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.storefront_rounded, size: 48, color: Colors.grey),
+            const SizedBox(height: 12),
+            Text(
+              'Selecciona un local',
+              style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
+            ),
+          ],
+        ),
+      );
+    }
 
-    return RefreshIndicator(
-      onRefresh: () async {
-        ref.invalidate(pedidosListProvider(_localDestinoId ?? 1));
-        await Future.delayed(const Duration(milliseconds: 300));
-        setState(() {});
-        _animationController.forward(from: 0.0);
-      },
-      child: AnimationLimiter(
-        child: ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: pedidos.length,
-          itemBuilder: (context, index) {
-            final pedido = pedidos[index];
-            return AnimationConfiguration.staggeredList(
-              position: index,
-              duration: const Duration(milliseconds: 500),
-              child: SlideAnimation(
-                verticalOffset: 50,
-                curve: Curves.easeOutCubic,
-                child: FadeInAnimation(
-                  curve: Curves.easeOutCubic,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: PedidoCard(
-                      pedido: pedido,
-                      onTap: () async {
-                        await showDialog(
-                          context: context,
-                          builder: (_) => DetallePedidoDialog(pedidoId: pedido.id),
-                        );
-                        setState(() {});
-                      },
-                    ),
+    final pedidosAsync = ref.watch(pedidosListProvider(_localDestinoUuid!));
+
+    return pedidosAsync.when(
+      data: (todos) {
+        final pedidosFiltrados = _filtrarPedidos(todos);
+        return pedidosFiltrados.isEmpty
+            ? _buildEmptyState(isDark)
+            : RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(pedidosListProvider(_localDestinoUuid!));
+                  await Future.delayed(const Duration(milliseconds: 300));
+                  setState(() {});
+                  _animationController.forward(from: 0.0);
+                },
+                child: AnimationLimiter(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: pedidosFiltrados.length,
+                    itemBuilder: (context, index) {
+                      final pedido = pedidosFiltrados[index];
+                      return AnimationConfiguration.staggeredList(
+                        position: index,
+                        duration: const Duration(milliseconds: 500),
+                        child: SlideAnimation(
+                          verticalOffset: 50,
+                          curve: Curves.easeOutCubic,
+                          child: FadeInAnimation(
+                            curve: Curves.easeOutCubic,
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: PedidoCard(
+                                pedido: pedido,
+                                onTap: () async {
+                                  await showDialog(
+                                    context: context,
+                                    builder: (_) => DetallePedidoDialog(pedidoId: pedido.id),
+                                  );
+                                  setState(() {});
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
-              ),
-            );
-          },
+              );
+      },
+      loading: () => const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6))),
+            SizedBox(height: 16),
+            Text('Cargando pedidos...', style: TextStyle(color: Colors.grey)),
+          ],
         ),
       ),
+      error: (err, stack) => _buildErrorState(err, colorScheme),
     );
   }
 
-  // ==========================================
-  // ESTADOS VACÍO, CARGA Y ERROR
-  // ==========================================
-  Widget _buildEmptyState() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget _buildEmptyState(bool isDark) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -444,19 +487,6 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  Widget _buildLoadingState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6))),
-          SizedBox(height: 16),
-          Text('Cargando pedidos...', style: TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
   Widget _buildErrorState(Object error, ColorScheme colorScheme) {
     return Center(
       child: Column(
@@ -472,9 +502,6 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  // ==========================================
-  // BOTÓN FLOTANTE
-  // ==========================================
   Widget _buildFloatingButton() {
     return FloatingActionButton(
       onPressed: () async {
@@ -483,7 +510,9 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
           builder: (_) => const CrearPedidoDialog(),
         );
         if (result == true) {
-          ref.invalidate(pedidosListProvider(_localDestinoId ?? 1));
+          if (_localDestinoUuid != null) {
+            ref.invalidate(pedidosListProvider(_localDestinoUuid!));
+          }
           setState(() {});
           _animationController.forward(from: 0.0);
         }
