@@ -2618,6 +2618,25 @@ class IsarService {
   Future<Map<String, dynamic>> migrarStockExistenteALotes() async {
     try {
       final isar = await db;
+
+      // Resolver el local activo dentro de la propia migración para que
+      // sea autosuficiente y no dependa del orden de arranque del provider.
+      final localActivo = await obtenerLocalActivo();
+      if (localActivo == null) {
+        debugPrint(
+            '⚠️ migrarStockExistenteALotes: no hay local activo; migración omitida');
+        return {
+          'success': true,
+          'lotesCreados': 0,
+          'productosSinStock': 0,
+          'productosConLotesPrevios': 0,
+          'totalProductos': 0,
+          'error': null,
+          'omision': 'sin_local_activo',
+        };
+      }
+
+      final int localId = localActivo.id;
       final productos = await isar.productoEntitys.where().findAll();
       final todosLosLotes = await isar.loteEntitys.where().findAll();
 
@@ -2641,6 +2660,7 @@ class IsarService {
 
         final lote = LoteEntity()
           ..productoId = p.id
+          ..localId = localId
           ..cantidadInicial = p.stock
           ..cantidadRestante = p.stock
           ..fechaIngreso = DateTime.now()

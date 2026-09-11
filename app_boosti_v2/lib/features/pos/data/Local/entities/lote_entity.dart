@@ -14,7 +14,7 @@ class LoteEntity {
   late int productoId;
 
   @Index() // ✅ NUEVO: para filtrar por local
-  late int localId;
+  int? localId;
 
   String? codigoLoteProveedor;
   double cantidadInicial = 0.0;
@@ -63,10 +63,11 @@ class LoteEntity {
       ..id = json['id_isar'] as int? ?? Isar.autoIncrement
       ..supabaseId = json['id'] as String?
       ..productoId = json['producto_id_fk'] as int
-      ..localId = json['local_id'] as int? ?? 0 // ✅ NUEVO (con fallback)
+      ..localId = json['local_id'] as int? // ✅ NUEVO
       ..codigoLoteProveedor = json['codigo_lote_proveedor'] as String?
       ..cantidadInicial = (json['cantidad_inicial'] as num?)?.toDouble() ?? 0.0
-      ..cantidadRestante = (json['cantidad_restante'] as num?)?.toDouble() ?? 0.0
+      ..cantidadRestante =
+          (json['cantidad_restante'] as num?)?.toDouble() ?? 0.0
       ..fechaIngreso = DateTime.parse(json['fecha_ingreso'] as String)
       ..fechaVencimiento = json['fecha_vencimiento'] != null
           ? DateTime.parse(json['fecha_vencimiento'] as String)
