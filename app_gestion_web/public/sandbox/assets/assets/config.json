@@ -1,0 +1,7 @@
+{
+  "syncServerUrl": "",
+  "syncApiKey": "",
+  "telegramBotToken": "",
+  "telegramChatId": "",
+  "telegramEnabled": false
+}

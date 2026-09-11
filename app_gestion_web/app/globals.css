@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+/* ============================================================
+   THEME TOKENS (Tailwind v4)
+   ============================================================ */
+@theme {
+  --color-deep-space: #0B1120;
+  --color-deep-slate: #1E293B;
+  --color-french-blue: #1E3A8A;
+  --color-mint: #10B981;
+  --color-frosted-mint: #D1FAE5;
+  --color-fresh-sky: #59B1E4;
+  --color-violet-brand: #8B5CF6;
+  --color-sandy: #FF984F;
+  --color-parchment: #FAF7F2;
+  --color-off-white: #F8FAFC;
+
+  --font-sans: var(--font-geist-sans, system-ui, sans-serif);
+  --font-mono: var(--font-geist-mono, monospace);
+}
+
+/* ============================================================
+   KEYFRAMES STANDARD
+   ============================================================ */
+@keyframes float-y {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -12px, 0); }
+}
+
+@keyframes blob-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(35px, -40px, 0) scale(1.08); }
+  66%      { transform: translate3d(-25px, 25px, 0) scale(0.95); }
+}
+
+@keyframes blob-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(-40px, 35px, 0) scale(1.06); }
+}
+
+@keyframes bounce-y {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -8px, 0); }
+}
+
+@keyframes fade-in-y {
+  from { opacity: 0; transform: translate3d(0, 20px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes ping-s {
+  0%   { transform: scale(1); opacity: 0.75; }
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+
+/* ============================================================
+   UTILIDADES DE ANIMACIÓN (Tailwind v4 @utility)
+   ============================================================ */
+@utility animate-float-slow {
+  animation: float-y 6s ease-in-out infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+@utility animate-float-medium {
+  animation: float-y 5s ease-in-out infinite 1s;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+@utility animate-blob-slow {
+  animation: blob-a 22s ease-in-out infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+@utility animate-blob-medium {
+  animation: blob-b 18s ease-in-out infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+@utility animate-bounce-soft {
+  animation: bounce-y 3.2s ease-in-out infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+@utility animate-fade-up {
+  animation: fade-in-y 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+@utility animate-fade-up-delay {
+  animation: fade-in-y 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+@utility animate-ping-slow {
+  animation: ping-s 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}

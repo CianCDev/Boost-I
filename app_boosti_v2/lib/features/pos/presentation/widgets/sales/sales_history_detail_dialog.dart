@@ -500,7 +500,7 @@ class _SalesHistoryDetailDialogState extends State<SalesHistoryDetailDialog> {
                           ),
                         ],
                       );
-                    }).toList(),
+                    }),
                 ],
               ),
             ),
