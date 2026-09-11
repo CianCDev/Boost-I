@@ -240,7 +240,7 @@ LoteEntity _loteEntityDeserialize(
   object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[6]);
   object.fechaVencimiento = reader.readDateTimeOrNull(offsets[7]);
   object.id = id;
-  object.localId = reader.readLong(offsets[8]);
+  object.localId = reader.readLongOrNull(offsets[8]);
   object.productoId = reader.readLong(offsets[9]);
   object.proveedorId = reader.readStringOrNull(offsets[10]);
   object.proveedorNombre = reader.readStringOrNull(offsets[11]);
@@ -273,7 +273,7 @@ P _loteEntityDeserializeProp<P>(
     case 7:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 8:
-      return (reader.readLong(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 9:
       return (reader.readLong(offset)) as P;
     case 10:
@@ -557,8 +557,28 @@ extension LoteEntityQueryWhere
     });
   }
 
+  QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'localId',
+        value: [null],
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'localId',
+        lower: [null],
+        includeLower: false,
+        upper: [],
+      ));
+    });
+  }
+
   QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdEqualTo(
-      int localId) {
+      int? localId) {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(IndexWhereClause.equalTo(
         indexName: r'localId',
@@ -568,7 +588,7 @@ extension LoteEntityQueryWhere
   }
 
   QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdNotEqualTo(
-      int localId) {
+      int? localId) {
     return QueryBuilder.apply(this, (query) {
       if (query.whereSort == Sort.asc) {
         return query
@@ -603,7 +623,7 @@ extension LoteEntityQueryWhere
   }
 
   QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdGreaterThan(
-    int localId, {
+    int? localId, {
     bool include = false,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -617,7 +637,7 @@ extension LoteEntityQueryWhere
   }
 
   QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdLessThan(
-    int localId, {
+    int? localId, {
     bool include = false,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -631,8 +651,8 @@ extension LoteEntityQueryWhere
   }
 
   QueryBuilder<LoteEntity, LoteEntity, QAfterWhereClause> localIdBetween(
-    int lowerLocalId,
-    int upperLocalId, {
+    int? lowerLocalId,
+    int? upperLocalId, {
     bool includeLower = true,
     bool includeUpper = true,
   }) {
@@ -1544,8 +1564,25 @@ extension LoteEntityQueryFilter
     });
   }
 
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition> localIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'localId',
+      ));
+    });
+  }
+
+  QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
+      localIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'localId',
+      ));
+    });
+  }
+
   QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition> localIdEqualTo(
-      int value) {
+      int? value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'localId',
@@ -1556,7 +1593,7 @@ extension LoteEntityQueryFilter
 
   QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition>
       localIdGreaterThan(
-    int value, {
+    int? value, {
     bool include = false,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -1569,7 +1606,7 @@ extension LoteEntityQueryFilter
   }
 
   QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition> localIdLessThan(
-    int value, {
+    int? value, {
     bool include = false,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -1582,8 +1619,8 @@ extension LoteEntityQueryFilter
   }
 
   QueryBuilder<LoteEntity, LoteEntity, QAfterFilterCondition> localIdBetween(
-    int lower,
-    int upper, {
+    int? lower,
+    int? upper, {
     bool includeLower = true,
     bool includeUpper = true,
   }) {
@@ -2656,7 +2693,7 @@ extension LoteEntityQueryProperty
     });
   }
 
-  QueryBuilder<LoteEntity, int, QQueryOperations> localIdProperty() {
+  QueryBuilder<LoteEntity, int?, QQueryOperations> localIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'localId');
     });
