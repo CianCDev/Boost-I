@@ -55,7 +55,6 @@ class InfoPedido extends StatelessWidget {
               _buildInfoItem('Cédula', pedido.proveedorCedula ?? 'N/A', isDark),
               _buildInfoItem('Teléfono', pedido.proveedorTelefono ?? 'N/A', isDark),
               _buildInfoItem('Fecha', DateFormat('dd/MM/yyyy HH:mm').format(pedido.fechaPedido), isDark),
-              _buildInfoItem('Local Destino', pedido.localDestinoId.toString(), isDark),
               if (pedido.observaciones != null && pedido.observaciones!.isNotEmpty)
                 _buildInfoItem('Observaciones', pedido.observaciones!, isDark),
             ],

@@ -38,12 +38,12 @@ class LoteEntity {
 
   LoteEntity();
 
-  Map<String, dynamic> toSupabaseJson() {
+  Map<String, dynamic> toSupabaseJson({required String tenantUuid}) {
     return {
       'id': supabaseId,
       'id_isar': id,
       'producto_id_fk': productoId,
-      'local_id': localId, // ✅ NUEVO
+      'tenant_id': tenantUuid,
       'codigo_lote_proveedor': codigoLoteProveedor,
       'cantidad_inicial': cantidadInicial,
       'cantidad_restante': cantidadRestante,
@@ -51,19 +51,22 @@ class LoteEntity {
       'fecha_vencimiento': fechaVencimiento?.toIso8601String(),
       'estado': estado,
       'costo_unitario': costoUnitario,
-      'proveedor_id': proveedorId, // ✅ NUEVO
-      'proveedor_nombre': proveedorNombre, // ✅ NUEVO
+      'proveedor_id': proveedorId,
+      'proveedor_nombre': proveedorNombre,
       'sincronizado': sincronizado,
       'fecha_sincronizacion': fechaSincronizacion?.toIso8601String(),
     };
   }
 
-  factory LoteEntity.fromSupabase(Map<String, dynamic> json) {
+  factory LoteEntity.fromSupabase(
+    Map<String, dynamic> json, {
+    int? localIdResuelto,
+  }) {
     return LoteEntity()
       ..id = json['id_isar'] as int? ?? Isar.autoIncrement
       ..supabaseId = json['id'] as String?
       ..productoId = json['producto_id_fk'] as int
-      ..localId = json['local_id'] as int? // ✅ NUEVO
+      ..localId = localIdResuelto
       ..codigoLoteProveedor = json['codigo_lote_proveedor'] as String?
       ..cantidadInicial = (json['cantidad_inicial'] as num?)?.toDouble() ?? 0.0
       ..cantidadRestante =
@@ -74,8 +77,8 @@ class LoteEntity {
           : null
       ..estado = json['estado'] as String? ?? 'pendiente'
       ..costoUnitario = (json['costo_unitario'] as num?)?.toDouble()
-      ..proveedorId = json['proveedor_id'] as String? // ✅ NUEVO
-      ..proveedorNombre = json['proveedor_nombre'] as String? // ✅ NUEVO
+      ..proveedorId = json['proveedor_id'] as String?
+      ..proveedorNombre = json['proveedor_nombre'] as String?
       ..sincronizado = json['sincronizado'] as bool? ?? false
       ..fechaSincronizacion = json['fecha_sincronizacion'] != null
           ? DateTime.parse(json['fecha_sincronizacion'] as String)

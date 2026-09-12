@@ -85,7 +85,7 @@ final registrarRecepcionProvider = FutureProvider.family<void, ({
 
 final lote = LoteEntity()
   ..productoId = detalle.productoId
-  ..localId = pedido.localDestinoId
+  ..localId = pedido.localOrigenId
   ..cantidadInicial = detalle.cantidad
   ..cantidadRestante = detalle.cantidad
   ..fechaIngreso = DateTime.now()
