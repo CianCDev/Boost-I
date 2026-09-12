@@ -4,13 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_boosti_v2/features/pos/presentation/providers/themes/theme.dart';
 
-/// Smoke test: verifica que el tema se construye sin errores.
+/// Smoke tests: verifican que el tema y widgets básicos se construyen sin errores.
 ///
-/// NO arranca la app completa porque eso requiere:
-/// - Supabase inicializado
-/// - Isar inicializado
-/// - SharedPreferences con datos
-///
+/// NO arranca la app completa porque eso requiere Supabase e Isar inicializados.
 /// Para eso están los integration tests (test/integration/).
 void main() {
   group('Smoke tests', () {

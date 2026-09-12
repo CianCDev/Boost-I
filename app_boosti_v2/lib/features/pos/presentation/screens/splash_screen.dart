@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -30,82 +31,96 @@ class _SplashScreenState extends State<SplashScreen> {
     // ⚠️ DESCOMENTAR PARA EJECUTAR EL SCRIPT DE MANTENIMIENTO
     // await _ejecutarScriptsMantenimiento();
 
-    await _diagnosticarLogin();
+    await _diagnosticarUsuarios();
     await _verificarConfiguracion();
   }
 
   // ============================================================
-  // DIAGNÓSTICO DE LOGIN
+  // DIAGNÓSTICO DE USUARIOS (solo en debug, sin PINs)
   // ============================================================
-  Future<void> _diagnosticarLogin() async {
+  Future<void> _diagnosticarUsuarios() async {
+    // ✅ Solo corre en modo debug. En release no se ejecuta.
+    if (!kDebugMode) return;
+
     try {
       final isar = IsarService();
-      final todos = await isar.obtenerUsuarios();
+      final usuarios = await isar.obtenerUsuarios();
 
-      debugPrint('🔍 DIAGNÓSTICO DE USUARIOS EN ISAR:');
-      for (final u in todos) {
+      debugPrint('🔍 Usuarios en Isar: ${usuarios.length}');
+      for (final u in usuarios) {
         debugPrint(
-          '  - Nombre: "${u.nombre}" | PIN: "${u.pin}" | Activo: ${u.activo} | ID: ${u.id} | Email: ${u.email}',
+          '  - ${u.nombre} (ID: ${u.id}, rol: ${u.rol}, activo: ${u.activo}, '
+          'estado: ${u.estado}, email: ${u.email ?? "sin email"})',
         );
       }
 
-      final admin = await isar.validarLogin('Administrador', '1234');
-      debugPrint('🔍 Validación Administrador: ${admin != null ? "✅ OK" : "❌ FALLÓ"}');
+      // ✅ Verificación genérica: al menos un admin activo con PIN de 4 dígitos
+      final adminValido = usuarios.any(
+        (u) => u.rol == 'admin' && u.activo && u.pin.length == 4,
+      );
+      debugPrint(
+        '🔍 Admin válido detectado: ${adminValido ? "✅ OK" : "❌ FALLÓ"}',
+      );
 
-      final yan = await isar.validarLogin('Juan Perez', '1010');
-      debugPrint('🔍 Validación Juan Perez: ${yan != null ? "✅ OK" : "❌ FALLÓ"}');
+      // ✅ Todos los usuarios activos deben tener PIN de 4 dígitos
+      final todosConPinValido = usuarios
+          .where((u) => u.activo)
+          .every((u) => u.pin.length == 4);
+      debugPrint(
+        '🔍 Todos los activos con PIN de 4 dígitos: '
+        '${todosConPinValido ? "✅ OK" : "❌ FALLÓ"}',
+      );
     } catch (e) {
-      debugPrint('❌ Error en _diagnosticarLogin: $e');
+      debugPrint('❌ Error en _diagnosticarUsuarios: $e');
     }
   }
 
   // ============================================================
   // 🔧 SCRIPT DE MANTENIMIENTO (versión final)
   // ============================================================
-/*Future<void> _ejecutarScriptsMantenimiento() async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final flagKey = 'scripts_mantenimiento_v6'; // ← nueva clave
-    if (prefs.getBool(flagKey) == true) {
-      debugPrint('⚠️ Scripts de mantenimiento ya ejecutados. Omitiendo.');
-      return;
+  /*Future<void> _ejecutarScriptsMantenimiento() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final flagKey = 'scripts_mantenimiento_v6';
+      if (prefs.getBool(flagKey) == true) {
+        debugPrint('⚠️ Scripts de mantenimiento ya ejecutados. Omitiendo.');
+        return;
+      }
+
+      debugPrint('🛠️ Ejecutando script de corrección (ID 6)...');
+
+      final isar = IsarService();
+
+      final usuario = await isar.obtenerUsuarioPorId(6);
+      if (usuario != null) {
+        usuario.supabaseId = null;
+        usuario.password = '101010';
+        usuario.pin = '1010';
+        await isar.guardarUsuario(usuario);
+        debugPrint('✅ supabaseId limpiado para "yan camacaro" (ID 6)');
+      } else {
+        debugPrint('⚠️ Usuario ID 6 no encontrado');
+      }
+
+      final sync = SyncService();
+      await sync.sincronizarUsuariosASupabase();
+      debugPrint('✅ Sincronización completada');
+
+      final verificado = await isar.obtenerUsuarioPorId(6);
+      if (verificado != null &&
+          verificado.supabaseId != null &&
+          verificado.supabaseId!.isNotEmpty) {
+        debugPrint('✅ Usuario ID 6 sincronizado correctamente (ID: ${verificado.supabaseId})');
+      } else {
+        debugPrint('⚠️ Usuario ID 6 aún sin supabaseId. Revisa logs y trigger.');
+      }
+
+      await prefs.setBool(flagKey, true);
+      debugPrint('✅ Script de mantenimiento ejecutado correctamente.');
+    } catch (e) {
+      debugPrint('❌ Error en script de mantenimiento: $e');
     }
-
-    debugPrint('🛠️ Ejecutando script de corrección (ID 6)...');
-
-    final isar = IsarService();
-
-    // 1. Limpiar supabaseId del usuario ID 6
-    final usuario = await isar.obtenerUsuarioPorId(6);
-    if (usuario != null) {
-      usuario.supabaseId = null;
-      usuario.password = '101010';
-      usuario.pin = '1010';
-      await isar.guardarUsuario(usuario);
-      debugPrint('✅ supabaseId limpiado para "yan camacaro" (ID 6)');
-    } else {
-      debugPrint('⚠️ Usuario ID 6 no encontrado');
-    }
-
-    // 2. Sincronizar usuarios (se creará en auth.users y el trigger hará el resto)
-    final sync = SyncService();
-    await sync.sincronizarUsuariosASupabase();
-    debugPrint('✅ Sincronización completada');
-
-    // 3. Verificar resultado
-    final verificado = await isar.obtenerUsuarioPorId(6);
-    if (verificado != null && verificado.supabaseId != null && verificado.supabaseId!.isNotEmpty) {
-      debugPrint('✅ Usuario ID 6 sincronizado correctamente (ID: ${verificado.supabaseId})');
-    } else {
-      debugPrint('⚠️ Usuario ID 6 aún sin supabaseId. Revisa logs y trigger.');
-    }
-
-    await prefs.setBool(flagKey, true);
-    debugPrint('✅ Script de mantenimiento ejecutado correctamente.');
-  } catch (e) {
-    debugPrint('❌ Error en script de mantenimiento: $e');
-  }
-}*/
+  }*/
 
   // ============================================================
   // PERMISOS
@@ -136,7 +151,10 @@ class _SplashScreenState extends State<SplashScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
 
-        if (url != null && anonKey != null && url.isNotEmpty && anonKey.isNotEmpty) {
+        if (url != null &&
+            anonKey != null &&
+            url.isNotEmpty &&
+            anonKey.isNotEmpty) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -144,7 +162,8 @@ class _SplashScreenState extends State<SplashScreen> {
         } else {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const ConfiguracionEmpresaScreen()),
+            MaterialPageRoute(
+                builder: (_) => const ConfiguracionEmpresaScreen()),
           );
         }
       }
@@ -154,7 +173,8 @@ class _SplashScreenState extends State<SplashScreen> {
         setState(() => _isLoading = false);
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const ConfiguracionEmpresaScreen()),
+          MaterialPageRoute(
+              builder: (_) => const ConfiguracionEmpresaScreen()),
         );
       }
     }
@@ -180,7 +200,10 @@ class _SplashScreenState extends State<SplashScreen> {
                 width: 120,
                 height: 120,
                 fit: BoxFit.contain,
-                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                colorFilter: const ColorFilter.mode(
+                  Colors.white,
+                  BlendMode.srcIn,
+                ),
               ),
               const SizedBox(height: 20),
               const Text(
