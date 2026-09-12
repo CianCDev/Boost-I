@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart' show visibleForTesting;import '../../../presentation/utils/pin_hasher.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import '../../../presentation/utils/pin_hasher.dart';
 
 // Entidades
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
