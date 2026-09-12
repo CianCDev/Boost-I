@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../data/Local/entities/isar_service.dart';
@@ -50,10 +49,12 @@ class _SplashScreenState extends State<SplashScreen> {
       }
 
       final admin = await isar.validarLogin('Administrador', '1234');
-      debugPrint('🔍 Validación Administrador: ${admin != null ? "✅ OK" : "❌ FALLÓ"}');
+      debugPrint(
+          '🔍 Validación Administrador: ${admin != null ? "✅ OK" : "❌ FALLÓ"}');
 
       final yan = await isar.validarLogin('yan camacaro', '1010');
-      debugPrint('🔍 Validación yan camacaro: ${yan != null ? "✅ OK" : "❌ FALLÓ"}');
+      debugPrint(
+          '🔍 Validación yan camacaro: ${yan != null ? "✅ OK" : "❌ FALLÓ"}');
     } catch (e) {
       debugPrint('❌ Error en _diagnosticarLogin: $e');
     }
@@ -136,7 +137,10 @@ class _SplashScreenState extends State<SplashScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
 
-        if (url != null && anonKey != null && url.isNotEmpty && anonKey.isNotEmpty) {
+        if (url != null &&
+            anonKey != null &&
+            url.isNotEmpty &&
+            anonKey.isNotEmpty) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -144,7 +148,8 @@ class _SplashScreenState extends State<SplashScreen> {
         } else {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const ConfiguracionEmpresaScreen()),
+            MaterialPageRoute(
+                builder: (_) => const ConfiguracionEmpresaScreen()),
           );
         }
       }
@@ -175,12 +180,11 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              SvgPicture.asset(
-                'assets/logo.svg',
+              Image.asset(
+                'assets/logo.png',
                 width: 120,
                 height: 120,
                 fit: BoxFit.contain,
-                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
               ),
               const SizedBox(height: 20),
               const Text(

@@ -10,6 +10,9 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # Criptografía (para hashear PINs)
+  crypto: ^3.0.3
+
   # Isar (base de datos local)
   isar: ^3.1.0+1
   isar_flutter_libs:
@@ -91,5 +94,5 @@ flutter:
     - assets/animations/succes.json
     - assets/animations/error.json
     - assets/animations/clock.json
-    - assets/logo.svg
+    - assets/logo.png
     - shorebird.yaml
