@@ -10,7 +10,6 @@ import 'package:app_boosti_v2/features/pos/presentation/widgets/lotes/traspaso_l
 import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/lotes_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
-import 'package:app_boosti_v2/features/pos/presentation/providers/themes/app_colors.dart';
 
 class LotesDetalleScreen extends ConsumerStatefulWidget {
   final LoteEntity lote;

@@ -130,7 +130,7 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _mesSeleccionado,
+                          initialValue: _mesSeleccionado,
                           items: _meses.map((mes) {
                             return DropdownMenuItem(value: mes, child: Text(mes));
                           }).toList(),
@@ -151,7 +151,7 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: DropdownButtonFormField<int>(
-                          value: _anioSeleccionado,
+                          initialValue: _anioSeleccionado,
                           items: List.generate(5, (i) {
                             final anio = DateTime.now().year - i;
                             return DropdownMenuItem(value: anio, child: Text(anio.toString()));

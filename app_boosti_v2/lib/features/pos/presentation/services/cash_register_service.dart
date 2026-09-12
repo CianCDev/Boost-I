@@ -19,17 +19,29 @@ class ResumenCorteCaja {
 class CashRegisterService {
   final IsarService _isarService = IsarService();
 
+  /// Calcula el resumen del día consultando Isar.
+  /// Delega el cálculo puro a [calcularDesdeVentas].
   Future<ResumenCorteCaja> calcularCorteDelDia() async {
     final isar = await _isarService.db;
     final now = DateTime.now();
     final inicioDelDia = DateTime(now.year, now.month, now.day);
 
-    // Obtenemos las ventas desde las 00:00:00 de hoy
     final ventasHoy = await isar.ventaEntitys
         .filter()
         .fechaGreaterThan(inicioDelDia)
         .findAll();
 
+    return calcularDesdeVentas(ventasHoy);
+  }
+
+  /// ✅ NUEVO: Lógica pura, sin I/O. Testeable.
+  ///
+  /// Recibe una lista de ventas y devuelve el resumen agregado por
+  /// método de pago.
+  ///
+  /// Métodos base esperados: 'Efectivo', 'Tarjeta', 'Pago Móvil', 'Divisas'.
+  /// Si aparece un método no listado, se agrega dinámicamente.
+  static ResumenCorteCaja calcularDesdeVentas(List<VentaEntity> ventas) {
     double totalGeneral = 0.0;
     final Map<String, double> totalesMetodo = {
       'Efectivo': 0.0,
@@ -44,14 +56,15 @@ class CashRegisterService {
       'Divisas': 0,
     };
 
-    for (var venta in ventasHoy) {
+    for (var venta in ventas) {
       totalGeneral += venta.total;
       final metodo = venta.metodoPago;
-      
+
       if (totalesMetodo.containsKey(metodo)) {
-        totalesMetodo[metodo] = (totalesMetodo[metodo]! + venta.total);
-        conteoMetodo[metodo] = (conteoMetodo[metodo]! + 1);
+        totalesMetodo[metodo] = totalesMetodo[metodo]! + venta.total;
+        conteoMetodo[metodo] = conteoMetodo[metodo]! + 1;
       } else {
+        // Método nuevo no previsto: se agrega dinámicamente
         totalesMetodo[metodo] = venta.total;
         conteoMetodo[metodo] = 1;
       }
@@ -59,7 +72,7 @@ class CashRegisterService {
 
     return ResumenCorteCaja(
       totalVentas: totalGeneral,
-      cantidadTransacciones: ventasHoy.length,
+      cantidadTransacciones: ventas.length,
       totalesPorMetodo: totalesMetodo,
       conteoPorMetodo: conteoMetodo,
     );

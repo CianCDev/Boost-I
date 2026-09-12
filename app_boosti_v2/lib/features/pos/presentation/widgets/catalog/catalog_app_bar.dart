@@ -12,6 +12,7 @@ import '../../utils/panel_utils.dart';
 import '../../utils/top_product_utils.dart';
 import 'search_bar.dart';
 import '../../controllers/bcv_controller.dart';
+import 'bcv_moneda_selector.dart'; // ✅ NUEVO
 
 class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final UsuarioEntity? usuarioLogueado;
@@ -99,6 +100,11 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
       ),
     );
 
+    // ✅ Callback unificado: abre el selector de monedas
+    void abrirSelectorMonedas() {
+      BcvMonedaSelectorDialog.mostrar(context);
+    }
+
     final appBar = AppBar(
       backgroundColor: Colors.transparent,
       foregroundColor: Colors.white,
@@ -119,7 +125,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
       title: isMobile
           ? _BcvBadge(
               bcvState: bcvState,
-              onTap: () => ref.read(bcvProvider).actualizarTasa(),
+              onTap: abrirSelectorMonedas, // ✅ Ahora abre el selector
               isTablet: isTablet,
               isMobile: isMobile,
             )
@@ -133,7 +139,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
                     color: Colors.white,
                   ),
                 )),
-      // 📋 Actions: Panel rápido, Inventario, POS, (y en escritorio BCV + Avatar)
+      // 📋 Actions
       actions: [
         buildActionButton(
           icon: Icons.menu_rounded,
@@ -174,7 +180,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
           Center(
             child: _BcvBadge(
               bcvState: bcvState,
-              onTap: () => ref.read(bcvProvider).actualizarTasa(),
+              onTap: abrirSelectorMonedas, // ✅ Ahora abre el selector
               isTablet: isTablet,
               isMobile: isMobile,
             ),
@@ -198,7 +204,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
             ),
           ],
         ],
-        if (isMobile) const SizedBox(width: 8), // Margen final
+        if (isMobile) const SizedBox(width: 8),
       ],
     );
 
@@ -212,6 +218,9 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
 
+// ══════════════════════════════════════════════════════════════════
+// INVENTORY BADGE (sin cambios)
+// ══════════════════════════════════════════════════════════════════
 class _InventoryBadge extends StatelessWidget {
   final int lowStockCount;
   final VoidCallback onPressed;
@@ -267,9 +276,10 @@ class _InventoryBadge extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFFF97316),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5), // Borde para mayor legibilidad
+                      border: Border.all(color: Colors.white, width: 1.5),
                     ),
-                    constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                    constraints:
+                        const BoxConstraints(minWidth: 18, minHeight: 18),
                     child: Text(
                       '$lowStockCount',
                       style: const TextStyle(
@@ -289,6 +299,9 @@ class _InventoryBadge extends StatelessWidget {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════
+// BCV BADGE (mejorado: muestra país + indicador de caché)
+// ══════════════════════════════════════════════════════════════════
 class _BcvBadge extends StatelessWidget {
   final BcvController bcvState;
   final VoidCallback onTap;
@@ -305,7 +318,17 @@ class _BcvBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isHovered = false;
-    final fontSize = isMobile ? 12.0 : (isTablet ? 15.0 : 13.0); 
+    final fontSize = isMobile ? 12.0 : (isTablet ? 15.0 : 13.0);
+
+    // ✅ Nuevo: usar símbolo del país y marcar si viene de caché
+    final String textoBadge;
+    if (isMobile) {
+      textoBadge =
+          '${bcvState.config.simboloMoneda} ${bcvState.tasa.toStringAsFixed(bcvState.config.decimalesMonedaLocal)}';
+    } else {
+      textoBadge =
+          '${bcvState.config.codigoPais}: ${bcvState.config.simboloMoneda} ${bcvState.tasa.toStringAsFixed(bcvState.config.decimalesMonedaLocal)}';
+    }
 
     return StatefulBuilder(
       builder: (context, setState) {
@@ -317,13 +340,14 @@ class _BcvBadge extends StatelessWidget {
             onTap: onTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              // Diseño tipo "Píldora" optimizado
               padding: EdgeInsets.symmetric(
                 horizontal: isMobile ? 12 : (isTablet ? 16 : 12),
                 vertical: isMobile ? 6 : (isTablet ? 8 : 6),
               ),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: isHovered || bcvState.cargando ? 0.2 : 0.15),
+                color: Colors.white.withValues(
+                  alpha: isHovered || bcvState.cargando ? 0.2 : 0.15,
+                ),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: Colors.white.withValues(alpha: isHovered ? 0.9 : 0.4),
@@ -352,14 +376,25 @@ class _BcvBadge extends StatelessWidget {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            // Se eliminó la palabra "BCV:" en móvil para que sea más compacto y elegante
-                            isMobile ? 'Bs. ${bcvState.tasa.toStringAsFixed(2)}' : 'BCV: Bs. ${bcvState.tasa.toStringAsFixed(2)}',
+                            textoBadge,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: fontSize,
                               color: Colors.white,
                             ),
                           ),
+                          // ✅ Indicador de caché (punto ámbar)
+                          if (bcvState.desdeCache) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF59E0B),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
               ),

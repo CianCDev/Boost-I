@@ -7,7 +7,7 @@ class LocalEntity {
   Id id = Isar.autoIncrement;
   String? supabaseId;
 
-  late String nombre;
+  String nombre = '';
   String? direccion;
   String? telefono;
   String? email;

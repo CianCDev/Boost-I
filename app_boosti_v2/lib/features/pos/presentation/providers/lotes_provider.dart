@@ -172,7 +172,7 @@ class LotesNotifier extends StateNotifier<LotesState> {
       }
 
       // Construir el estado final
-      final nuevoEstado = state.copyWith(
+      state.copyWith(
         lotes: todos,
         categoriasPorProducto: categoriasMap,
         isLoading: false,

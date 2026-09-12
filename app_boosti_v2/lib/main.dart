@@ -25,7 +25,11 @@ import 'features/pos/presentation/services/ota_update_service.dart';
 
 void main() async {
 
-  debugPrint('🚀 OTA TEST - VERSION 2 - ${DateTime.now()}');
+  // ✅ Solo imprime en debug (no ensucia logs de producción)
+  if (kDebugMode) {
+    debugPrint('🚀 OTA TEST - VERSION 2 - ${DateTime.now()}');
+  }
+
   WidgetsFlutterBinding.ensureInitialized();
 
   // ============================================================

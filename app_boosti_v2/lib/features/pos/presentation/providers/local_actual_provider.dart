@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart'; // ✅ Import necesario para debugPrin
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
-import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 
 class LocalActualNotifier extends StateNotifier<int?> {
   LocalActualNotifier() : super(null);
@@ -29,7 +28,7 @@ class LocalActualNotifier extends StateNotifier<int?> {
     if (locales.isNotEmpty) {
       state = locales.first.id;
       await prefs.setInt('localActualId', state!);
-      debugPrint('✅ Local actual guardado automáticamente: ${locales.first.nombre} (ID: ${state})');
+      debugPrint('✅ Local actual guardado automáticamente: ${locales.first.nombre} (ID: $state)');
     } else {
       state = null;
     }

@@ -7,12 +7,12 @@ part 'categoria_entity.g.dart';
 class CategoriaEntity {
   Id id = Isar.autoIncrement;
   String? supabaseId;
-  late String nombre;
+  String nombre = '';
   String? descripcion;
-  late bool activo;
+  bool activo = true;
   DateTime? createdAt;
   DateTime? updatedAt;
-  late String? syncStatus;
+  String? syncStatus;
 
   CategoriaEntity({
     this.id = Isar.autoIncrement,

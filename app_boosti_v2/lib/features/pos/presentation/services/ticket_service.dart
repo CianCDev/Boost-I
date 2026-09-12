@@ -35,7 +35,7 @@ class TicketService {
     LocalEntity? local,
     TicketType tipo = TicketType.venta,
     Map<String, double>? totalesPorMetodo, // Para cierre
-    double? totalGeneral, // Para cierre
+    double? totalGeneral, String? clienteNombre, String? clienteDocumento, // Para cierre
   }) async {
     WidgetsFlutterBinding.ensureInitialized();
 

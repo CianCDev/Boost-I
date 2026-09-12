@@ -10,7 +10,7 @@ class TelegramConfigEntity {
   String? supabaseId; // UUID de Supabase
 
   @Index()
-  late int usuarioId; // ID del usuario en Isar
+  int usuarioId = 0; // ID del usuario en Isar
 
   String botToken = '';
   String chatId = '';

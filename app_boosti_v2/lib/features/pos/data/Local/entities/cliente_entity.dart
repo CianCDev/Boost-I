@@ -11,7 +11,7 @@ class ClienteEntity {
   int? localId; // ID local del LocalEntity en Isar
   String? localSupabaseId; // UUID del local en Supabase (para sincronización)
 
-  late String nombre;
+ String nombre = '';
   String? documento; // Ej. V-12345678, J-12345678, etc.
   String? telefono;
   String? email;
