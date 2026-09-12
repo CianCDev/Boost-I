@@ -13,15 +13,19 @@ import FloatingHelpButton from './components/FloatingHelpButton';
    ============================================================ */
 const Icon = {
   Logo: (props: any) => (
-  <img
-    src="/sandbox/assets/assets/logo.svg"
-    alt="BoostI POS"
-    width={24}
-    height={24}
-    style={{ objectFit: 'contain' }}
-    {...props}
-  />
-),
+    <img
+      src="https://ik.imagekit.io/xnf3fil5g/logoboosti300px.svg"
+      alt="BoostI POS"
+      width={28}
+      height={28}
+      style={{
+        objectFit: 'contain',
+        // ✅ Convierte cualquier color del SVG a blanco puro
+        filter: 'brightness(0) invert(1)',
+      }}
+      {...props}
+    />
+  ),
   Cart: (props: any) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <circle cx="9" cy="21" r="1" />
@@ -186,8 +190,8 @@ function Navbar() {
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
         {/* Logo */}
         <a href="/" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-md shadow-[#8B5CF6]/30 group-hover:scale-105 transition-transform">
-            <Icon.Logo className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-md shadow-[#8B5CF6]/30 group-hover:scale-105 transition-transform p-1.5">
+            <Icon.Logo className="w-full h-full" />
           </div>
           <span className="font-bold text-lg text-white tracking-tight">BoostI POS</span>
         </a>
@@ -372,8 +376,8 @@ function Hero() {
 
               <div className="relative w-full h-full rounded-[3rem] bg-[#1E293B]/60 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden flex items-center justify-center">
                 <div className="text-center p-8">
-                  <div className="w-28 h-28 mx-auto rounded-3xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-2xl shadow-[#8B5CF6]/40 animate-bounce-soft">
-                    <Icon.Cart className="w-14 h-14 text-white" />
+                  <div className="w-28 h-28 mx-auto rounded-3xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-2xl shadow-[#8B5CF6]/40 animate-bounce-soft p-4">
+                    <Icon.Logo className="w-full h-full" />
                   </div>
                   <p className="mt-6 text-xs font-semibold text-white/50 uppercase tracking-widest">
                     [ Lottie animation ]
@@ -757,8 +761,8 @@ function Footer() {
         <div className="grid md:grid-cols-2 lg:grid-cols-6 gap-10">
           <div className="lg:col-span-2">
             <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-lg shadow-[#8B5CF6]/30">
-                <Icon.Logo className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-lg shadow-[#8B5CF6]/30 p-1.5">
+                <Icon.Logo className="w-full h-full" />
               </div>
               <span className="font-bold text-lg text-white tracking-tight">BoostI POS</span>
             </div>

@@ -107,11 +107,19 @@ export default function SandboxPage() {
             </button>
 
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-lg shadow-[#8B5CF6]/20">
-                <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-white">
-                  <rect x="3" y="3" width="18" height="18" rx="4" fill="currentColor" />
-                  <path d="M8 12h8M12 8v8" stroke="white" strokeWidth="2" strokeLinecap="round" />
-                </svg>
+              {/* ✅ Logo con URL de ImageKit y filtro blanco */}
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-lg shadow-[#8B5CF6]/20 p-1.5">
+                <img
+                  src="https://ik.imagekit.io/xnf3fil5g/logoboosti300px.svg"
+                  alt="BoostI POS"
+                  width={28}
+                  height={28}
+                  style={{
+                    objectFit: 'contain',
+                    filter: 'brightness(0) invert(1)',
+                  }}
+                  className="w-full h-full"
+                />
               </div>
               <span className="font-bold text-xl text-white tracking-tight hidden sm:block">
                 BoostI POS
@@ -210,10 +218,16 @@ export default function SandboxPage() {
                 onClick={handleLoadIframe}
                 className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B1120]/80 z-20 hover:bg-[#0B1120]/60 transition-colors duration-500 group"
               >
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-2xl shadow-[#8B5CF6]/40 mb-6 group-hover:scale-110 transition-transform duration-500 ease-out">
-                  <svg viewBox="0 0 24 24" fill="white" className="w-10 h-10 ml-1">
-                    <polygon points="6 4 20 12 6 20 6 4" />
-                  </svg>
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-2xl shadow-[#8B5CF6]/40 mb-6 group-hover:scale-110 transition-transform duration-500 ease-out p-4">
+                  <img
+                    src="https://ik.imagekit.io/xnf3fil5g/logoboosti300px.svg"
+                    alt="BoostI POS"
+                    style={{
+                      objectFit: 'contain',
+                      filter: 'brightness(0) invert(1)',
+                    }}
+                    className="w-full h-full"
+                  />
                 </div>
                 <p className="text-white font-bold text-xl tracking-tight">
                   Iniciar demo interactiva

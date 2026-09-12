@@ -536,7 +536,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
           child: Center(
             child: SvgPicture.asset(
-              'assets/logo.svg',
+              'assets/logoboosti300px.svg',
               width: iconSize,
               height: iconSize,
               colorFilter: const ColorFilter.mode(
