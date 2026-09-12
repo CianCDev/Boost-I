@@ -52,8 +52,8 @@ class _SplashScreenState extends State<SplashScreen> {
       final admin = await isar.validarLogin('Administrador', '1234');
       debugPrint('🔍 Validación Administrador: ${admin != null ? "✅ OK" : "❌ FALLÓ"}');
 
-      final yan = await isar.validarLogin('yan camacaro', '1010');
-      debugPrint('🔍 Validación yan camacaro: ${yan != null ? "✅ OK" : "❌ FALLÓ"}');
+      final yan = await isar.validarLogin('Juan Perez', '1010');
+      debugPrint('🔍 Validación Juan Perez: ${yan != null ? "✅ OK" : "❌ FALLÓ"}');
     } catch (e) {
       debugPrint('❌ Error en _diagnosticarLogin: $e');
     }
