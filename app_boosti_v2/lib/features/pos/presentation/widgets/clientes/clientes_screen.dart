@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/clientes/clientes_provider.dart';
 import 'cliente_card.dart';
+import 'cliente_form_dialog.dart';
 
 class ClientesScreen extends ConsumerStatefulWidget {
   const ClientesScreen({super.key});
@@ -15,6 +16,9 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
   bool _mostrarFrecuentes = false;
   String _searchQuery = '';
 
+  static const Color _colorCliente = Color(0xFF8B5CF6);
+  static const Color _colorFrecuente = Color(0xFFF59E0B);
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -23,16 +27,16 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    // Consumimos el provider adecuado según el filtro seleccionado
-    final clientesLocales = _mostrarFrecuentes 
-        ? ref.watch(clientesFrecuentesProvider) 
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    final clientesLocales = _mostrarFrecuentes
+        ? ref.watch(clientesFrecuentesProvider)
         : ref.watch(clientesProvider);
 
-    // Filtro local rápido para la barra de búsqueda (sin mutar el provider)
-    final clientesFiltrados = _searchQuery.isEmpty 
-        ? clientesLocales 
+    final clientesFiltrados = _searchQuery.isEmpty
+        ? clientesLocales
         : clientesLocales.where((c) {
             final nombre = c.nombre.toLowerCase();
             final documento = c.documento?.toLowerCase() ?? '';
@@ -41,9 +45,15 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
           }).toList();
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Clientes', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          'Clientes',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -52,63 +62,85 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Buscador y Filtros
             Row(
               children: [
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+                      color: isDark
+                          ? colorScheme.surfaceContainerHigh
+                          : colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isDark ? Colors.white24 : Colors.grey.shade300,
+                        color: colorScheme.outlineVariant
+                            .withValues(alpha: 0.5),
                       ),
                     ),
                     child: TextField(
                       controller: _searchController,
-                      onChanged: (value) => setState(() => _searchQuery = value),
-                      decoration: const InputDecoration(
+                      onChanged: (value) =>
+                          setState(() => _searchQuery = value),
+                      style: TextStyle(color: colorScheme.onSurface),
+                      decoration: InputDecoration(
                         hintText: 'Buscar por nombre o documento...',
-                        prefixIcon: Icon(Icons.search_rounded),
+                        hintStyle:
+                            TextStyle(color: colorScheme.onSurfaceVariant),
+                        prefixIcon: Icon(Icons.search_rounded,
+                            color: colorScheme.onSurfaceVariant),
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 14),
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Botón de filtro "Frecuentes"
-                FilterChip(
-                  label: const Text('Frecuentes'),
-                  selected: _mostrarFrecuentes,
-                  onSelected: (selected) => setState(() => _mostrarFrecuentes = selected),
-                  avatar: Icon(
-                    Icons.star_rounded, 
-                    color: _mostrarFrecuentes ? const Color(0xFFF59E0B) : Colors.grey,
-                    size: 18,
-                  ),
-                  backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
-                  selectedColor: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color: _mostrarFrecuentes 
-                          ? const Color(0xFFF59E0B) 
-                          : (isDark ? Colors.white24 : Colors.grey.shade300),
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: FilterChip(
+                    label: const Text('Frecuentes'),
+                    selected: _mostrarFrecuentes,
+                    onSelected: (selected) =>
+                        setState(() => _mostrarFrecuentes = selected),
+                    avatar: Icon(
+                      Icons.star_rounded,
+                      color: _mostrarFrecuentes
+                          ? _colorFrecuente
+                          : colorScheme.onSurfaceVariant,
+                      size: 18,
+                    ),
+                    backgroundColor: isDark
+                        ? colorScheme.surfaceContainerHigh
+                        : Colors.white,
+                    selectedColor:
+                        _colorFrecuente.withValues(alpha: 0.15),
+                    labelStyle: TextStyle(
+                      color: _mostrarFrecuentes
+                          ? _colorFrecuente
+                          : colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: _mostrarFrecuentes
+                            ? _colorFrecuente
+                            : colorScheme.outlineVariant
+                                .withValues(alpha: 0.5),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 24),
-            
-            // Lista de Clientes
             Expanded(
               child: clientesFiltrados.isEmpty
                   ? Center(
                       child: Text(
                         'No se encontraron clientes',
-                        style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
                       ),
                     )
                   : ListView.builder(
@@ -117,14 +149,15 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
                         final cliente = clientesFiltrados[index];
                         return ClienteCard(
                           cliente: cliente,
-                          onTap: () {
-                            // TODO: Abrir detalles
-                          },
-                          onEdit: () {
-                            // TODO: Abrir formulario de edición
+                          onTap: () {},
+                          onEdit: () async {
+                            await ClienteFormDialog.mostrar(context,
+                                cliente: cliente);
                           },
                           onDelete: () {
-                            ref.read(clientesProvider.notifier).eliminarCliente(cliente.id);
+                            ref
+                                .read(clientesProvider.notifier)
+                                .eliminarCliente(cliente.id);
                           },
                         );
                       },
@@ -133,14 +166,17 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: Abrir formulario nuevo cliente
-        },
-        icon: const Icon(Icons.person_add_alt_1_rounded),
-        label: const Text('Nuevo Cliente'),
-        backgroundColor: const Color(0xFF8B5CF6), // Tono morado de Boost-i
-        foregroundColor: Colors.white,
+      floatingActionButton: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: FloatingActionButton.extended(
+          onPressed: () async {
+            await ClienteFormDialog.mostrar(context);
+          },
+          icon: const Icon(Icons.person_add_alt_1_rounded),
+          label: const Text('Nuevo Cliente'),
+          backgroundColor: _colorCliente,
+          foregroundColor: Colors.white,
+        ),
       ),
     );
   }

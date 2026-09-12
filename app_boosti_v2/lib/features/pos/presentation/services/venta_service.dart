@@ -6,6 +6,7 @@ import 'package:app_boosti_v2/features/pos/presentation/services/ventas_calculat
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/venta_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/cliente_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/controllers/cart_controller.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/esc_pos_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/ticket_service.dart';
@@ -14,7 +15,6 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/productos_prov
 import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/Local/entities/isar_service.dart';
- // ✅ NUEVO
 
 class VentaService {
   final Ref _ref;
@@ -28,6 +28,7 @@ class VentaService {
     required double recibido,
     required double tasaActual,
     UsuarioEntity? usuarioLogueado,
+    ClienteEntity? cliente,
   }) async {
     final isar = _ref.read(isarServiceProvider);
     final cartState = _ref.read(cartProvider);
@@ -45,17 +46,16 @@ class VentaService {
 
         double cantidadPorDescontar = cartItem.cantidad;
 
-        // ✅ Usa helper puro para evaluar si ya no queda nada que descontar
         while (!VentaCalculator.cantidadEsCero(cantidadPorDescontar)) {
           final lote = await isar.obtenerLoteParaVenta(
             productoId,
             priorizarVencimiento: true,
           );
           if (lote == null) {
-            throw Exception('Stock insuficiente para ${cartItem.producto.nombre}');
+            throw Exception(
+                'Stock insuficiente para ${cartItem.producto.nombre}');
           }
 
-          // ✅ Usa helper puro para calcular cuánto descontar
           final descontar = VentaCalculator.calcularDescuentoDeLote(
             cantidadNecesaria: cantidadPorDescontar,
             cantidadDisponible: lote.cantidadRestante,
@@ -89,15 +89,12 @@ class VentaService {
       final ahora = DateTime.now();
       final totalBsCalculado = cartState.total * tasaActual;
 
-      // ✅ Usa helper puro para convertir CartItems → DetalleVentaEntity
       final itemsIsar = VentaCalculator.cartItemsADetalles(
         cartItems: cartState.items,
         ventaIdFk: nuevoUuidVenta,
       );
 
-      // ✅ Usa helper puro para calcular descuentos
-      final resultadoDescuentos =
-          VentaCalculator.calcularDescuentos(itemsIsar);
+      final resultadoDescuentos = VentaCalculator.calcularDescuentos(itemsIsar);
 
       final nuevaVenta = VentaEntity()
         ..idSupabase = nuevoUuidVenta
@@ -114,14 +111,53 @@ class VentaService {
         ..tieneDescuentoEspecial = resultadoDescuentos.tieneDescuento
         ..montoDescuentoTotal = resultadoDescuentos.montoDescuentoTotal;
 
+      // Vinculación con cliente (requiere campos en VentaEntity)
+      if (cliente != null) {
+        nuevaVenta.clienteId = cliente.id;
+        nuevaVenta.clienteNombre = cliente.nombre;
+        nuevaVenta.clienteDocumento = cliente.documento;
+      }
+
       // ============================================================
       // 4. Guardar venta con sus detalles
       // ============================================================
-      await isar.guardarVenta(
-        nuevaVenta,
-        detalles: itemsIsar,
-      );
-      debugPrint('✅ Venta guardada localmente con ${itemsIsar.length} detalles');
+      await isar.guardarVenta(nuevaVenta, detalles: itemsIsar);
+      debugPrint(
+          '✅ Venta guardada localmente con ${itemsIsar.length} detalles');
+
+      // ============================================================
+      // 4.1 Actualizar fidelización del cliente
+      // ============================================================
+      if (cliente != null) {
+        try {
+          final clienteActualizado = ClienteEntity()
+            ..id = cliente.id
+            ..supabaseId = cliente.supabaseId
+            ..localId = cliente.localId
+            ..localSupabaseId = cliente.localSupabaseId
+            ..nombre = cliente.nombre
+            ..documento = cliente.documento
+            ..telefono = cliente.telefono
+            ..email = cliente.email
+            ..direccion = cliente.direccion
+            ..fechaRegistro = cliente.fechaRegistro
+            ..frecuente = true
+            ..totalCompras = cliente.totalCompras + cartState.total
+            ..ultimaCompra = ahora
+            ..cantidadCompras = cliente.cantidadCompras + 1
+            ..activo = cliente.activo
+            ..preferenciasMarketing = cliente.preferenciasMarketing
+            ..fechaNacimiento = cliente.fechaNacimiento
+            ..notas = cliente.notas
+            ..syncStatus = 'pending'
+            ..createdAt = cliente.createdAt
+            ..updatedAt = ahora;
+          await isar.guardarCliente(clienteActualizado);
+          debugPrint('✅ Fidelización actualizada para ${cliente.nombre}');
+        } catch (e) {
+          debugPrint('⚠️ No se pudo actualizar fidelización del cliente: $e');
+        }
+      }
 
       // ============================================================
       // 5. Recargar productos y limpiar carrito
@@ -158,6 +194,8 @@ class VentaService {
           cambio: cambio,
           fechaVenta: DateTime.now(),
           impresoraSeleccionada: selectedPrinter?.device,
+          clienteNombre: cliente?.nombre,
+          clienteDocumento: cliente?.documento,
         );
       } catch (_) {
         debugPrint('⚠️ Error silencioso al intentar imprimir el ticket');

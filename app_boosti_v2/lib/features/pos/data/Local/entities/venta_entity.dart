@@ -21,7 +21,9 @@ class VentaEntity {
   int documento = 0;
   String empleado = 'Administrador / Catálogo';
   String? syncStatus = 'pending';
-
+  int? clienteId;
+  String? clienteNombre;
+  String? clienteDocumento;
   // 🔥 Nuevos campos
   bool tieneDescuentoEspecial = false;
   double montoDescuentoTotal = 0.0;

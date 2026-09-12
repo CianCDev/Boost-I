@@ -22,7 +22,8 @@ class BcvController extends ChangeNotifier {
   // ESTADO
   // ══════════════════════════════════════════════════════════════
   double _tasaDolar = 36.50;
-  double get tasa => _tasaDolar; // Alias legacy
+  /// Alias legacy.
+  double get tasa => _tasaDolar;
 
   double _tasaEuro = 0.0;
   double get tasaEuro => _tasaEuro;
@@ -42,6 +43,9 @@ class BcvController extends ChangeNotifier {
 
   ConfiguracionMoneda _config = ConfiguracionMoneda.porDefecto();
   ConfiguracionMoneda get config => _config;
+
+  /// Indica si el país configurado maneja euro.
+  bool get manejaEuro => _config.manejaEuro;
 
   bool _initialized = false;
 
@@ -67,7 +71,8 @@ class BcvController extends ChangeNotifier {
 
       // Cargar país
       final codigoPais = prefs.getString(_prefsKeyPais);
-      if (codigoPais != null && ConfiguracionMoneda.porPais.containsKey(codigoPais)) {
+      if (codigoPais != null &&
+          ConfiguracionMoneda.porPais.containsKey(codigoPais)) {
         _config = ConfiguracionMoneda.porPais[codigoPais]!;
       }
 
@@ -122,7 +127,7 @@ class BcvController extends ChangeNotifier {
         algunaActualizada = true;
       }
 
-      // Tasa EUR
+      // Tasa EUR (solo si el país maneja euro)
       if (_config.manejaEuro) {
         final nuevaTasaEuro =
             await BcvService.obtenerTasaEuroDelPais(_config);
@@ -137,14 +142,14 @@ class BcvController extends ChangeNotifier {
         _ultimaActualizacion = _formatearHora(_ultimoUpdateRemoto);
         _desdeCache = false;
 
-        // ✅ Persistir en SharedPreferences
         await _persistirTasas();
 
         debugPrint(
             '✅ Tasas actualizadas: USD=${_tasaDolar.toStringAsFixed(2)} '
             'EUR=${_tasaEuro.toStringAsFixed(2)}');
       } else {
-        debugPrint('⚠️ No se pudo actualizar ninguna tasa. Se mantiene caché.');
+        debugPrint(
+            '⚠️ No se pudo actualizar ninguna tasa. Se mantiene caché.');
         _desdeCache = true;
       }
     } catch (e) {
