@@ -10,7 +10,6 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.d
 import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 import '../../providers/local_actual_provider.dart';
-import '../../providers/isar_provider.dart';
 import '../../providers/usuario_provider.dart';
 
 class CrearPedidoDialog extends ConsumerStatefulWidget {

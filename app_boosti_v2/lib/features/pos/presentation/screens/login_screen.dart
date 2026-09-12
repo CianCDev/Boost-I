@@ -512,40 +512,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   // COMPONENTES UI (ESTILOS PORTADOS)
   // ============================================================
 
-  Widget _buildLogo(double size, bool isMobile) {
-    final double iconSize = size * 0.5;
-    return Column(
-      children: [
-        Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF10B981), Color(0xFF059669)],
-            ),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF10B981).withValues(alpha: 0.4),
-                blurRadius: 30,
-                offset: const Offset(0, 10),
-              ),
-            ],
+ Widget _buildLogo(double size, bool isMobile) {
+  final double iconSize = size * 0.5;
+  return Column(
+    children: [
+      Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF10B981), Color(0xFF059669)],
           ),
-          child: Center(
-            child: SvgPicture.asset(
-              'assets/logoboosti300px.svg',
-              width: iconSize,
-              height: iconSize,
-              colorFilter: const ColorFilter.mode(
-                Colors.white,
-                BlendMode.srcIn,
-              ),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF10B981).withValues(alpha: 0.4),
+              blurRadius: 30,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Center(
+          child: SvgPicture.asset(
+            'assets/logoboosti300px.svg', // 👈 Cambia 'assets/logoboosti300px.svg' por 'assets/logo.svg'
+            width: iconSize,
+            height: iconSize,
+            colorFilter: const ColorFilter.mode(
+              Colors.white,
+              BlendMode.srcIn,
             ),
           ),
         ),
+      ),
         const SizedBox(height: 20),
         ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(

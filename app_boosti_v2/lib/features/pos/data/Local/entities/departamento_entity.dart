@@ -7,7 +7,7 @@ class DepartamentoEntity {
   Id id = Isar.autoIncrement;
   String? supabaseId;
 
-  late String nombre;
+  String nombre = '';
   String? descripcion;
   int? localId; // ID del local asociado (opcional)
 

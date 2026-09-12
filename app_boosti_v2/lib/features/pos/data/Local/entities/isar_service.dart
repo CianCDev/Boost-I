@@ -230,10 +230,11 @@ class IsarService {
 
   /// Crea usuarios de ejemplo (admin y cajero) si la colección está vacía.
   Future<void> _inicializarUsuariosDemo(Isar isar) async {
-    try {
-      final count = await isar.usuarioEntitys.count();
-      if (count == 0) {
-        final adminDefault = UsuarioEntity()
+  try {
+    final count = await isar.usuarioEntitys.count();
+    if (count == 0) {
+      final usuariosIniciales = [
+        UsuarioEntity()
           ..nombre = 'Administrador'
           ..email = 'admin@default.com'
           ..password = '123456'
@@ -241,17 +242,37 @@ class IsarService {
           ..rol = 'admin'
           ..activo = true
           ..estado = 'inactivo'
-          ..cajaAsignada = 'Caja Principal';
+          ..cajaAsignada = 'Caja Principal',
+        UsuarioEntity()
+          ..nombre = 'Cajero 01'
+          ..email = ''
+          ..password = ''
+          ..pin = '1111'
+          ..rol = 'cajero'
+          ..activo = true
+          ..estado = 'inactivo'
+          ..cajaAsignada = 'Caja Principal',
+        UsuarioEntity()
+          ..nombre = 'Juan Perez'
+          ..email = 'juanito@example.com'
+          ..password = ''
+          ..pin = '1010'
+          ..rol = 'cajero'
+          ..activo = true
+          ..estado = 'inactivo'
+          ..cajaAsignada = 'Caja Principal',
+      ];
 
-        await isar.writeTxn(() async {
-          await isar.usuarioEntitys.put(adminDefault);
-        });
-      }
-    } catch (e, stack) {
-      ErrorService.captureError(e,
-          stack: stack, hint: 'inicializarUsuariosDemo_fallo');
+      await isar.writeTxn(() async {
+        await isar.usuarioEntitys.putAll(usuariosIniciales);
+      });
+      debugPrint('✅ ${usuariosIniciales.length} usuarios demo creados');
     }
+  } catch (e, stack) {
+    ErrorService.captureError(e,
+        stack: stack, hint: 'inicializarUsuariosDemo_fallo');
   }
+}
 
   // ==================== USUARIOS ====================
 
@@ -344,8 +365,9 @@ class IsarService {
   }) async {
     try {
       final isar = await db;
-      if (pin.trim().length != 4)
+      if (pin.trim().length != 4) {
         throw Exception('El PIN debe tener 4 dígitos.');
+      }
       await isar.writeTxn(() async {
         final nuevoUsuario = UsuarioEntity()
           ..nombre = nombre.trim()

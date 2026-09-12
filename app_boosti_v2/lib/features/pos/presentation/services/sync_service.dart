@@ -551,8 +551,9 @@ class SyncService {
   // ============================================================
 
   double _limpiarNumero(double? valor, [double valorPorDefecto = 0.0]) {
-    if (valor == null || valor.isNaN || valor.isInfinite)
+    if (valor == null || valor.isNaN || valor.isInfinite) {
       return valorPorDefecto;
+    }
     return valor;
   }
 
@@ -592,9 +593,7 @@ class SyncService {
         if (p.imagenUrl != null && p.imagenUrl!.isNotEmpty) {
           payload['imagen_url'] = p.imagenUrl;
         }
-        if (p.supabaseId == null) {
-          p.supabaseId = supabaseId;
-        }
+        p.supabaseId ??= supabaseId;
         return payload;
       }).toList();
 
@@ -2874,7 +2873,7 @@ class SyncService {
           if (local != null) {
             local.supabaseId = supabaseId;
             await isar.writeTxn(() async {
-              await isar.localEntitys.put(local!);
+              await isar.localEntitys.put(local);
             });
           }
           return supabaseId;

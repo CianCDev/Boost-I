@@ -7,7 +7,7 @@ class ProveedorEntity {
   Id id = Isar.autoIncrement;
 
   String? supabaseId;
-  late String nombre;
+  String nombre = '';
   String? cedula;
   String? telefono;
   String? empresa;

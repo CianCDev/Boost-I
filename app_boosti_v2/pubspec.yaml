@@ -91,5 +91,5 @@ flutter:
     - assets/animations/succes.json
     - assets/animations/error.json
     - assets/animations/clock.json
-    - assets/logo.svg
+    - assets/logoboosti300px.svg
     - shorebird.yaml

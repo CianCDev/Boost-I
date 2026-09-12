@@ -7,10 +7,9 @@ class CodigoBarrasAliasEntity {
   Id id = Isar.autoIncrement;
 
   @Index(unique: true)
-  late String codigo;
-
-  late int productoId;
-  late double factor;
+  String codigo = '';
+  int productoId = 0;
+  double factor = 1.0;
 
   bool activo = true;
   DateTime fechaAsignacion = DateTime.now();

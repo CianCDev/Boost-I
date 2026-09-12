@@ -8,16 +8,16 @@ class MovimientoLoteEntity {
   Id id = Isar.autoIncrement;
 
   @Index()
-  late int loteId;
+   int loteId = 0;
 
-  late String tipo; // 'activacion', 'venta', 'traspaso', 'devolucion'
+   String tipo = ''; // 'activacion', 'venta', 'traspaso', 'devolucion'
 
-  late double cantidad;
+   double cantidad = 0.0;
 
   @Index()
-  late DateTime fecha;
+  DateTime fecha = DateTime.now();
 
-  late int usuarioId;
+   int usuarioId = 0;
 
   String? observaciones;
 

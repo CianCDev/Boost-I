@@ -11,7 +11,7 @@ class LoteEntity {
   String? supabaseId;
 
   @Index()
-  late int productoId;
+  int productoId = 0;
 
   @Index() // ✅ NUEVO: para filtrar por local
   int? localId;

@@ -51,7 +51,7 @@ const DetallePedidoEntitySchema = CollectionSchema(
     r'supabaseId': PropertySchema(
       id: 6,
       name: r'supabaseId',
-      type: IsarType.string,
+      type: IsarType.long,
     )
   },
   estimateSize: _detallePedidoEntityEstimateSize,
@@ -59,7 +59,34 @@ const DetallePedidoEntitySchema = CollectionSchema(
   deserialize: _detallePedidoEntityDeserialize,
   deserializeProp: _detallePedidoEntityDeserializeProp,
   idName: r'id',
-  indexes: {},
+  indexes: {
+    r'pedidoId': IndexSchema(
+      id: -538535867407689187,
+      name: r'pedidoId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'pedidoId',
+          type: IndexType.value,
+          caseSensitive: false,
+        )
+      ],
+    ),
+    r'productoId': IndexSchema(
+      id: -5250802555047709916,
+      name: r'productoId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'productoId',
+          type: IndexType.value,
+          caseSensitive: false,
+        )
+      ],
+    )
+  },
   links: {},
   embeddedSchemas: {},
   getId: _detallePedidoEntityGetId,
@@ -75,12 +102,6 @@ int _detallePedidoEntityEstimateSize(
 ) {
   var bytesCount = offsets.last;
   bytesCount += 3 + object.nombreProducto.length * 3;
-  {
-    final value = object.supabaseId;
-    if (value != null) {
-      bytesCount += 3 + value.length * 3;
-    }
-  }
   return bytesCount;
 }
 
@@ -96,7 +117,7 @@ void _detallePedidoEntitySerialize(
   writer.writeDouble(offsets[3], object.precioUnidad);
   writer.writeLong(offsets[4], object.productoId);
   writer.writeDouble(offsets[5], object.subtotal);
-  writer.writeString(offsets[6], object.supabaseId);
+  writer.writeLong(offsets[6], object.supabaseId);
 }
 
 DetallePedidoEntity _detallePedidoEntityDeserialize(
@@ -113,7 +134,7 @@ DetallePedidoEntity _detallePedidoEntityDeserialize(
   object.precioUnidad = reader.readDouble(offsets[3]);
   object.productoId = reader.readLong(offsets[4]);
   object.subtotal = reader.readDouble(offsets[5]);
-  object.supabaseId = reader.readStringOrNull(offsets[6]);
+  object.supabaseId = reader.readLongOrNull(offsets[6]);
   return object;
 }
 
@@ -137,7 +158,7 @@ P _detallePedidoEntityDeserializeProp<P>(
     case 5:
       return (reader.readDouble(offset)) as P;
     case 6:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -162,6 +183,24 @@ extension DetallePedidoEntityQueryWhereSort
   QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhere> anyId() {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(const IdWhereClause.any());
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhere>
+      anyPedidoId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'pedidoId'),
+      );
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhere>
+      anyProductoId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'productoId'),
+      );
     });
   }
 }
@@ -231,6 +270,192 @@ extension DetallePedidoEntityQueryWhere
         lower: lowerId,
         includeLower: includeLower,
         upper: upperId,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhereClause>
+      pedidoIdEqualTo(int pedidoId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'pedidoId',
+        value: [pedidoId],
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhereClause>
+      pedidoIdNotEqualTo(int pedidoId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'pedidoId',
+              lower: [],
+              upper: [pedidoId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'pedidoId',
+              lower: [pedidoId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'pedidoId',
+              lower: [pedidoId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'pedidoId',
+              lower: [],
+              upper: [pedidoId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhereClause>
+      pedidoIdGreaterThan(
+    int pedidoId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'pedidoId',
+        lower: [pedidoId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhereClause>
+      pedidoIdLessThan(
+    int pedidoId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'pedidoId',
+        lower: [],
+        upper: [pedidoId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhereClause>
+      pedidoIdBetween(
+    int lowerPedidoId,
+    int upperPedidoId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'pedidoId',
+        lower: [lowerPedidoId],
+        includeLower: includeLower,
+        upper: [upperPedidoId],
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhereClause>
+      productoIdEqualTo(int productoId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'productoId',
+        value: [productoId],
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhereClause>
+      productoIdNotEqualTo(int productoId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'productoId',
+              lower: [],
+              upper: [productoId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'productoId',
+              lower: [productoId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'productoId',
+              lower: [productoId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'productoId',
+              lower: [],
+              upper: [productoId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhereClause>
+      productoIdGreaterThan(
+    int productoId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'productoId',
+        lower: [productoId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhereClause>
+      productoIdLessThan(
+    int productoId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'productoId',
+        lower: [],
+        upper: [productoId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterWhereClause>
+      productoIdBetween(
+    int lowerProductoId,
+    int upperProductoId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'productoId',
+        lower: [lowerProductoId],
+        includeLower: includeLower,
+        upper: [upperProductoId],
         includeUpper: includeUpper,
       ));
     });
@@ -760,58 +985,49 @@ extension DetallePedidoEntityQueryFilter on QueryBuilder<DetallePedidoEntity,
   }
 
   QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
-      supabaseIdEqualTo(
-    String? value, {
-    bool caseSensitive = true,
-  }) {
+      supabaseIdEqualTo(int? value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'supabaseId',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
       supabaseIdGreaterThan(
-    String? value, {
+    int? value, {
     bool include = false,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         include: include,
         property: r'supabaseId',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
       supabaseIdLessThan(
-    String? value, {
+    int? value, {
     bool include = false,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.lessThan(
         include: include,
         property: r'supabaseId',
         value: value,
-        caseSensitive: caseSensitive,
       ));
     });
   }
 
   QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
       supabaseIdBetween(
-    String? lower,
-    String? upper, {
+    int? lower,
+    int? upper, {
     bool includeLower = true,
     bool includeUpper = true,
-    bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
@@ -820,77 +1036,6 @@ extension DetallePedidoEntityQueryFilter on QueryBuilder<DetallePedidoEntity,
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
-      supabaseIdStartsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'supabaseId',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
-      supabaseIdEndsWith(
-    String value, {
-    bool caseSensitive = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'supabaseId',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
-      supabaseIdContains(String value, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.contains(
-        property: r'supabaseId',
-        value: value,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
-      supabaseIdMatches(String pattern, {bool caseSensitive = true}) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.matches(
-        property: r'supabaseId',
-        wildcard: pattern,
-        caseSensitive: caseSensitive,
-      ));
-    });
-  }
-
-  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
-      supabaseIdIsEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'supabaseId',
-        value: '',
-      ));
-    });
-  }
-
-  QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QAfterFilterCondition>
-      supabaseIdIsNotEmpty() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'supabaseId',
-        value: '',
       ));
     });
   }
@@ -1164,9 +1309,9 @@ extension DetallePedidoEntityQueryWhereDistinct
   }
 
   QueryBuilder<DetallePedidoEntity, DetallePedidoEntity, QDistinct>
-      distinctBySupabaseId({bool caseSensitive = true}) {
+      distinctBySupabaseId() {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'supabaseId', caseSensitive: caseSensitive);
+      return query.addDistinctBy(r'supabaseId');
     });
   }
 }
@@ -1220,7 +1365,7 @@ extension DetallePedidoEntityQueryProperty
     });
   }
 
-  QueryBuilder<DetallePedidoEntity, String?, QQueryOperations>
+  QueryBuilder<DetallePedidoEntity, int?, QQueryOperations>
       supabaseIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'supabaseId');

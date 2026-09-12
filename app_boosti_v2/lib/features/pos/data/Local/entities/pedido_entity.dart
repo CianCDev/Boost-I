@@ -15,32 +15,33 @@ class PedidoEntity {
   Id id = Isar.autoIncrement;
 
   String? supabaseId;
-  
+
   @Index() // ← Para consultas por localOrigenId
-  late int localOrigenId;
-  
+  int localOrigenId = 0;
+
   @Index() // ← Para consultas por localDestinoId
-  late int localDestinoId;
-  
+  int localDestinoId = 0;
+
   @Index() // ← Para consultas por usuarioId
-  late int usuarioId;
-  
-  late DateTime fechaPedido;
-  
+  int usuarioId = 0;
+
+  DateTime fechaPedido = DateTime.now();
+
   @Enumerated(EnumType.name)
   @Index() // ← Para filtrar por estado
-  late EstadoPedido estado;
+  EstadoPedido estado = EstadoPedido.pendiente;
 
-  late String proveedorNombre;
+  String proveedorNombre = '';
   String? proveedorCedula;
   String? proveedorTelefono;
   String? proveedorEmpresa;
   String? observaciones;
-  late double total;
-  
+
+  double total = 0.0;
+
   @Index() // ← Para obtener pendientes de sincronización
   bool sincronizado = false;
-  
+
   DateTime? fechaSincronizacion;
 
   @Ignore()

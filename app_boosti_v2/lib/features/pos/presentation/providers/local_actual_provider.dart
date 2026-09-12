@@ -29,7 +29,7 @@ class LocalActualNotifier extends StateNotifier<int?> {
     if (locales.isNotEmpty) {
       state = locales.first.id;
       await prefs.setInt('localActualId', state!);
-      debugPrint('✅ Local actual guardado automáticamente: ${locales.first.nombre} (ID: ${state})');
+      debugPrint('✅ Local actual guardado automáticamente: ${locales.first.nombre} (ID: $state)');
     } else {
       state = null;
     }

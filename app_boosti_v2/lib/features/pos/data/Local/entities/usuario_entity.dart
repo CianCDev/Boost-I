@@ -12,12 +12,12 @@ class UsuarioEntity {
   @Index(unique: true)
   String dynamicId = Uuid().v4();
   
-  late String nombre;
-  late String pin;
-  late String rol;
-  late bool activo;
-  late String estado;
-  late String cajaAsignada;
+   String nombre = '';
+  String pin = '';
+  String rol = 'cajero';
+  bool activo = true;
+  String estado = 'inactivo';
+  String cajaAsignada = 'Caja Principal';
   String? email;
   String? password;
   String? supabaseId;

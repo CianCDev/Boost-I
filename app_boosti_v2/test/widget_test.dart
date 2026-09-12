@@ -1,29 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // 🔥 Import necesario para ProviderScope
-import 'package:app_boosti_v2/main.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:app_boosti_v2/features/pos/presentation/providers/themes/theme.dart';
+
+/// Smoke test: verifica que el tema se construye sin errores.
+///
+/// NO arranca la app completa porque eso requiere:
+/// - Supabase inicializado
+/// - Isar inicializado
+/// - SharedPreferences con datos
+///
+/// Para eso están los integration tests (test/integration/).
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(
-      ProviderScope(
-        child: BoostiPOS(
-          supabaseInitialized: true, // Parámetro requerido
+  group('Smoke tests', () {
+    testWidgets('Light theme se construye sin errores', (tester) async {
+      final theme = lightTheme();
+      expect(theme, isA<ThemeData>());
+      expect(theme.brightness, Brightness.light);
+    });
+
+    testWidgets('Dark theme se construye sin errores', (tester) async {
+      final theme = darkTheme();
+      expect(theme, isA<ThemeData>());
+      expect(theme.brightness, Brightness.dark);
+    });
+
+    testWidgets('Un widget básico se renderiza', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: lightTheme(),
+            home: const Scaffold(
+              body: Center(child: Text('BoostI POS')),
+            ),
+          ),
         ),
-      ),
-    );
+      );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+      expect(find.text('BoostI POS'), findsOneWidget);
+    });
   });
 }

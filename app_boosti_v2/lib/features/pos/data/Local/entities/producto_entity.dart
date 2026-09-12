@@ -8,7 +8,7 @@ class ProductoEntity {
   Id id = Isar.autoIncrement; // ID local (auto incremental)
 
   @Index(unique: true, replace: true)
-  late String codigoBarras;
+   String codigoBarras;
 
   // ──────────────── Datos del producto ────────────────
   String nombre = '';

@@ -233,7 +233,7 @@ class BackupService {
       }
 
       final motivo = reason == 'programado' ? 'auto' : reason;
-      final remotePath = '$empresaId/backup_${timestamp}_${motivo}.zip';
+      final remotePath = '$empresaId/backup_${timestamp}_$motivo.zip';
 
       // ✅ Subir usando el cliente autenticado (seguro)
       await supabase.storage.from(bucketName).upload(remotePath, zipFile);
@@ -291,10 +291,6 @@ class BackupService {
 
       final bytes =
           await supabase.storage.from(bucketName).download(remotePath);
-      if (bytes == null) {
-        debugPrint('❌ No se pudo descargar el backup');
-        return false;
-      }
 
       final appDir = await getApplicationDocumentsDirectory();
       final zipFile = File('${appDir.path}/restore_temp.zip');
