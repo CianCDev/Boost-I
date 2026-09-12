@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:flutter/foundation.dart' show visibleForTesting;
 // Entidades
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import 'cliente_entity.dart';
@@ -80,101 +80,116 @@ class IsarService {
 
   /// Inicializa la base de datos Isar con todos los esquemas.
   /// Usa el ID de empresa de SharedPreferences para aislar los datos.
-  Future<Isar> _initIsar() async {
-    if (_isarInstance != null && _isarInstance!.isOpen) {
-      return _isarInstance!;
-    }
+  Future<Isar> _initIsar({
+  String? testDirectory,
+  bool skipDemoInit = false,
+}) async {
+  if (_isarInstance != null && _isarInstance!.isOpen) {
+    return _isarInstance!;
+  }
 
-    final dir = await getApplicationDocumentsDirectory();
-    final prefs = await SharedPreferences.getInstance();
-    final empresaId = prefs.getString('empresa_id') ?? 'default';
-    final dbPath = '${dir.path}/isar_$empresaId';
+  // ✅ Directorio base: el pasado por test o el de la app
+  final Directory baseDir;
+  if (testDirectory != null) {
+    baseDir = Directory(testDirectory);
+    await baseDir.create(recursive: true);
+  } else {
+    baseDir = await getApplicationDocumentsDirectory();
+  }
 
-    await Directory(dbPath).create(recursive: true);
-    late Isar isar;
+  final prefs = await SharedPreferences.getInstance();
+  final empresaId = prefs.getString('empresa_id') ?? 'default';
+  final dbPath = '${baseDir.path}/isar_$empresaId';
 
-    try {
-      isar = await Isar.open(
-        [
-          VentaEntitySchema,
-          DetalleVentaEntitySchema,
-          ProductoEntitySchema,
-          UsuarioEntitySchema,
-          MovimientoInventarioEntitySchema,
-          GastoEntitySchema,
-          LogEntitySchema,
-          PedidoEntitySchema,
-          DetallePedidoEntitySchema,
-          RecepcionEntitySchema,
-          TurnoEntitySchema,
-          LocalEntitySchema,
-          ProveedorEntitySchema,
-          CodigoBarrasAliasEntitySchema,
-          LoteEntitySchema,
-          DepartamentoEntitySchema,
-          TelegramConfigEntitySchema,
-          CategoriaEntitySchema,
-          MarcaEntitySchema,
-          MovimientoLoteEntitySchema,
-          ClienteEntitySchema,
-        ],
-        directory: dbPath,
-        inspector: true,
-      );
-      debugPrint('✅ Isar abierto en: $dbPath');
-    } catch (e) {
-      debugPrint('⚠️ Error abriendo Isar en $dbPath: $e');
-      final fallbackPath = '${dir.path}/isar_default';
-      await Directory(fallbackPath).create(recursive: true);
+  await Directory(dbPath).create(recursive: true);
+  late Isar isar;
 
-      for (final name in Isar.instanceNames) {
-        final existing = Isar.getInstance(name);
-        if (existing != null && existing.isOpen) {
-          await existing.close();
-          debugPrint('🔄 Instancia anterior cerrada: $name');
-        }
+  try {
+    isar = await Isar.open(
+      [
+        VentaEntitySchema,
+        DetalleVentaEntitySchema,
+        ProductoEntitySchema,
+        UsuarioEntitySchema,
+        MovimientoInventarioEntitySchema,
+        GastoEntitySchema,
+        LogEntitySchema,
+        PedidoEntitySchema,
+        DetallePedidoEntitySchema,
+        RecepcionEntitySchema,
+        TurnoEntitySchema,
+        LocalEntitySchema,
+        ProveedorEntitySchema,
+        CodigoBarrasAliasEntitySchema,
+        LoteEntitySchema,
+        DepartamentoEntitySchema,
+        TelegramConfigEntitySchema,
+        CategoriaEntitySchema,
+        MarcaEntitySchema,
+        MovimientoLoteEntitySchema,
+        ClienteEntitySchema,
+      ],
+      directory: dbPath,
+      // ✅ Inspector deshabilitado en tests
+      inspector: testDirectory == null,
+    );
+    debugPrint('✅ Isar abierto en: $dbPath');
+  } catch (e) {
+    debugPrint('⚠️ Error abriendo Isar en $dbPath: $e');
+    final fallbackPath = '${baseDir.path}/isar_default';
+    await Directory(fallbackPath).create(recursive: true);
+
+    for (final name in Isar.instanceNames) {
+      final existing = Isar.getInstance(name);
+      if (existing != null && existing.isOpen) {
+        await existing.close();
+        debugPrint('🔄 Instancia anterior cerrada: $name');
       }
-
-      isar = await Isar.open(
-        [
-          VentaEntitySchema,
-          DetalleVentaEntitySchema,
-          ProductoEntitySchema,
-          UsuarioEntitySchema,
-          MovimientoInventarioEntitySchema,
-          GastoEntitySchema,
-          LogEntitySchema,
-          PedidoEntitySchema,
-          DetallePedidoEntitySchema,
-          RecepcionEntitySchema,
-          TurnoEntitySchema,
-          LocalEntitySchema,
-          ProveedorEntitySchema,
-          CodigoBarrasAliasEntitySchema,
-          LoteEntitySchema,
-          DepartamentoEntitySchema,
-          TelegramConfigEntitySchema,
-          CategoriaEntitySchema,
-          MarcaEntitySchema,
-          MovimientoLoteEntitySchema,
-          ClienteEntitySchema,
-        ],
-        directory: fallbackPath,
-        inspector: true,
-      );
-      debugPrint('✅ Isar abierto en ruta por defecto: $fallbackPath');
     }
 
+    isar = await Isar.open(
+      [
+        VentaEntitySchema,
+        DetalleVentaEntitySchema,
+        ProductoEntitySchema,
+        UsuarioEntitySchema,
+        MovimientoInventarioEntitySchema,
+        GastoEntitySchema,
+        LogEntitySchema,
+        PedidoEntitySchema,
+        DetallePedidoEntitySchema,
+        RecepcionEntitySchema,
+        TurnoEntitySchema,
+        LocalEntitySchema,
+        ProveedorEntitySchema,
+        CodigoBarrasAliasEntitySchema,
+        LoteEntitySchema,
+        DepartamentoEntitySchema,
+        TelegramConfigEntitySchema,
+        CategoriaEntitySchema,
+        MarcaEntitySchema,
+        MovimientoLoteEntitySchema,
+        ClienteEntitySchema,
+      ],
+      directory: fallbackPath,
+      inspector: testDirectory == null,
+    );
+    debugPrint('✅ Isar abierto en ruta por defecto: $fallbackPath');
+  }
+
+  // ✅ Skip demo init en tests (los tests crean sus propios datos)
+  if (!skipDemoInit) {
     try {
       await _inicializarProductosDemo(isar);
       await _inicializarUsuariosDemo(isar);
     } catch (e) {
       debugPrint('⚠️ Error inicializando datos demo: $e');
     }
-
-    _isarInstance = isar;
-    return isar;
   }
+
+  _isarInstance = isar;
+  return isar;
+}
 
   // ==================== DATOS DEMO ====================
 
@@ -272,6 +287,31 @@ class IsarService {
     ErrorService.captureError(e,
         stack: stack, hint: 'inicializarUsuariosDemo_fallo');
   }
+}
+
+
+/// ══════════════════════════════════════════════════════════════
+/// MÉTODOS SOLO PARA TESTS
+/// ══════════════════════════════════════════════════════════════
+
+/// Cierra y limpia la instancia actual de Isar.
+/// Necesario entre tests para garantizar aislamiento.
+@visibleForTesting
+static Future<void> resetForTesting() async {
+  if (_instance._isarInstance != null && _instance._isarInstance!.isOpen) {
+    await _instance._isarInstance!.close();
+  }
+  _instance._isarInstance = null;
+}
+
+/// Inicializa la BD en un directorio temporal específico.
+/// No crea datos demo para que los tests controlen los datos.
+@visibleForTesting
+Future<void> initForTesting(String directoryPath) async {
+  _isarInstance = await _initIsar(
+    testDirectory: directoryPath,
+    skipDemoInit: true,
+  );
 }
 
   // ==================== USUARIOS ====================
