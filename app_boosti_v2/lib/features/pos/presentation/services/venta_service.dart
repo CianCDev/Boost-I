@@ -1,10 +1,11 @@
+// lib/features/pos/presentation/services/venta_service.dart
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:app_boosti_v2/features/pos/presentation/providers/pedidos_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/services/ventas_calculator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/venta_entity.dart';
-import 'package:app_boosti_v2/features/pos/data/Local/entities/detalle_venta_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/controllers/cart_controller.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/esc_pos_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/ticket_service.dart';
@@ -13,6 +14,7 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/productos_prov
 import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/Local/entities/isar_service.dart';
+ // ✅ NUEVO
 
 class VentaService {
   final Ref _ref;
@@ -30,9 +32,11 @@ class VentaService {
     final isar = _ref.read(isarServiceProvider);
     final cartState = _ref.read(cartProvider);
     final cartNotifier = _ref.read(cartProvider.notifier);
-    
+
     try {
+      // ============================================================
       // 1. Descontar lotes
+      // ============================================================
       final productosAfectados = <int>{};
 
       for (var cartItem in cartState.items) {
@@ -40,24 +44,36 @@ class VentaService {
         if (productoId == null) continue;
 
         double cantidadPorDescontar = cartItem.cantidad;
-        while (cantidadPorDescontar > 0.001) {
-          final lote = await isar.obtenerLoteParaVenta(productoId, priorizarVencimiento: true);
+
+        // ✅ Usa helper puro para evaluar si ya no queda nada que descontar
+        while (!VentaCalculator.cantidadEsCero(cantidadPorDescontar)) {
+          final lote = await isar.obtenerLoteParaVenta(
+            productoId,
+            priorizarVencimiento: true,
+          );
           if (lote == null) {
             throw Exception('Stock insuficiente para ${cartItem.producto.nombre}');
           }
-          final descontar = cantidadPorDescontar > lote.cantidadRestante
-              ? lote.cantidadRestante
-              : cantidadPorDescontar;
+
+          // ✅ Usa helper puro para calcular cuánto descontar
+          final descontar = VentaCalculator.calcularDescuentoDeLote(
+            cantidadNecesaria: cantidadPorDescontar,
+            cantidadDisponible: lote.cantidadRestante,
+          );
+
           final exito = await isar.descontarLote(lote.id, descontar);
           if (!exito) {
-            throw Exception('Error al descontar lote de ${cartItem.producto.nombre}');
+            throw Exception(
+                'Error al descontar lote de ${cartItem.producto.nombre}');
           }
           cantidadPorDescontar -= descontar;
         }
         productosAfectados.add(productoId);
       }
 
+      // ============================================================
       // 2. Actualizar stock
+      // ============================================================
       for (var productoId in productosAfectados) {
         final producto = await isar.obtenerProductoPorId(productoId);
         if (producto == null) continue;
@@ -65,36 +81,23 @@ class VentaService {
         producto.stock = stockTotal;
         await isar.guardarProducto(producto);
       }
-      
+
+      // ============================================================
       // 3. Preparar detalles de la venta
+      // ============================================================
       final nuevoUuidVenta = const Uuid().v4();
       final ahora = DateTime.now();
       final totalBsCalculado = cartState.total * tasaActual;
 
-      final itemsIsar = cartState.items.map((cartItem) {
-        return DetalleVentaEntity()
-          ..productoId = int.tryParse(cartItem.producto.id)
-          ..nombreProducto = cartItem.producto.nombre
-          ..precioUnidad = cartItem.producto.precioUnidad
-          ..precioOriginal = cartItem.precioOriginal
-          ..esDescuentoEspecial = cartItem.esDescuentoEspecial
-          ..cantidad = cartItem.cantidad.toDouble()
-          ..subtotal = cartItem.cantidad.toDouble() * cartItem.producto.precioUnidad
-          ..syncStatus = 'pending'
-          ..ventaIdFk = nuevoUuidVenta;
-      }).toList();
+      // ✅ Usa helper puro para convertir CartItems → DetalleVentaEntity
+      final itemsIsar = VentaCalculator.cartItemsADetalles(
+        cartItems: cartState.items,
+        ventaIdFk: nuevoUuidVenta,
+      );
 
-      // Calcular descuentos totales
-      bool tieneDescuento = false;
-      double montoDescuentoTotal = 0.0;
-
-      for (var item in itemsIsar) {
-        if (item.esDescuentoEspecial == true && item.precioOriginal != null) {
-          tieneDescuento = true;
-          final descuento = (item.precioOriginal! - item.precioUnidad) * item.cantidad;
-          montoDescuentoTotal += descuento;
-        }
-      }
+      // ✅ Usa helper puro para calcular descuentos
+      final resultadoDescuentos =
+          VentaCalculator.calcularDescuentos(itemsIsar);
 
       final nuevaVenta = VentaEntity()
         ..idSupabase = nuevoUuidVenta
@@ -108,22 +111,28 @@ class VentaService {
         ..documento = 0
         ..empleado = usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
         ..syncStatus = 'pending'
-        ..tieneDescuentoEspecial = tieneDescuento
-        ..montoDescuentoTotal = montoDescuentoTotal;
+        ..tieneDescuentoEspecial = resultadoDescuentos.tieneDescuento
+        ..montoDescuentoTotal = resultadoDescuentos.montoDescuentoTotal;
 
-      // 4. Guardar venta con sus detalles explícitamente
+      // ============================================================
+      // 4. Guardar venta con sus detalles
+      // ============================================================
       await isar.guardarVenta(
         nuevaVenta,
-        detalles: itemsIsar, // 🔥 Pasar los detalles
+        detalles: itemsIsar,
       );
       debugPrint('✅ Venta guardada localmente con ${itemsIsar.length} detalles');
 
+      // ============================================================
       // 5. Recargar productos y limpiar carrito
+      // ============================================================
       final productosNotifier = _ref.read(productosProvider.notifier);
       await productosNotifier.cargarProductos();
       cartNotifier.limpiarCarrito();
-      
+
+      // ============================================================
       // 6. Imprimir ticket
+      // ============================================================
       final local = await IsarService().obtenerLocalActivo();
 
       try {

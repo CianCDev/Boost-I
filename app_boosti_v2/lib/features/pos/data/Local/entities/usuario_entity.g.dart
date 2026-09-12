@@ -67,48 +67,73 @@ const UsuarioEntitySchema = CollectionSchema(
       name: r'fechaSincronizacion',
       type: IsarType.dateTime,
     ),
-    r'localId': PropertySchema(
+    r'inicioDescanso': PropertySchema(
       id: 10,
+      name: r'inicioDescanso',
+      type: IsarType.dateTime,
+    ),
+    r'localId': PropertySchema(
+      id: 11,
       name: r'localId',
       type: IsarType.long,
     ),
+    r'minutosDescanso': PropertySchema(
+      id: 12,
+      name: r'minutosDescanso',
+      type: IsarType.long,
+    ),
     r'nombre': PropertySchema(
-      id: 11,
+      id: 13,
       name: r'nombre',
       type: IsarType.string,
     ),
     r'password': PropertySchema(
-      id: 12,
+      id: 14,
       name: r'password',
       type: IsarType.string,
     ),
     r'pin': PropertySchema(
-      id: 13,
+      id: 15,
       name: r'pin',
       type: IsarType.string,
     ),
     r'rol': PropertySchema(
-      id: 14,
+      id: 16,
       name: r'rol',
       type: IsarType.string,
     ),
     r'sincronizado': PropertySchema(
-      id: 15,
+      id: 17,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'supabaseId': PropertySchema(
-      id: 16,
+      id: 18,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'supabaseUid': PropertySchema(
-      id: 17,
+      id: 19,
       name: r'supabaseUid',
       type: IsarType.string,
     ),
+    r'tenantId': PropertySchema(
+      id: 20,
+      name: r'tenantId',
+      type: IsarType.string,
+    ),
+    r'ultimaActividad': PropertySchema(
+      id: 21,
+      name: r'ultimaActividad',
+      type: IsarType.dateTime,
+    ),
+    r'ultimaActualizacion': PropertySchema(
+      id: 22,
+      name: r'ultimaActualizacion',
+      type: IsarType.dateTime,
+    ),
     r'updatedAt': PropertySchema(
-      id: 18,
+      id: 23,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -189,6 +214,12 @@ int _usuarioEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final value = object.tenantId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -208,15 +239,20 @@ void _usuarioEntitySerialize(
   writer.writeString(offsets[7], object.email);
   writer.writeString(offsets[8], object.estado);
   writer.writeDateTime(offsets[9], object.fechaSincronizacion);
-  writer.writeLong(offsets[10], object.localId);
-  writer.writeString(offsets[11], object.nombre);
-  writer.writeString(offsets[12], object.password);
-  writer.writeString(offsets[13], object.pin);
-  writer.writeString(offsets[14], object.rol);
-  writer.writeBool(offsets[15], object.sincronizado);
-  writer.writeString(offsets[16], object.supabaseId);
-  writer.writeString(offsets[17], object.supabaseUid);
-  writer.writeDateTime(offsets[18], object.updatedAt);
+  writer.writeDateTime(offsets[10], object.inicioDescanso);
+  writer.writeLong(offsets[11], object.localId);
+  writer.writeLong(offsets[12], object.minutosDescanso);
+  writer.writeString(offsets[13], object.nombre);
+  writer.writeString(offsets[14], object.password);
+  writer.writeString(offsets[15], object.pin);
+  writer.writeString(offsets[16], object.rol);
+  writer.writeBool(offsets[17], object.sincronizado);
+  writer.writeString(offsets[18], object.supabaseId);
+  writer.writeString(offsets[19], object.supabaseUid);
+  writer.writeString(offsets[20], object.tenantId);
+  writer.writeDateTime(offsets[21], object.ultimaActividad);
+  writer.writeDateTime(offsets[22], object.ultimaActualizacion);
+  writer.writeDateTime(offsets[23], object.updatedAt);
 }
 
 UsuarioEntity _usuarioEntityDeserialize(
@@ -237,15 +273,20 @@ UsuarioEntity _usuarioEntityDeserialize(
   object.estado = reader.readString(offsets[8]);
   object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[9]);
   object.id = id;
-  object.localId = reader.readLongOrNull(offsets[10]);
-  object.nombre = reader.readString(offsets[11]);
-  object.password = reader.readStringOrNull(offsets[12]);
-  object.pin = reader.readString(offsets[13]);
-  object.rol = reader.readString(offsets[14]);
-  object.sincronizado = reader.readBool(offsets[15]);
-  object.supabaseId = reader.readStringOrNull(offsets[16]);
-  object.supabaseUid = reader.readStringOrNull(offsets[17]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[18]);
+  object.inicioDescanso = reader.readDateTimeOrNull(offsets[10]);
+  object.localId = reader.readLongOrNull(offsets[11]);
+  object.minutosDescanso = reader.readLongOrNull(offsets[12]);
+  object.nombre = reader.readString(offsets[13]);
+  object.password = reader.readStringOrNull(offsets[14]);
+  object.pin = reader.readString(offsets[15]);
+  object.rol = reader.readString(offsets[16]);
+  object.sincronizado = reader.readBool(offsets[17]);
+  object.supabaseId = reader.readStringOrNull(offsets[18]);
+  object.supabaseUid = reader.readStringOrNull(offsets[19]);
+  object.tenantId = reader.readStringOrNull(offsets[20]);
+  object.ultimaActividad = reader.readDateTimeOrNull(offsets[21]);
+  object.ultimaActualizacion = reader.readDateTimeOrNull(offsets[22]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[23]);
   return object;
 }
 
@@ -277,22 +318,32 @@ P _usuarioEntityDeserializeProp<P>(
     case 9:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 10:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 11:
-      return (reader.readString(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 12:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 13:
       return (reader.readString(offset)) as P;
     case 14:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 15:
-      return (reader.readBool(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 16:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 17:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 18:
+      return (reader.readStringOrNull(offset)) as P;
+    case 19:
+      return (reader.readStringOrNull(offset)) as P;
+    case 20:
+      return (reader.readStringOrNull(offset)) as P;
+    case 21:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 22:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 23:
       return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -1652,6 +1703,80 @@ extension UsuarioEntityQueryFilter
   }
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      inicioDescansoIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'inicioDescanso',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      inicioDescansoIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'inicioDescanso',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      inicioDescansoEqualTo(DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'inicioDescanso',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      inicioDescansoGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'inicioDescanso',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      inicioDescansoLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'inicioDescanso',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      inicioDescansoBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'inicioDescanso',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       localIdIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -1717,6 +1842,80 @@ extension UsuarioEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
         property: r'localId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      minutosDescansoIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'minutosDescanso',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      minutosDescansoIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'minutosDescanso',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      minutosDescansoEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'minutosDescanso',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      minutosDescansoGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'minutosDescanso',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      minutosDescansoLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'minutosDescanso',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      minutosDescansoBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'minutosDescanso',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -2602,6 +2801,308 @@ extension UsuarioEntityQueryFilter
   }
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'tenantId',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'tenantId',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'tenantId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'tenantId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tenantId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tenantIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'tenantId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActividadIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'ultimaActividad',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActividadIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'ultimaActividad',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActividadEqualTo(DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'ultimaActividad',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActividadGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'ultimaActividad',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActividadLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'ultimaActividad',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActividadBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'ultimaActividad',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActualizacionIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'ultimaActualizacion',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActualizacionIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'ultimaActualizacion',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActualizacionEqualTo(DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'ultimaActualizacion',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActualizacionGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'ultimaActualizacion',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActualizacionLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'ultimaActualizacion',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      ultimaActualizacionBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'ultimaActualizacion',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       updatedAtIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -2815,6 +3316,20 @@ extension UsuarioEntityQuerySortBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByInicioDescanso() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'inicioDescanso', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByInicioDescansoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'inicioDescanso', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByLocalId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'localId', Sort.asc);
@@ -2824,6 +3339,20 @@ extension UsuarioEntityQuerySortBy
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByLocalIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'localId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByMinutosDescanso() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'minutosDescanso', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByMinutosDescansoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'minutosDescanso', Sort.desc);
     });
   }
 
@@ -2913,6 +3442,47 @@ extension UsuarioEntityQuerySortBy
       sortBySupabaseUidDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'supabaseUid', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByTenantId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tenantId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByTenantIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tenantId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByUltimaActividad() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ultimaActividad', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByUltimaActividadDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ultimaActividad', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByUltimaActualizacion() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ultimaActualizacion', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByUltimaActualizacionDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ultimaActualizacion', Sort.desc);
     });
   }
 
@@ -3075,6 +3645,20 @@ extension UsuarioEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByInicioDescanso() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'inicioDescanso', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByInicioDescansoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'inicioDescanso', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByLocalId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'localId', Sort.asc);
@@ -3084,6 +3668,20 @@ extension UsuarioEntityQuerySortThenBy
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByLocalIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'localId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByMinutosDescanso() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'minutosDescanso', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByMinutosDescansoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'minutosDescanso', Sort.desc);
     });
   }
 
@@ -3176,6 +3774,47 @@ extension UsuarioEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByTenantId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tenantId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByTenantIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tenantId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByUltimaActividad() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ultimaActividad', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByUltimaActividadDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ultimaActividad', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByUltimaActualizacion() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ultimaActualizacion', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByUltimaActualizacionDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'ultimaActualizacion', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -3260,9 +3899,23 @@ extension UsuarioEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct>
+      distinctByInicioDescanso() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'inicioDescanso');
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByLocalId() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'localId');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct>
+      distinctByMinutosDescanso() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'minutosDescanso');
     });
   }
 
@@ -3312,6 +3965,27 @@ extension UsuarioEntityQueryWhereDistinct
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'supabaseUid', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByTenantId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'tenantId', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct>
+      distinctByUltimaActividad() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'ultimaActividad');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct>
+      distinctByUltimaActualizacion() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'ultimaActualizacion');
     });
   }
 
@@ -3392,9 +4066,23 @@ extension UsuarioEntityQueryProperty
     });
   }
 
+  QueryBuilder<UsuarioEntity, DateTime?, QQueryOperations>
+      inicioDescansoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'inicioDescanso');
+    });
+  }
+
   QueryBuilder<UsuarioEntity, int?, QQueryOperations> localIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'localId');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, int?, QQueryOperations>
+      minutosDescansoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'minutosDescanso');
     });
   }
 
@@ -3437,6 +4125,26 @@ extension UsuarioEntityQueryProperty
   QueryBuilder<UsuarioEntity, String?, QQueryOperations> supabaseUidProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'supabaseUid');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, String?, QQueryOperations> tenantIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'tenantId');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, DateTime?, QQueryOperations>
+      ultimaActividadProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'ultimaActividad');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, DateTime?, QQueryOperations>
+      ultimaActualizacionProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'ultimaActualizacion');
     });
   }
 

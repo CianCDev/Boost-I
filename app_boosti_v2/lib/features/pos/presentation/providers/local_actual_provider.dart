@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart'; // ✅ Import necesario para debugPrin
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
-import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 
 class LocalActualNotifier extends StateNotifier<int?> {
   LocalActualNotifier() : super(null);

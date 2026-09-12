@@ -198,34 +198,58 @@ SupabaseClient get _supabase {
         // CASO 1: Ya tiene supabaseId → actualizar
         // ============================================================
         if (usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
-          final existing = await _supabase
-              .from('usuarios')
-              .select('id')
-              .eq('id', usuario.supabaseId!)
-              .maybeSingle();
+  final existing = await _supabase
+      .from('usuarios')
+      .select('id')
+      .eq('id', usuario.supabaseId!)
+      .maybeSingle();
 
-          if (existing != null) {
-            await _supabase.from('usuarios').update({
-              'nombre': usuario.nombre,
-              'pin': usuario.pin,
-              'rol': usuario.rol,
-              'email': usuario.email ?? '',
-              'device_id': usuario.deviceId ?? '',
-              'estado': usuario.estado,
-              'caja_asignada': usuario.cajaAsignada,
-              'departamento': usuario.departamento,
-              'local_id': usuario.localId,
-              'updated_at': DateTime.now().toIso8601String(),
-            }).eq('id', usuario.supabaseId!);
-            debugPrint(
-                '✅ Usuario "${usuario.nombre}" actualizado en public.usuarios');
-          } else {
-            debugPrint(
-                '⚠️ Usuario "${usuario.nombre}" tiene supabaseId pero no existe en public.usuarios. Se sincronizará en la próxima descarga.');
-          }
-          sincronizados++;
-          continue;
+  if (existing != null) {
+    // ✅ Resolver tenant_id (UUID del local) con fallback al local activo
+    String? tenantUuid;
+    if (usuario.localId != null && usuario.localId! > 0) {
+      tenantUuid = await _obtenerSupabaseIdLocal(usuario.localId!);
+    }
+    if (tenantUuid == null || tenantUuid.isEmpty) {
+      final localActivo = await _isarService.obtenerLocalActivo();
+      if (localActivo != null) {
+        tenantUuid = localActivo.supabaseId;
+        if (tenantUuid == null || tenantUuid.isEmpty) {
+          tenantUuid = await _obtenerSupabaseIdLocal(localActivo.id);
         }
+        if (tenantUuid != null && tenantUuid.isNotEmpty) {
+          usuario.localId = localActivo.id;
+        }
+      }
+    }
+
+    if (tenantUuid == null || tenantUuid.isEmpty) {
+      debugPrint(
+          '⚠️ Usuario "${usuario.nombre}" sin local asignado. No se puede sincronizar (tenant_id es NOT NULL).');
+      continue;
+    }
+
+    await _supabase.from('usuarios').update({
+      'nombre': usuario.nombre,
+      'pin': usuario.pin,
+      'rol': usuario.rol,
+      'email': usuario.email ?? '',
+      'device_id': usuario.deviceId ?? '',
+      'estado': usuario.estado,
+      'caja_asignada': usuario.cajaAsignada,
+      'departamento': usuario.departamento,
+      'tenant_id': tenantUuid, // ✅ Cambiado
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq('id', usuario.supabaseId!);
+    debugPrint(
+        '✅ Usuario "${usuario.nombre}" actualizado en public.usuarios');
+  } else {
+    debugPrint(
+        '⚠️ Usuario "${usuario.nombre}" tiene supabaseId pero no existe en public.usuarios. Se sincronizará en la próxima descarga.');
+  }
+  sincronizados++;
+  continue;
+}
 
         // ============================================================
         // CASO 2: No tiene supabaseId → recuperar o crear
@@ -388,74 +412,151 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
   }
 }
 
-  Future<void> sincronizarUsuariosDesdeSupabase() async {
-    try {
-      final response = await _supabase
-          .from('usuarios')
-          .select()
-          .order('nombre', ascending: true);
-      if (response.isEmpty) {
-        debugPrint('ℹ️ No hay usuarios en Supabase para descargar');
-        return;
-      }
+ Future<void> sincronizarUsuariosDesdeSupabase() async {
+  try {
+    final response = await _supabase
+        .from('usuarios')
+        .select()
+        .order('nombre', ascending: true);
 
-      debugPrint(
-          '🔄 Descargando ${response.length} usuarios desde Supabase...');
-      final locales = await _isarService.obtenerUsuarios();
-      final Map<int, UsuarioEntity> localesMap = {
-        for (var u in locales) u.id: u
-      };
-
-      for (var data in response) {
-        final int idIsar = data['id_isar'] as int? ?? 0;
-        if (idIsar == 0) {
-          debugPrint('⚠️ Usuario sin id_isar, omitiendo: ${data['nombre']}');
-          continue;
-        }
-
-        final local = localesMap[idIsar];
-        if (local != null) {
-          local.supabaseId = data['id'];
-          local.email = data['email'] ?? local.email;
-          local.deviceId = data['device_id'] ?? local.deviceId;
-          local.cajaAsignada = data['caja_asignada'] ?? local.cajaAsignada;
-          local.departamento = data['departamento'] ?? local.departamento;
-          local.localId = data['local_id'] as int?;
-
-          final estadoNube = data['estado'] as String? ?? 'inactivo';
-          if (estadoNube == 'inactivo' &&
-              (local.estado == 'activo' || local.estado == 'descanso')) {
-            local.estado = 'inactivo';
-            debugPrint(
-                '🔄 Usuario ${local.nombre} marcado como inactivo por sincronización');
-          }
-          await _isarService.guardarUsuario(local);
-        } else {
-          final nuevoUsuario = UsuarioEntity()
-            ..id = idIsar
-            ..nombre = data['nombre'] ?? ''
-            ..pin = data['pin'] ?? '1234'
-            ..rol = data['rol'] ?? 'cajero'
-            ..activo = true
-            ..estado = 'inactivo'
-            ..cajaAsignada = data['caja_asignada'] ?? ''
-            ..email = data['email']
-            ..deviceId = data['device_id'] ?? ''
-            ..departamento = data['departamento']
-            ..localId = data['local_id'] as int?;
-          await _isarService.guardarUsuario(nuevoUsuario);
-        }
-      }
-      debugPrint('✅ Usuarios sincronizados desde Supabase');
-      onDataChanged?.call();
-    } catch (e, stack) {
-      debugPrint('❌ Error descargando usuarios: $e');
-      ErrorService.captureError(e,
-          stack: stack, hint: 'sincronizarUsuariosDesdeSupabase_fallo');
-      rethrow;
+    if (response.isEmpty) {
+      debugPrint('ℹ️ No hay usuarios en Supabase para descargar');
+      return;
     }
-  }
 
+    debugPrint('🔄 Descargando ${response.length} usuarios desde Supabase...');
+
+    final locales = await _isarService.obtenerUsuarios();
+    final Map<int, UsuarioEntity> localesMap = {
+      for (var u in locales) u.id: u,
+    };
+
+    for (var data in response) {
+      final int idIsar = data['id_isar'] as int? ?? 0;
+      if (idIsar == 0) {
+        debugPrint('⚠️ Usuario sin id_isar, omitiendo: ${data['nombre']}');
+        continue;
+      }
+
+      // ✅ Convertir tenant_id (UUID) → localId (Isar int) una sola vez
+      final String? tenantUuid = data['tenant_id'] as String?;
+      int? localIdResuelto;
+      if (tenantUuid != null && tenantUuid.isNotEmpty) {
+        localIdResuelto = await _obtenerIsarIdLocal(tenantUuid);
+      }
+
+      final local = localesMap[idIsar];
+
+      if (local != null) {
+        // ============================================================
+        // USUARIO EXISTENTE → actualizar campos
+        // ============================================================
+        local.supabaseId = data['id'] as String?;
+        local.email = data['email'] as String? ?? local.email;
+        local.deviceId = data['device_id'] as String? ?? local.deviceId;
+        local.cajaAsignada =
+            data['caja_asignada'] as String? ?? local.cajaAsignada;
+        local.departamento =
+            data['departamento'] as String? ?? local.departamento;
+        local.pin = data['pin'] as String? ?? local.pin;
+        local.rol = data['rol'] as String? ?? local.rol;
+
+        // ✅ tenantId directo (UUID)
+        if (tenantUuid != null && tenantUuid.isNotEmpty) {
+          local.tenantId = tenantUuid;
+        }
+        // ✅ localId resuelto (int)
+        if (localIdResuelto != null) {
+          local.localId = localIdResuelto;
+        }
+
+        // ✅ Campos nuevos
+        local.inicioDescanso =
+            data['inicio_descanso'] != null
+                ? DateTime.tryParse(data['inicio_descanso'].toString())
+                : local.inicioDescanso;
+        local.minutosDescanso =
+            data['minutos_descanso'] as int? ?? local.minutosDescanso;
+        local.ultimaActividad =
+            data['ultima_actividad'] != null
+                ? DateTime.tryParse(data['ultima_actividad'].toString())
+                : local.ultimaActividad;
+        local.ultimaActualizacion =
+            data['ultimaActualizacion'] != null
+                ? DateTime.tryParse(data['ultimaActualizacion'].toString())
+                : local.ultimaActualizacion;
+
+        // ✅ Estado: no forzar 'inactivo' si viene estado desde nube
+        final estadoNube = data['estado'] as String?;
+        if (estadoNube != null && estadoNube.isNotEmpty) {
+          local.estado = estadoNube;
+        }
+
+        // ✅ created/updated
+        if (data['creado_en'] != null) {
+          local.createdAt = DateTime.tryParse(data['creado_en'].toString());
+        }
+        if (data['updated_at'] != null) {
+          local.updatedAt = DateTime.tryParse(data['updated_at'].toString());
+        }
+
+        local.sincronizado = true;
+        local.fechaSincronizacion = DateTime.now();
+
+        await _isarService.guardarUsuario(local);
+      } else {
+        // ============================================================
+        // USUARIO NUEVO → crear desde Supabase
+        // ============================================================
+        final nuevoUsuario = UsuarioEntity()
+          ..id = idIsar
+          ..nombre = data['nombre'] as String? ?? ''
+          ..pin = data['pin'] as String? ?? '1234'
+          ..rol = data['rol'] as String? ?? 'cajero'
+          ..activo = true
+          ..estado = data['estado'] as String? ?? 'inactivo'
+          ..cajaAsignada = data['caja_asignada'] as String? ?? 'Caja Principal'
+          ..email = data['email'] as String?
+          ..deviceId = data['device_id'] as String? ?? ''
+          ..departamento = data['departamento'] as String?
+          ..supabaseId = data['id'] as String?
+          ..tenantId = tenantUuid
+          ..localId = localIdResuelto
+          ..inicioDescanso = data['inicio_descanso'] != null
+              ? DateTime.tryParse(data['inicio_descanso'].toString())
+              : null
+          ..minutosDescanso = data['minutos_descanso'] as int?
+          ..ultimaActividad = data['ultima_actividad'] != null
+              ? DateTime.tryParse(data['ultima_actividad'].toString())
+              : null
+          ..ultimaActualizacion = data['ultimaActualizacion'] != null
+              ? DateTime.tryParse(data['ultimaActualizacion'].toString())
+              : null
+          ..createdAt = data['creado_en'] != null
+              ? DateTime.tryParse(data['creado_en'].toString())
+              : null
+          ..updatedAt = data['updated_at'] != null
+              ? DateTime.tryParse(data['updated_at'].toString())
+              : null
+          ..sincronizado = true
+          ..fechaSincronizacion = DateTime.now();
+
+        await _isarService.guardarUsuario(nuevoUsuario);
+      }
+    }
+
+    debugPrint('✅ Usuarios sincronizados desde Supabase');
+    onDataChanged?.call();
+  } catch (e, stack) {
+    debugPrint('❌ Error descargando usuarios: $e');
+    ErrorService.captureError(
+      e,
+      stack: stack,
+      hint: 'sincronizarUsuariosDesdeSupabase_fallo',
+    );
+    rethrow;
+  }
+}
   Future<List<Map<String, dynamic>>> obtenerUsuariosDesdeSupabase() async {
     try {
       final response = await _supabase

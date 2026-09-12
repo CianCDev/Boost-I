@@ -8,7 +8,7 @@ class ProductoEntity {
   Id id = Isar.autoIncrement; // ID local (auto incremental)
 
   @Index(unique: true, replace: true)
-   String codigoBarras;
+  String codigoBarras;
 
   // ──────────────── Datos del producto ────────────────
   String nombre = '';
@@ -33,7 +33,7 @@ class ProductoEntity {
   String proveedorEmail = '';
   String proveedorDireccion = '';
 
-  /// 🔥 NUEVO: UUID del proveedor en Supabase (para la relación)
+  /// UUID del proveedor en Supabase (para la relación)
   @Index()
   String? proveedorSupabaseId;
 
@@ -42,7 +42,6 @@ class ProductoEntity {
 
   // ──────────────── Stock y configuración ────────────────
   double stockMinimo = 5.0;
-  
 
   // ──────────────── Imagen ────────────────
   String? imagenUrl;
@@ -79,7 +78,7 @@ class ProductoEntity {
     this.proveedorTelefono = '',
     this.proveedorEmail = '',
     this.proveedorDireccion = '',
-    this.proveedorSupabaseId, // 🔥 NUEVO
+    this.proveedorSupabaseId,
     this.supabaseId,
     this.stockMinimo = 5.0,
     this.activo = true,
@@ -95,47 +94,90 @@ class ProductoEntity {
     this.version = 0,
   });
 
+  // ──────────────── Helpers privados ────────────────
+
+  /// Convierte un valor dinámico a `int?` sin reventar.
+  /// Útil cuando Supabase envía ints como String por temas de JSONB.
+  static int? _asInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  /// Convierte un valor dinámico a `double?` sin reventar.
+  static double? _asDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
   // ──────────────── Factory desde Supabase ────────────────
   factory ProductoEntity.fromJson(Map<String, dynamic> json) {
+    // ───── supabaseId: aceptar 'uuid' (nuevo) o 'id' (legacy) ─────
+    final rawSupabaseId = json['uuid'] ?? json['id'];
+    final supabaseIdParsed =
+        rawSupabaseId is String && rawSupabaseId.isNotEmpty
+            ? rawSupabaseId
+            : null;
+
+    // ───── proveedor_id: puede ser UUID (String) o int legacy ─────
+    final rawProveedorId = json['proveedor_id'];
+    int? proveedorIdLocal;
+    String? proveedorSupabaseIdParsed;
+
+    if (rawProveedorId is String && rawProveedorId.isNotEmpty) {
+      // Es un UUID de Supabase (caso normal actual)
+      proveedorSupabaseIdParsed = rawProveedorId;
+    } else if (rawProveedorId is int) {
+      // Es un ID local legacy
+      proveedorIdLocal = rawProveedorId;
+    } else if (rawProveedorId is num) {
+      proveedorIdLocal = rawProveedorId.toInt();
+    }
+
     return ProductoEntity(
-      supabaseId: json['id'] as String?,
+      supabaseId: supabaseIdParsed,
       codigoBarras: json['codigo_barras'] as String? ?? '',
       nombre: json['nombre'] as String? ?? '',
       marca: json['marca'] as String? ?? '',
       marcaSupabaseId: json['marca_supabase_id'] as String?,
-      precioUnidad: (json['precio_unidad'] as num?)?.toDouble() ?? 0.0,
-      stock: (json['stock'] as num?)?.toDouble() ?? 0.0,
+      precioUnidad: _asDouble(json['precio_unidad']) ?? 0.0,
+      stock: _asDouble(json['stock']) ?? 0.0,
       esPesado: json['es_pesado'] as bool? ?? false,
       categoria: json['categoria'] as String? ?? 'General',
-      categoriaId: json['categoria_id'] as int?,
-      proveedorId: json['proveedor_id'] as int?, // local (legacy)
+      categoriaId: _asInt(json['categoria_id']),
+      proveedorId: proveedorIdLocal,
+      proveedorSupabaseId: proveedorSupabaseIdParsed,
       proveedorNombre: json['proveedor_nombre'] as String? ?? '',
       proveedorTelefono: json['proveedor_telefono'] as String? ?? '',
       proveedorEmail: json['proveedor_email'] as String? ?? '',
       proveedorDireccion: json['proveedor_direccion'] as String? ?? '',
-      proveedorSupabaseId: json['proveedor_id'] as String?, // 🔥 UUID del proveedor
-      stockMinimo: (json['stock_minimo'] as num?)?.toDouble() ?? 5.0,
+      stockMinimo: _asDouble(json['stock_minimo']) ?? 5.0,
       activo: json['activo'] as bool? ?? true,
       imagenUrl: json['imagen_url'] as String?,
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
+          ? DateTime.tryParse(json['created_at'].toString())
           : null,
       updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'] as String)
+          ? DateTime.tryParse(json['updated_at'].toString())
           : null,
-      createdBy: json['created_by'] as int?,
-      updatedBy: json['updated_by'] as int?,
+      createdBy: _asInt(json['created_by']),
+      updatedBy: _asInt(json['updated_by']),
       createdByName: json['created_by_name'] as String?,
       updatedByName: json['updated_by_name'] as String?,
-      version: json['version'] as int? ?? 0,
+      version: _asInt(json['version']) ?? 0,
     );
   }
-  
 
   // ──────────────── Convertir a JSON para Supabase ────────────────
   Map<String, dynamic> toJson() {
     return {
-      'id': supabaseId,
+      // ✅ Clave 'uuid' para coincidir con Supabase y sync_service
+      'uuid': supabaseId,
       'codigo_barras': codigoBarras,
       'nombre': nombre,
       'marca': marca,
@@ -145,7 +187,9 @@ class ProductoEntity {
       'es_pesado': esPesado,
       'categoria': categoria,
       'categoria_id': categoriaId,
-      'proveedor_id': proveedorSupabaseId, // 🔥 Enviamos el UUID
+      // ✅ Preferir UUID; fallback al int local legacy como String
+      'proveedor_id': proveedorSupabaseId ??
+          (proveedorId?.toString()),
       'proveedor_nombre': proveedorNombre,
       'proveedor_telefono': proveedorTelefono,
       'proveedor_email': proveedorEmail,
