@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/movimiento_lote_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
+import '../../common/filtro_chip_template.dart';
+import '../../common/glass_search_bar.dart';
 
 class MovimientosTab extends ConsumerStatefulWidget {
   final LoteEntity lote;
@@ -21,9 +23,15 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
   String _searchQuery = '';
   late Future<List<MovimientoLoteEntity>> _movimientosFuture;
 
-  final List<String> _meses = [
+  static const _colorPrimary = Color(0xFF8B5CF6);
+  static const _colorSuccess = Color(0xFF10B981);
+  static const _colorInfo = Color(0xFF3B82F6);
+  static const _colorWarning = Color(0xFFF59E0B);
+  static const _colorDanger = Color(0xFFEF4444);
+
+  final List<String> _meses = const [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
   ];
   String _mesSeleccionado = '';
   int _anioSeleccionado = DateTime.now().year;
@@ -41,48 +49,54 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
     });
   }
 
-  List<MovimientoLoteEntity> _filtrarMovimientos(List<MovimientoLoteEntity> movimientos) {
+  List<MovimientoLoteEntity> _filtrarMovimientos(
+      List<MovimientoLoteEntity> movimientos) {
     var resultado = movimientos;
-
     final ahora = DateTime.now();
     final hoy = DateTime(ahora.year, ahora.month, ahora.day);
 
     switch (_periodoSeleccionado) {
       case 'hoy':
-        resultado = resultado.where((m) =>
-            m.fecha.year == hoy.year &&
-            m.fecha.month == hoy.month &&
-            m.fecha.day == hoy.day
-        ).toList();
+        resultado = resultado
+            .where((m) =>
+                m.fecha.year == hoy.year &&
+                m.fecha.month == hoy.month &&
+                m.fecha.day == hoy.day)
+            .toList();
         break;
       case 'semana':
-        final inicioSemana = hoy.subtract(Duration(days: ahora.weekday - 1));
-        resultado = resultado.where((m) => m.fecha.isAfter(inicioSemana)).toList();
+        final inicioSemana =
+            hoy.subtract(Duration(days: ahora.weekday - 1));
+        resultado = resultado
+            .where((m) => m.fecha.isAfter(inicioSemana))
+            .toList();
         break;
       case 'mes':
         final inicioMes = DateTime(ahora.year, ahora.month, 1);
-        resultado = resultado.where((m) => m.fecha.isAfter(inicioMes)).toList();
+        resultado = resultado
+            .where((m) => m.fecha.isAfter(inicioMes))
+            .toList();
         break;
       case 'personalizado':
         final idx = _meses.indexOf(_mesSeleccionado);
         final inicio = DateTime(_anioSeleccionado, idx + 1, 1);
         final fin = DateTime(_anioSeleccionado, idx + 2, 1);
-        resultado = resultado.where((m) =>
-            m.fecha.isAfter(inicio.subtract(const Duration(seconds: 1))) &&
-            m.fecha.isBefore(fin)
-        ).toList();
-        break;
-      default:
+        resultado = resultado
+            .where((m) =>
+                m.fecha.isAfter(inicio.subtract(const Duration(seconds: 1))) &&
+                m.fecha.isBefore(fin))
+            .toList();
         break;
     }
 
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      resultado = resultado.where((m) =>
-          m.tipo.toLowerCase().contains(q) ||
-          (m.observaciones?.toLowerCase().contains(q) ?? false) ||
-          m.usuarioId.toString().contains(q)
-      ).toList();
+      resultado = resultado
+          .where((m) =>
+              m.tipo.toLowerCase().contains(q) ||
+              (m.observaciones?.toLowerCase().contains(q) ?? false) ||
+              m.usuarioId.toString().contains(q))
+          .toList();
     }
 
     return resultado;
@@ -95,31 +109,69 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
 
     return Column(
       children: [
-        // Filtros
+        // ===== FILTROS =====
         Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildPeriodButton('hoy', 'Hoy', isDark),
-                          const SizedBox(width: 8),
-                          _buildPeriodButton('semana', 'Semana', isDark),
-                          const SizedBox(width: 8),
-                          _buildPeriodButton('mes', 'Mes', isDark),
-                          const SizedBox(width: 8),
-                          _buildPeriodButton('personalizado', '📅', isDark),
-                        ],
-                      ),
+              // Chips de período
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    FiltroChip(
+                      label: 'Hoy',
+                      icon: Icons.today_rounded,
+                      color: _colorInfo,
+                      selected: _periodoSeleccionado == 'hoy',
+                      onTap: () {
+                        setState(() => _periodoSeleccionado = 'hoy');
+                        _cargarMovimientos();
+                      },
+                      size: FiltroChipSize.small,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    FiltroChip(
+                      label: 'Semana',
+                      icon: Icons.date_range_rounded,
+                      color: _colorInfo,
+                      selected: _periodoSeleccionado == 'semana',
+                      onTap: () {
+                        setState(() => _periodoSeleccionado = 'semana');
+                        _cargarMovimientos();
+                      },
+                      size: FiltroChipSize.small,
+                    ),
+                    const SizedBox(width: 8),
+                    FiltroChip(
+                      label: 'Mes',
+                      icon: Icons.calendar_month_rounded,
+                      color: _colorInfo,
+                      selected: _periodoSeleccionado == 'mes',
+                      onTap: () {
+                        setState(() => _periodoSeleccionado = 'mes');
+                        _cargarMovimientos();
+                      },
+                      size: FiltroChipSize.small,
+                    ),
+                    const SizedBox(width: 8),
+                    FiltroChip(
+                      label: 'Personalizado',
+                      icon: Icons.calendar_today_rounded,
+                      color: _colorPrimary,
+                      selected: _periodoSeleccionado == 'personalizado',
+                      onTap: () {
+                        setState(
+                            () => _periodoSeleccionado = 'personalizado');
+                        _cargarMovimientos();
+                      },
+                      size: FiltroChipSize.small,
+                    ),
+                  ],
+                ),
               ),
+
+              // Filtro personalizado
               if (_periodoSeleccionado == 'personalizado')
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -128,21 +180,17 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
                       Expanded(
                         child: DropdownButtonFormField<String>(
                           initialValue: _mesSeleccionado,
-                          items: _meses.map((mes) {
-                            return DropdownMenuItem(value: mes, child: Text(mes));
-                          }).toList(),
+                          items: _meses
+                              .map((mes) => DropdownMenuItem(
+                                  value: mes, child: Text(mes)))
+                              .toList(),
                           onChanged: (value) {
                             if (value != null) {
                               setState(() => _mesSeleccionado = value);
                               _cargarMovimientos();
                             }
                           },
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          ),
+                          decoration: _dropdownDecor(colorScheme, isDark),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -151,7 +199,8 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
                           initialValue: _anioSeleccionado,
                           items: List.generate(5, (i) {
                             final anio = DateTime.now().year - i;
-                            return DropdownMenuItem(value: anio, child: Text(anio.toString()));
+                            return DropdownMenuItem(
+                                value: anio, child: Text(anio.toString()));
                           }),
                           onChanged: (value) {
                             if (value != null) {
@@ -159,36 +208,18 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
                               _cargarMovimientos();
                             }
                           },
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          ),
+                          decoration: _dropdownDecor("" as ColorScheme, isDark),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.search_rounded),
-                        onPressed: _cargarMovimientos,
                       ),
                     ],
                   ),
                 ),
+
               const SizedBox(height: 8),
-              TextField(
-                decoration: InputDecoration(
-                  hintText: 'Buscar por tipo, usuario...',
-                  prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                  filled: true,
-                  fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                  isDense: true,
-                ),
+
+              // Búsqueda
+              GlassSearchBar(
+                hint: 'Buscar por tipo, usuario...',
                 onChanged: (value) {
                   setState(() => _searchQuery = value);
                   _cargarMovimientos();
@@ -197,6 +228,8 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
             ],
           ),
         ),
+
+        // ===== LISTA =====
         Expanded(
           child: FutureBuilder<List<MovimientoLoteEntity>>(
             future: _movimientosFuture,
@@ -204,49 +237,47 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-
               if (snapshot.hasError) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.error_outline, size: 48, color: colorScheme.error),
+                      Icon(Icons.error_outline,
+                          size: 48, color: colorScheme.error),
                       const SizedBox(height: 12),
-                      Text('Error al cargar movimientos'),
+                      const Text('Error al cargar movimientos'),
                     ],
                   ),
                 );
               }
-
               final movimientos = _filtrarMovimientos(snapshot.data ?? []);
-
               if (movimientos.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.history_rounded, size: 64, color: Colors.grey.shade400),
+                      Icon(Icons.history_rounded,
+                          size: 64, color: colorScheme.onSurfaceVariant),
                       const SizedBox(height: 16),
                       Text(
                         'No hay movimientos para este período',
-                        style: TextStyle(color: Colors.grey.shade600),
+                        style:
+                            TextStyle(color: colorScheme.onSurfaceVariant),
                       ),
                     ],
                   ),
                 );
               }
-
               return ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 itemCount: movimientos.length,
-                separatorBuilder: (context, index) => Divider(
-                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200,
+                separatorBuilder: (_, __) => Divider(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.4),
                   height: 1,
                 ),
-                itemBuilder: (context, index) {
-                  final m = movimientos[index];
-                  return _buildMovimientoItem(context, m, colorScheme, isDark);
-                },
+                itemBuilder: (context, index) =>
+                    _buildMovimientoItem(movimientos[index], colorScheme),
               );
             },
           ),
@@ -255,37 +286,29 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
     );
   }
 
-  Widget _buildPeriodButton(String value, String label, bool isDark) {
-    final selected = _periodoSeleccionado == value;
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) {
-        setState(() {
-          _periodoSeleccionado = value;
-          _cargarMovimientos();
-        });
-      },
-      backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100,
-      selectedColor: Theme.of(context).colorScheme.primary,
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+  InputDecoration _dropdownDecor(ColorScheme colorScheme, bool isDark) {
+    return InputDecoration(
+      filled: true,
+      fillColor: isDark
+          ? Colors.white.withValues(alpha: 0.04)
+          : Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
       ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: selected ? Colors.transparent : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade300),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
         ),
       ),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
   }
 
   Widget _buildMovimientoItem(
-    BuildContext context,
-    MovimientoLoteEntity m,
-    ColorScheme colorScheme,
-    bool isDark,
-  ) {
+      MovimientoLoteEntity m, ColorScheme colorScheme) {
     final color = _getTipoColor(m.tipo);
     final icon = _getTipoIcon(m.tipo);
 
@@ -295,7 +318,7 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, size: 20, color: color),
       ),
@@ -311,12 +334,15 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
         children: [
           Text(
             'Cantidad: ${m.cantidad} kg',
-            style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),
           if (m.observaciones != null && m.observaciones!.isNotEmpty)
             Text(
               m.observaciones!,
-              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+              style: TextStyle(
+                fontSize: 11,
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              ),
             ),
         ],
       ),
@@ -326,11 +352,13 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
         children: [
           Text(
             DateFormat('dd/MM/yyyy HH:mm').format(m.fecha),
-            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
           ),
           Text(
             'Usuario: ${m.usuarioId}',
-            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+            style: TextStyle(
+                fontSize: 10,
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
           ),
         ],
       ),
@@ -339,31 +367,46 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
 
   Color _getTipoColor(String tipo) {
     switch (tipo) {
-      case 'activacion': return Colors.green;
-      case 'venta': return Colors.blue;
-      case 'traspaso': return Colors.orange;
-      case 'devolucion': return Colors.purple;
-      default: return Colors.grey;
+      case 'activacion':
+        return _colorSuccess;
+      case 'venta':
+        return _colorInfo;
+      case 'traspaso':
+        return _colorWarning;
+      case 'devolucion':
+        return _colorPrimary;
+      default:
+        return const Color(0xFF6B7280);
     }
   }
 
   IconData _getTipoIcon(String tipo) {
     switch (tipo) {
-      case 'activacion': return Icons.play_arrow_rounded;
-      case 'venta': return Icons.shopping_cart_rounded;
-      case 'traspaso': return Icons.swap_horiz_rounded;
-      case 'devolucion': return Icons.undo_rounded;
-      default: return Icons.circle_rounded;
+      case 'activacion':
+        return Icons.play_arrow_rounded;
+      case 'venta':
+        return Icons.shopping_cart_rounded;
+      case 'traspaso':
+        return Icons.swap_horiz_rounded;
+      case 'devolucion':
+        return Icons.undo_rounded;
+      default:
+        return Icons.circle_rounded;
     }
   }
 
   String _getTipoLabel(String tipo) {
     switch (tipo) {
-      case 'activacion': return 'Activación';
-      case 'venta': return 'Venta';
-      case 'traspaso': return 'Traspaso';
-      case 'devolucion': return 'Devolución';
-      default: return tipo;
+      case 'activacion':
+        return 'Activación';
+      case 'venta':
+        return 'Venta';
+      case 'traspaso':
+        return 'Traspaso';
+      case 'devolucion':
+        return 'Devolución';
+      default:
+        return tipo;
     }
   }
 }

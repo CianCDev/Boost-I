@@ -7,28 +7,35 @@ class DetallesList extends StatelessWidget {
 
   const DetallesList({super.key, required this.detalles});
 
+  static const _colorPrimary = Color(0xFF8B5CF6);
+  static const _colorSuccess = Color(0xFF10B981);
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final isMobile = ResponsiveHelper.isMobile(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final cardDecoration = BoxDecoration(
+      color: isDark
+          ? colorScheme.surfaceContainerHigh.withValues(alpha: 0.5)
+          : Colors.white.withValues(alpha: 0.75),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        width: 1.5,
+      ),
+    );
 
     if (detalles.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.white.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.5),
-            width: 1.5,
-          ),
-        ),
+        decoration: cardDecoration,
         child: Center(
           child: Text(
             'No hay productos',
-            style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
           ),
         ),
       );
@@ -37,16 +44,7 @@ class DetallesList extends StatelessWidget {
     final total = detalles.fold(0.0, (sum, d) => sum + d.subtotal);
 
     return Container(
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.white.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-      ),
+      decoration: cardDecoration,
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -54,9 +52,9 @@ class DetallesList extends StatelessWidget {
           Text(
             'Productos',
             style: TextStyle(
-              fontSize: isMobile ? 14 : 16,
+              fontSize: isMobile ? 14 : 15,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 10),
@@ -67,10 +65,11 @@ class DetallesList extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isDark
                     ? Colors.white.withValues(alpha: 0.04)
-                    : Colors.grey.shade50,
+                    : colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade200,
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.4),
                   width: 1,
                 ),
               ),
@@ -79,10 +78,11 @@ class DetallesList extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                      color: _colorPrimary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.shopping_cart_rounded, color: const Color(0xFF8B5CF6), size: 18),
+                    child: const Icon(Icons.shopping_cart_rounded,
+                        color: _colorPrimary, size: 18),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -94,7 +94,7 @@ class DetallesList extends StatelessWidget {
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: isMobile ? 13 : 14,
-                            color: isDark ? Colors.white : Colors.black87,
+                            color: colorScheme.onSurface,
                           ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
@@ -103,7 +103,7 @@ class DetallesList extends StatelessWidget {
                           '${d.cantidad} x \$${d.precioUnidad.toStringAsFixed(2)}',
                           style: TextStyle(
                             fontSize: isMobile ? 11 : 12,
-                            color: isDark ? Colors.white54 : Colors.black54,
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -114,14 +114,14 @@ class DetallesList extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: isMobile ? 13 : 14,
-                      color: const Color(0xFF8B5CF6),
+                      color: _colorPrimary,
                     ),
                   ),
                 ],
               ),
             );
           }),
-          Divider(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200),
+          Divider(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
           const SizedBox(height: 4),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -129,9 +129,9 @@ class DetallesList extends StatelessWidget {
               Text(
                 'Total',
                 style: TextStyle(
-                  fontSize: isMobile ? 14 : 16,
+                  fontSize: isMobile ? 14 : 15,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white70 : Colors.black54,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
               Text(
@@ -139,7 +139,7 @@ class DetallesList extends StatelessWidget {
                 style: TextStyle(
                   fontSize: isMobile ? 16 : 18,
                   fontWeight: FontWeight.bold,
-                  color: const Color(0xFF10B981),
+                  color: _colorSuccess,
                 ),
               ),
             ],

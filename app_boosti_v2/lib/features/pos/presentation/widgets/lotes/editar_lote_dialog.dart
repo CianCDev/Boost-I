@@ -1,11 +1,11 @@
 // lib/features/pos/presentation/widgets/lotes/editar_lote_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/shared/barcode_scanner_dialog.dart';
-
+import '../common/glass_dialog.dart';
+import '../common/dialog_header.dart';
 
 class EditarLoteDialog extends ConsumerStatefulWidget {
   final LoteEntity lote;
@@ -25,6 +25,10 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
   String? _errorMessage;
   String? _productoNombre;
 
+  static const _colorPrimary = Color(0xFF8B5CF6);
+  static const _colorSuccess = Color(0xFF10B981);
+  static const _colorDanger = Color(0xFFEF4444);
+
   @override
   void initState() {
     super.initState();
@@ -32,8 +36,8 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
     _cargarProductoNombre();
 
     if (widget.lote.fechaVencimiento != null) {
-      final date = widget.lote.fechaVencimiento!;
-      _vencimientoController.text = _formatDate(date);
+      _vencimientoController.text =
+          _formatDate(widget.lote.fechaVencimiento!);
     }
   }
 
@@ -46,17 +50,18 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
   }
 
   Future<void> _cargarProductoNombre() async {
-    final producto = await _isar.obtenerProductoPorId(widget.lote.productoId);
+    final producto =
+        await _isar.obtenerProductoPorId(widget.lote.productoId);
     if (mounted) {
       setState(() {
-        _productoNombre = producto?.nombre ?? 'Producto #${widget.lote.productoId}';
+        _productoNombre =
+            producto?.nombre ?? 'Producto #${widget.lote.productoId}';
       });
     }
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
-  }
+  String _formatDate(DateTime date) =>
+      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
 
   DateTime? _parseDate(String text) {
     final parts = text.split('/');
@@ -65,11 +70,12 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
     final month = int.tryParse(parts[1]);
     final year = int.tryParse(parts[2]);
     if (day == null || month == null || year == null) return null;
-    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1900) return null;
+    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1900) {
+      return null;
+    }
     return DateTime(year, month, day);
   }
 
-  // ✅ MÁSCARA DE FECHA AUTOMÁTICA
   void _applyDateMask(String value) {
     final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
     String formatted = '';
@@ -78,7 +84,6 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
       formatted += digits[i];
     }
     if (digits.length >= 8) {
-      // Asegurar que los últimos 4 dígitos sean el año
       final day = digits.substring(0, 2);
       final month = digits.substring(2, 4);
       final year = digits.substring(4, 8);
@@ -105,7 +110,6 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
   Future<void> _guardar() async {
     setState(() => _isLoading = true);
 
-    // Validar código (opcional)
     final codigo = _codigoController.text.trim();
     if (codigo.isEmpty) {
       setState(() {
@@ -115,7 +119,6 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
       return;
     }
 
-    // Validar fecha
     DateTime? nuevaFecha;
     if (_vencimientoController.text.isNotEmpty) {
       nuevaFecha = _parseDate(_vencimientoController.text);
@@ -126,10 +129,11 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
         });
         return;
       }
-      // Validar que la fecha no sea en el pasado
-      if (nuevaFecha.isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
+      if (nuevaFecha
+          .isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
         setState(() {
-          _errorMessage = 'La fecha de vencimiento no puede ser en el pasado';
+          _errorMessage =
+              'La fecha de vencimiento no puede ser en el pasado';
           _isLoading = false;
         });
         return;
@@ -141,18 +145,17 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
       lote.codigoLoteProveedor = codigo;
       lote.fechaVencimiento = nuevaFecha;
       lote.sincronizado = false;
-
       await _isar.guardarLote(lote);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Lote actualizado correctamente'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
-        Navigator.pop(context, true);
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Lote actualizado correctamente'),
+          backgroundColor: _colorSuccess,
+        ),
+      );
+      Navigator.pop(context, true);
     } catch (e) {
       setState(() {
         _errorMessage = 'Error: $e';
@@ -163,66 +166,47 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: Container(
-        constraints: BoxConstraints(maxWidth: 450),
+    return GlassDialog(
+      maxWidth: 480,
+      scrollable: true,
+      child: Padding(
         padding: const EdgeInsets.all(24),
-        color: colorScheme.surface,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // HEADER
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.edit_rounded, color: Color(0xFF8B5CF6)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Editar Lote',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: Icon(Icons.close_rounded, color: colorScheme.onSurfaceVariant),
-                ),
-              ],
+            const DialogHeader(
+              icon: Icons.edit_rounded,
+              title: 'Editar Lote',
+              subtitle: 'Modifica código y fecha de vencimiento',
             ),
-            const SizedBox(height: 8),
-            // Mostrar nombre del producto
+            const SizedBox(height: 20),
+
+            // ===== PRODUCTO =====
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                color: colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.35),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colorScheme.outlineVariant),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.inventory_2_rounded, color: colorScheme.primary),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.inventory_2_rounded,
+                      color: _colorPrimary, size: 20),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       _productoNombre ?? 'Cargando...',
                       style: TextStyle(
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                         color: colorScheme.onSurface,
                       ),
                     ),
@@ -232,42 +216,87 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
             ),
             const SizedBox(height: 16),
 
-            // Código de barras con botón de escaneo
+            // ===== CÓDIGO =====
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _codigoController,
+                    style: TextStyle(color: colorScheme.onSurface),
                     decoration: InputDecoration(
                       labelText: 'Código de barras *',
-                      prefixIcon: const Icon(Icons.qr_code),
+                      labelStyle:
+                          TextStyle(color: colorScheme.onSurfaceVariant),
+                      prefixIcon:
+                          const Icon(Icons.qr_code, color: _colorPrimary),
+                      filled: true,
+                      fillColor: isDark
+                          ? Colors.white.withValues(alpha: 0.04)
+                          : const Color(0xFFF9FAFB),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: colorScheme.outlineVariant
+                              .withValues(alpha: 0.5),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: _colorPrimary, width: 2),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _escanearCodigo,
-                  icon: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF10B981)),
-                  tooltip: 'Escanear código',
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: IconButton(
+                    onPressed: _escanearCodigo,
+                    icon: const Icon(Icons.qr_code_scanner_rounded,
+                        color: _colorSuccess, size: 28),
+                    tooltip: 'Escanear código',
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
-            // Fecha de vencimiento con máscara automática
+            // ===== FECHA =====
             TextField(
               controller: _vencimientoController,
               focusNode: _vencimientoFocus,
               keyboardType: TextInputType.number,
+              style: TextStyle(color: colorScheme.onSurface),
               decoration: InputDecoration(
                 labelText: 'Fecha de vencimiento (DD/MM/AAAA)',
-                prefixIcon: const Icon(Icons.calendar_today),
+                labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+                prefixIcon:
+                    const Icon(Icons.calendar_today, color: _colorPrimary),
                 hintText: '__/__/____',
+                filled: true,
+                fillColor: isDark
+                    ? Colors.white.withValues(alpha: 0.04)
+                    : const Color(0xFFF9FAFB),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color:
+                        colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: _colorPrimary, width: 2),
                 ),
                 errorText: _errorMessage,
               ),
@@ -277,46 +306,71 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
                   setState(() => _errorMessage = null);
                 }
               },
-              inputFormatters: [
-                // Solo permitir dígitos y barras (la máscara se encarga)
-              ],
             ),
-            const SizedBox(height: 8),
-
-            // Mensaje de ayuda para la fecha
+            const SizedBox(height: 6),
             Text(
               'Formato: DD/MM/AAAA. Ej: 31/12/2025',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 24),
 
-            // Botones
+            // ===== BOTONES =====
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: _isLoading ? null : () => Navigator.pop(context),
-                    child: const Text('Cancelar'),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: OutlinedButton(
+                      onPressed: _isLoading
+                          ? null
+                          : () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: colorScheme.onSurfaceVariant,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: colorScheme.outlineVariant
+                                .withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
+                      child: const Text('Cancelar',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _guardar,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF8B5CF6),
-                      foregroundColor: Colors.white,
+                  child: MouseRegion(
+                    cursor: _isLoading
+                        ? SystemMouseCursors.forbidden
+                        : SystemMouseCursors.click,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _guardar,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _colorPrimary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Guardar',
+                              style:
+                                  TextStyle(fontWeight: FontWeight.bold)),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Text('Guardar'),
                   ),
                 ),
               ],

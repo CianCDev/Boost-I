@@ -1,7 +1,7 @@
+// lib/features/pos/presentation/screens/proveedores_screen.dart
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
@@ -14,6 +14,8 @@ import 'package:app_boosti_v2/features/pos/presentation/widgets/proveedores/prov
 import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/common/glass_search_bar.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/common/segmented_toggle.dart';
 
 class ProveedoresScreen extends ConsumerStatefulWidget {
   const ProveedoresScreen({super.key});
@@ -30,6 +32,11 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
   bool _isSyncing = false;
   Timer? _debounce;
 
+  static const _colorPrimary = Color(0xFF8B5CF6);
+  static const _colorSuccess = Color(0xFF10B981);
+  static const _colorDanger = Color(0xFFEF4444);
+  static const _colorWarning = Color(0xFFF59E0B);
+
   @override
   void initState() {
     super.initState();
@@ -45,111 +52,44 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
   Future<void> _cargarProductos() async {
     final isar = ref.read(isarServiceProvider);
     final productos = await isar.obtenerProductos();
-    if (mounted) {
-      setState(() => _productos = productos);
-    }
+    if (mounted) setState(() => _productos = productos);
   }
 
-  // ==================== SINCRONIZACIÓN ====================
+  void _invalidarLista() {
+    ref.invalidate(proveedoresConFiltroProvider((
+      query: _queryBusqueda,
+      mostrarInactivos: _mostrarInactivos,
+      productoId: _productoFiltroId,
+    )));
+  }
+
+  // ============================================================
+  // SYNC
+  // ============================================================
   Future<void> _sincronizarProveedores() async {
     if (_isSyncing) return;
     setState(() => _isSyncing = true);
-
     try {
       final sync = SyncService();
       await sync.sincronizarProveedoresPendientes();
       await sync.descargarProveedoresDesdeSupabase();
-
-      ref.invalidate(proveedoresConFiltroProvider((
-        query: _queryBusqueda,
-        mostrarInactivos: _mostrarInactivos,
-        productoId: _productoFiltroId,
-      )));
+      _invalidarLista();
       await _cargarProductos();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Proveedores sincronizados correctamente'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
+      if (mounted) _snack('Proveedores sincronizados', _colorSuccess);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Error al sincronizar: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-      debugPrint('❌ Error en sincronización de proveedores: $e');
+      if (mounted) _snack('Error al sincronizar: $e', _colorDanger);
     } finally {
-      if (mounted) {
-        setState(() => _isSyncing = false);
-      }
+      if (mounted) setState(() => _isSyncing = false);
     }
   }
 
-  Future<void> _sincronizarProveedoresForzada() async {
-    if (_isSyncing) return;
-    setState(() => _isSyncing = true);
-
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final currentContext = context;
-
-    try {
-      debugPrint('🔥 Iniciando sincronización forzada de proveedores...');
-      final isarService = ref.read(isarServiceProvider);
-      final pendientes = await isarService.obtenerProveedoresPendientesSync();
-      final cantidadPendientes = pendientes.length;
-
-      final sync = SyncService();
-      await sync.sincronizarProveedoresPendientes();
-      debugPrint('⬆️ $cantidadPendientes proveedores subidos a Supabase');
-
-      await sync.descargarProveedoresDesdeSupabase();
-      debugPrint('📥 Proveedores descargados desde Supabase');
-
-      ref.invalidate(proveedoresConFiltroProvider((
-        query: _queryBusqueda,
-        mostrarInactivos: _mostrarInactivos,
-        productoId: _productoFiltroId,
-      )));
-      await _cargarProductos();
-
-      if (!currentContext.mounted) return;
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text('✅ Sincronización forzada completada: $cantidadPendientes subidos'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    } catch (e) {
-      if (!currentContext.mounted) return;
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text('❌ Error en sincronización forzada: $e'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-      debugPrint('❌ Error en sincronización forzada: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isSyncing = false);
-      }
-    }
-  }
-
-  // ==================== ELIMINACIÓN PROFESIONAL ====================
+  // ============================================================
+  // ELIMINACIÓN
+  // ============================================================
   Future<void> _eliminarProveedor(ProveedorEntity proveedor) async {
     final isar = ref.read(isarServiceProvider);
-    final productosAsociados = await isar.obtenerProductosPorProveedor(proveedor.id);
+    final productosAsociados =
+        await isar.obtenerProductosPorProveedor(proveedor.id);
 
     if (productosAsociados.isEmpty) {
       await _confirmarYEliminar(proveedor);
@@ -175,14 +115,10 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
-              '• Desvincular: los productos quedarán sin proveedor.',
-              style: TextStyle(fontSize: 13),
-            ),
-            const Text(
-              '• Reasignar: mover los productos a otro proveedor.',
-              style: TextStyle(fontSize: 13),
-            ),
+            const Text('• Desvincular: quedarán sin proveedor.',
+                style: TextStyle(fontSize: 13)),
+            const Text('• Reasignar: mover a otro proveedor.',
+                style: TextStyle(fontSize: 13)),
           ],
         ),
         actions: [
@@ -192,22 +128,21 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, 'unlink'),
-            child: const Text('Desvincular productos'),
+            child: const Text('Desvincular'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, 'reassign'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF8B5CF6),
+              backgroundColor: _colorPrimary,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Reasignar a otro'),
+            child: const Text('Reasignar'),
           ),
         ],
       ),
     );
 
     if (action == 'cancel') return;
-
     if (action == 'unlink') {
       await _desvincularYEliminar(proveedor, productosAsociados);
     } else if (action == 'reassign') {
@@ -221,93 +156,69 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Eliminar Proveedor'),
-        content: Text('¿Estás seguro de eliminar a "${proveedor.nombre}"? Esta acción no se puede deshacer.'),
+        content: Text(
+            '¿Estás seguro de eliminar a "${proveedor.nombre}"? Esta acción no se puede deshacer.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _colorDanger,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Eliminar'),
           ),
         ],
       ),
     );
-
-    if (confirm == true) {
-      await _ejecutarEliminacion(proveedor);
-    }
+    if (confirm == true) await _ejecutarEliminacion(proveedor);
   }
 
-  Future<void> _desvincularYEliminar(ProveedorEntity proveedor, List<ProductoEntity> productos) async {
+  Future<void> _desvincularYEliminar(
+      ProveedorEntity proveedor, List<ProductoEntity> productos) async {
     final isar = ref.read(isarServiceProvider);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
     try {
-      for (var producto in productos) {
-        producto.proveedorId = null;
-        await isar.guardarProducto(producto);
+      for (var p in productos) {
+        p.proveedorId = null;
+        await isar.guardarProducto(p);
       }
-
-      final exito = await isar.eliminarProveedor(proveedor.id);
-      if (exito) {
-        if (proveedor.supabaseId != null && proveedor.supabaseId!.isNotEmpty) {
-          await SyncService().eliminarProveedorEnSupabase(proveedor.supabaseId!);
+      final ok = await isar.eliminarProveedor(proveedor.id);
+      if (ok) {
+        if (proveedor.supabaseId?.isNotEmpty ?? false) {
+          await SyncService()
+              .eliminarProveedorEnSupabase(proveedor.supabaseId!);
         }
-        ref.invalidate(proveedoresConFiltroProvider((
-          query: _queryBusqueda,
-          mostrarInactivos: _mostrarInactivos,
-          productoId: _productoFiltroId,
-        )));
+        _invalidarLista();
         if (mounted) {
-          scaffoldMessenger.showSnackBar(
-            const SnackBar(
-              content: Text('✅ Proveedor eliminado. Productos desvinculados.'),
-              backgroundColor: Color(0xFF10B981),
-            ),
-          );
+          _snack('Proveedor eliminado. Productos desvinculados.',
+              _colorSuccess);
         }
       } else {
-        if (mounted) {
-          scaffoldMessenger.showSnackBar(
-            const SnackBar(
-              content: Text('❌ Error al eliminar el proveedor'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        if (mounted) _snack('Error al eliminar el proveedor', _colorDanger);
       }
     } catch (e) {
-      if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
-        );
-      }
+      if (mounted) _snack('Error: $e', _colorDanger);
     }
   }
 
-  Future<void> _reasignarYEliminar(ProveedorEntity proveedor, List<ProductoEntity> productos) async {
+  Future<void> _reasignarYEliminar(
+      ProveedorEntity proveedor, List<ProductoEntity> productos) async {
     final isar = ref.read(isarServiceProvider);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final otros = await isar.obtenerProveedores(soloActivos: true);
+    otros.removeWhere((p) => p.id == proveedor.id);
 
-    final otrosProveedores = await isar.obtenerProveedores(soloActivos: true);
-    otrosProveedores.removeWhere((p) => p.id == proveedor.id);
-
-    if (otrosProveedores.isEmpty) {
+    if (otros.isEmpty) {
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('No hay otros proveedores activos para reasignar.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        _snack('No hay otros proveedores activos para reasignar.',
+            _colorWarning);
       }
       return;
     }
 
-    final proveedorDestino = await showDialog<ProveedorEntity>(
+    final destino = await showDialog<ProveedorEntity>(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -316,14 +227,18 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
           width: double.maxFinite,
           height: 250,
           child: ListView.builder(
-            itemCount: otrosProveedores.length,
-            itemBuilder: (context, index) {
-              final p = otrosProveedores[index];
-              return ListTile(
-                title: Text(p.nombre),
-                subtitle: Text(p.empresa ?? ''),
-                leading: const Icon(Icons.business_center_rounded),
-                onTap: () => Navigator.pop(context, p),
+            itemCount: otros.length,
+            itemBuilder: (context, i) {
+              final p = otros[i];
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: ListTile(
+                  title: Text(p.nombre),
+                  subtitle: Text(p.empresa ?? ''),
+                  leading: const Icon(Icons.business_center_rounded,
+                      color: _colorPrimary),
+                  onTap: () => Navigator.pop(context, p),
+                ),
               );
             },
           ),
@@ -337,100 +252,64 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
       ),
     );
 
-    if (proveedorDestino == null) return;
+    if (destino == null) return;
 
     try {
-      for (var producto in productos) {
-        producto.proveedorId = proveedorDestino.id;
-        await isar.guardarProducto(producto);
+      for (var p in productos) {
+        p.proveedorId = destino.id;
+        await isar.guardarProducto(p);
       }
-
-      final exito = await isar.eliminarProveedor(proveedor.id);
-      if (exito) {
-        if (proveedor.supabaseId != null && proveedor.supabaseId!.isNotEmpty) {
-          await SyncService().eliminarProveedorEnSupabase(proveedor.supabaseId!);
+      final ok = await isar.eliminarProveedor(proveedor.id);
+      if (ok) {
+        if (proveedor.supabaseId?.isNotEmpty ?? false) {
+          await SyncService()
+              .eliminarProveedorEnSupabase(proveedor.supabaseId!);
         }
-        ref.invalidate(proveedoresConFiltroProvider((
-          query: _queryBusqueda,
-          mostrarInactivos: _mostrarInactivos,
-          productoId: _productoFiltroId,
-        )));
+        _invalidarLista();
         if (mounted) {
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              content: Text('✅ Productos reasignados a "${proveedorDestino.nombre}" y proveedor eliminado'),
-              backgroundColor: const Color(0xFF10B981),
-            ),
-          );
+          _snack(
+              'Productos reasignados a "${destino.nombre}" y proveedor eliminado',
+              _colorSuccess);
         }
       } else {
-        if (mounted) {
-          scaffoldMessenger.showSnackBar(
-            const SnackBar(
-              content: Text('❌ Error al eliminar el proveedor'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        if (mounted) _snack('Error al eliminar el proveedor', _colorDanger);
       }
     } catch (e) {
-      if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
-        );
-      }
+      if (mounted) _snack('Error: $e', _colorDanger);
     }
   }
 
   Future<void> _ejecutarEliminacion(ProveedorEntity proveedor) async {
     final isar = ref.read(isarServiceProvider);
-    final syncService = SyncService();
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
+    final sync = SyncService();
     try {
-      final exitoLocal = await isar.eliminarProveedor(proveedor.id);
-      if (exitoLocal) {
-        if (proveedor.supabaseId != null && proveedor.supabaseId!.isNotEmpty) {
-          await syncService.eliminarProveedorEnSupabase(proveedor.supabaseId!);
+      final ok = await isar.eliminarProveedor(proveedor.id);
+      if (ok) {
+        if (proveedor.supabaseId?.isNotEmpty ?? false) {
+          await sync.eliminarProveedorEnSupabase(proveedor.supabaseId!);
         }
-        ref.invalidate(proveedoresConFiltroProvider((
-          query: _queryBusqueda,
-          mostrarInactivos: _mostrarInactivos,
-          productoId: _productoFiltroId,
-        )));
-        if (mounted) {
-          scaffoldMessenger.showSnackBar(
-            const SnackBar(
-              content: Text('✅ Proveedor eliminado correctamente'),
-              backgroundColor: Color(0xFF10B981),
-            ),
-          );
-        }
+        _invalidarLista();
+        if (mounted) _snack('Proveedor eliminado correctamente', _colorSuccess);
       } else {
         if (mounted) {
-          scaffoldMessenger.showSnackBar(
-            const SnackBar(
-              content: Text('❌ No se pudo eliminar: tiene productos asociados'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          _snack('No se pudo eliminar: tiene productos asociados',
+              _colorWarning);
         }
       }
     } catch (e) {
-      if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
-        );
-      }
+      if (mounted) _snack('Error: $e', _colorDanger);
     }
   }
 
-  // ==================== BUILD Y UI ====================
+  // ============================================================
+  // BUILD
+  // ============================================================
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final isMobile = ResponsiveHelper.isMobile(context);
-    final colorScheme = Theme.of(context).colorScheme;
 
     final proveedoresAsync = ref.watch(proveedoresConFiltroProvider((
       query: _queryBusqueda,
@@ -439,36 +318,41 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     )));
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0F172A)
-          : const Color(0xFFF0F4F8),
+      backgroundColor: colorScheme.surface,
       appBar: CustomAppBar(
         title: isMobile ? 'Proveedores' : 'Gestión de Proveedores',
         showBackButton: true,
         centerTitle: false,
         actions: [
-          IconButton(
-            icon: _isSyncing
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                : const Icon(Icons.sync_rounded, color: Colors.white),
-            onPressed: _isSyncing ? null : _sincronizarProveedoresForzada,
-            tooltip: 'Sincronizar',
+          MouseRegion(
+            cursor: _isSyncing
+                ? SystemMouseCursors.forbidden
+                : SystemMouseCursors.click,
+            child: IconButton(
+              icon: _isSyncing
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.sync_rounded, color: Colors.white),
+              onPressed: _isSyncing ? null : _sincronizarProveedores,
+              tooltip: 'Sincronizar',
+            ),
           ),
-          IconButton(
-            onPressed: () {
-              ref.invalidate(proveedoresConFiltroProvider((
-                query: _queryBusqueda,
-                mostrarInactivos: _mostrarInactivos,
-                productoId: _productoFiltroId,
-              )));
-              _cargarProductos();
-            },
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-            tooltip: 'Recargar lista',
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: IconButton(
+              onPressed: () {
+                _invalidarLista();
+                _cargarProductos();
+              },
+              icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+              tooltip: 'Recargar lista',
+            ),
           ),
         ],
       ),
@@ -478,248 +362,181 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             children: [
-              _buildSearchBar(colorScheme, isDark),
+              // ===== SEARCH =====
+              GlassSearchBar(
+                hint: 'Buscar por nombre o empresa...',
+                onChanged: (value) {
+                  if (_debounce?.isActive ?? false) _debounce!.cancel();
+                  _debounce = Timer(const Duration(milliseconds: 400), () {
+                    if (mounted) setState(() => _queryBusqueda = value);
+                  });
+                },
+              ),
               const SizedBox(height: 12),
+
+              // ===== FILTROS =====
               _buildFiltros(colorScheme, isDark),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
+
+              // ===== LISTA =====
               Expanded(
                 child: proveedoresAsync.when(
-                  data: (proveedores) => _buildListaProveedores(proveedores, colorScheme, isDark),
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (err, stack) => _buildErrorState(err, colorScheme),
+                  data: (proveedores) =>
+                      _buildLista(proveedores, colorScheme),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (err, _) => _buildError(err, colorScheme),
                 ),
               ),
             ],
           ),
         ),
       ),
-      floatingActionButton: _buildFloatingButton(),
-    );
-  }
-
-  // ============================================================
-  // SEARCH BAR CON GLASSMORPHISM
-  // ============================================================
-  Widget _buildSearchBar(ColorScheme colorScheme, bool isDark) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.06)
-                : Colors.white.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : Colors.white.withValues(alpha: 0.5),
-              width: 1.5,
-            ),
-          ),
-          child: TextField(
-            decoration: InputDecoration(
-              hintText: 'Buscar por nombre o empresa...',
-              hintStyle: TextStyle(
-                color: isDark ? Colors.white54 : Colors.black54,
-              ),
-              prefixIcon: Icon(
-                Icons.search_rounded,
-                color: isDark ? Colors.white54 : Colors.black54,
-              ),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-            ),
-            style: TextStyle(
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-            onChanged: (value) {
-              if (_debounce?.isActive ?? false) _debounce!.cancel();
-              _debounce = Timer(const Duration(milliseconds: 400), () {
-                setState(() => _queryBusqueda = value);
-              });
-            },
-          ),
+      floatingActionButton: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: FloatingActionButton(
+          onPressed: _navegarACrear,
+          backgroundColor: _colorPrimary,
+          foregroundColor: Colors.white,
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: const Icon(Icons.add_rounded, size: 32),
         ),
       ),
     );
   }
 
   // ============================================================
-  // FILTROS CON GLASSMORPHISM
+  // FILTROS
   // ============================================================
   Widget _buildFiltros(ColorScheme colorScheme, bool isDark) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.05)
-                : Colors.white.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : Colors.white.withValues(alpha: 0.5),
-              width: 1.5,
-            ),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.white.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          SegmentedToggle<bool>(
+            selected: _mostrarInactivos,
+            onChanged: (value) {
+              setState(() => _mostrarInactivos = value);
+              _invalidarLista();
+            },
+            items: const [
+              SegmentedToggleItem(
+                value: false,
+                label: 'Activos',
+                icon: Icons.check_circle_rounded,
+              ),
+              SegmentedToggleItem(
+                value: true,
+                label: 'Inactivos',
+                icon: Icons.cancel_rounded,
+              ),
+            ],
           ),
-          child: Column(
-            children: [
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: 'activos',
-                    label: Text('Activos'),
-                    icon: Icon(Icons.check_circle_rounded, size: 18),
-                  ),
-                  ButtonSegment(
-                    value: 'inactivos',
-                    label: Text('Inactivos'),
-                    icon: Icon(Icons.cancel_rounded, size: 18),
-                  ),
-                ],
-                selected: {_mostrarInactivos ? 'inactivos' : 'activos'},
-                onSelectionChanged: (Set<String> newSelection) {
-                  setState(() => _mostrarInactivos = newSelection.first == 'inactivos');
-                  ref.invalidate(proveedoresConFiltroProvider((
-                    query: _queryBusqueda,
-                    mostrarInactivos: _mostrarInactivos,
-                    productoId: _productoFiltroId,
-                  )));
-                },
-                style: SegmentedButton.styleFrom(
-                  selectedForegroundColor: Colors.white,
-                  selectedBackgroundColor: const Color(0xFF8B5CF6),
-                  foregroundColor: isDark ? Colors.white70 : Colors.black54,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  side: BorderSide.none,
+          const SizedBox(height: 10),
+          DropdownButtonFormField<int?>(
+            initialValue: _productoFiltroId,
+            hint: Text(
+              'Filtrar por producto',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+            isExpanded: true,
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.inventory_2_rounded,
+                  size: 20, color: colorScheme.onSurfaceVariant),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
                 ),
               ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<int?>(
-                initialValue: _productoFiltroId,
-                hint: Text(
-                  'Filtrar por producto',
-                  style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
                 ),
-                isExpanded: true,
-                decoration: InputDecoration(
-                  prefixIcon: Icon(
-                    Icons.inventory_2_rounded,
-                    size: 20,
-                    color: isDark ? Colors.white54 : Colors.black54,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.1)
-                          : Colors.black.withValues(alpha: 0.05),
-                      width: 1,
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.1)
-                          : Colors.black.withValues(alpha: 0.05),
-                      width: 1,
-                    ),
-                  ),
-                  filled: true,
-                  fillColor: isDark
-                      ? Colors.white.withValues(alpha: 0.05)
-                      : Colors.black.withValues(alpha: 0.02),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _colorPrimary, width: 2),
+              ),
+              filled: true,
+              fillColor: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.02),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            items: [
+              DropdownMenuItem<int?>(
+                value: null,
+                child: Text(
+                  'Todos los productos',
+                  style: TextStyle(color: colorScheme.onSurface),
                 ),
-                items: [
-                  DropdownMenuItem<int?>(
-                    value: null,
-                    child: Text(
-                      'Todos los productos',
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                    ),
-                  ),
-                  ..._productos.map((p) => DropdownMenuItem<int?>(
+              ),
+              ..._productos.map((p) => DropdownMenuItem<int?>(
                     value: p.id,
                     child: Text(
                       p.nombre,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                      style: TextStyle(color: colorScheme.onSurface),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
                   )),
-                ],
-                onChanged: (value) {
-                  setState(() => _productoFiltroId = value);
-                  ref.invalidate(proveedoresConFiltroProvider((
-                    query: _queryBusqueda,
-                    mostrarInactivos: _mostrarInactivos,
-                    productoId: _productoFiltroId,
-                  )));
-                },
-                icon: Icon(
-                  Icons.arrow_drop_down,
-                  color: isDark ? Colors.white54 : Colors.black54,
-                ),
-                dropdownColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-              ),
             ],
+            onChanged: (value) {
+              setState(() => _productoFiltroId = value);
+              _invalidarLista();
+            },
+            icon: Icon(Icons.arrow_drop_down,
+                color: colorScheme.onSurfaceVariant),
+            dropdownColor: colorScheme.surface,
           ),
-        ),
+        ],
       ),
     );
   }
 
   // ============================================================
-  // LISTA CON CARDS GLASSMORPHISM
+  // LISTA
   // ============================================================
-  Widget _buildListaProveedores(List<ProveedorEntity> proveedores, ColorScheme colorScheme, bool isDark) {
-    if (proveedores.isEmpty) return _buildEmptyState(colorScheme, isDark);
+  Widget _buildLista(List<ProveedorEntity> proveedores, ColorScheme colorScheme) {
+    if (proveedores.isEmpty) return _buildEmpty(colorScheme);
 
     return RefreshIndicator(
       onRefresh: () async {
-        ref.invalidate(proveedoresConFiltroProvider((
-          query: _queryBusqueda,
-          mostrarInactivos: _mostrarInactivos,
-          productoId: _productoFiltroId,
-        )));
+        _invalidarLista();
         await _cargarProductos();
       },
       child: AnimationLimiter(
         child: ListView.builder(
-          padding: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.only(bottom: 80),
           itemCount: proveedores.length,
           itemBuilder: (context, index) {
-            final proveedor = proveedores[index];
+            final p = proveedores[index];
             return AnimationConfiguration.staggeredList(
               position: index,
-              duration: const Duration(milliseconds: 400),
+              duration: const Duration(milliseconds: 350),
               child: SlideAnimation(
-                verticalOffset: 50,
+                verticalOffset: 30,
                 curve: Curves.easeOutCubic,
                 child: FadeInAnimation(
-                  curve: Curves.easeOutCubic,
                   child: ProveedorCard(
-                    proveedor: proveedor,
-                    onTap: () => _navegarADetalle(proveedor),
-                    onEdit: () => _navegarAEditar(proveedor),
-                    onToggleActivo: () => _toggleActivo(proveedor),
-                    onDelete: () => _eliminarProveedor(proveedor),
+                    proveedor: p,
+                    onTap: () => _navegarADetalle(p),
+                    onEdit: () => _navegarAEditar(p),
+                    onToggleActivo: () => _toggleActivo(p),
+                    onDelete: () => _eliminarProveedor(p),
                   ),
                 ),
               ),
@@ -731,45 +548,58 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
   }
 
   // ============================================================
-  // ESTADOS VACÍO Y ERROR
+  // ESTADOS VACÍO / ERROR
   // ============================================================
-  Widget _buildEmptyState(ColorScheme colorScheme, bool isDark) {
+  Widget _buildEmpty(ColorScheme colorScheme) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.business_center_rounded,
-            size: 80,
-            color: isDark ? Colors.white24 : Colors.grey.shade400,
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: _colorPrimary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.business_center_rounded,
+              size: 48,
+              color: _colorPrimary.withValues(alpha: 0.6),
+            ),
           ),
           const SizedBox(height: 16),
           Text(
             'No hay proveedores',
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              color: colorScheme.onSurface,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            'Crea tu primer proveedor',
+            'Crea tu primer proveedor para empezar',
             style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.white54 : Colors.black54,
+              fontSize: 13,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _navegarACrear,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Crear proveedor'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF8B5CF6),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          const SizedBox(height: 20),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: ElevatedButton.icon(
+              onPressed: _navegarACrear,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Crear proveedor'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _colorPrimary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
               ),
             ),
           ),
@@ -778,12 +608,13 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     );
   }
 
-  Widget _buildErrorState(Object error, ColorScheme colorScheme) {
+  Widget _buildError(Object error, ColorScheme colorScheme) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline_rounded, size: 60, color: colorScheme.error),
+          Icon(Icons.error_outline_rounded,
+              size: 60, color: colorScheme.error),
           const SizedBox(height: 16),
           Text(
             'Error al cargar proveedores',
@@ -797,13 +628,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
           ),
           const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: () {
-              ref.invalidate(proveedoresConFiltroProvider((
-                query: _queryBusqueda,
-                mostrarInactivos: _mostrarInactivos,
-                productoId: _productoFiltroId,
-              )));
-            },
+            onPressed: _invalidarLista,
             child: const Text('Reintentar'),
           ),
         ],
@@ -811,78 +636,45 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
     );
   }
 
-  Widget _buildFloatingButton() {
-    return FloatingActionButton(
-      onPressed: _navegarACrear,
-      backgroundColor: const Color(0xFF8B5CF6),
-      foregroundColor: Colors.white,
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: const Icon(Icons.add_rounded, size: 32),
-    );
-  }
-
   // ============================================================
   // ACCIONES
   // ============================================================
-  void _navegarACrear() {
-    showDialog(
+  Future<void> _navegarACrear() async {
+    await showDialog(
       context: context,
       builder: (_) => const CrearProveedorDialog(),
-    ).then((_) {
-      if (mounted) {
-        ref.invalidate(proveedoresConFiltroProvider((
-          query: _queryBusqueda,
-          mostrarInactivos: _mostrarInactivos,
-          productoId: _productoFiltroId,
-        )));
-        _cargarProductos();
-        setState(() {});
-      }
-    });
+    );
+    if (mounted) {
+      _invalidarLista();
+      await _cargarProductos();
+    }
   }
 
-  void _navegarAEditar(ProveedorEntity proveedor) {
-    showDialog(
+  Future<void> _navegarAEditar(ProveedorEntity proveedor) async {
+    await showDialog(
       context: context,
       builder: (_) => CrearProveedorDialog(proveedor: proveedor),
-    ).then((_) {
-      if (mounted) {
-        ref.invalidate(proveedoresConFiltroProvider((
-          query: _queryBusqueda,
-          mostrarInactivos: _mostrarInactivos,
-          productoId: _productoFiltroId,
-        )));
-        _cargarProductos();
-        setState(() {});
-      }
-    });
+    );
+    if (mounted) {
+      _invalidarLista();
+      await _cargarProductos();
+    }
   }
 
-  void _navegarADetalle(ProveedorEntity proveedor) {
-    showDialog(
+  Future<void> _navegarADetalle(ProveedorEntity proveedor) async {
+    await showDialog(
       context: context,
       builder: (_) => DetalleProveedorDialog(proveedor: proveedor),
-    ).then((_) {
-      if (mounted) {
-        ref.invalidate(proveedoresConFiltroProvider((
-          query: _queryBusqueda,
-          mostrarInactivos: _mostrarInactivos,
-          productoId: _productoFiltroId,
-        )));
-        setState(() {});
-      }
-    });
+    );
+    if (mounted) _invalidarLista();
   }
 
   Future<void> _toggleActivo(ProveedorEntity proveedor) async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final currentContext = context;
-
     try {
       if (proveedor.activo) {
-        await ref.read(proveedoresProvider.notifier).desactivarProveedor(proveedor.id);
-
+        await ref
+            .read(proveedoresProvider.notifier)
+            .desactivarProveedor(proveedor.id);
       } else {
         final actualizado = ProveedorEntity()
           ..id = proveedor.id
@@ -896,23 +688,28 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
           ..sincronizado = false
           ..fechaSincronizacion = proveedor.fechaSincronizacion
           ..email = proveedor.email;
-          await ref.read(proveedoresProvider.notifier).guardarProveedor(actualizado);
+        await ref
+            .read(proveedoresProvider.notifier)
+            .guardarProveedor(actualizado);
         await _sincronizarProveedores();
       }
-
-      if (mounted) {
-        ref.invalidate(proveedoresConFiltroProvider((
-          query: _queryBusqueda,
-          mostrarInactivos: _mostrarInactivos,
-          productoId: _productoFiltroId,
-        )));
-        setState(() {});
-      }
+      _invalidarLista();
+      if (mounted) setState(() {});
     } catch (e) {
-      if (!currentContext.mounted) return;
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
+      if (mounted) _snack('Error: $e', _colorDanger);
     }
+  }
+
+  void _snack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
+        backgroundColor: color,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 }

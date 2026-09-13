@@ -1,5 +1,4 @@
 // lib/features/pos/presentation/widgets/departamentos/detalle_departamento_dialog.dart
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/departamento_entity.dart';
@@ -9,12 +8,20 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/departamentos_
 import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
+import '../common/glass_dialog.dart';
+import '../common/dialog_header.dart';
+import '../common/status_badge.dart';
 import 'crear_departamento_dialog.dart';
 
 class DetalleDepartamentoDialog extends ConsumerWidget {
   final DepartamentoEntity departamento;
 
   const DetalleDepartamentoDialog({super.key, required this.departamento});
+
+  static const _colorPrimary = Color(0xFF8B5CF6);
+  static const _colorSuccess = Color(0xFF10B981);
+  static const _colorDanger = Color(0xFFEF4444);
+  static const _colorWarning = Color(0xFFF59E0B);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,341 +31,152 @@ class DetalleDepartamentoDialog extends ConsumerWidget {
     final usuarioAsync = departamento.usuarioId != null
         ? ref.watch(usuarioPorIdProvider(departamento.usuarioId!))
         : const AsyncValue<UsuarioEntity?>.data(null);
-    final productosCount = ref.watch(productosPorDepartamentoProvider(departamento.id));
+    final productosCount =
+        ref.watch(productosPorDepartamentoProvider(departamento.id));
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final isMobile = ResponsiveHelper.isMobile(context);
-    final bool activo = departamento.activo;
-    final Color estadoColor = activo ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    final activo = departamento.activo;
+    final estadoColor = activo ? _colorSuccess : _colorDanger;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: 500,
-              maxHeight: MediaQuery.of(context).size.height * 0.90,
+    return GlassDialog(
+      maxWidth: 520,
+      maxHeightFactor: 0.9,
+      scrollable: true,
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 20 : 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ===== HEADER =====
+            DialogHeader(
+              icon: Icons.business_center_rounded,
+              title: departamento.nombre,
+              subtitle: departamento.supabaseId != null
+                  ? 'ID: ${departamento.supabaseId!.substring(0, 8)}...'
+                  : null,
             ),
-            padding: EdgeInsets.all(isMobile ? 20 : 28),
-            decoration: BoxDecoration(
-              // Mayor opacidad para evitar que el fondo se vea gris/apagado
-              color: isDark
-                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.90)
-                  : Colors.white.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : Colors.white.withValues(alpha: 0.8),
-                width: 1.5,
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: StatusBadge(
+                label: activo ? 'Activo' : 'Inactivo',
+                color: estadoColor,
+                size: StatusBadgeSize.medium,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
-                  blurRadius: 40,
-                  spreadRadius: -10,
-                  offset: const Offset(0, 10),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, 5),
-                ),
-              ],
             ),
-            child: SingleChildScrollView(
+            const SizedBox(height: 20),
+
+            // ===== INFO SECTION =====
+            Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
+              ),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // HEADER
-                  _buildHeader(context, ref, isDark, isMobile, activo, estadoColor),
-                  const SizedBox(height: 24),
-                  // INFORMACIÓN (Rediseñada para móvil)
-                  _buildInfoSection(context, ref, isDark, localAsync, usuarioAsync, productosCount),
-                  const SizedBox(height: 20),
-                  // NOTA INFORMATIVA
-                  _buildNote(isDark),
-                  const SizedBox(height: 24),
-                  // BOTONES DE ACCIÓN
-                  _buildActionButtons(context, ref, activo, isDark),
+                  _infoTile(
+                    Icons.description_rounded,
+                    'Descripción',
+                    departamento.descripcion?.isNotEmpty == true
+                        ? departamento.descripcion!
+                        : 'Sin descripción',
+                    colorScheme,
+                  ),
+                  _divider(colorScheme),
+                  _infoTile(
+                    Icons.storefront_rounded,
+                    'Local asociado',
+                    localAsync.when(
+                      data: (l) => l?.nombre ?? 'Sin local asignado',
+                      loading: () => 'Cargando...',
+                      error: (_, __) => 'Error',
+                    ),
+                    colorScheme,
+                  ),
+                  _divider(colorScheme),
+                  _infoTile(
+                    Icons.person_rounded,
+                    'Encargado',
+                    usuarioAsync.when(
+                      data: (u) =>
+                          u != null ? '${u.nombre} (${u.rol})' : 'Sin encargado',
+                      loading: () => 'Cargando...',
+                      error: (_, __) => 'Error',
+                    ),
+                    colorScheme,
+                    trailingAvatar:
+                        usuarioAsync.whenOrNull(data: (u) => u),
+                  ),
+                  _divider(colorScheme),
+                  _infoTile(
+                    Icons.inventory_2_rounded,
+                    'Productos',
+                    productosCount.when(
+                      data: (count) => count > 0
+                          ? '$count productos enlazados'
+                          : 'Sin productos',
+                      loading: () => 'Cargando...',
+                      error: (_, __) => 'Error',
+                    ),
+                    colorScheme,
+                  ),
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
+            const SizedBox(height: 16),
 
-  Widget _buildHeader(BuildContext context, WidgetRef ref, bool isDark, bool isMobile, bool activo, Color estadoColor) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF8B5CF6).withValues(alpha: 0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.business_center_rounded, color: Colors.white, size: 28),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                departamento.nombre,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: isMobile ? 20 : 24,
-                  color: isDark ? Colors.white : const Color(0xFF111827),
-                  letterSpacing: -0.5,
+            // ===== NOTA =====
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _colorPrimary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _colorPrimary.withValues(alpha: 0.2),
                 ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
               ),
-              const SizedBox(height: 4),
-              Row(
+              child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: estadoColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: estadoColor.withValues(alpha: 0.3)),
+                      color: _colorPrimary.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
                     ),
+                    child: const Icon(Icons.info_outline_rounded,
+                        color: _colorPrimary, size: 16),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Text(
-                      activo ? 'Activo' : 'Inactivo',
+                      'Los productos de este departamento se pueden gestionar desde el inventario.',
                       style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: estadoColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  if (departamento.supabaseId != null)
-                    Text(
-                      'ID: ${departamento.supabaseId!.substring(0, 8)}...',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
                 ],
               ),
-            ],
-          ),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
-            shape: BoxShape.circle,
-          ),
-          child: IconButton(
-            icon: Icon(Icons.close_rounded, color: isDark ? Colors.white70 : Colors.black54),
-            onPressed: () => Navigator.pop(context),
-            splashRadius: 24,
-          ),
-        ),
-      ],
-    );
-  }
+            ),
+            const SizedBox(height: 20),
 
-  Widget _buildInfoSection(BuildContext context, WidgetRef ref, bool isDark, AsyncValue<LocalEntity?> localAsync, AsyncValue<UsuarioEntity?> usuarioAsync, AsyncValue<int> productosCount) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.03) : const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFE5E7EB),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        children: [
-          _buildInfoTile(
-            Icons.description_rounded,
-            'Descripción',
-            departamento.descripcion?.isNotEmpty == true ? departamento.descripcion! : 'Sin descripción',
-            isDark,
-          ),
-          _buildDivider(isDark),
-          _buildInfoTile(
-            Icons.storefront_rounded,
-            'Local asociado',
-            localAsync.when(
-              data: (local) => local?.nombre ?? 'Sin local asignado',
-              loading: () => 'Cargando...',
-              error: (_, __) => 'Error',
-            ),
-            isDark,
-          ),
-          _buildDivider(isDark),
-          _buildInfoTile(
-            Icons.person_rounded,
-            'Encargado',
-            usuarioAsync.when(
-              data: (u) => u != null ? '${u.nombre} (${u.rol})' : 'Sin encargado',
-              loading: () => 'Cargando...',
-              error: (_, __) => 'Error',
-            ),
-            isDark,
-            trailingAvatar: usuarioAsync.whenOrNull(data: (u) => u),
-          ),
-          _buildDivider(isDark),
-          _buildInfoTile(
-            Icons.inventory_2_rounded,
-            'Productos',
-            productosCount.when(
-              data: (count) => count > 0 ? '$count productos enlazados' : 'Sin productos',
-              loading: () => 'Cargando...',
-              error: (_, __) => 'Error',
-            ),
-            isDark,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // WIDGET REDISEÑADO: Evita el corte de palabras apilando el título y el valor
-  Widget _buildInfoTile(IconData icon, String label, String value, bool isDark, {UsuarioEntity? trailingAvatar}) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, size: 20, color: const Color(0xFF8B5CF6)),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            // ===== BOTONES =====
+            Row(
               children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.white54 : Colors.black54,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : const Color(0xFF1F2937),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (trailingAvatar != null) ...[
-            const SizedBox(width: 12),
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
-              child: Text(
-                trailingAvatar.nombre.isNotEmpty ? trailingAvatar.nombre[0].toUpperCase() : '?',
-                style: const TextStyle(
-                  color: Color(0xFF8B5CF6),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ]
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDivider(bool isDark) {
-    return Divider(
-      height: 1,
-      thickness: 1,
-      color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFE5E7EB),
-      indent: 60,
-      endIndent: 16,
-    );
-  }
-
-  Widget _buildNote(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF8B5CF6).withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.info_outline_rounded, color: Color(0xFF8B5CF6), size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Los productos de este departamento se pueden gestionar desde el inventario.',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: isDark ? Colors.white70 : const Color(0xFF4B5563),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons(BuildContext context, WidgetRef ref, bool activo, bool isDark) {
-    bool isUpdating = false;
-
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: isUpdating
-                    ? null
-                    : () {
+                Expanded(
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
                         Navigator.pop(context);
                         showDialog(
                           context: context,
@@ -368,56 +186,120 @@ class DetalleDepartamentoDialog extends ConsumerWidget {
                           ),
                         );
                       },
-                icon: const Icon(Icons.edit_rounded, size: 20),
-                label: const Text('Editar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF8B5CF6),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: isUpdating
-                    ? null
-                    : () => _toggleActivo(
-                        context,
-                        ref,
-                        setState,
-                        (value) => setState(() => isUpdating = value),
+                      icon: const Icon(Icons.edit_rounded, size: 18),
+                      label: const Text('Editar',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _colorPrimary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
                       ),
-                icon: isUpdating
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : Icon(activo ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded, size: 20),
-                label: Text(
-                  isUpdating ? 'Procesando' : (activo ? 'Desactivar' : 'Activar'),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: activo ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ToggleActivoButton(
+                    activo: activo,
+                    onConfirm: (nuevoEstado) => _toggleActivo(
+                      context,
+                      ref,
+                      nuevoEstado,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoTile(
+    IconData icon,
+    String label,
+    String value,
+    ColorScheme colorScheme, {
+    UsuarioEntity? trailingAvatar,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _colorPrimary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 18, color: _colorPrimary),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (trailingAvatar != null) ...[
+            const SizedBox(width: 12),
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: _colorPrimary.withValues(alpha: 0.15),
+              child: Text(
+                trailingAvatar.nombre.isNotEmpty
+                    ? trailingAvatar.nombre[0].toUpperCase()
+                    : '?',
+                style: const TextStyle(
+                  color: _colorPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
                 ),
               ),
             ),
           ],
-        );
-      },
+        ],
+      ),
     );
   }
 
-  Future<void> _toggleActivo(BuildContext context, WidgetRef ref, StateSetter setState, ValueSetter<bool> setUpdating) async {
-    setUpdating(true);
+  Widget _divider(ColorScheme colorScheme) {
+    return Divider(
+      height: 1,
+      color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+      indent: 56,
+      endIndent: 16,
+    );
+  }
+
+  Future<void> _toggleActivo(
+    BuildContext context,
+    WidgetRef ref,
+    bool nuevoEstado,
+  ) async {
     try {
       final actualizado = DepartamentoEntity()
         ..id = departamento.id
@@ -425,22 +307,102 @@ class DetalleDepartamentoDialog extends ConsumerWidget {
         ..descripcion = departamento.descripcion
         ..localId = departamento.localId
         ..usuarioId = departamento.usuarioId
-        ..activo = !departamento.activo
+        ..activo = nuevoEstado
         ..supabaseId = departamento.supabaseId
         ..sincronizado = false;
 
       await ref.read(guardarDepartamentoProvider(actualizado).future);
 
       if (context.mounted) {
-        setUpdating(false);
         Navigator.pop(context);
-        showDialog(context: context, builder: (_) => DetalleDepartamentoDialog(departamento: actualizado));
+        showDialog(
+          context: context,
+          builder: (_) =>
+              DetalleDepartamentoDialog(departamento: actualizado),
+        );
       }
     } catch (e) {
       if (context.mounted) {
-        setUpdating(false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Error: $e'),
+            backgroundColor: _colorDanger,
+          ),
+        );
       }
     }
+  }
+}
+
+// ============================================================
+// BOTÓN TOGGLE ACTIVO
+// ============================================================
+class _ToggleActivoButton extends StatefulWidget {
+  final bool activo;
+  final Future<void> Function(bool nuevoEstado) onConfirm;
+
+  const _ToggleActivoButton({
+    required this.activo,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_ToggleActivoButton> createState() => _ToggleActivoButtonState();
+}
+
+class _ToggleActivoButtonState extends State<_ToggleActivoButton> {
+  bool _loading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.activo
+        ? const Color(0xFFF59E0B)
+        : const Color(0xFF10B981);
+
+    return MouseRegion(
+      cursor: _loading
+          ? SystemMouseCursors.forbidden
+          : SystemMouseCursors.click,
+      child: ElevatedButton.icon(
+        onPressed: _loading
+            ? null
+            : () async {
+                setState(() => _loading = true);
+                await widget.onConfirm(!widget.activo);
+                if (mounted) setState(() => _loading = false);
+              },
+        icon: _loading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Icon(
+                widget.activo
+                    ? Icons.pause_circle_outline_rounded
+                    : Icons.play_circle_outline_rounded,
+                size: 18,
+              ),
+        label: Text(
+          _loading
+              ? 'Procesando'
+              : (widget.activo ? 'Desactivar' : 'Activar'),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 15),
+        ),
+      ),
+    );
   }
 }

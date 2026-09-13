@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
+import '../common/glass_dialog.dart';
+import '../common/dialog_header.dart';
+import '../common/status_badge.dart';
 
 class HistorialCodigosDialog extends ConsumerStatefulWidget {
   final int productoId;
@@ -15,77 +18,53 @@ class HistorialCodigosDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<HistorialCodigosDialog> createState() => _HistorialCodigosDialogState();
+  ConsumerState<HistorialCodigosDialog> createState() =>
+      _HistorialCodigosDialogState();
 }
 
-class _HistorialCodigosDialogState extends ConsumerState<HistorialCodigosDialog> {
+class _HistorialCodigosDialogState
+    extends ConsumerState<HistorialCodigosDialog> {
   final IsarService _isar = IsarService();
   late Future<List<HistorialCodigoItem>> _historialFuture;
+
+  static const _colorPrimary = Color(0xFF8B5CF6);
+  static const _colorInfo = Color(0xFF3B82F6);
 
   @override
   void initState() {
     super.initState();
-    _historialFuture = _isar.obtenerHistorialCodigosPorProducto(widget.productoId);
+    _historialFuture =
+        _isar.obtenerHistorialCodigosPorProducto(widget.productoId);
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    // ignore: unused_local_variable
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: 800,
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
-        ),
+    return GlassDialog(
+      maxWidth: 900,
+      maxHeightFactor: 0.85,
+      child: Padding(
         padding: const EdgeInsets.all(24),
-        color: colorScheme.surface,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.qr_code_rounded, color: Color(0xFF8B5CF6)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Historial de códigos - ${widget.productoNombre}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color: colorScheme.onSurface,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: Icon(Icons.close_rounded, color: colorScheme.onSurfaceVariant),
-                ),
-              ],
+            DialogHeader(
+              icon: Icons.qr_code_rounded,
+              title: 'Historial de códigos',
+              subtitle: widget.productoNombre,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
-            // Tabla
-            Expanded(
+            // ===== TABLA =====
+            Flexible(
               child: FutureBuilder<List<HistorialCodigoItem>>(
                 future: _historialFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const Center(
+                        child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError) {
                     return Center(child: Text('Error: ${snapshot.error}'));
@@ -93,9 +72,23 @@ class _HistorialCodigosDialogState extends ConsumerState<HistorialCodigosDialog>
                   final items = snapshot.data ?? [];
                   if (items.isEmpty) {
                     return Center(
-                      child: Text(
-                        'No hay códigos de barras registrados para este producto.',
-                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.qr_code_rounded,
+                                size: 48,
+                                color:
+                                    colorScheme.onSurfaceVariant),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No hay códigos registrados',
+                              style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   }
@@ -107,16 +100,43 @@ class _HistorialCodigosDialogState extends ConsumerState<HistorialCodigosDialog>
                         columnSpacing: 16,
                         horizontalMargin: 8,
                         headingRowColor: WidgetStateProperty.all(
-                          colorScheme.surfaceContainerHighest,
+                          colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.5),
+                        ),
+                        dataRowColor: WidgetStateProperty.resolveWith(
+                          (states) => states.contains(WidgetState.hovered)
+                              ? _colorPrimary.withValues(alpha: 0.05)
+                              : null,
                         ),
                         columns: const [
-                          DataColumn(label: Text('Código', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DataColumn(label: Text('Tipo', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DataColumn(label: Text('Proveedor', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DataColumn(label: Text('F. Ingreso', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DataColumn(label: Text('Vencimiento', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DataColumn(label: Text('Cantidad', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DataColumn(label: Text('Precio', style: TextStyle(fontWeight: FontWeight.bold))),
+                          DataColumn(
+                              label: Text('Código',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold))),
+                          DataColumn(
+                              label: Text('Tipo',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold))),
+                          DataColumn(
+                              label: Text('Proveedor',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold))),
+                          DataColumn(
+                              label: Text('F. Ingreso',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold))),
+                          DataColumn(
+                              label: Text('Vencimiento',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold))),
+                          DataColumn(
+                              label: Text('Cantidad',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold))),
+                          DataColumn(
+                              label: Text('Precio',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold))),
                         ],
                         rows: items.map((item) {
                           return DataRow(
@@ -131,43 +151,34 @@ class _HistorialCodigosDialogState extends ConsumerState<HistorialCodigosDialog>
                                 ),
                               ),
                               DataCell(
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: item.tipo == 'lote'
-                                        ? Colors.blue.shade50
-                                        : Colors.purple.shade50,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: item.tipo == 'lote'
-                                          ? Colors.blue.shade200
-                                          : Colors.purple.shade200,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    item.tipo == 'lote' ? 'Lote' : 'Alias',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: item.tipo == 'lote'
-                                          ? Colors.blue.shade700
-                                          : Colors.purple.shade700,
-                                    ),
-                                  ),
+                                StatusBadge(
+                                  label: item.tipo == 'lote'
+                                      ? 'Lote'
+                                      : 'Alias',
+                                  color: item.tipo == 'lote'
+                                      ? _colorInfo
+                                      : _colorPrimary,
+                                  size: StatusBadgeSize.small,
                                 ),
                               ),
                               DataCell(Text(item.proveedorNombre ?? '-')),
-                              DataCell(Text(DateFormat('dd/MM/yyyy').format(item.fechaIngreso))),
+                              DataCell(Text(DateFormat('dd/MM/yyyy')
+                                  .format(item.fechaIngreso))),
                               DataCell(Text(
                                 item.fechaVencimiento != null
-                                    ? DateFormat('dd/MM/yyyy').format(item.fechaVencimiento!)
+                                    ? DateFormat('dd/MM/yyyy')
+                                        .format(item.fechaVencimiento!)
                                     : '-',
                               )),
                               DataCell(Text(
-                                item.cantidad > 0 ? item.cantidad.toString() : '-',
+                                item.cantidad > 0
+                                    ? item.cantidad.toString()
+                                    : '-',
                               )),
                               DataCell(Text(
-                                item.precio > 0 ? '\$${item.precio.toStringAsFixed(2)}' : '-',
+                                item.precio > 0
+                                    ? '\$${item.precio.toStringAsFixed(2)}'
+                                    : '-',
                               )),
                             ],
                           );
@@ -178,14 +189,28 @@ class _HistorialCodigosDialogState extends ConsumerState<HistorialCodigosDialog>
                 },
               ),
             ),
-
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cerrar'),
+
+            // ===== CERRAR =====
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: SizedBox(
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  label: const Text('Cerrar',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colorScheme.onSurfaceVariant,
+                    side: BorderSide(
+                      color: colorScheme.outlineVariant
+                          .withValues(alpha: 0.5),
+                    ),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
               ),
             ),
           ],

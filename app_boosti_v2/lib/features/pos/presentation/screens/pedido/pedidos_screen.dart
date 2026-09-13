@@ -8,35 +8,31 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dart';
 import '../../providers/pedidos_provider.dart';
 import '../../providers/locales_provider.dart';
-import '../../providers/local_actual_provider.dart'; // ✅ Import agregado
-import '../../widgets/sales/sales_history_filter_bar.dart';
+import '../../providers/local_actual_provider.dart';
 import '../../utils/responsive_helper.dart';
 import '../../widgets/appbar.dart';
 import '../../../data/Local/entities/local_entity.dart';
+import '../../widgets/pedidos/pedido_filtro.dart';
 
 class PedidosProveedorScreen extends ConsumerStatefulWidget {
   const PedidosProveedorScreen({super.key});
 
   @override
-  ConsumerState<PedidosProveedorScreen> createState() => _PedidosProveedorScreenState();
+  ConsumerState<PedidosProveedorScreen> createState() =>
+      _PedidosProveedorScreenState();
 }
 
 class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     with SingleTickerProviderStateMixin {
-  EstadoPedido? _estadoFiltro;
+  EstadoFiltroPedido _estadoFiltro = EstadoFiltroPedido.todos;
+  PeriodoPedido _periodo = PeriodoPedido.todas;
   String? _localDestinoUuid;
+
   late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
 
-  String _periodoSeleccionado = 'todos';
-  String _mesSeleccionado = 'Actual';
-  int _anioSeleccionado = DateTime.now().year;
-  final List<int> _aniosDisponibles = [];
-
-  final List<String> _listaMesesDropdown = [
-    'Actual', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-  ];
+  static const _colorPrimary = Color(0xFF8B5CF6);
+  static const _colorSuccess = Color(0xFF10B981);
+  static const _colorDanger = Color(0xFFEF4444);
 
   @override
   void initState() {
@@ -45,16 +41,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    );
     _animationController.forward();
-
-    final now = DateTime.now();
-    for (int i = 2020; i <= now.year; i++) {
-      _aniosDisponibles.add(i);
-    }
   }
 
   @override
@@ -63,313 +50,253 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     super.dispose();
   }
 
-  bool _perteneceAlPeriodo(DateTime fecha, String periodo) {
+  // ============================================================
+  // FILTRADO
+  // ============================================================
+  bool _perteneceAlPeriodo(DateTime fecha) {
     final now = DateTime.now();
     final fechaLocal = fecha.toLocal();
-    final fechaDia = DateTime(fechaLocal.year, fechaLocal.month, fechaLocal.day);
+    final fechaDia =
+        DateTime(fechaLocal.year, fechaLocal.month, fechaLocal.day);
     final hoy = DateTime(now.year, now.month, now.day);
 
-    switch (periodo) {
-      case 'dia':
+    switch (_periodo) {
+      case PeriodoPedido.hoy:
         return fechaDia.isAtSameMomentAs(hoy);
-      case 'semana':
+      case PeriodoPedido.semana:
         final inicioSemana = hoy.subtract(Duration(days: now.weekday - 1));
         final finSemana = inicioSemana.add(const Duration(days: 6));
-        return (fechaDia.isAtSameMomentAs(inicioSemana) || fechaDia.isAfter(inicioSemana)) &&
-               (fechaDia.isAtSameMomentAs(finSemana) || fechaDia.isBefore(finSemana));
-      case 'mes':
-        if (_mesSeleccionado == 'Actual') {
-          return fechaLocal.year == now.year && fechaLocal.month == now.month;
-        } else {
-          final int indexMes = _listaMesesDropdown.indexOf(_mesSeleccionado);
-          return fechaLocal.year == _anioSeleccionado && fechaLocal.month == indexMes;
-        }
-      case 'anio':
-        return fechaLocal.year == _anioSeleccionado;
-      case 'todos':
-      default:
+        return (fechaDia.isAtSameMomentAs(inicioSemana) ||
+                fechaDia.isAfter(inicioSemana)) &&
+            (fechaDia.isAtSameMomentAs(finSemana) ||
+                fechaDia.isBefore(finSemana));
+      case PeriodoPedido.mes:
+        return fechaLocal.year == now.year && fechaLocal.month == now.month;
+      case PeriodoPedido.anio:
+        return fechaLocal.year == now.year;
+      case PeriodoPedido.todas:
         return true;
     }
   }
 
-  List<PedidoEntity> _filtrarPedidos(List<PedidoEntity> todos) {
-    var filtrados = todos;
-
-    if (_estadoFiltro != null) {
-      filtrados = filtrados.where((p) => p.estado == _estadoFiltro).toList();
+  bool _perteneceAlEstado(EstadoPedido estado) {
+    switch (_estadoFiltro) {
+      case EstadoFiltroPedido.todos:
+        return true;
+      case EstadoFiltroPedido.pendiente:
+        return estado == EstadoPedido.pendiente;
+      case EstadoFiltroPedido.recibido:
+        return estado == EstadoPedido.recibido;
+      case EstadoFiltroPedido.cancelado:
+        return estado == EstadoPedido.cancelado;
     }
-
-    filtrados = filtrados
-        .where((p) => _perteneceAlPeriodo(p.fechaPedido, _periodoSeleccionado))
-        .toList();
-
-    return filtrados;
   }
 
+  List<PedidoEntity> _filtrarPedidos(List<PedidoEntity> todos) {
+    return todos
+        .where((p) =>
+            _perteneceAlPeriodo(p.fechaPedido) &&
+            _perteneceAlEstado(p.estado))
+        .toList();
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
   @override
   Widget build(BuildContext context) {
-    final isMobile = ResponsiveHelper.isMobile(context);
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0F172A)
-          : const Color(0xFFF0F4F8),
+      backgroundColor: colorScheme.surface,
       appBar: CustomAppBar(
         title: 'Pedidos a Proveedores',
         showBackButton: true,
         centerTitle: false,
         actions: [
-          // PopupMenu dinámico con locales reales
-          Consumer(
-            builder: (context, ref, child) {
-              final localesAsync = ref.watch(localesProvider);
-              return localesAsync.when(
-                data: (locales) {
-                  if (locales.isEmpty) {
-                    return const Icon(Icons.storefront_rounded, color: Colors.white);
-                  }
-                  if (_localDestinoUuid == null && locales.isNotEmpty) {
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      setState(() {
-                        _localDestinoUuid = locales.first.supabaseId;
-                      });
-                    });
-                  }
-                  return PopupMenuButton<String>(
-                    icon: const Icon(Icons.storefront_rounded, color: Colors.white),
-                    onSelected: (value) async {
-                      // 1️⃣ Actualizar el filtro de la lista
-                      setState(() => _localDestinoUuid = value);
-                      ref.invalidate(pedidosListProvider(value));
-
-                      // 2️⃣ 🔥 Actualizar el provider del local actual
-                      final localEncontrado = locales.firstWhere(
-                        (l) => l.supabaseId == value,
-                        orElse: () => LocalEntity(),
-                      );
-                      if (localEncontrado.id != 0) {
-                        await ref
-                            .read(localActualProvider.notifier)
-                            .setLocalActual(localEncontrado.id);
-                      }
-                    },
-                    itemBuilder: (context) {
-                      return locales.map((local) {
-                        final isSelected = _localDestinoUuid == local.supabaseId;
-                        return PopupMenuItem<String>(
-                          value: local.supabaseId,
-                          child: Row(
-                            children: [
-                              if (isSelected)
-                                const Icon(Icons.check_circle_rounded,
-                                    color: Color(0xFF10B981), size: 16),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(local.nombre)),
-                            ],
-                          ),
-                        );
-                      }).toList();
-                    },
-                  );
-                },
-                loading: () => const SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    ),
-                  ),
-                ),
-                error: (err, stack) => const Icon(Icons.error_outline, color: Colors.white),
-              );
-            },
-          ),
-          IconButton(
-            onPressed: () {
-              if (_localDestinoUuid != null) {
-                ref.invalidate(pedidosListProvider(_localDestinoUuid!));
-                setState(() {});
-                _animationController.forward(from: 0.0);
-              }
-            },
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+          _buildLocalSelector(),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: IconButton(
+              onPressed: () {
+                if (_localDestinoUuid != null) {
+                  ref.invalidate(pedidosListProvider(_localDestinoUuid!));
+                  setState(() {});
+                  _animationController.forward(from: 0.0);
+                }
+              },
+              icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+              tooltip: 'Recargar',
+            ),
           ),
         ],
       ),
       body: Center(
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 800),
+          constraints: const BoxConstraints(maxWidth: 900),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildResumenPedidos(isDark),
+              if (_localDestinoUuid != null) _buildFiltrosSection(),
               const SizedBox(height: 12),
-              Padding(
-                padding: EdgeInsets.zero,
-                child: SalesHistoryFilterBar(
-                  selectedPeriod: _periodoSeleccionado,
-                  onPeriodChanged: (periodo) => setState(() => _periodoSeleccionado = periodo),
-                  isMobile: isMobile,
-                  isTablet: ResponsiveHelper.isTablet(context),
-                  mesesDropdown: _listaMesesDropdown,
-                  mesSeleccionado: _mesSeleccionado,
-                  aniosDisponibles: _aniosDisponibles,
-                  anioSeleccionado: _anioSeleccionado,
-                  onMesChanged: (mes) => setState(() => _mesSeleccionado = mes),
-                  onAnioChanged: (anio) => setState(() => _anioSeleccionado = anio),
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildFiltroEstado(colorScheme, isDark, isMobile),
-              const SizedBox(height: 8),
-              Expanded(
-                child: _buildPedidosList(isDark, colorScheme),
-              ),
+              Expanded(child: _buildPedidosList(colorScheme)),
             ],
           ),
         ),
       ),
-      floatingActionButton: _buildFloatingButton(),
+      floatingActionButton: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: FloatingActionButton(
+          onPressed: () async {
+            final result = await showDialog<bool>(
+              context: context,
+              builder: (_) => const CrearPedidoDialog(),
+            );
+            if (result == true) {
+              if (_localDestinoUuid != null) {
+                ref.invalidate(pedidosListProvider(_localDestinoUuid!));
+              }
+              setState(() {});
+              _animationController.forward(from: 0.0);
+            }
+          },
+          backgroundColor: _colorPrimary,
+          foregroundColor: Colors.white,
+          elevation: 4,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: const Icon(Icons.add_rounded, size: 32),
+        ),
+      ),
     );
   }
 
-  Widget _buildResumenPedidos(bool isDark) {
-    if (_localDestinoUuid == null) {
-      return const SizedBox.shrink();
-    }
-    final pedidosAsync = ref.watch(pedidosListProvider(_localDestinoUuid!));
-    return pedidosAsync.when(
-      data: (todos) {
-        final pedidos = _filtrarPedidos(todos);
-        final total = pedidos.length;
-        final pendientes = pedidos.where((p) => p.estado == EstadoPedido.pendiente).length;
-        final recibidos = pedidos.where((p) => p.estado == EstadoPedido.recibido).length;
-        final cancelados = pedidos.where((p) => p.estado == EstadoPedido.cancelado).length;
+  // ============================================================
+  // SELECTOR DE LOCAL
+  // ============================================================
+  Widget _buildLocalSelector() {
+    return Consumer(
+      builder: (context, ref, child) {
+        final localesAsync = ref.watch(localesProvider);
+        return localesAsync.when(
+          data: (locales) {
+            if (locales.isEmpty) {
+              return const Icon(Icons.storefront_rounded,
+                  color: Colors.white);
+            }
+            if (_localDestinoUuid == null && locales.isNotEmpty) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() => _localDestinoUuid = locales.first.supabaseId);
+                }
+              });
+            }
+            return PopupMenuButton<String>(
+              icon: const Icon(Icons.storefront_rounded, color: Colors.white),
+              tooltip: 'Seleccionar local',
+              onSelected: (value) async {
+                setState(() => _localDestinoUuid = value);
+                ref.invalidate(pedidosListProvider(value));
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.05)
-                : Colors.white.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.5),
-              width: 1.5,
+                final localEncontrado = locales.firstWhere(
+                  (l) => l.supabaseId == value,
+                  orElse: () => LocalEntity(),
+                );
+                if (localEncontrado.id != 0) {
+                  await ref
+                      .read(localActualProvider.notifier)
+                      .setLocalActual(localEncontrado.id);
+                }
+              },
+              itemBuilder: (context) {
+                return locales.map((local) {
+                  final isSelected = _localDestinoUuid == local.supabaseId;
+                  return PopupMenuItem<String>(
+                    value: local.supabaseId,
+                    child: Row(
+                      children: [
+                        if (isSelected)
+                          const Icon(Icons.check_circle_rounded,
+                              color: _colorSuccess, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(local.nombre)),
+                      ],
+                    ),
+                  );
+                }).toList();
+              },
+            );
+          },
+          loading: () => const SizedBox(
+            width: 40,
+            height: 40,
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
+              ),
             ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildContadorItem('Total', total, const Color(0xFF8B5CF6), isDark),
-              _buildContadorItem('Pendientes', pendientes, Colors.orange.shade600, isDark),
-              _buildContadorItem('Recibidos', recibidos, Colors.green.shade600, isDark),
-              _buildContadorItem('Cancelados', cancelados, Colors.red.shade600, isDark),
-            ],
-          ),
+          error: (_, __) =>
+              const Icon(Icons.error_outline, color: Colors.white),
         );
       },
-      loading: () => const SizedBox.shrink(),
-      error: (err, stack) => const SizedBox.shrink(),
     );
   }
 
-  Widget _buildContadorItem(String label, int count, Color color, bool isDark) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            count.toString(),
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white70 : Colors.black54,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
+  // ============================================================
+  // SECCIÓN DE FILTROS + MÉTRICAS
+  // ============================================================
+  Widget _buildFiltrosSection() {
+    final pedidosAsync = ref.watch(pedidosListProvider(_localDestinoUuid!));
+
+    return pedidosAsync.when(
+      data: (todos) {
+        final porPeriodo =
+            todos.where((p) => _perteneceAlPeriodo(p.fechaPedido)).toList();
+        final total = porPeriodo.length;
+        final pendientes =
+            porPeriodo.where((p) => p.estado == EstadoPedido.pendiente).length;
+        final recibidos =
+            porPeriodo.where((p) => p.estado == EstadoPedido.recibido).length;
+        final cancelados =
+            porPeriodo.where((p) => p.estado == EstadoPedido.cancelado).length;
+
+        return PedidosFiltros(
+          total: total,
+          pendientes: pendientes,
+          recibidos: recibidos,
+          cancelados: cancelados,
+          periodoActual: _periodo,
+          estadoActual: _estadoFiltro,
+          onPeriodoChanged: (p) {
+            setState(() => _periodo = p);
+            _animationController.forward(from: 0.0);
+          },
+          onEstadoChanged: (e) {
+            setState(() => _estadoFiltro = e);
+            _animationController.forward(from: 0.0);
+          },
+        );
+      },
+      loading: () => const SizedBox(height: 120),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 
-  Widget _buildFiltroEstado(ColorScheme colorScheme, bool isDark, bool isMobile) {
-    final List<Map<String, dynamic>> opciones = [
-      {'valor': null, 'etiqueta': 'Todos', 'icono': Icons.list_rounded},
-      {'valor': EstadoPedido.pendiente, 'etiqueta': 'Pendientes', 'icono': Icons.hourglass_top_rounded},
-      {'valor': EstadoPedido.recibido, 'etiqueta': 'Recibidos', 'icono': Icons.check_circle_rounded},
-      {'valor': EstadoPedido.cancelado, 'etiqueta': 'Cancelados', 'icono': Icons.cancel_rounded},
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.05)
-            : Colors.white.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-      ),
-      padding: const EdgeInsets.all(6),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: opciones.map((opcion) {
-            final bool esSeleccionado = _estadoFiltro == opcion['valor'];
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2.0),
-              child: _EstadoChip(
-                key: ValueKey(opcion['etiqueta']),
-                selected: esSeleccionado,
-                icon: opcion['icono'],
-                label: opcion['etiqueta'],
-                onTap: () {
-                  setState(() {
-                    _estadoFiltro = opcion['valor'];
-                  });
-                  _animationController.forward(from: 0.0);
-                },
-                isMobile: isMobile,
-                colorScheme: colorScheme,
-                isDark: isDark,
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPedidosList(bool isDark, ColorScheme colorScheme) {
+  // ============================================================
+  // LISTA DE PEDIDOS
+  // ============================================================
+  Widget _buildPedidosList(ColorScheme colorScheme) {
     if (_localDestinoUuid == null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.storefront_rounded, size: 48, color: Colors.grey),
-            const SizedBox(height: 12),
-            Text(
-              'Selecciona un local',
-              style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
-            ),
-          ],
-        ),
+      return _buildEmptyState(
+        titulo: 'Selecciona un local',
+        subtitulo: 'Elige un local para ver sus pedidos',
+        icono: Icons.storefront_rounded,
+        colorScheme: colorScheme,
       );
     }
 
@@ -378,65 +305,114 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     return pedidosAsync.when(
       data: (todos) {
         final pedidosFiltrados = _filtrarPedidos(todos);
-        return pedidosFiltrados.isEmpty
-            ? _buildEmptyState(isDark)
-            : RefreshIndicator(
-                onRefresh: () async {
-                  ref.invalidate(pedidosListProvider(_localDestinoUuid!));
-                  await Future.delayed(const Duration(milliseconds: 300));
-                  setState(() {});
-                  _animationController.forward(from: 0.0);
-                },
-                child: AnimationLimiter(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: pedidosFiltrados.length,
-                    itemBuilder: (context, index) {
-                      final pedido = pedidosFiltrados[index];
-                      return AnimationConfiguration.staggeredList(
-                        position: index,
-                        duration: const Duration(milliseconds: 500),
-                        child: SlideAnimation(
-                          verticalOffset: 50,
-                          curve: Curves.easeOutCubic,
-                          child: FadeInAnimation(
-                            curve: Curves.easeOutCubic,
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: PedidoCard(
-                                pedido: pedido,
-                                onTap: () async {
-                                  await showDialog(
-                                    context: context,
-                                    builder: (_) => DetallePedidoDialog(pedidoId: pedido.id),
-                                  );
-                                  setState(() {});
-                                },
-                              ),
-                            ),
-                          ),
+
+        if (pedidosFiltrados.isEmpty) {
+          return _buildEmptyState(
+            titulo: 'No hay pedidos',
+            subtitulo: _estadoFiltro == EstadoFiltroPedido.todos
+                ? 'Comienza creando tu primer pedido'
+                : 'No hay pedidos en este estado',
+            icono: Icons.inbox_rounded,
+            colorScheme: colorScheme,
+            accion: _estadoFiltro != EstadoFiltroPedido.todos
+                ? TextButton.icon(
+                    onPressed: () => setState(
+                        () => _estadoFiltro = EstadoFiltroPedido.todos),
+                    icon: const Icon(Icons.clear_rounded, size: 16),
+                    label: const Text('Ver todos'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _colorPrimary,
+                    ),
+                  )
+                : null,
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(pedidosListProvider(_localDestinoUuid!));
+            await Future.delayed(const Duration(milliseconds: 300));
+            if (mounted) {
+              setState(() {});
+              _animationController.forward(from: 0.0);
+            }
+          },
+          child: AnimationLimiter(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: pedidosFiltrados.length,
+              itemBuilder: (context, index) {
+                final pedido = pedidosFiltrados[index];
+                return AnimationConfiguration.staggeredList(
+                  position: index,
+                  duration: const Duration(milliseconds: 400),
+                  child: SlideAnimation(
+                    verticalOffset: 30,
+                    curve: Curves.easeOutCubic,
+                    child: FadeInAnimation(
+                      curve: Curves.easeOutCubic,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: PedidoCard(
+                          pedido: pedido,
+                          onTap: () async {
+                            await showDialog(
+                              context: context,
+                              builder: (_) =>
+                                  DetallePedidoDialog(pedidoId: pedido.id),
+                            );
+                            if (mounted) setState(() {});
+                          },
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
-                ),
-              );
+                );
+              },
+            ),
+          ),
+        );
       },
       loading: () => const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6))),
+            CircularProgressIndicator(color: _colorPrimary),
             SizedBox(height: 16),
-            Text('Cargando pedidos...', style: TextStyle(color: Colors.grey)),
+            Text('Cargando pedidos...'),
           ],
         ),
       ),
-      error: (err, stack) => _buildErrorState(err, colorScheme),
+      error: (err, _) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline_rounded,
+                size: 60, color: _colorDanger),
+            const SizedBox(height: 16),
+            Text('Error al cargar los pedidos',
+                style: TextStyle(color: colorScheme.onSurface)),
+            const SizedBox(height: 8),
+            Text(err.toString(),
+                style: TextStyle(
+                    color: colorScheme.onSurfaceVariant, fontSize: 12),
+                textAlign: TextAlign.center),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildEmptyState(bool isDark) {
+  // ============================================================
+  // ESTADO VACÍO
+  // ============================================================
+  Widget _buildEmptyState({
+    required String titulo,
+    required String subtitulo,
+    required IconData icono,
+    required ColorScheme colorScheme,
+    Widget? accion,
+  }) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -445,176 +421,34 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: const Color(0xFF8B5CF6).withValues(alpha: 0.08),
+              color: _colorPrimary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.inbox_rounded, size: 40, color: Color(0xFF8B5CF6)),
+            child: Icon(icono, size: 40, color: _colorPrimary),
           ),
           const SizedBox(height: 16),
           Text(
-            'No hay pedidos',
+            titulo,
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white : Colors.black87,
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            _estadoFiltro == null
-                ? 'Comienza creando tu primer pedido'
-                : 'No hay pedidos en este estado',
+            subtitulo,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.white54 : Colors.black54,
+              fontSize: 13,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 16),
-          if (_estadoFiltro != null)
-            ElevatedButton.icon(
-              onPressed: () => setState(() => _estadoFiltro = null),
-              icon: const Icon(Icons.clear_rounded),
-              label: const Text('Ver todos'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF8B5CF6),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
+          if (accion != null) ...[
+            const SizedBox(height: 12),
+            accion,
+          ],
         ],
-      ),
-    );
-  }
-
-  Widget _buildErrorState(Object error, ColorScheme colorScheme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline_rounded, size: 60, color: colorScheme.error),
-          const SizedBox(height: 16),
-          Text('Error al cargar los pedidos', style: TextStyle(color: colorScheme.onSurface)),
-          const SizedBox(height: 8),
-          Text(error.toString(), style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12), textAlign: TextAlign.center),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFloatingButton() {
-    return FloatingActionButton(
-      onPressed: () async {
-        final result = await showDialog<bool>(
-          context: context,
-          builder: (_) => const CrearPedidoDialog(),
-        );
-        if (result == true) {
-          if (_localDestinoUuid != null) {
-            ref.invalidate(pedidosListProvider(_localDestinoUuid!));
-          }
-          setState(() {});
-          _animationController.forward(from: 0.0);
-        }
-      },
-      backgroundColor: const Color(0xFF8B5CF6),
-      foregroundColor: Colors.white,
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: const Icon(Icons.add_rounded, size: 32),
-    );
-  }
-}
-
-// ==========================================
-// CHIP DE ESTADO (RESPONSIVE Y COMPACTO)
-// ==========================================
-class _EstadoChip extends StatefulWidget {
-  final bool selected;
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool isMobile;
-  final ColorScheme colorScheme;
-  final bool isDark;
-
-  const _EstadoChip({
-    super.key,
-    required this.selected,
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    required this.isMobile,
-    required this.colorScheme,
-    required this.isDark,
-  });
-
-  @override
-  State<_EstadoChip> createState() => _EstadoChipState();
-}
-
-class _EstadoChipState extends State<_EstadoChip> {
-  bool isHovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isMobile = widget.isMobile;
-    final double iconSize = isMobile ? 14 : 18;
-    final double fontSize = isMobile ? 10 : 14;
-    final double paddingHoriz = isMobile ? 6 : 16;
-    final double paddingVert = isMobile ? 4 : 8;
-    final double borderRadius = isMobile ? 8 : 12;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => isHovering = true),
-      onExit: (_) => setState(() => isHovering = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(vertical: paddingVert, horizontal: paddingHoriz),
-          decoration: BoxDecoration(
-            color: widget.selected ? const Color(0xFF8B5CF6) : Colors.transparent,
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(
-              color: widget.selected
-                  ? const Color(0xFF8B5CF6)
-                  : (isHovering
-                      ? const Color(0xFF8B5CF6).withValues(alpha: 0.5)
-                      : (widget.isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE5E7EB))),
-              width: widget.selected ? 1.5 : 1.0,
-            ),
-            boxShadow: widget.selected
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                widget.icon,
-                size: iconSize,
-                color: widget.selected ? Colors.white : (widget.isDark ? Colors.white70 : Colors.black54),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                isMobile ? widget.label.substring(0, 1) : widget.label,
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: widget.selected ? FontWeight.bold : FontWeight.w500,
-                  color: widget.selected ? Colors.white : (widget.isDark ? Colors.white70 : Colors.black54),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

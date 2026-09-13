@@ -1,3 +1,4 @@
+// lib/features/pos/presentation/widgets/marcas/marcas_managment_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,9 +6,14 @@ import '../../../data/Local/entities/marca_entity.dart';
 import '../../../data/Local/entities/isar_service.dart';
 import '../../providers/marca_provider.dart';
 import '../../utils/responsive_helper.dart';
+import '../common/filtro_chip_template.dart';
+import '../common/glass_dialog.dart';
+import '../common/dialog_header.dart';
+import '../common/glass_search_bar.dart';
+import '../common/status_badge.dart';
+import '../common/card_action_button.dart';
 import 'marca_form_dialog.dart';
 
-/// Diálogo para gestionar marcas (CRUD)
 class MarcasManagementDialog extends ConsumerStatefulWidget {
   const MarcasManagementDialog({super.key});
 
@@ -18,15 +24,13 @@ class MarcasManagementDialog extends ConsumerStatefulWidget {
 
 class _MarcasManagementDialogState
     extends ConsumerState<MarcasManagementDialog> {
-  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  String _filter = 'todas'; // 'todas', 'activas', 'inactivas'
+  String _filter = 'todas';
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+  static const _colorPrimary = Color(0xFF8B5CF6);
+  static const _colorSuccess = Color(0xFF10B981);
+  static const _colorWarning = Color(0xFFF59E0B);
+  static const _colorDanger = Color(0xFFEF4444);
 
   @override
   Widget build(BuildContext context) {
@@ -34,44 +38,39 @@ class _MarcasManagementDialogState
     final isMobile = ResponsiveHelper.isMobile(context);
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Dialog(
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 16 : 40,
-        vertical: 24,
-      ),
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: 800,
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
-        ),
+    return GlassDialog(
+      maxWidth: 800,
+      maxHeightFactor: 0.9,
+      child: Padding(
         padding: EdgeInsets.all(isMobile ? 16 : 24),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildHeader(colorScheme, isMobile),
+            const DialogHeader(
+              icon: Icons.branding_watermark_rounded,
+              title: 'Gestión de Marcas',
+              subtitle: 'Administra las marcas de tus productos',
+            ),
             const SizedBox(height: 16),
+
+            // ===== BÚSQUEDA Y FILTROS =====
             _buildSearchAndFilters(colorScheme, isMobile),
-            const SizedBox(height: 16),
-            Expanded(
+            const SizedBox(height: 12),
+
+            // ===== LISTA =====
+            Flexible(
               child: marcasAsync.when(
-                data: (marcas) => _buildList(marcas, colorScheme, isMobile),
-                loading: () => const Center(child: CircularProgressIndicator()),
+                data: (marcas) =>
+                    _buildList(marcas, colorScheme, isMobile),
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
                 error: (err, stack) => Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.error_outline, size: 48, color: colorScheme.error),
+                      Icon(Icons.error_outline,
+                          size: 48, color: colorScheme.error),
                       const SizedBox(height: 8),
                       Text(
                         'Error al cargar marcas: $err',
@@ -81,7 +80,9 @@ class _MarcasManagementDialogState
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
-                          ref.read(marcasNotifierProvider.notifier).cargarMarcas();
+                          ref
+                              .read(marcasNotifierProvider.notifier)
+                              .cargarMarcas();
                         },
                         child: const Text('Reintentar'),
                       ),
@@ -91,45 +92,34 @@ class _MarcasManagementDialogState
               ),
             ),
             const SizedBox(height: 16),
-            _buildActions(),
+
+            // ===== BOTÓN CREAR =====
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: () => _mostrarFormulario(context, null),
+                  icon: const Icon(Icons.add_circle_outline, size: 18),
+                  label: const Text(
+                    'Crear nueva marca',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
-    );
-  }
-
-  // ==================== HEADER ====================
-  Widget _buildHeader(ColorScheme colorScheme, bool isMobile) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: colorScheme.primary.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            Icons.branding_watermark_rounded,
-            color: colorScheme.primary,
-            size: 24,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            'Gestión de Marcas',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: isMobile ? 20 : 24,
-              color: colorScheme.onSurface,
-            ),
-          ),
-        ),
-        IconButton(
-          icon: Icon(Icons.close_rounded, color: colorScheme.onSurfaceVariant),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ],
     );
   }
 
@@ -137,64 +127,45 @@ class _MarcasManagementDialogState
   Widget _buildSearchAndFilters(ColorScheme colorScheme, bool isMobile) {
     return Column(
       children: [
-        TextField(
-          controller: _searchController,
-          decoration: InputDecoration(
-            hintText: 'Buscar marca...',
-            prefixIcon: Icon(Icons.search, color: colorScheme.primary),
-            filled: true,
-            fillColor: colorScheme.surfaceContainerHighest,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: colorScheme.outline),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: colorScheme.primary, width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          ),
+        GlassSearchBar(
+          hint: 'Buscar marca...',
           onChanged: (value) => setState(() => _searchQuery = value),
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            _buildFilterChip('Todas', 'todas', colorScheme),
-            const SizedBox(width: 8),
-            _buildFilterChip('Activas', 'activas', colorScheme),
-            const SizedBox(width: 8),
-            _buildFilterChip('Inactivas', 'inactivas', colorScheme),
-          ],
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              FiltroChip(
+                label: 'Todas',
+                icon: Icons.list_alt_rounded,
+                color: _colorPrimary,
+                selected: _filter == 'todas',
+                onTap: () => setState(() => _filter = 'todas'),
+                size: FiltroChipSize.small,
+              ),
+              const SizedBox(width: 8),
+              FiltroChip(
+                label: 'Activas',
+                icon: Icons.check_circle_rounded,
+                color: _colorSuccess,
+                selected: _filter == 'activas',
+                onTap: () => setState(() => _filter = 'activas'),
+                size: FiltroChipSize.small,
+              ),
+              const SizedBox(width: 8),
+              FiltroChip(
+                label: 'Inactivas',
+                icon: Icons.cancel_rounded,
+                color: _colorDanger,
+                selected: _filter == 'inactivas',
+                onTap: () => setState(() => _filter = 'inactivas'),
+                size: FiltroChipSize.small,
+              ),
+            ],
+          ),
         ),
       ],
-    );
-  }
-
-  Widget _buildFilterChip(String label, String value, ColorScheme colorScheme) {
-    final isSelected = _filter == value;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => setState(() => _filter = value),
-      backgroundColor: colorScheme.surfaceContainerHighest,
-      selectedColor: colorScheme.primary,
-      checkmarkColor: Colors.white,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : colorScheme.onSurfaceVariant,
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isSelected ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.3),
-          width: isSelected ? 1.5 : 1,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     );
   }
 
@@ -209,16 +180,19 @@ class _MarcasManagementDialogState
 
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      filtered = filtered.where((m) =>
-          m.nombre.toLowerCase().contains(q) ||
-          (m.descripcion ?? '').toLowerCase().contains(q)).toList();
+      filtered = filtered
+          .where((m) =>
+              m.nombre.toLowerCase().contains(q) ||
+              (m.descripcion ?? '').toLowerCase().contains(q))
+          .toList();
     }
 
     return filtered;
   }
 
-  // ==================== LISTA DE MARCAS ====================
-  Widget _buildList(List<MarcaEntity> allMarcas, ColorScheme colorScheme, bool isMobile) {
+  // ==================== LISTA ====================
+  Widget _buildList(
+      List<MarcaEntity> allMarcas, ColorScheme colorScheme, bool isMobile) {
     final marcas = _marcasFiltradas(allMarcas);
 
     if (marcas.isEmpty) {
@@ -233,20 +207,22 @@ class _MarcasManagementDialogState
             ),
             const SizedBox(height: 16),
             Text(
-              _searchQuery.isNotEmpty ? 'No se encontraron marcas' : 'No hay marcas',
+              _searchQuery.isNotEmpty
+                  ? 'No se encontraron marcas'
+                  : 'No hay marcas',
               style: TextStyle(
-                fontSize: 18,
-                color: colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w500,
+                fontSize: 16,
+                color: colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               _searchQuery.isNotEmpty
                   ? 'Intenta con otra búsqueda'
-                  : 'Crea tu primera marca',
+                  : 'Crea tu primera marca para empezar',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
@@ -256,9 +232,11 @@ class _MarcasManagementDialogState
     }
 
     return ListView.separated(
+      shrinkWrap: true,
+      physics: const BouncingScrollPhysics(),
       itemCount: marcas.length,
       separatorBuilder: (context, index) => Divider(
-        color: colorScheme.outline.withValues(alpha: 0.1),
+        color: colorScheme.outlineVariant.withValues(alpha: 0.4),
         height: 1,
       ),
       itemBuilder: (context, index) {
@@ -270,86 +248,94 @@ class _MarcasManagementDialogState
 
   Widget _buildMarcaTile(MarcaEntity marca, ColorScheme colorScheme) {
     final isActive = marca.activo;
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: isActive
-            ? colorScheme.primary.withValues(alpha: 0.1)
-            : colorScheme.surfaceContainerHighest,
-        child: marca.logoUrl != null && marca.logoUrl!.isNotEmpty
-            ? ClipOval(
-                child: Image.network(
-                  marca.logoUrl!,
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Icon(
+    final estadoColor = isActive ? _colorSuccess : _colorDanger;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: colorScheme.primary.withValues(alpha: 0.12),
+            child: marca.logoUrl != null && marca.logoUrl!.isNotEmpty
+                ? ClipOval(
+                    child: Image.network(
+                      marca.logoUrl!,
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        Icons.branding_watermark_rounded,
+                        color: colorScheme.primary,
+                        size: 20,
+                      ),
+                    ),
+                  )
+                : Icon(
                     Icons.branding_watermark_rounded,
-                    color: isActive ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                    color: colorScheme.primary,
+                    size: 20,
                   ),
-                ),
-              )
-            : Icon(
-                Icons.branding_watermark_rounded,
-                color: isActive ? colorScheme.primary : colorScheme.onSurfaceVariant,
-              ),
-      ),
-      title: Text(
-        marca.nombre,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: colorScheme.onSurface,
-        ),
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (marca.descripcion != null && marca.descripcion!.isNotEmpty)
-            Text(
-              marca.descripcion!,
-              style: TextStyle(
-                fontSize: 13,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          Row(
-            children: [
-              Icon(
-                isActive ? Icons.circle : Icons.circle_outlined,
-                size: 10,
-                color: isActive ? Colors.green : Colors.grey,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                isActive ? 'Activo' : 'Inactivo',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isActive ? Colors.green : Colors.grey,
-                ),
-              ),
-            ],
           ),
-        ],
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: Icon(Icons.edit_outlined, color: colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        marca.nombre,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: colorScheme.onSurface,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
+                    StatusBadge(
+                      label: isActive ? 'Activa' : 'Inactiva',
+                      color: estadoColor,
+                      size: StatusBadgeSize.small,
+                    ),
+                  ],
+                ),
+                if (marca.descripcion?.isNotEmpty ?? false) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    marca.descripcion!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          CardActionButton(
+            icon: Icons.edit_outlined,
+            color: colorScheme.primary,
             tooltip: 'Editar',
             onPressed: () => _mostrarFormulario(context, marca),
           ),
-          IconButton(
-            icon: Icon(
-              isActive ? Icons.block_outlined : Icons.check_circle_outline,
-              color: isActive ? Colors.orange : Colors.green,
-            ),
+          CardActionButton(
+            icon: isActive
+                ? Icons.block_outlined
+                : Icons.check_circle_outline,
+            color: isActive ? _colorWarning : _colorSuccess,
             tooltip: isActive ? 'Desactivar' : 'Activar',
             onPressed: () => _toggleActivo(marca),
           ),
-          IconButton(
-            icon: Icon(Icons.delete_outline, color: Colors.red),
+          CardActionButton(
+            icon: Icons.delete_outline,
+            color: _colorDanger,
             tooltip: 'Eliminar',
             onPressed: () => _confirmarEliminacion(marca),
           ),
@@ -359,24 +345,6 @@ class _MarcasManagementDialogState
   }
 
   // ==================== ACCIONES ====================
-  Widget _buildActions() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () => _mostrarFormulario(context, null),
-        icon: const Icon(Icons.add_circle_outline),
-        label: const Text('Crear nueva marca'),
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ==================== MÉTODOS DE ACCIÓN ====================
   void _mostrarFormulario(BuildContext context, MarcaEntity? marca) {
     showDialog(
       context: context,
@@ -399,7 +367,9 @@ class _MarcasManagementDialogState
   void _confirmarEliminacion(MarcaEntity marca) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Eliminar marca'),
         content: Text(
           '¿Estás seguro de eliminar la marca "${marca.nombre}"?\n\n'
@@ -407,26 +377,33 @@ class _MarcasManagementDialogState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancelar'),
           ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final isar = IsarService();
-              final eliminada = await isar.eliminarMarca(marca.id);
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                final isar = IsarService();
+                final eliminada = await isar.eliminarMarca(marca.id);
 
-              if (!mounted) return;
+                if (!mounted) return;
 
-              if (eliminada) {
-                ref.read(marcasNotifierProvider.notifier).cargarMarcas();
-                _mostrarMensaje('Marca eliminada correctamente');
-              } else {
-                _mostrarMensaje('Marca desactivada (tiene productos asociados)');
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Eliminar'),
+                if (eliminada) {
+                  ref.read(marcasNotifierProvider.notifier).cargarMarcas();
+                  _mostrarMensaje('Marca eliminada correctamente');
+                } else {
+                  _mostrarMensaje(
+                      'Marca desactivada (tiene productos asociados)');
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _colorDanger,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Eliminar'),
+            ),
           ),
         ],
       ),
@@ -434,6 +411,7 @@ class _MarcasManagementDialogState
   }
 
   void _mostrarMensaje(String mensaje) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mensaje),
