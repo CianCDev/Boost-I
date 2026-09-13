@@ -23,37 +23,44 @@ final isarServiceProvider = Provider<IsarService>((ref) => IsarService());
 
 // ✅ CORREGIDO: Usa String (UUID) para filtrar por local
 // ✅ CORREGIDO: Filtra por el local destino usando el UUID
-final pedidosListProvider = FutureProvider.family<List<PedidoEntity>, String>((ref, localDestinoUuid) async {
+final pedidosListProvider = FutureProvider.family<List<PedidoEntity>, String>(
+    (ref, localDestinoUuid) async {
   final isar = ref.watch(isarServiceProvider);
-  
+
   // 1. Obtener el local correspondiente al UUID
   final local = await isar.obtenerLocalPorSupabaseId(localDestinoUuid);
   if (local == null) {
     // Si no se encuentra el local, devolver lista vacía
     return [];
   }
-  
+
   // 2. Obtener pedidos de todos los estados para ese local destino
-  final pendientes = await isar.obtenerPedidosPorEstado(EstadoPedido.pendiente, localDestinoId: local.id);
-  final recibidos = await isar.obtenerPedidosPorEstado(EstadoPedido.recibido, localDestinoId: local.id);
-  final cancelados = await isar.obtenerPedidosPorEstado(EstadoPedido.cancelado, localDestinoId: local.id);
-  
+  final pendientes = await isar.obtenerPedidosPorEstado(EstadoPedido.pendiente,
+      localDestinoId: local.id);
+  final recibidos = await isar.obtenerPedidosPorEstado(EstadoPedido.recibido,
+      localDestinoId: local.id);
+  final cancelados = await isar.obtenerPedidosPorEstado(EstadoPedido.cancelado,
+      localDestinoId: local.id);
+
   return [...pendientes, ...recibidos, ...cancelados];
 });
 
-final cancelarPedidoProvider = FutureProvider.family<void, int>((ref, pedidoId) async {
+final cancelarPedidoProvider =
+    FutureProvider.family<void, int>((ref, pedidoId) async {
   final isar = ref.watch(isarServiceProvider);
   await isar.cancelarPedido(pedidoId);
   ref.invalidate(pedidosListProvider);
 });
 
-final registrarRecepcionProvider = FutureProvider.family<void, ({
-  int pedidoId,
-  int usuarioId,
-  String observaciones,
-  Map<int, DateTime>? fechasVencimiento,
-  Map<int, double>? costosUnitarios,
-})>((ref, datos) async {
+final registrarRecepcionProvider = FutureProvider.family<
+    void,
+    ({
+      int pedidoId,
+      int usuarioId,
+      String observaciones,
+      Map<int, DateTime>? fechasVencimiento,
+      Map<int, double>? costosUnitarios,
+    })>((ref, datos) async {
   final isar = ref.watch(isarServiceProvider);
 
   final pedido = await isar.obtenerPedidoPorId(datos.pedidoId);
@@ -70,9 +77,8 @@ final registrarRecepcionProvider = FutureProvider.family<void, ({
     ..pedidoId = datos.pedidoId
     ..fechaRecepcion = DateTime.now()
     ..usuarioId = datos.usuarioId
-    ..observaciones = datos.observaciones.trim().isEmpty
-        ? null
-        : datos.observaciones.trim()
+    ..observaciones =
+        datos.observaciones.trim().isEmpty ? null : datos.observaciones.trim()
     ..sincronizado = false;
 
   await isar.guardarRecepcion(recepcion);
@@ -81,20 +87,23 @@ final registrarRecepcionProvider = FutureProvider.family<void, ({
 
   // ✅ CREAR LOTES
   for (var detalle in detalles) {
-    final proveedorUuid = await isar.obtenerSupabaseIdProveedorPorNombre(pedido.proveedorNombre);
+    final proveedorUuid =
+        await isar.obtenerSupabaseIdProveedorPorNombre(pedido.proveedorNombre);
 
-final lote = LoteEntity()
-  ..productoId = detalle.productoId
-  ..localId = pedido.localOrigenId
-  ..cantidadInicial = detalle.cantidad
-  ..cantidadRestante = detalle.cantidad
-  ..fechaIngreso = DateTime.now()
-  ..fechaVencimiento = datos.fechasVencimiento?[detalle.productoId]
-  ..costoUnitario = datos.costosUnitarios?[detalle.productoId] ?? detalle.precioUnidad
-  ..estado = 'pendiente'
-  ..proveedorId = proveedorUuid  // ✅ UUID válido o null
-  ..proveedorNombre = pedido.proveedorNombre  // ✅ El nombre sigue siendo útil para mostrar
-  ..sincronizado = false;
+    final lote = LoteEntity()
+      ..productoId = detalle.productoId
+      ..localId = pedido.localOrigenId
+      ..cantidadInicial = detalle.cantidad
+      ..cantidadRestante = detalle.cantidad
+      ..fechaIngreso = DateTime.now()
+      ..fechaVencimiento = datos.fechasVencimiento?[detalle.productoId]
+      ..costoUnitario =
+          datos.costosUnitarios?[detalle.productoId] ?? detalle.precioUnidad
+      ..estado = 'pendiente'
+      ..proveedorId = proveedorUuid // ✅ UUID válido o null
+      ..proveedorNombre =
+          pedido.proveedorNombre // ✅ El nombre sigue siendo útil para mostrar
+      ..sincronizado = false;
 
     await isar.guardarLote(lote);
 
@@ -116,7 +125,8 @@ final lote = LoteEntity()
 
 final syncServiceProvider = sync.syncServiceProvider;
 
-final proveedoresActivosProvider = FutureProvider<List<ProveedorEntity>>((ref) async {
+final proveedoresActivosProvider =
+    FutureProvider<List<ProveedorEntity>>((ref) async {
   final isar = ref.watch(isarServiceProvider);
   return isar.obtenerProveedores(soloActivos: true);
 });
@@ -129,7 +139,8 @@ class PedidosProveedorScreen extends ConsumerStatefulWidget {
   const PedidosProveedorScreen({super.key});
 
   @override
-  ConsumerState<PedidosProveedorScreen> createState() => _PedidosProveedorScreenState();
+  ConsumerState<PedidosProveedorScreen> createState() =>
+      _PedidosProveedorScreenState();
 }
 
 class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
@@ -145,8 +156,19 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   final List<int> _aniosDisponibles = [];
 
   final List<String> _listaMesesDropdown = [
-    'Actual', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    'Actual',
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre'
   ];
 
   @override
@@ -177,7 +199,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   bool _perteneceAlPeriodo(DateTime fecha, String periodo) {
     final now = DateTime.now();
     final fechaLocal = fecha.toLocal();
-    final fechaDia = DateTime(fechaLocal.year, fechaLocal.month, fechaLocal.day);
+    final fechaDia =
+        DateTime(fechaLocal.year, fechaLocal.month, fechaLocal.day);
     final hoy = DateTime(now.year, now.month, now.day);
 
     switch (periodo) {
@@ -186,14 +209,17 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
       case 'semana':
         final inicioSemana = hoy.subtract(Duration(days: now.weekday - 1));
         final finSemana = inicioSemana.add(const Duration(days: 6));
-        return (fechaDia.isAtSameMomentAs(inicioSemana) || fechaDia.isAfter(inicioSemana)) &&
-               (fechaDia.isAtSameMomentAs(finSemana) || fechaDia.isBefore(finSemana));
+        return (fechaDia.isAtSameMomentAs(inicioSemana) ||
+                fechaDia.isAfter(inicioSemana)) &&
+            (fechaDia.isAtSameMomentAs(finSemana) ||
+                fechaDia.isBefore(finSemana));
       case 'mes':
         if (_mesSeleccionado == 'Actual') {
           return fechaLocal.year == now.year && fechaLocal.month == now.month;
         } else {
           final int indexMes = _listaMesesDropdown.indexOf(_mesSeleccionado);
-          return fechaLocal.year == _anioSeleccionado && fechaLocal.month == indexMes;
+          return fechaLocal.year == _anioSeleccionado &&
+              fechaLocal.month == indexMes;
         }
       case 'anio':
         return fechaLocal.year == _anioSeleccionado;
@@ -226,9 +252,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     final localesAsync = ref.watch(localesProvider);
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0F172A)
-          : const Color(0xFFF0F4F8),
+      backgroundColor:
+          isDark ? const Color(0xFF0F172A) : const Color(0xFFF0F4F8),
       appBar: CustomAppBar(
         title: 'Pedidos a Proveedores',
         showBackButton: true,
@@ -241,7 +266,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
               return localesAsync.when(
                 data: (locales) {
                   if (locales.isEmpty) {
-                    return const Icon(Icons.storefront_rounded, color: Colors.white);
+                    return const Icon(Icons.storefront_rounded,
+                        color: Colors.white);
                   }
                   if (_localDestinoUuid == null && locales.isNotEmpty) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -251,20 +277,23 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
                     });
                   }
                   return PopupMenuButton<String>(
-                    icon: const Icon(Icons.storefront_rounded, color: Colors.white),
+                    icon: const Icon(Icons.storefront_rounded,
+                        color: Colors.white),
                     onSelected: (value) {
                       setState(() => _localDestinoUuid = value);
                       ref.invalidate(pedidosListProvider(value));
                     },
                     itemBuilder: (context) {
                       return locales.map((local) {
-                        final isSelected = _localDestinoUuid == local.supabaseId;
+                        final isSelected =
+                            _localDestinoUuid == local.supabaseId;
                         return PopupMenuItem<String>(
                           value: local.supabaseId,
                           child: Row(
                             children: [
                               if (isSelected)
-                                const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 16),
+                                const Icon(Icons.check_circle_rounded,
+                                    color: Color(0xFF10B981), size: 16),
                               const SizedBox(width: 8),
                               Expanded(child: Text(local.nombre)),
                             ],
@@ -281,11 +310,13 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
                     child: SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
                     ),
                   ),
                 ),
-                error: (err, stack) => const Icon(Icons.error_outline, color: Colors.white),
+                error: (err, stack) =>
+                    const Icon(Icons.error_outline, color: Colors.white),
               );
             },
           ),
@@ -343,7 +374,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
                 padding: EdgeInsets.zero,
                 child: SalesHistoryFilterBar(
                   selectedPeriod: _periodoSeleccionado,
-                  onPeriodChanged: (periodo) => setState(() => _periodoSeleccionado = periodo),
+                  onPeriodChanged: (periodo) =>
+                      setState(() => _periodoSeleccionado = periodo),
                   isMobile: isMobile,
                   isTablet: ResponsiveHelper.isTablet(context),
                   mesesDropdown: _listaMesesDropdown,
@@ -351,7 +383,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
                   aniosDisponibles: _aniosDisponibles,
                   anioSeleccionado: _anioSeleccionado,
                   onMesChanged: (mes) => setState(() => _mesSeleccionado = mes),
-                  onAnioChanged: (anio) => setState(() => _anioSeleccionado = anio),
+                  onAnioChanged: (anio) =>
+                      setState(() => _anioSeleccionado = anio),
                 ),
               ),
               const SizedBox(height: 8),
@@ -377,9 +410,12 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
       data: (todos) {
         final pedidos = _filtrarPedidos(todos);
         final total = pedidos.length;
-        final pendientes = pedidos.where((p) => p.estado == EstadoPedido.pendiente).length;
-        final recibidos = pedidos.where((p) => p.estado == EstadoPedido.recibido).length;
-        final cancelados = pedidos.where((p) => p.estado == EstadoPedido.cancelado).length;
+        final pendientes =
+            pedidos.where((p) => p.estado == EstadoPedido.pendiente).length;
+        final recibidos =
+            pedidos.where((p) => p.estado == EstadoPedido.recibido).length;
+        final cancelados =
+            pedidos.where((p) => p.estado == EstadoPedido.cancelado).length;
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -389,17 +425,23 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
                 : Colors.white.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.5),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.white.withValues(alpha: 0.5),
               width: 1.5,
             ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildContadorItem('Total', total, const Color(0xFF8B5CF6), isDark),
-              _buildContadorItem('Pendientes', pendientes, Colors.orange.shade600, isDark),
-              _buildContadorItem('Recibidos', recibidos, Colors.green.shade600, isDark),
-              _buildContadorItem('Cancelados', cancelados, Colors.red.shade600, isDark),
+              _buildContadorItem(
+                  'Total', total, const Color(0xFF8B5CF6), isDark),
+              _buildContadorItem(
+                  'Pendientes', pendientes, Colors.orange.shade600, isDark),
+              _buildContadorItem(
+                  'Recibidos', recibidos, Colors.green.shade600, isDark),
+              _buildContadorItem(
+                  'Cancelados', cancelados, Colors.red.shade600, isDark),
             ],
           ),
         );
@@ -436,12 +478,25 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     );
   }
 
-  Widget _buildFiltroEstado(ColorScheme colorScheme, bool isDark, bool isMobile) {
+  Widget _buildFiltroEstado(
+      ColorScheme colorScheme, bool isDark, bool isMobile) {
     final List<Map<String, dynamic>> opciones = [
       {'valor': null, 'etiqueta': 'Todos', 'icono': Icons.list_rounded},
-      {'valor': EstadoPedido.pendiente, 'etiqueta': 'Pendientes', 'icono': Icons.hourglass_top_rounded},
-      {'valor': EstadoPedido.recibido, 'etiqueta': 'Recibidos', 'icono': Icons.check_circle_rounded},
-      {'valor': EstadoPedido.cancelado, 'etiqueta': 'Cancelados', 'icono': Icons.cancel_rounded},
+      {
+        'valor': EstadoPedido.pendiente,
+        'etiqueta': 'Pendientes',
+        'icono': Icons.hourglass_top_rounded
+      },
+      {
+        'valor': EstadoPedido.recibido,
+        'etiqueta': 'Recibidos',
+        'icono': Icons.check_circle_rounded
+      },
+      {
+        'valor': EstadoPedido.cancelado,
+        'etiqueta': 'Cancelados',
+        'icono': Icons.cancel_rounded
+      },
     ];
 
     return Container(
@@ -451,7 +506,9 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
             : Colors.white.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.5),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.white.withValues(alpha: 0.5),
           width: 1.5,
         ),
       ),
@@ -539,7 +596,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
                           onTap: () async {
                             await showDialog(
                               context: context,
-                              builder: (_) => DetallePedidoDialog(pedidoId: pedido.id),
+                              builder: (_) =>
+                                  DetallePedidoDialog(pedidoId: pedido.id),
                             );
                             setState(() {});
                           },
@@ -557,7 +615,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6))),
+            CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6))),
             SizedBox(height: 16),
             Text('Cargando pedidos...', style: TextStyle(color: Colors.grey)),
           ],
@@ -579,7 +638,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
               color: const Color(0xFF8B5CF6).withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.inbox_rounded, size: 40, color: Color(0xFF8B5CF6)),
+            child: const Icon(Icons.inbox_rounded,
+                size: 40, color: Color(0xFF8B5CF6)),
           ),
           const SizedBox(height: 16),
           Text(
@@ -610,7 +670,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF8B5CF6),
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
         ],
@@ -625,9 +686,13 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
         children: [
           Icon(Icons.error_outline_rounded, size: 60, color: colorScheme.error),
           const SizedBox(height: 16),
-          Text('Error al cargar los pedidos', style: TextStyle(color: colorScheme.onSurface)),
+          Text('Error al cargar los pedidos',
+              style: TextStyle(color: colorScheme.onSurface)),
           const SizedBox(height: 8),
-          Text(error.toString(), style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12), textAlign: TextAlign.center),
+          Text(error.toString(),
+              style:
+                  TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+              textAlign: TextAlign.center),
         ],
       ),
     );
@@ -701,16 +766,20 @@ class _EstadoChipState extends State<_EstadoChip> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(vertical: paddingVert, horizontal: paddingHoriz),
+          padding: EdgeInsets.symmetric(
+              vertical: paddingVert, horizontal: paddingHoriz),
           decoration: BoxDecoration(
-            color: widget.selected ? const Color(0xFF8B5CF6) : Colors.transparent,
+            color:
+                widget.selected ? const Color(0xFF8B5CF6) : Colors.transparent,
             borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(
               color: widget.selected
                   ? const Color(0xFF8B5CF6)
                   : (isHovering
                       ? const Color(0xFF8B5CF6).withValues(alpha: 0.5)
-                      : (widget.isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE5E7EB))),
+                      : (widget.isDark
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : const Color(0xFFE5E7EB))),
               width: widget.selected ? 1.5 : 1.0,
             ),
             boxShadow: widget.selected
@@ -729,15 +798,20 @@ class _EstadoChipState extends State<_EstadoChip> {
               Icon(
                 widget.icon,
                 size: iconSize,
-                color: widget.selected ? Colors.white : (widget.isDark ? Colors.white70 : Colors.black54),
+                color: widget.selected
+                    ? Colors.white
+                    : (widget.isDark ? Colors.white70 : Colors.black54),
               ),
               const SizedBox(width: 4),
               Text(
                 isMobile ? widget.label.substring(0, 1) : widget.label,
                 style: TextStyle(
                   fontSize: fontSize,
-                  fontWeight: widget.selected ? FontWeight.bold : FontWeight.w500,
-                  color: widget.selected ? Colors.white : (widget.isDark ? Colors.white70 : Colors.black54),
+                  fontWeight:
+                      widget.selected ? FontWeight.bold : FontWeight.w500,
+                  color: widget.selected
+                      ? Colors.white
+                      : (widget.isDark ? Colors.white70 : Colors.black54),
                 ),
               ),
             ],

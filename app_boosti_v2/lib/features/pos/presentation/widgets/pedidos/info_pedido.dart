@@ -21,7 +21,9 @@ class InfoPedido extends StatelessWidget {
             : Colors.white.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.5),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.white.withValues(alpha: 0.5),
           width: 1.5,
         ),
       ),
@@ -51,16 +53,25 @@ class InfoPedido extends StatelessWidget {
             spacing: 12,
             runSpacing: 8,
             children: [
-              _buildInfoItem('Empresa', pedido.proveedorEmpresa ?? 'N/A', isDark),
+              _buildInfoItem(
+                  'Empresa', pedido.proveedorEmpresa ?? 'N/A', isDark),
               _buildInfoItem('Cédula', pedido.proveedorCedula ?? 'N/A', isDark),
-              _buildInfoItem('Teléfono', pedido.proveedorTelefono ?? 'N/A', isDark),
-              _buildInfoItem('Fecha', DateFormat('dd/MM/yyyy HH:mm').format(pedido.fechaPedido), isDark),
-              if (pedido.observaciones != null && pedido.observaciones!.isNotEmpty)
+              _buildInfoItem(
+                  'Teléfono', pedido.proveedorTelefono ?? 'N/A', isDark),
+              _buildInfoItem(
+                  'Fecha',
+                  DateFormat('dd/MM/yyyy HH:mm').format(pedido.fechaPedido),
+                  isDark),
+              if (pedido.observaciones != null &&
+                  pedido.observaciones!.isNotEmpty)
                 _buildInfoItem('Observaciones', pedido.observaciones!, isDark),
             ],
           ),
           const SizedBox(height: 10),
-          Divider(color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.shade200),
+          Divider(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.grey.shade200),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
