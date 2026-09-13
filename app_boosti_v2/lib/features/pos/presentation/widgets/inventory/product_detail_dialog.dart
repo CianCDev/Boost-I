@@ -1,3 +1,4 @@
+// lib/features/pos/presentation/widgets/productos/product_detail_dialog.dart
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,9 @@ import '../../providers/proveedores_provider.dart';
 import '../../services/printer_service.dart';
 import '../../services/label_generator.dart';
 import '../../utils/responsive_helper.dart';
+import '../common/glass_dialog.dart';
+import '../common/dialog_header.dart';
+import '../common/status_badge.dart';
 
 class ProductDetailDialog extends ConsumerWidget {
   final ProductoEntity producto;
@@ -24,114 +28,67 @@ class ProductDetailDialog extends ConsumerWidget {
     required this.onEliminar,
   });
 
+  static const _colorPrimary = Color(0xFF8B5CF6);
+  static const _colorSuccess = Color(0xFF10B981);
+  static const _colorDanger = Color(0xFFEF4444);
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isMobile = ResponsiveHelper.isMobile(context);
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final selectedPrinter = ref.watch(printerProvider);
 
-    // Obtener el proveedor si existe
     final proveedorAsync = producto.proveedorId != null
-        ?  ref.watch(proveedorPorIdAsyncProvider(producto.proveedorId!)) 
+        ? ref.watch(proveedorPorIdAsyncProvider(producto.proveedorId!))
         : const AsyncValue<ProveedorEntity?>.data(null);
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-      elevation: 8,
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 16 : 40,
-        vertical: 24,
-      ),
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: 850,
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
-        ),
-        padding: EdgeInsets.all(isMobile ? 16 : 32),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: isDark
-                  ? Colors.black.withValues(alpha: 0.5)
-                  : Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // HEADER
-              _buildHeader(context, colorScheme, isMobile),
-              const SizedBox(height: 16),
-
-              // IMAGEN
-              _buildImageSection(colorScheme, isMobile),
-              const SizedBox(height: 16),
-
-              // INFORMACIÓN PRINCIPAL
-              _buildInfoPrincipal(colorScheme, isMobile),
-              const SizedBox(height: 12),
-
-              // PRECIO Y STOCK
-              _buildPrecioStock(colorScheme, isMobile),
-              const SizedBox(height: 12),
-
-              // CATEGORÍA Y STOCK MÍNIMO
-              _buildCategoriaStockMinimo(colorScheme, isMobile),
-              const SizedBox(height: 12),
-
-              // PROVEEDOR (si existe)
-              if (producto.proveedorNombre.isNotEmpty)
-                _buildProveedorSection(colorScheme, isMobile, proveedorAsync),
-              const SizedBox(height: 16),
-
-              // BOTONES DE ACCIÓN
-              _buildAcciones(context, colorScheme, isMobile, selectedPrinter),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ==================== HEADER ====================
-  Widget _buildHeader(BuildContext context, ColorScheme colorScheme, bool isMobile) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
+    return GlassDialog(
+      maxWidth: 850,
+      maxHeightFactor: 0.85,
+      accentColor: colorScheme.primary,
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.inventory_2_outlined, color: colorScheme.primary, size: 24),
+            const DialogHeader(
+              icon: Icons.inventory_2_outlined,
+              title: 'Detalles del Producto',
+              subtitle: 'Información completa del producto',
             ),
-            const SizedBox(width: 12),
-            Text(
-              'Detalles del Producto',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: isMobile ? 20 : 24,
-                color: colorScheme.onSurface,
+            const SizedBox(height: 16),
+
+            Flexible(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildImageSection(colorScheme, isMobile),
+                    const SizedBox(height: 16),
+                    _buildInfoPrincipal(colorScheme, isMobile),
+                    const SizedBox(height: 12),
+                    _buildPrecioStock(colorScheme, isMobile),
+                    const SizedBox(height: 12),
+                    _buildCategoriaStockMinimo(colorScheme, isMobile),
+                    if (producto.proveedorNombre.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildProveedorSection(
+                          colorScheme, isMobile, proveedorAsync),
+                    ],
+                  ],
+                ),
               ),
             ),
+            const SizedBox(height: 16),
+
+            // ===== ACCIONES =====
+            _buildAcciones(context, colorScheme, isMobile, selectedPrinter),
           ],
         ),
-        IconButton(
-          icon: Icon(Icons.close_rounded, size: 28, color: colorScheme.onSurfaceVariant),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ],
+      ),
     );
   }
 
@@ -139,28 +96,26 @@ class ProductDetailDialog extends ConsumerWidget {
   Widget _buildImageSection(ColorScheme colorScheme, bool isMobile) {
     return Center(
       child: Container(
-        height: isMobile ? 160 : 240,
+        height: isMobile ? 160 : 220,
         width: double.infinity,
         constraints: BoxConstraints(maxWidth: isMobile ? 400 : 500),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2), width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+            width: 1.5,
+          ),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: producto.imagenUrl != null && producto.imagenUrl!.isNotEmpty
+          child: producto.imagenUrl != null &&
+                  producto.imagenUrl!.isNotEmpty
               ? Image.network(
                   producto.imagenUrl!,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => _buildPlaceholder(colorScheme),
+                  errorBuilder: (context, error, stackTrace) =>
+                      _buildPlaceholder(colorScheme),
                 )
               : _buildPlaceholder(colorScheme),
         ),
@@ -174,11 +129,13 @@ class ProductDetailDialog extends ConsumerWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.image_outlined, size: 64, color: colorScheme.onSurfaceVariant),
+          Icon(Icons.image_outlined,
+              size: 56, color: colorScheme.onSurfaceVariant),
           const SizedBox(height: 8),
           Text(
             'Sin imagen',
-            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14),
+            style: TextStyle(
+                color: colorScheme.onSurfaceVariant, fontSize: 13),
           ),
         ],
       ),
@@ -187,215 +144,154 @@ class ProductDetailDialog extends ConsumerWidget {
 
   // ==================== INFO PRINCIPAL ====================
   Widget _buildInfoPrincipal(ColorScheme colorScheme, bool isMobile) {
-    return Card(
-      elevation: 0,
-      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.1)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.label_outline, size: 20, color: colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    producto.nombre,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: isMobile ? 18 : 22,
-                      color: colorScheme.onSurface,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.qr_code, size: 16, color: colorScheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Text(
-                  'Código: ${producto.codigoBarras}',
+    return _infoCard(
+      colorScheme: colorScheme,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.label_outline,
+                  size: 20, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  producto.nombre,
                   style: TextStyle(
-                    color: colorScheme.onSurfaceVariant,
-                    fontSize: isMobile ? 12 : 14,
+                    fontWeight: FontWeight.bold,
+                    fontSize: isMobile ? 18 : 20,
+                    color: colorScheme.onSurface,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(Icons.qr_code,
+                  size: 16, color: colorScheme.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Text(
+                producto.codigoBarras,
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: isMobile ? 12 : 13,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   // ==================== PRECIO Y STOCK ====================
   Widget _buildPrecioStock(ColorScheme colorScheme, bool isMobile) {
-    return Card(
-      elevation: 0,
-      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.1)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.attach_money, size: 18, color: colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Precio',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '\$${producto.precioUnidad.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: isMobile ? 18 : 22,
-                      color: colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
+    return _infoCard(
+      colorScheme: colorScheme,
+      child: Row(
+        children: [
+          Expanded(
+            child: _statBlock(
+              icon: Icons.attach_money,
+              label: 'Precio',
+              value: '\$${producto.precioUnidad.toStringAsFixed(2)}',
+              valueColor: colorScheme.primary,
+              colorScheme: colorScheme,
+              isMobile: isMobile,
             ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.inventory_outlined, size: 18, color: colorScheme.onSurfaceVariant),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Stock Actual',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${producto.stock} ${producto.esPesado ? 'kg' : 'unid'}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: isMobile ? 18 : 22,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
+          ),
+          Expanded(
+            child: _statBlock(
+              icon: Icons.inventory_outlined,
+              label: 'Stock actual',
+              value:
+                  '${producto.stock} ${producto.esPesado ? 'kg' : 'unid'}',
+              valueColor: colorScheme.onSurface,
+              colorScheme: colorScheme,
+              isMobile: isMobile,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // ==================== CATEGORÍA Y STOCK MÍNIMO ====================
-  Widget _buildCategoriaStockMinimo(ColorScheme colorScheme, bool isMobile) {
-    return Card(
-      elevation: 0,
-      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.1)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.category_outlined, size: 18, color: colorScheme.onSurfaceVariant),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Categoría',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    producto.categoria,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: isMobile ? 16 : 18,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
+  Widget _buildCategoriaStockMinimo(
+      ColorScheme colorScheme, bool isMobile) {
+    return _infoCard(
+      colorScheme: colorScheme,
+      child: Row(
+        children: [
+          Expanded(
+            child: _statBlock(
+              icon: Icons.category_outlined,
+              label: 'Categoría',
+              value: producto.categoria,
+              valueColor: colorScheme.onSurface,
+              colorScheme: colorScheme,
+              isMobile: isMobile,
             ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.warning_amber_outlined, size: 18, color: colorScheme.onSurfaceVariant),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Stock Mínimo',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${producto.stockMinimo} ${producto.esPesado ? 'kg' : 'unid'}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: isMobile ? 16 : 18,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
+          ),
+          Expanded(
+            child: _statBlock(
+              icon: Icons.warning_amber_outlined,
+              label: 'Stock mínimo',
+              value:
+                  '${producto.stockMinimo} ${producto.esPesado ? 'kg' : 'unid'}',
+              valueColor: colorScheme.onSurface,
+              colorScheme: colorScheme,
+              isMobile: isMobile,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // ==================== PROVEEDOR (con estado activo) ====================
+  Widget _statBlock({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color valueColor,
+    required ColorScheme colorScheme,
+    required bool isMobile,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: isMobile ? 16 : 18,
+            color: valueColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ==================== PROVEEDOR ====================
   Widget _buildProveedorSection(
     ColorScheme colorScheme,
     bool isMobile,
@@ -403,95 +299,77 @@ class ProductDetailDialog extends ConsumerWidget {
   ) {
     return proveedorAsync.when(
       data: (proveedor) {
-        final isActivo = proveedor?.activo ?? true; // Si no hay datos, asumimos activo
+        final isActivo = proveedor?.activo ?? true;
 
-        return Card(
-          elevation: 0,
-          color: colorScheme.primary.withValues(alpha: 0.05),
-          shape: RoundedRectangleBorder(
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.2)),
+            border: Border.all(
+              color: colorScheme.primary.withValues(alpha: 0.25),
+            ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Icon(Icons.business_center_rounded, color: colorScheme.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+          child: Row(
+            children: [
+              Icon(Icons.business_center_rounded,
+                  color: colorScheme.primary, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Proveedor',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            producto.proveedorNombre,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: isMobile ? 14 : 15,
+                              color: colorScheme.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (producto.proveedorId != null &&
+                            proveedor != null) ...[
+                          const SizedBox(width: 8),
+                          StatusBadge(
+                            label: isActivo ? 'Activo' : 'Inactivo',
+                            color: isActivo ? _colorSuccess : _colorDanger,
+                            icon: isActivo
+                                ? Icons.check_circle
+                                : Icons.cancel,
+                            size: StatusBadgeSize.small,
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (producto.proveedorTelefono.isNotEmpty) ...[
+                      const SizedBox(height: 2),
                       Text(
-                        'Proveedor',
+                        producto.proveedorTelefono,
                         style: TextStyle(
                           fontSize: 12,
                           color: colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              producto.proveedorNombre,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: isMobile ? 14 : 16,
-                                color: colorScheme.onSurface,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          // Solo mostramos badge si tenemos el proveedor real (con ID)
-                          if (producto.proveedorId != null && proveedor != null) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: isActivo ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isActivo ? Colors.green : Colors.red,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isActivo ? Icons.check_circle : Icons.cancel,
-                                    size: 14,
-                                    color: isActivo ? Colors.green : Colors.red,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    isActivo ? 'Activo' : 'Inactivo',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: isActivo ? Colors.green : Colors.red,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      if (producto.proveedorTelefono.isNotEmpty)
-                        Text(
-                          producto.proveedorTelefono,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
                     ],
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -500,7 +378,25 @@ class ProductDetailDialog extends ConsumerWidget {
     );
   }
 
-  // ==================== BOTONES DE ACCIÓN (optimizados para móvil) ====================
+  // ==================== HELPER CARD ====================
+  Widget _infoCard({
+    required ColorScheme colorScheme,
+    required Widget child,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: child,
+    );
+  }
+
+  // ==================== ACCIONES ====================
   Widget _buildAcciones(
     BuildContext context,
     ColorScheme colorScheme,
@@ -508,294 +404,117 @@ class ProductDetailDialog extends ConsumerWidget {
     dynamic selectedPrinter,
   ) {
     if (isMobile) {
-      // En móvil: botones solo con ícono, en fila
       return Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Etiqueta
-          _buildIconActionButton(
+          _iconActionButton(
             icon: Icons.local_offer_outlined,
-            color: const Color(0xFF8B5CF6),
-            onPressed: () async {
-              if (selectedPrinter == null) {
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('❌ No hay impresora seleccionada. Configura una en Ajustes.'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-                return;
-              }
-
-              final label = LabelItem(
-                nombre: producto.nombre,
-                precio: producto.precioUnidad,
-                codigoBarras: producto.codigoBarras,
-                cantidad: 1,
-              );
-
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Row(
-                    children: [
-                      SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                      SizedBox(width: 12),
-                      Text('Imprimiendo etiqueta...'),
-                    ],
-                  ),
-                  duration: Duration(seconds: 10),
-                ),
-              );
-
-              final result = await PrinterService().printLabel(
-                printer: selectedPrinter.device,
-                labels: [label],
-              );
-
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).clearSnackBars();
-              if (result.success) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('✅ Etiqueta impresa correctamente'),
-                    backgroundColor: colorScheme.primary,
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('❌ Error al imprimir: ${result.message}'),
-                    backgroundColor: colorScheme.error,
-                  ),
-                );
-              }
-            },
+            color: _colorPrimary,
+            onPressed: () => _imprimirEtiqueta(context, selectedPrinter),
           ),
-          const SizedBox(width: 8),
-    
-          
           if (esAdmin) ...[
             const SizedBox(width: 8),
-            // Editar
-            _buildIconActionButton(
+            _iconActionButton(
               icon: Icons.edit_outlined,
               color: colorScheme.primary,
               onPressed: onEditar,
             ),
             const SizedBox(width: 8),
-            // Eliminar
-            _buildIconActionButton(
+            _iconActionButton(
               icon: Icons.delete_outline,
-              color: colorScheme.error,
-              onPressed: () async {
-                await IsarService().guardarLog(
-                  LogEntity()
-                    ..accion = 'ELIMINAR_PRODUCTO'
-                    ..usuarioNombre = 'Sistema'
-                    ..usuarioRol = 'admin'
-                    ..detalles = 'Producto ID: ${producto.id} - ${producto.nombre}'
-                    ..fecha = DateTime.now()
-                    ..sincronizado = false,
-                );
-
-                final confirm = await showDialog<bool>(
-                  // ignore: use_build_context_synchronously
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('Eliminar Producto'),
-                    content: Text(
-                      '¿Estás seguro de eliminar "${producto.nombre}"? Esta acción no se puede deshacer.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancelar'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: colorScheme.error,
-                          foregroundColor: colorScheme.onError,
-                        ),
-                        child: const Text('Eliminar'),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  onEliminar();
-                  if (!context.mounted) return;
-                  Navigator.pop(context);
-                }
-              },
+              color: _colorDanger,
+              onPressed: () => _confirmarEliminacion(context),
             ),
           ],
         ],
       );
     }
 
-    // Para escritorio y tablet: botones con texto e ícono
-    final buttonPadding = EdgeInsets.symmetric(
-      horizontal: 24,
-      vertical: 12,
-    );
-
     return Wrap(
       alignment: WrapAlignment.end,
       spacing: 8,
       runSpacing: 8,
       children: [
-        // Etiqueta
-        ElevatedButton.icon(
-          onPressed: () async {
-            if (selectedPrinter == null) {
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('❌ No hay impresora seleccionada. Configura una en Ajustes.'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-              return;
-            }
-
-            final label = LabelItem(
-              nombre: producto.nombre,
-              precio: producto.precioUnidad,
-              codigoBarras: producto.codigoBarras,
-              cantidad: 1,
-            );
-
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Row(
-                  children: [
-                    SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                    SizedBox(width: 12),
-                    Text('Imprimiendo etiqueta...'),
-                  ],
-                ),
-                duration: Duration(seconds: 10),
-              ),
-            );
-
-            final result = await PrinterService().printLabel(
-              printer: selectedPrinter.device,
-              labels: [label],
-            );
-
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).clearSnackBars();
-            if (result.success) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('✅ Etiqueta impresa correctamente'),
-                  backgroundColor: colorScheme.primary,
-                ),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('❌ Error al imprimir: ${result.message}'),
-                  backgroundColor: colorScheme.error,
-                ),
-              );
-            }
-          },
-          icon: const Icon(Icons.local_offer_outlined, size: 20),
-          label: const Text('Etiqueta'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF8B5CF6),
-            foregroundColor: colorScheme.onPrimary,
-            padding: buttonPadding,
-            minimumSize: const Size(80, 44),
-            textStyle: const TextStyle(fontSize: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        ),
-
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          style: TextButton.styleFrom(
-            padding: buttonPadding,
-            minimumSize: const Size(80, 44),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            foregroundColor: colorScheme.onSurfaceVariant,
-          ),
-          child: const Text(
-            'Cerrar',
-            style: TextStyle(fontSize: 16),
-          ),
-        ),
-
-        if (esAdmin) ...[
-          ElevatedButton.icon(
-            onPressed: onEditar,
-            icon: const Icon(Icons.edit_outlined, size: 20),
-            label: const Text('Editar'),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: ElevatedButton.icon(
+            onPressed: () => _imprimirEtiqueta(context, selectedPrinter),
+            icon: const Icon(Icons.local_offer_outlined, size: 18),
+            label: const Text('Imprimir Etiqueta'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: colorScheme.primary,
-              foregroundColor: colorScheme.onPrimary,
-              padding: buttonPadding,
-              minimumSize: const Size(80, 44),
-              textStyle: const TextStyle(fontSize: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              backgroundColor: _colorPrimary,
+              foregroundColor: Colors.white,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
             ),
           ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              await IsarService().guardarLog(
-                LogEntity()
-                  ..accion = 'ELIMINAR_PRODUCTO'
-                  ..usuarioNombre = 'Sistema'
-                  ..usuarioRol = 'admin'
-                  ..detalles = 'Producto ID: ${producto.id} - ${producto.nombre}'
-                  ..fecha = DateTime.now()
-                  ..sincronizado = false,
-              );
-
-              final confirm = await showDialog<bool>(
-                // ignore: use_build_context_synchronously
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Eliminar Producto'),
-                  content: Text(
-                    '¿Estás seguro de eliminar "${producto.nombre}"? Esta acción no se puede deshacer.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancelar'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colorScheme.error,
-                        foregroundColor: colorScheme.onError,
-                      ),
-                      child: const Text('Eliminar'),
-                    ),
-                  ],
+        ),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Cerrar',
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+        if (esAdmin) ...[
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: OutlinedButton.icon(
+              onPressed: onEditar,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Editar'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colorScheme.primary,
+                side: BorderSide(
+                  color: colorScheme.primary.withValues(alpha: 0.4),
+                  width: 1.2,
                 ),
-              );
-              if (confirm == true) {
-                onEliminar();
-                if (!context.mounted) return;
-                Navigator.pop(context);
-              }
-            },
-            icon: const Icon(Icons.delete_outline, size: 20),
-            label: const Text('Eliminar'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colorScheme.error,
-              foregroundColor: colorScheme.onError,
-              padding: buttonPadding,
-              minimumSize: const Size(80, 44),
-              textStyle: const TextStyle(fontSize: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                backgroundColor:
+                    colorScheme.primary.withValues(alpha: 0.06),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: OutlinedButton.icon(
+              onPressed: () => _confirmarEliminacion(context),
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text('Eliminar'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _colorDanger,
+                side: BorderSide(
+                  color: _colorDanger.withValues(alpha: 0.4),
+                  width: 1.2,
+                ),
+                backgroundColor: _colorDanger.withValues(alpha: 0.06),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
             ),
           ),
         ],
@@ -803,28 +522,138 @@ class ProductDetailDialog extends ConsumerWidget {
     );
   }
 
-  // Helper para botones de ícono en móvil
-  Widget _buildIconActionButton({
+  Widget _iconActionButton({
     required IconData icon,
     required Color color,
     required VoidCallback onPressed,
   }) {
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: IconButton(
-        icon: Icon(icon, size: 24),
-        color: color,
-        onPressed: onPressed,
-        padding: EdgeInsets.zero,
-        style: IconButton.styleFrom(
-          backgroundColor: color.withValues(alpha: 0.1),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: color.withValues(alpha: 0.3)),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: IconButton(
+          icon: Icon(icon, size: 22),
+          color: color,
+          onPressed: onPressed,
+          padding: EdgeInsets.zero,
+          style: IconButton.styleFrom(
+            backgroundColor: color.withValues(alpha: 0.12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: color.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _imprimirEtiqueta(
+      BuildContext context, dynamic selectedPrinter) async {
+    if (selectedPrinter == null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('No hay impresora seleccionada'),
+          backgroundColor: _colorDanger,
+        ),
+      );
+      return;
+    }
+
+    final label = LabelItem(
+      nombre: producto.nombre,
+      precio: producto.precioUnidad,
+      codigoBarras: producto.codigoBarras,
+      cantidad: 1,
+    );
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Row(
+          children: [
+            SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(width: 12),
+            Text('Imprimiendo etiqueta...'),
+          ],
+        ),
+        duration: Duration(seconds: 10),
+      ),
+    );
+
+    final result = await PrinterService().printLabel(
+      printer: selectedPrinter.device,
+      labels: [label],
+    );
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(result.success
+            ? 'Etiqueta impresa correctamente'
+            : 'Error al imprimir: ${result.message}'),
+        backgroundColor: result.success ? _colorSuccess : _colorDanger,
+      ),
+    );
+  }
+
+  Future<void> _confirmarEliminacion(BuildContext context) async {
+    await IsarService().guardarLog(
+      LogEntity()
+        ..accion = 'ELIMINAR_PRODUCTO'
+        ..usuarioNombre = 'Sistema'
+        ..usuarioRol = 'admin'
+        ..detalles = 'Producto ID: ${producto.id} - ${producto.nombre}'
+        ..fecha = DateTime.now()
+        ..sincronizado = false,
+    );
+
+    if (!context.mounted) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Eliminar Producto'),
+        content: Text(
+          '¿Estás seguro de eliminar "${producto.nombre}"? Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _colorDanger,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Eliminar'),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      onEliminar();
+      if (!context.mounted) return;
+      Navigator.pop(context);
+    }
   }
 }

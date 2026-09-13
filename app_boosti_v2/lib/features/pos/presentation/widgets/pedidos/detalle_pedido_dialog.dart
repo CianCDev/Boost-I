@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/pedidos_provider.dart';
@@ -10,6 +9,8 @@ import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/detalles
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/info_recepcion.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/acciones_pedido.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
+import '../common/glass_dialog.dart';
+import '../common/dialog_header.dart';
 
 class DetallePedidoDialog extends ConsumerStatefulWidget {
   final int pedidoId;
@@ -17,7 +18,8 @@ class DetallePedidoDialog extends ConsumerStatefulWidget {
   const DetallePedidoDialog({super.key, required this.pedidoId});
 
   @override
-  ConsumerState<DetallePedidoDialog> createState() => _DetallePedidoDialogState();
+  ConsumerState<DetallePedidoDialog> createState() =>
+      _DetallePedidoDialogState();
 }
 
 class _DetallePedidoDialogState extends ConsumerState<DetallePedidoDialog> {
@@ -40,155 +42,122 @@ class _DetallePedidoDialogState extends ConsumerState<DetallePedidoDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = ResponsiveHelper.isMobile(context);
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: 700,
-              maxHeight: MediaQuery.of(context).size.height * 0.9,
-            ),
-            padding: EdgeInsets.all(isMobile ? 16 : 24),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.95)
-                  : Colors.white.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.white,
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-                  blurRadius: 40,
-                  spreadRadius: -10,
-                  offset: const Offset(0, 10),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: FutureBuilder(
-              future: Future.wait([_pedidoFuture, _detallesFuture, _recepcionFuture]),
-              builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF8B5CF6)));
-                }
-                if (snapshot.hasError) {
-                  return Center(
+    return GlassDialog(
+      maxWidth: 700,
+      maxHeightFactor: 0.9,
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
+        child: FutureBuilder(
+          future: Future.wait(
+              [_pedidoFuture, _detallesFuture, _recepcionFuture]),
+          builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+            // Header siempre visible
+            final header = const DialogHeader(
+              icon: Icons.receipt_long_rounded,
+              title: 'Detalle del Pedido',
+              subtitle: 'Revisa y gestiona el pedido',
+            );
+
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  const SizedBox(height: 40),
+                  const Center(child: CircularProgressIndicator()),
+                  const SizedBox(height: 40),
+                ],
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  const SizedBox(height: 32),
+                  Center(
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline_rounded, size: 60, color: Colors.red.shade400),
+                        Icon(Icons.error_outline_rounded,
+                            size: 60, color: colorScheme.error),
                         const SizedBox(height: 12),
-                        Text('Error: ${snapshot.error}', style: TextStyle(color: Colors.grey.shade700)),
+                        Text('Error: ${snapshot.error}'),
                       ],
                     ),
-                  );
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No se encontró el pedido'));
-                }
+                  ),
+                ],
+              );
+            }
 
-                final pedido = snapshot.data![0] as PedidoEntity?;
-                if (pedido == null) {
-                  return const Center(child: Text('Pedido no encontrado'));
-                }
-                final detalles = snapshot.data![1] as List<DetallePedidoEntity>;
-                final recepcion = snapshot.data![2] as RecepcionEntity?;
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  const SizedBox(height: 32),
+                  const Center(child: Text('No se encontró el pedido')),
+                ],
+              );
+            }
 
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildHeader(isDark, isMobile),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            InfoPedido(pedido: pedido),
-                            const SizedBox(height: 16),
-                            DetallesList(detalles: detalles),
-                            if (recepcion != null) ...[
-                              const SizedBox(height: 16),
-                              InfoRecepcion(recepcion: recepcion),
-                            ],
-                            const SizedBox(height: 16),
-                            AccionesPedido(
-                              pedido: pedido,
-                              onActualizar: () {
-                                setState(() => _cargarDatos());
-                              },
-                            ),
-                          ],
+            final pedido = snapshot.data![0] as PedidoEntity?;
+            if (pedido == null) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  const SizedBox(height: 32),
+                  const Center(child: Text('Pedido no encontrado')),
+                ],
+              );
+            }
+
+            final detalles = snapshot.data![1] as List<DetallePedidoEntity>;
+            final recepcion = snapshot.data![2] as RecepcionEntity?;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                header,
+                const SizedBox(height: 16),
+                Flexible(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        InfoPedido(pedido: pedido),
+                        const SizedBox(height: 16),
+                        DetallesList(detalles: detalles),
+                        if (recepcion != null) ...[
+                          const SizedBox(height: 16),
+                          InfoRecepcion(recepcion: recepcion),
+                        ],
+                        const SizedBox(height: 16),
+                        AccionesPedido(
+                          pedido: pedido,
+                          onActualizar: () {
+                            if (mounted) setState(() => _cargarDatos());
+                          },
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                );
-              },
-            ),
-          ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
-    );
-  }
-
-  Widget _buildHeader(bool isDark, bool isMobile) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 24),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Text(
-            'Detalle del Pedido',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: isMobile ? 18 : 22,
-              color: isDark ? Colors.white : const Color(0xFF111827),
-              letterSpacing: -0.5,
-            ),
-          ),
-        ),
-        IconButton(
-          icon: Icon(Icons.close_rounded, color: isDark ? Colors.white54 : Colors.black54),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ],
     );
   }
 }

@@ -1,9 +1,11 @@
-import 'dart:ui';
+// lib/features/pos/presentation/widgets/proveedores/crear_proveedor_dialog.dart
 import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/proveedores_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
+import '../common/glass_dialog.dart';
+import '../common/dialog_header.dart';
 
 class CrearProveedorDialog extends ConsumerStatefulWidget {
   final ProveedorEntity? proveedor;
@@ -11,7 +13,8 @@ class CrearProveedorDialog extends ConsumerStatefulWidget {
   const CrearProveedorDialog({super.key, this.proveedor});
 
   @override
-  ConsumerState<CrearProveedorDialog> createState() => _CrearProveedorDialogState();
+  ConsumerState<CrearProveedorDialog> createState() =>
+      _CrearProveedorDialogState();
 }
 
 class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
@@ -23,6 +26,9 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
   late TextEditingController _emailController;
   bool _activo = true;
   bool _isSaving = false;
+
+  static const _colorPrimary = Color(0xFF8B5CF6);
+  static const _colorSuccess = Color(0xFF10B981);
 
   @override
   void initState() {
@@ -47,23 +53,22 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
   }
 
   Future<void> _guardar() async {
-    if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, corrige los campos requeridos.'), backgroundColor: Colors.orange),
-      );
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
 
+    final nombre = _nombreController.text.trim();
     final email = _emailController.text.trim();
     final direccion = _direccionController.text.trim();
 
-    final nombre = _nombreController.text.trim();
     final proveedor = ProveedorEntity()
       ..nombre = nombre
-      ..cedula = _cedulaController.text.trim().isNotEmpty ? _cedulaController.text.trim() : null
-      ..telefono = _telefonoController.text.trim().isNotEmpty ? _telefonoController.text.trim() : null
+      ..cedula = _cedulaController.text.trim().isNotEmpty
+          ? _cedulaController.text.trim()
+          : null
+      ..telefono = _telefonoController.text.trim().isNotEmpty
+          ? _telefonoController.text.trim()
+          : null
       ..direccion = direccion.isNotEmpty ? direccion : null
       ..email = email.isNotEmpty ? email : null
       ..empresa = nombre
@@ -81,299 +86,315 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
       final syncService = SyncService();
       await syncService.sincronizarProveedoresPendientes();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.proveedor == null
-                  ? '✅ Proveedor creado y sincronizado'
-                  : '✅ Proveedor actualizado y sincronizado',
-            ),
-            backgroundColor: const Color(0xFF10B981),
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded,
+                  color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.proveedor == null
+                      ? 'Proveedor creado y sincronizado'
+                      : 'Proveedor actualizado y sincronizado',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
-        );
-        Navigator.pop(context, true);
-      }
+          backgroundColor: _colorSuccess,
+        ),
+      );
+      Navigator.pop(context, true);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
-        );
-        setState(() => _isSaving = false);
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text('Error: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
+      );
+      setState(() => _isSaving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final esEdicion = widget.proveedor != null;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: 600,
-              maxHeight: MediaQuery.of(context).size.height * 0.9,
-            ),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.95)
-                  : Colors.white.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.white,
-                width: 1.5,
+    return GlassDialog(
+      maxWidth: 560,
+      scrollable: true,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              DialogHeader(
+                icon: esEdicion
+                    ? Icons.edit_rounded
+                    : Icons.add_business_rounded,
+                title: esEdicion ? 'Editar Proveedor' : 'Nuevo Proveedor',
+                subtitle: esEdicion
+                    ? 'Actualiza la información del proveedor'
+                    : 'Registra un nuevo proveedor para tus pedidos',
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-                  blurRadius: 40,
-                  spreadRadius: -10,
-                  offset: const Offset(0, 10),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: SingleChildScrollView(
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // TÍTULO
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
+              const SizedBox(height: 24),
+
+              _field(
+                controller: _nombreController,
+                label: 'Nombre de la empresa *',
+                icon: Icons.business_center_rounded,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+              ),
+              const SizedBox(height: 14),
+
+              _field(
+                controller: _cedulaController,
+                label: 'RIF / Cédula',
+                icon: Icons.badge_rounded,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  if (v.trim().length < 6) return 'Mínimo 6 caracteres';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+
+              _field(
+                controller: _telefonoController,
+                label: 'Teléfono',
+                icon: Icons.phone_rounded,
+                keyboardType: TextInputType.phone,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  final digits = v.replaceAll(RegExp(r'\D'), '');
+                  if (digits.length < 7) return 'Mínimo 7 dígitos';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+
+              _field(
+                controller: _emailController,
+                label: 'Correo electrónico',
+                icon: Icons.email_rounded,
+                keyboardType: TextInputType.emailAddress,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  final re = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+                  return re.hasMatch(v.trim()) ? null : 'Correo inválido';
+                },
+              ),
+              const SizedBox(height: 14),
+
+              _field(
+                controller: _direccionController,
+                label: 'Dirección',
+                icon: Icons.location_on_rounded,
+                maxLines: 2,
+              ),
+              const SizedBox(height: 20),
+
+              // ===== TOGGLE ACTIVO =====
+              _ActivoToggle(
+                value: _activo,
+                onChanged: (v) => setState(() => _activo = v),
+              ),
+              const SizedBox(height: 24),
+
+              // ===== BOTONES =====
+              Row(
+                children: [
+                  Expanded(
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: TextButton(
+                        onPressed: _isSaving
+                            ? null
+                            : () => Navigator.pop(context),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            esEdicion ? Icons.edit_rounded : Icons.add_business_rounded,
-                            color: Colors.white,
-                            size: 22,
                           ),
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            esEdicion ? 'Editar Proveedor' : 'Nuevo Proveedor',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: isMobile ? 18 : 22,
-                              color: isDark ? Colors.white : const Color(0xFF111827),
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.close_rounded, color: isDark ? Colors.white54 : Colors.black54),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // NOMBRE
-                    TextFormField(
-                      controller: _nombreController,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                      decoration: _inputDecor('Nombre de la empresa *', Icons.business_center_rounded, isDark),
-                      validator: (v) => v!.trim().isEmpty ? 'Requerido' : null,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // RIF
-                    TextFormField(
-                      controller: _cedulaController,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                      decoration: _inputDecor('RIF / Cédula', Icons.badge_rounded, isDark),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return null;
-                        if (v.trim().length < 6) return 'Mínimo 6 caracteres';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // TELÉFONO
-                    TextFormField(
-                      controller: _telefonoController,
-                      keyboardType: TextInputType.phone,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                      decoration: _inputDecor('Teléfono', Icons.phone_rounded, isDark),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return null;
-                        final digits = v.replaceAll(RegExp(r'\D'), '');
-                        if (digits.length < 7) return 'Mínimo 7 dígitos';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // CORREO
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                      decoration: _inputDecor('Correo electrónico', Icons.email_rounded, isDark),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // DIRECCIÓN
-                    TextFormField(
-                      controller: _direccionController,
-                      maxLines: 2,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                      decoration: _inputDecor('Dirección', Icons.location_on_rounded, isDark),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // ACTIVO
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: _activo
-                            ? const Color(0xFF10B981).withValues(alpha: 0.1)
-                            : isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF9FAFB),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: _activo
-                              ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                              : isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE5E7EB),
-                        ),
-                      ),
-                      child: SwitchListTile(
-                        title: Text(
-                          _activo ? 'Proveedor Activo' : 'Proveedor Inactivo',
+                        child: Text(
+                          'Cancelar',
                           style: TextStyle(
-                            color: _activo
-                                ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
-                                : (isDark ? Colors.white70 : Colors.black54),
+                            color: colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.bold,
+                            fontSize: 15,
                           ),
                         ),
-                        value: _activo,
-                        onChanged: (value) => setState(() => _activo = value),
-                        activeThumbColor: const Color(0xFF10B981),
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
                       ),
                     ),
-                    const SizedBox(height: 32),
-
-                    // BOTONES
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: _isSaving ? null : () => Navigator.pop(context),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: Text(
-                              'Cancelar',
-                              style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black54,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: MouseRegion(
+                      cursor: _isSaving
+                          ? SystemMouseCursors.forbidden
+                          : SystemMouseCursors.click,
+                      child: ElevatedButton(
+                        onPressed: _isSaving ? null : _guardar,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _colorPrimary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
+                          elevation: 0,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton(
-                            onPressed: _isSaving ? null : _guardar,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF8B5CF6),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                esEdicion
+                                    ? 'Guardar Cambios'
+                                    : 'Crear Proveedor',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
                               ),
-                              elevation: 0,
-                            ),
-                            child: _isSaving
-                                ? const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : Text(
-                                    esEdicion ? 'Guardar Cambios' : 'Crear Proveedor',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  InputDecoration _inputDecor(String label, IconData icon, bool isDark) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
-      prefixIcon: Icon(icon, color: const Color(0xFF8B5CF6)),
-      filled: true,
-      fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF9FAFB),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
+  Widget _field({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+    int maxLines = 1,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final colorScheme = theme.colorScheme;
+
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      validator: validator,
+      maxLines: maxLines,
+      style: TextStyle(color: colorScheme.onSurface),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+        prefixIcon: Icon(icon, color: _colorPrimary),
+        filled: true,
+        fillColor: isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : const Color(0xFFF9FAFB),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+            width: 1,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _colorPrimary, width: 2),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE5E7EB), width: 1),
+    );
+  }
+}
+
+/// Toggle reutilizable de activo/inactivo para diálogos.
+class _ActivoToggle extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _ActivoToggle({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const color = Color(0xFF10B981);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        decoration: BoxDecoration(
+          color: value
+              ? color.withValues(alpha: 0.1)
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : const Color(0xFFF9FAFB)),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: value
+                ? color.withValues(alpha: 0.3)
+                : colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+        ),
+        child: SwitchListTile(
+          title: Text(
+            value ? 'Proveedor Activo' : 'Proveedor Inactivo',
+            style: TextStyle(
+              color: value
+                  ? (isDark
+                      ? const Color(0xFF34D399)
+                      : const Color(0xFF059669))
+                  : colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: Text(
+            value
+                ? 'Disponible para crear pedidos'
+                : 'Oculto de la selección de pedidos',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          value: value,
+          onChanged: onChanged,
+          activeThumbColor: color,
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+        ),
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Color(0xFF8B5CF6), width: 2),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
     );
   }
 }

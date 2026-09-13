@@ -1,20 +1,25 @@
-// lib/features/pos/presentation/widgets/proveedores/proveedor_card.dart
+// lib/features/pos/presentation/widgets/departamentos/departamento_card.dart
 import 'package:flutter/material.dart';
-import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/departamento_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 import '../common/glass_card.dart';
 import '../common/status_badge.dart';
 import '../common/card_action_button.dart';
 
-class ProveedorCard extends StatelessWidget {
-  final ProveedorEntity proveedor;
+class DepartamentoCard extends ConsumerWidget {
+  final DepartamentoEntity departamento;
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onToggleActivo;
   final VoidCallback onDelete;
 
-  const ProveedorCard({
+  const DepartamentoCard({
     super.key,
-    required this.proveedor,
+    required this.departamento,
     required this.onTap,
     required this.onEdit,
     required this.onToggleActivo,
@@ -27,10 +32,17 @@ class ProveedorCard extends StatelessWidget {
   static const _colorWarning = Color(0xFFF59E0B);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final activo = proveedor.activo;
+    final activo = departamento.activo;
     final estadoColor = activo ? _colorActivo : _colorInactivo;
+
+    final localAsync = departamento.localId != null
+        ? ref.watch(localPorIdProvider(departamento.localId!))
+        : const AsyncValue<LocalEntity?>.data(null);
+    final usuarioAsync = departamento.usuarioId != null
+        ? ref.watch(usuarioPorIdProvider(departamento.usuarioId!))
+        : const AsyncValue<UsuarioEntity?>.data(null);
 
     return GlassCard(
       onTap: onTap,
@@ -40,7 +52,6 @@ class ProveedorCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ===== TÍTULO + BADGE =====
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -49,7 +60,7 @@ class ProveedorCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      proveedor.nombre,
+                      departamento.nombre,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 17,
@@ -59,12 +70,10 @@ class ProveedorCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (proveedor.empresa != null &&
-                        proveedor.empresa!.isNotEmpty &&
-                        proveedor.empresa != proveedor.nombre) ...[
+                    if (departamento.descripcion?.isNotEmpty ?? false) ...[
                       const SizedBox(height: 2),
                       Text(
-                        proveedor.empresa!,
+                        departamento.descripcion!,
                         style: TextStyle(
                           fontSize: 13,
                           color: colorScheme.onSurfaceVariant,
@@ -84,25 +93,31 @@ class ProveedorCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 8),
-
-          // ===== INFO SECUNDARIA =====
-          Wrap(
-            spacing: 14,
-            runSpacing: 4,
-            children: [
-              if (proveedor.telefono?.isNotEmpty ?? false)
-                _infoItem(Icons.phone_rounded, proveedor.telefono!, colorScheme),
-              if (proveedor.cedula?.isNotEmpty ?? false)
-                _infoItem(Icons.badge_rounded, 'RIF: ${proveedor.cedula}',
-                    colorScheme),
-              if (proveedor.email?.isNotEmpty ?? false)
-                _infoItem(Icons.email_rounded, proveedor.email!, colorScheme),
-            ],
+          _infoRow(
+            Icons.storefront_rounded,
+            localAsync.when(
+              data: (l) => l?.nombre ?? 'Sin local asignado',
+              loading: () => 'Cargando...',
+              error: (_, __) => 'Error',
+            ),
+            colorScheme,
           ),
-
-          // ===== BOTONES =====
+          usuarioAsync.when(
+            data: (u) {
+              if (u == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: _infoRow(
+                  Icons.person_outline_rounded,
+                  'Encargado: ${u.nombre}',
+                  colorScheme,
+                ),
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -134,17 +149,20 @@ class ProveedorCard extends StatelessWidget {
     );
   }
 
-  Widget _infoItem(IconData icon, String text, ColorScheme colorScheme) {
+  Widget _infoRow(IconData icon, String text, ColorScheme colorScheme) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 13, color: colorScheme.onSurfaceVariant),
         const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 12,
-            color: colorScheme.onSurfaceVariant,
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

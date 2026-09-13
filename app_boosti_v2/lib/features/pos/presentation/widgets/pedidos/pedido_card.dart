@@ -1,176 +1,178 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dart';
-import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/estado_chip.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
+import '../common/glass_card.dart';
+import '../common/status_badge.dart';
 
-class PedidoCard extends StatelessWidget {
+class PedidoCard extends StatefulWidget {
   final PedidoEntity pedido;
   final VoidCallback onTap;
 
   const PedidoCard({super.key, required this.pedido, required this.onTap});
 
+  @override
+  State<PedidoCard> createState() => _PedidoCardState();
+}
+
+class _PedidoCardState extends State<PedidoCard> {
+  static const _colorPendiente = Color(0xFFF59E0B);
+  static const _colorRecibido = Color(0xFF10B981);
+  static const _colorCancelado = Color(0xFFEF4444);
+
   Future<int> _getCantidadProductos() async {
     try {
       final isar = IsarService();
-      final detalles = await isar.obtenerDetallesPorPedido(pedido.id);
+      final detalles = await isar.obtenerDetallesPorPedido(widget.pedido.id);
       return detalles.length;
-    } catch (e) {
+    } catch (_) {
       return 0;
+    }
+  }
+
+  Color _barColor(EstadoPedido estado) {
+    switch (estado) {
+      case EstadoPedido.pendiente:
+        return _colorPendiente;
+      case EstadoPedido.recibido:
+        return _colorRecibido;
+      case EstadoPedido.cancelado:
+        return _colorCancelado;
+    }
+  }
+
+  IconData _icono(EstadoPedido estado) {
+    switch (estado) {
+      case EstadoPedido.pendiente:
+        return Icons.hourglass_top_rounded;
+      case EstadoPedido.recibido:
+        return Icons.check_circle_rounded;
+      case EstadoPedido.cancelado:
+        return Icons.cancel_rounded;
+    }
+  }
+
+  String _label(EstadoPedido estado) {
+    switch (estado) {
+      case EstadoPedido.pendiente:
+        return 'Pendiente';
+      case EstadoPedido.recibido:
+        return 'Recibido';
+      case EstadoPedido.cancelado:
+        return 'Cancelado';
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveHelper.isMobile(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final barColor = _barColor(widget.pedido.estado);
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.white.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.white.withValues(alpha: 0.5),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Container(
-                  width: 4,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: _getColor(pedido.estado),
-                    borderRadius: BorderRadius.circular(4),
+    return GlassCard(
+      onTap: widget.onTap,
+      showStatusBar: true,
+      statusColor: barColor,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Título + estado
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.pedido.proveedorNombre,
+                  style: TextStyle(
+                    fontSize: isMobile ? 14 : 15,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              pedido.proveedorNombre,
-                              style: TextStyle(
-                                fontSize: isMobile ? 14 : 16,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white : Colors.black87,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          EstadoChip(estado: pedido.estado),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.business_rounded, size: isMobile ? 12 : 14, color: isDark ? Colors.white54 : Colors.black54),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              pedido.proveedorEmpresa ?? 'Sin empresa',
-                              style: TextStyle(
-                                fontSize: isMobile ? 11 : 13,
-                                color: isDark ? Colors.white54 : Colors.black54,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(Icons.calendar_today_rounded, size: isMobile ? 12 : 14, color: isDark ? Colors.white54 : Colors.black54),
-                          const SizedBox(width: 4),
-                          Text(
-                            DateFormat('dd/MM/yyyy').format(pedido.fechaPedido),
-                            style: TextStyle(
-                              fontSize: isMobile ? 11 : 13,
-                              color: isDark ? Colors.white54 : Colors.black54,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.shopping_bag_rounded, size: isMobile ? 12 : 14, color: isDark ? Colors.white54 : Colors.black54),
-                          const SizedBox(width: 4),
-                          FutureBuilder<int>(
-                            future: _getCantidadProductos(),
-                            initialData: 0,
-                            builder: (context, snapshot) {
-                              final cantidad = snapshot.data ?? 0;
-                              return Text(
-                                '$cantidad productos',
-                                style: TextStyle(
-                                  fontSize: isMobile ? 11 : 13,
-                                  color: isDark ? Colors.white54 : Colors.black54,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              );
-                            },
-                          ),
-                          const Spacer(),
-                          Text(
-                            '\$${pedido.total.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: isMobile ? 15 : 16,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF10B981),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              StatusBadge(
+                label: _label(widget.pedido.estado),
+                color: barColor,
+                icon: _icono(widget.pedido.estado),
+                size: StatusBadgeSize.small,
+              ),
+            ],
           ),
-        ),
+          const SizedBox(height: 8),
+
+          // Empresa + fecha
+          Row(
+            children: [
+              Icon(Icons.business_rounded,
+                  size: isMobile ? 12 : 13,
+                  color: colorScheme.onSurfaceVariant),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  widget.pedido.proveedorEmpresa ?? 'Sin empresa',
+                  style: TextStyle(
+                    fontSize: isMobile ? 11 : 12,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.calendar_today_rounded,
+                  size: isMobile ? 12 : 13,
+                  color: colorScheme.onSurfaceVariant),
+              const SizedBox(width: 4),
+              Text(
+                DateFormat('dd/MM/yyyy').format(widget.pedido.fechaPedido),
+                style: TextStyle(
+                  fontSize: isMobile ? 11 : 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+
+          // Cantidad + total
+          Row(
+            children: [
+              Icon(Icons.shopping_bag_rounded,
+                  size: isMobile ? 12 : 13,
+                  color: colorScheme.onSurfaceVariant),
+              const SizedBox(width: 4),
+              FutureBuilder<int>(
+                future: _getCantidadProductos(),
+                initialData: 0,
+                builder: (context, snapshot) {
+                  final cantidad = snapshot.data ?? 0;
+                  return Text(
+                    '$cantidad productos',
+                    style: TextStyle(
+                      fontSize: isMobile ? 11 : 12,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  );
+                },
+              ),
+              const Spacer(),
+              Text(
+                '\$${widget.pedido.total.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: isMobile ? 15 : 16,
+                  fontWeight: FontWeight.bold,
+                  color: _colorRecibido,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
-  }
-
-  Color _getColor(EstadoPedido estado) {
-    switch (estado) {
-      case EstadoPedido.pendiente:
-        return Colors.orange.shade400;
-      case EstadoPedido.recibido:
-        return Colors.green.shade400;
-      case EstadoPedido.cancelado:
-        return Colors.red.shade400;
-    }
   }
 }

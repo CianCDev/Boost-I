@@ -1,4 +1,4 @@
-import 'dart:ui';
+// lib/features/pos/presentation/widgets/proveedores/detalle_proveedor_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/proveedores_provider.dart';
@@ -7,221 +7,126 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.
 import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/pedidos/multi_select_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
+import '../common/glass_dialog.dart';
+import '../common/dialog_header.dart';
+import '../common/status_badge.dart';
 
 class DetalleProveedorDialog extends ConsumerWidget {
   final ProveedorEntity proveedor;
 
   const DetalleProveedorDialog({super.key, required this.proveedor});
 
+  static const _colorPrimary = Color(0xFF8B5CF6);
+  static const _colorSuccess = Color(0xFF10B981);
+  static const _colorDanger = Color(0xFFEF4444);
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final productosAsync = ref.watch(productosPorProveedorProvider(proveedor.id));
+    final productosAsync =
+        ref.watch(productosPorProveedorProvider(proveedor.id));
     final usuario = ref.watch(usuarioActualProvider);
     final esAdmin = usuario?.rol == 'admin';
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = ResponsiveHelper.isMobile(context);
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: 700,
-              maxHeight: MediaQuery.of(context).size.height * 0.9,
+    return GlassDialog(
+      maxWidth: 700,
+      maxHeightFactor: 0.9,
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ===== HEADER =====
+            DialogHeader(
+              icon: Icons.business_center_rounded,
+              title: proveedor.nombre,
+              subtitle: proveedor.supabaseId != null
+                  ? 'ID: ${proveedor.supabaseId!.substring(0, 8)}...'
+                  : null,
             ),
-            padding: EdgeInsets.all(isMobile ? 16 : 24),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.95)
-                  : Colors.white.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.white,
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-                  blurRadius: 40,
-                  spreadRadius: -10,
-                  offset: const Offset(0, 10),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildHeader(context, isDark, isMobile),
-                  const SizedBox(height: 12),
-                  _buildInfoSection(isDark),
-                  const SizedBox(height: 16),
-                  _buildProductosSection(
-                    context, // ✅ Pasar context para usar en MediaQuery
-                    isDark,
-                    isMobile,
-                    productosAsync,
-                    esAdmin,
-                    ref,
-                  ),
-                ],
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: StatusBadge(
+                label: proveedor.activo ? 'Activo' : 'Inactivo',
+                color:
+                    proveedor.activo ? _colorSuccess : _colorDanger,
+                size: StatusBadgeSize.medium,
               ),
             ),
-          ),
+            const SizedBox(height: 18),
+
+            // ===== INFO =====
+            _buildInfoSection(colorScheme),
+            const SizedBox(height: 20),
+
+            // ===== PRODUCTOS =====
+            _buildProductosSection(
+              context,
+              isMobile,
+              colorScheme,
+              productosAsync,
+              esAdmin,
+              ref,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context, bool isDark, bool isMobile) {
-    final Color estadoColor = proveedor.activo ? const Color(0xFF10B981) : const Color(0xFFEF4444);
-
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.business_center_rounded, color: Colors.white, size: 24),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                proveedor.nombre,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: isMobile ? 18 : 22,
-                  color: isDark ? Colors.white : const Color(0xFF111827),
-                  letterSpacing: -0.5,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: estadoColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: estadoColor.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      proveedor.activo ? 'Activo' : 'Inactivo',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: estadoColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (proveedor.supabaseId != null)
-                    Text(
-                      'ID: ${proveedor.supabaseId!.substring(0, 8)}...',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? Colors.white54 : Colors.black54,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        IconButton(
-          icon: Icon(Icons.close_rounded, color: isDark ? Colors.white54 : Colors.black54),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoSection(bool isDark) {
+  Widget _buildInfoSection(ColorScheme colorScheme) {
     return Container(
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(16),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE5E7EB),
-          width: 1,
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
         ),
       ),
-      padding: const EdgeInsets.all(12),
       child: Wrap(
-        spacing: 8,
-        runSpacing: 6,
+        spacing: 12,
+        runSpacing: 10,
         children: [
-          _buildInfoChip('RIF', proveedor.cedula ?? 'N/A', isDark),
-          _buildInfoChip('Teléfono', proveedor.telefono ?? 'N/A', isDark),
-          _buildInfoChip('Empresa', proveedor.empresa ?? proveedor.nombre, isDark),
-          if (proveedor.direccion != null && proveedor.direccion!.isNotEmpty)
-            _buildInfoChip('Dirección', proveedor.direccion!, isDark),
-          if (proveedor.email != null && proveedor.email!.isNotEmpty)
-            _buildInfoChip('Correo', proveedor.email!, isDark),
+          _infoChip('RIF', proveedor.cedula ?? 'N/A', colorScheme),
+          _infoChip('Teléfono', proveedor.telefono ?? 'N/A', colorScheme),
+          _infoChip('Empresa', proveedor.empresa ?? proveedor.nombre,
+              colorScheme),
+          if (proveedor.direccion?.isNotEmpty ?? false)
+            _infoChip('Dirección', proveedor.direccion!, colorScheme),
+          if (proveedor.email?.isNotEmpty ?? false)
+            _infoChip('Correo', proveedor.email!, colorScheme),
         ],
       ),
     );
   }
 
-  Widget _buildInfoChip(String label, String value, bool isDark) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 180),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade300,
-          width: 0.5,
-        ),
-      ),
+  Widget _infoChip(String label, String value, ColorScheme colorScheme) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 200),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             label,
             style: TextStyle(
               fontSize: 10,
-              color: isDark ? Colors.white54 : Colors.black54,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurfaceVariant,
+              letterSpacing: 0.3,
             ),
           ),
+          const SizedBox(height: 2),
           Text(
             value,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white : Colors.black87,
+              color: colorScheme.onSurface,
             ),
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
@@ -232,9 +137,9 @@ class DetalleProveedorDialog extends ConsumerWidget {
   }
 
   Widget _buildProductosSection(
-    BuildContext context, // ✅ Ahora recibe context
-    bool isDark,
+    BuildContext context,
     bool isMobile,
+    ColorScheme colorScheme,
     AsyncValue<List<ProductoEntity>> productosAsync,
     bool esAdmin,
     WidgetRef ref,
@@ -244,31 +149,42 @@ class DetalleProveedorDialog extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Icon(Icons.shopping_bag_rounded, color: const Color(0xFF8B5CF6)),
+            const Icon(Icons.shopping_bag_rounded,
+                color: _colorPrimary, size: 18),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Productos asociados',
                 style: TextStyle(
-                  fontSize: isMobile ? 14 : 16,
+                  fontSize: isMobile ? 14 : 15,
                   fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : Colors.black87,
+                  color: colorScheme.onSurface,
                 ),
               ),
             ),
             if (esAdmin)
-              _buildActionButton(
-                icon: Icons.add_rounded,
-                label: 'Asignar',
-                onPressed: () => _mostrarDialogoAsignarProductos(context, ref),
-                color: const Color(0xFF8B5CF6),
-                isDark: isDark,
-                isMobile: isMobile,
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: ElevatedButton.icon(
+                  onPressed: () =>
+                      _mostrarDialogoAsignarProductos(context, ref),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: Text(isMobile ? '' : 'Asignar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _colorPrimary,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 10 : 14, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
               ),
           ],
         ),
-        const SizedBox(height: 8),
-        // ✅ Usamos ConstrainedBox con maxHeight para evitar overflow
+        const SizedBox(height: 10),
         ConstrainedBox(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.35,
@@ -276,14 +192,35 @@ class DetalleProveedorDialog extends ConsumerWidget {
           child: productosAsync.when(
             data: (productos) {
               if (productos.isEmpty) {
-                return Center(
-                  child: Text(
-                    esAdmin
-                        ? 'No hay productos asignados. Presiona "Asignar" para agregar.'
-                        : 'No hay productos asignados.',
-                    style: TextStyle(
-                      color: isDark ? Colors.white54 : Colors.black54,
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 24, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: colorScheme.outlineVariant
+                          .withValues(alpha: 0.4),
                     ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.inventory_2_outlined,
+                          size: 20, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          esAdmin
+                              ? 'No hay productos asignados. Presiona "Asignar" para agregar.'
+                              : 'No hay productos asignados a este proveedor.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 );
               }
@@ -292,98 +229,45 @@ class DetalleProveedorDialog extends ConsumerWidget {
                 itemCount: productos.length,
                 separatorBuilder: (_, __) => Divider(
                   height: 1,
-                  color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFE5E7EB),
+                  color:
+                      colorScheme.outlineVariant.withValues(alpha: 0.4),
                 ),
                 itemBuilder: (context, index) {
                   final p = productos[index];
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                    leading: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(Icons.inventory_2_rounded, color: const Color(0xFF8B5CF6), size: 16),
-                    ),
-                    title: Text(
-                      p.nombre,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        color: isDark ? Colors.white : Colors.black87,
-                        fontSize: isMobile ? 13 : 14,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                    subtitle: Text(
-                      'Código: ${p.codigoBarras}',
-                      style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54),
-                    ),
-                    trailing: Text(
-                      '\$${p.precioUnidad.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF8B5CF6),
-                        fontSize: isMobile ? 13 : 14,
-                      ),
-                    ),
+                  return _ProductoProveedorTile(
+                    producto: p,
+                    isMobile: isMobile,
+                    colorScheme: colorScheme,
                   );
                 },
               );
             },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, stack) => Center(child: Text('Error: $err')),
+            loading: () => const Center(
+                child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(),
+            )),
+            error: (err, _) => Center(child: Text('Error: $err')),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-    required Color color,
-    required bool isDark,
-    required bool isMobile,
-  }) {
-    if (isMobile) {
-      return IconButton(
-        icon: Icon(icon, color: color, size: 24),
-        onPressed: onPressed,
-        padding: const EdgeInsets.all(8),
-        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-        tooltip: label,
-        splashRadius: 24,
-      );
-    }
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        minimumSize: const Size(80, 36),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        elevation: 0,
-      ),
-    );
-  }
-
-  Future<void> _mostrarDialogoAsignarProductos(BuildContext context, WidgetRef ref) async {
+  Future<void> _mostrarDialogoAsignarProductos(
+      BuildContext context, WidgetRef ref) async {
     final isar = ref.read(isarServiceProvider);
     final todosLosProductos = await isar.obtenerProductos();
-    final productosSinProveedor = todosLosProductos.where((p) => p.proveedorId == null).toList();
+    final productosSinProveedor =
+        todosLosProductos.where((p) => p.proveedorId == null).toList();
 
     if (productosSinProveedor.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('No hay productos sin proveedor para asignar'),
-            backgroundColor: Colors.orange,
+            backgroundColor: Color(0xFFF59E0B),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -391,9 +275,8 @@ class DetalleProveedorDialog extends ConsumerWidget {
     }
 
     final seleccionados = await showDialog<List<ProductoEntity>>(
-      // ignore: use_build_context_synchronously
       context: context,
-      builder: (context) => MultiSelectDialog(
+      builder: (_) => MultiSelectDialog(
         items: productosSinProveedor,
         title: 'Asignar productos a ${proveedor.nombre}',
       ),
@@ -408,11 +291,102 @@ class DetalleProveedorDialog extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ ${seleccionados.length} productos asignados a ${proveedor.nombre}'),
-            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+                '${seleccionados.length} productos asignados a ${proveedor.nombre}'),
+            backgroundColor: _colorSuccess,
           ),
         );
       }
     }
+  }
+}
+
+// ============================================================
+// TILE DE PRODUCTO ASOCIADO
+// ============================================================
+class _ProductoProveedorTile extends StatefulWidget {
+  final ProductoEntity producto;
+  final bool isMobile;
+  final ColorScheme colorScheme;
+
+  const _ProductoProveedorTile({
+    required this.producto,
+    required this.isMobile,
+    required this.colorScheme,
+  });
+
+  @override
+  State<_ProductoProveedorTile> createState() =>
+      _ProductoProveedorTileState();
+}
+
+class _ProductoProveedorTileState extends State<_ProductoProveedorTile> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        color: _hovered
+            ? widget.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.35)
+            : Colors.transparent,
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.inventory_2_rounded,
+                  color: Color(0xFF8B5CF6), size: 16),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.producto.nombre,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: widget.colorScheme.onSurface,
+                      fontSize: widget.isMobile ? 13 : 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                  Text(
+                    'Código: ${widget.producto.codigoBarras}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: widget.colorScheme.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '\$${widget.producto.precioUnidad.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF8B5CF6),
+                fontSize: widget.isMobile ? 13 : 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
