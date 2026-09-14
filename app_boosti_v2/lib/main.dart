@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:device_preview/device_preview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/config/supabase_config.dart';
 
 import 'features/pos/data/Local/entities/isar_service.dart';
 import 'features/pos/presentation/screens/splash_screen.dart';
@@ -24,7 +25,6 @@ import 'features/pos/presentation/services/backup_service.dart';
 import 'features/pos/presentation/services/ota_update_service.dart';
 
 void main() async {
-
   // ✅ Solo imprime en debug (no ensucia logs de producción)
   if (kDebugMode) {
     debugPrint('🚀 OTA TEST - VERSION 2 - ${DateTime.now()}');
@@ -42,9 +42,22 @@ void main() async {
   // 1. INICIALIZAR SUPABASE (de forma síncrona con await)
   // ============================================================
   final prefs = await SharedPreferences.getInstance();
-  String? url = prefs.getString('supabase_url');
-  final anonKey = prefs.getString('supabase_anon_key');
+  String? url;
+  String? anonKey;
   bool supabaseInitialized = false;
+
+  // 1a. Producción: credenciales embebidas en SupabaseConfig
+  if (SupabaseConfig.estaConfigurado) {
+    url = SupabaseConfig.url;
+    anonKey = SupabaseConfig.publishableKey;
+    debugPrint('✅ Usando credenciales embebidas de SupabaseConfig');
+  }
+  // 1b. Debug: fallback a SharedPreferences (útil para cambiar de proyecto sin recompilar)
+  else if (kDebugMode) {
+    url = prefs.getString('supabase_url');
+    anonKey = prefs.getString('supabase_anon_key');
+    debugPrint('⚠️ Debug: usando credenciales de SharedPreferences');
+  }
 
   if (url != null && url.isNotEmpty && anonKey != null && anonKey.isNotEmpty) {
     if (url.endsWith('/')) url = url.substring(0, url.length - 1);
@@ -62,8 +75,7 @@ void main() async {
       supabaseInitialized = false;
     }
   } else {
-    debugPrint(
-        '⚠️ No hay configuración de Supabase, se mostrará pantalla de configuración');
+    debugPrint('⚠️ No hay configuración de Supabase disponible');
   }
 
   // ============================================================
@@ -141,6 +153,35 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
     }
   }
 
+  /// Determina la pantalla inicial según el estado de Supabase.
+  ///
+  /// - Producción con Supabase OK → SplashScreen.
+  /// - Debug sin Supabase → ConfiguracionEmpresaScreen (para configurar a mano).
+  /// - Producción sin Supabase → error crítico.
+  Widget _buildHomeScreen() {
+    if (widget.supabaseInitialized) {
+      return const SplashScreen();
+    }
+
+    // Debug: permitir configurar credenciales a mano
+    if (kDebugMode) {
+      return const ConfiguracionEmpresaScreen();
+    }
+
+    // Producción sin credenciales → error crítico (no debería pasar)
+    return const Scaffold(
+      body: Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Error de configuración.\nContacte al soporte técnico.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLocked = ref.watch(lockProvider);
@@ -152,9 +193,7 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
       theme: lightTheme(),
       darkTheme: darkTheme(),
       themeMode: themeMode,
-      home: widget.supabaseInitialized
-          ? const SplashScreen()
-          : const ConfiguracionEmpresaScreen(),
+      home: _buildHomeScreen(),
       routes: {
         '/configuracion': (context) => const ConfiguracionEmpresaScreen(),
         '/login': (context) => const LoginScreen(),
