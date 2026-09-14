@@ -17,7 +17,7 @@ import 'features/pos/presentation/providers/lock_provider.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 import 'features/pos/presentation/providers/sync_provider.dart';
-import 'features/pos/presentation/services/sync_service.dart';
+
 
 // ✅ NUEVAS IMPORTACIONES PARA MONITOREO Y BACKUP
 import 'features/pos/presentation/services/error_service.dart';
@@ -136,22 +136,10 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
         final syncService = ref.read(syncServiceProvider);
         syncService.iniciarSuscripcionesRealtime();
         syncService.iniciarMonitoreo();
-        _ejecutarSincronizacionInicial(syncService);
       });
     }
   }
 
-  Future<void> _ejecutarSincronizacionInicial(SyncService syncService) async {
-    try {
-      debugPrint('🚀 Ejecutando sincronización inicial desde main...');
-      await syncService.descargarLocalesDesdeSupabase();
-      await syncService.sincronizarUsuariosDesdeSupabase();
-      await syncService.descargarPedidosDesdeSupabase();
-      debugPrint('✅ Sincronización inicial completada desde main');
-    } catch (e) {
-      debugPrint('⚠️ Error en sincronización inicial desde main: $e');
-    }
-  }
 
   /// Determina la pantalla inicial según el estado de Supabase.
   ///

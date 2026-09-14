@@ -57,6 +57,28 @@ class SyncService {
   bool _isSyncing = false;
 
   // ============================================================
+  // VERIFICACIÓN DE SESIÓN
+  // ============================================================
+
+  /// Verifica si hay una sesión activa de Supabase.
+  ///
+  /// Sin sesión, el JWT no tiene `tenant_id` y RLS rechazará
+  /// cualquier operación de escritura con error 42501.
+  ///
+  /// Retorna `false` si:
+  /// - Supabase no está inicializado.
+  /// - No hay sesión activa.
+  /// - El accessToken está vacío.
+  bool _tieneSesionSupabase() {
+    try {
+      final session = _supabase.auth.currentSession;
+      return session != null && session.accessToken.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ============================================================
   // SUSCRIPCIONES REALTIME Y CALLBACK
   // ============================================================
   final List<RealtimeChannel> _channels = [];
@@ -181,6 +203,13 @@ class SyncService {
   // ============================================================
 
   Future<void> sincronizarUsuariosASupabase() async {
+    // ✅ Sin sesión activa no hay tenant_id → RLS bloqueará
+    if (!_tieneSesionSupabase()) {
+      debugPrint(
+          '⚠️ [SyncService] Sin sesión activa. sincronizarUsuariosASupabase omitido.');
+      return;
+    }
+
     try {
       final usuarios = await _isarService.obtenerUsuarios();
       if (usuarios.isEmpty) {
@@ -206,7 +235,6 @@ class SyncService {
                 .maybeSingle();
 
             if (existing != null) {
-              // ✅ Resolver tenant_id (UUID del local) con fallback al local activo
               String? tenantUuid;
               if (usuario.localId != null && usuario.localId! > 0) {
                 tenantUuid = await _obtenerSupabaseIdLocal(usuario.localId!);
@@ -239,7 +267,7 @@ class SyncService {
                 'estado': usuario.estado,
                 'caja_asignada': usuario.cajaAsignada,
                 'departamento': usuario.departamento,
-                'tenant_id': tenantUuid, // ✅ Cambiado
+                'tenant_id': tenantUuid,
                 'updated_at': DateTime.now().toIso8601String(),
               }).eq('id', usuario.supabaseId!);
               debugPrint(
@@ -256,17 +284,12 @@ class SyncService {
           // CASO 2: No tiene supabaseId → recuperar o crear
           // ============================================================
 
-          // Validación: sin email, no se puede hacer nada
           if (usuario.email == null || usuario.email!.isEmpty) {
             debugPrint(
                 '⚠️ Usuario "${usuario.nombre}" sin email. No se sincroniza.');
             continue;
           }
 
-          // ------------------------------------------------------------
-          // PASO A: ¿Existe ya en public.usuarios por email?
-          // (útil cuando se limpió Isar pero Supabase conserva el registro)
-          // ------------------------------------------------------------
           final existingByEmail = await _supabase
               .from('usuarios')
               .select('id')
@@ -284,9 +307,6 @@ class SyncService {
             continue;
           }
 
-          // ------------------------------------------------------------
-          // PASO B: No existe en public.usuarios → crear en auth.users
-          // ------------------------------------------------------------
           if (usuario.password == null || usuario.password!.isEmpty) {
             debugPrint(
                 '⚠️ Usuario "${usuario.nombre}" sin password. No se puede crear en auth.');
@@ -314,10 +334,6 @@ class SyncService {
                   '⚠️ Usuario "${usuario.nombre}" no se pudo crear en auth (response.user = null)');
             }
           } on AuthApiException catch (e) {
-            // ------------------------------------------------------------
-            // PASO C: El email YA existe en auth → recuperar UUID
-            // (caso típico: usuario creado en sesión anterior pero Isar se limpió)
-            // ------------------------------------------------------------
             final esUserAlreadyExists = e.code == 'user_already_exists' ||
                 e.statusCode == '422' ||
                 e.message.toLowerCase().contains('already registered');
@@ -326,7 +342,6 @@ class SyncService {
               debugPrint(
                   '⚠️ Usuario "${usuario.nombre}" ya existe en auth. Recuperando UUID...');
 
-              // Reintentar búsqueda en public.usuarios (puede tardar el trigger)
               await Future.delayed(const Duration(milliseconds: 500));
 
               final retryLookup = await _supabase
@@ -786,6 +801,13 @@ class SyncService {
   }
 
   Future<bool> sincronizarProductosASupabase() async {
+    // ✅ Sin sesión activa no hay tenant_id → RLS bloqueará
+    if (!_tieneSesionSupabase()) {
+      debugPrint(
+          '⚠️ [SyncService] Sin sesión activa. sincronizarProductosASupabase omitido.');
+      return false;
+    }
+
     try {
       final productosLocales = await _isarService.obtenerProductos();
       if (productosLocales.isEmpty) return true;
@@ -3315,6 +3337,13 @@ class SyncService {
   // ============================================================
 
   Future<void> sincronizarTodo() async {
+    // ✅ Sin sesión activa no hay tenant_id → RLS bloqueará
+    if (!_tieneSesionSupabase()) {
+      debugPrint(
+          '⚠️ [SyncService] Sin sesión activa. sincronizarTodo omitido.');
+      return;
+    }
+
     try {
       debugPrint('🔄 [SyncService] Iniciando sincronización completa...');
 

@@ -243,6 +243,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           .update({'device_id': deviceId}).eq('id', response.user!.id);
 
       // 6. Actualizar estado
+      // 6. Actualizar estado
       state = state.copyWith(
         isLoading: false,
         currentUser: usuario,
@@ -257,7 +258,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
         usuario.nombre,
       );
 
+      // 7. Cargar usuarios locales
       await loadUsuarios();
+
+      // 8. Disparar sincronización inicial en segundo plano
+      //    (ahora hay JWT con tenant_id → RLS permite el push)
+      _syncService.sincronizarTodo().catchError((e) {
+        debugPrint('⚠️ Error en sync post-login: $e');
+      });
+
       return true;
     } catch (e, stack) {
       // ✅ REPORTAR ERROR
