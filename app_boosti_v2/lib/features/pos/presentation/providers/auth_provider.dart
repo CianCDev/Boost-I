@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
+import '../../domain/services/jwt_service.dart';
 import '../services/device_info.dart';
 import '../services/sync_service.dart';
 import '../services/error_service.dart'; // ✅ NUEVO
 import 'usuario_provider.dart';
+import 'tenant_provider.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(ref);
@@ -71,7 +73,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await loadUsuarios();
   }
 
-  Future<bool> loginWithPin(UsuarioEntity usuarioSeleccionado, String pin) async {
+  Future<bool> loginWithPin(
+      UsuarioEntity usuarioSeleccionado, String pin) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
@@ -97,7 +100,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
             email: usuarioValido.email!,
             password: password,
           );
-          debugPrint('✅ Login en Supabase exitoso para ${usuarioValido.nombre}');
+          debugPrint(
+              '✅ Login en Supabase exitoso para ${usuarioValido.nombre}');
         } catch (e) {
           debugPrint('⚠️ Login en Supabase falló (modo offline): $e');
         }
@@ -120,22 +124,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
         'activo',
       );
       if (successNube) {
-        debugPrint('✅ Estado actualizado en Supabase a activo para ${usuarioValido.nombre}');
+        debugPrint(
+            '✅ Estado actualizado en Supabase a activo para ${usuarioValido.nombre}');
       } else {
         debugPrint('⚠️ No se pudo actualizar estado en Supabase (continuamos)');
       }
 
       // Actualizar localmente
       await _isarService.actualizarEstadoUsuario(usuarioValido.id, 'activo');
-      debugPrint('✅ Estado local actualizado a activo para ${usuarioValido.nombre}');
+      debugPrint(
+          '✅ Estado local actualizado a activo para ${usuarioValido.nombre}');
 
       // Guardar device_id (si tiene supabaseUid)
       final deviceId = await DeviceInfoService().getDeviceId();
-      if (usuarioValido.supabaseUid != null && usuarioValido.supabaseUid!.isNotEmpty) {
-        await Supabase.instance.client
-            .from('usuarios')
-            .update({'device_id': deviceId})
-            .eq('id', usuarioValido.supabaseUid!);
+      if (usuarioValido.supabaseUid != null &&
+          usuarioValido.supabaseUid!.isNotEmpty) {
+        await Supabase.instance.client.from('usuarios').update(
+            {'device_id': deviceId}).eq('id', usuarioValido.supabaseUid!);
       }
 
       state = state.copyWith(
@@ -144,14 +149,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
         errorMessage: null,
       );
       _ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
-      
+
       // ✅ REGISTRAR USUARIO EN EL MONITOREO
       ErrorService.setUser(
         usuarioValido.id.toString(),
         usuarioValido.email,
         usuarioValido.nombre,
       );
-      
+
       // Cargar lista de usuarios para el diálogo de cambio
       await loadUsuarios();
       return true;
@@ -178,34 +183,80 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final supabase = Supabase.instance.client;
-      final response = await supabase.auth.signInWithPassword(email: email, password: password);
-      if (response.user == null) {
-        state = state.copyWith(isLoading: false, errorMessage: 'Credenciales inválidas.');
+      final response = await supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      // 1. Validar que hay sesión (usuario + JWT)
+      if (response.user == null || response.session == null) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'Credenciales inválidas.',
+        );
         return false;
       }
-      final data = await supabase.from('usuarios').select().eq('id', response.user!.id).single();
+
+      // 2. Extraer tenant_id y rol del JWT
+      final jwt = response.session!.accessToken;
+      final tenantId = JwtService.extraerTenantId(jwt);
+      final rolJwt = JwtService.extraerRol(jwt);
+
+      if (tenantId == null || tenantId.isEmpty) {
+        debugPrint('⚠️ JWT sin tenant_id. El hook no está configurado.');
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage:
+              'Tu cuenta no tiene un local asignado. Contacta al administrador.',
+        );
+        // Cerrar sesión en Supabase para no dejar sesión huérfana
+        await supabase.auth.signOut();
+        return false;
+      }
+
+      // 3. Guardar el tenant en el provider global
+      await _ref
+          .read(tenantActualProvider.notifier)
+          .setTenant(tenantId, rol: rolJwt);
+      debugPrint('✅ tenant_id guardado: $tenantId (rol: $rolJwt)');
+
+      // 4. Cargar datos del usuario desde Supabase
+      final data = await supabase
+          .from('usuarios')
+          .select()
+          .eq('id', response.user!.id)
+          .single();
+
       final usuario = UsuarioEntity()
         ..id = 0
         ..supabaseUid = response.user!.id
         ..nombre = data['nombre'] ?? 'Sin Nombre'
-        ..rol = data['rol'] ?? 'cajero'
+        ..rol = rolJwt ?? data['rol'] ?? 'cajero'
         ..pin = ''
         ..email = email
         ..activo = true;
 
+      // 5. Actualizar device_id en Supabase
       final deviceId = await DeviceInfoService().getDeviceId();
-      await supabase.from('usuarios').update({'device_id': deviceId}).eq('id', response.user!.id);
+      await supabase
+          .from('usuarios')
+          .update({'device_id': deviceId}).eq('id', response.user!.id);
 
-      state = state.copyWith(isLoading: false, currentUser: usuario, errorMessage: null);
+      // 6. Actualizar estado
+      state = state.copyWith(
+        isLoading: false,
+        currentUser: usuario,
+        errorMessage: null,
+      );
       _ref.read(usuarioActualProvider.notifier).setUsuario(usuario);
-      
+
       // ✅ REGISTRAR USUARIO EN EL MONITOREO
       ErrorService.setUser(
         usuario.id.toString(),
         usuario.email,
         usuario.nombre,
       );
-      
+
       await loadUsuarios();
       return true;
     } catch (e, stack) {
@@ -216,7 +267,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         hint: 'loginWithEmail_fallo',
         extras: {'email': email},
       );
-      state = state.copyWith(isLoading: false, errorMessage: 'Error en login: $e');
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Error en login: $e',
+      );
       return false;
     }
   }
@@ -226,7 +280,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     // 1. Validar PIN del nuevo cajero
     final validado = await _isarService.validarLogin(nuevoCajero.nombre, pin);
     if (validado == null) {
-      state = state.copyWith(errorMessage: 'PIN incorrecto para ${nuevoCajero.nombre}');
+      state = state.copyWith(
+          errorMessage: 'PIN incorrecto para ${nuevoCajero.nombre}');
       return false;
     }
 
@@ -239,11 +294,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     // 3. Marcar usuario actual como inactivo (local y remoto)
     await _isarService.actualizarEstadoUsuario(usuarioActual.id, 'inactivo');
-    await _syncService.actualizarEstadoUsuarioEnSupabase(usuarioActual.id, 'inactivo');
+    await _syncService.actualizarEstadoUsuarioEnSupabase(
+        usuarioActual.id, 'inactivo');
 
     // 4. Marcar nuevo usuario como activo
     await _isarService.actualizarEstadoUsuario(nuevoCajero.id, 'activo');
-    await _syncService.actualizarEstadoUsuarioEnSupabase(nuevoCajero.id, 'activo');
+    await _syncService.actualizarEstadoUsuarioEnSupabase(
+        nuevoCajero.id, 'activo');
 
     // 5. (Opcional) Sincronizar usuarios desde Supabase para actualizar otros dispositivos
     try {
@@ -257,10 +314,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       ..accion = 'CAMBIO_CAJERO'
       ..usuarioNombre = usuarioActual.nombre
       ..usuarioRol = usuarioActual.rol
-      ..detalles = 'Cambio de cajero de ${usuarioActual.nombre} a ${nuevoCajero.nombre}'
+      ..detalles =
+          'Cambio de cajero de ${usuarioActual.nombre} a ${nuevoCajero.nombre}'
       ..fecha = DateTime.now()
-      ..sincronizado = false
-    );
+      ..sincronizado = false);
 
     // 7. Actualizar estado global
     state = state.copyWith(
@@ -268,7 +325,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       errorMessage: null,
     );
     _ref.read(usuarioActualProvider.notifier).setUsuario(nuevoCajero);
-    
+
     // ✅ ACTUALIZAR USUARIO EN MONITOREO
     ErrorService.setUser(
       nuevoCajero.id.toString(),
@@ -290,9 +347,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
         debugPrint('🚪 Cerrando sesión de $userName (ID: $userId)');
 
         // 1. Actualizar estado en Supabase
-        final successNube = await _syncService.actualizarEstadoUsuarioEnSupabase(userId, 'inactivo');
+        final successNube = await _syncService
+            .actualizarEstadoUsuarioEnSupabase(userId, 'inactivo');
         if (successNube) {
-          debugPrint('✅ Estado actualizado en Supabase a inactivo para $userName');
+          debugPrint(
+              '✅ Estado actualizado en Supabase a inactivo para $userName');
         } else {
           debugPrint('⚠️ No se pudo actualizar estado en Supabase');
         }
@@ -322,7 +381,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // 4. Cerrar sesión en Supabase
       await Supabase.instance.client.auth.signOut();
 
-      // 5. Limpiar el estado del usuario actual
+      // 5. Limpiar el tenant activo
+      await _ref.read(tenantActualProvider.notifier).limpiar();
+
+      // 6. Limpiar el estado del usuario actual
       state = AuthState(usuarios: state.usuarios);
       _ref.read(usuarioActualProvider.notifier).clearUsuario();
 
@@ -331,6 +393,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       debugPrint('❌ Error en logout: $e');
       ErrorService.captureError(e, stack: stack, hint: 'logout_fallo');
       // Aún si falla, intentamos limpiar el estado
+      await _ref.read(tenantActualProvider.notifier).limpiar();
       state = AuthState(usuarios: state.usuarios);
       _ref.read(usuarioActualProvider.notifier).clearUsuario();
     }
