@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:permission_handler/permission_handler.dart';
+
+import '../../../../core/config/supabase_config.dart';
 import '../../data/Local/entities/isar_service.dart';
 import 'configuracion_empresa_screen.dart';
 import 'login_screen.dart';
+import 'welcome_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,6 +19,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   bool _isLoading = true;
+  String _mensajeCarga = 'Cargando...';
 
   @override
   void initState() {
@@ -25,23 +29,23 @@ class _SplashScreenState extends State<SplashScreen> {
     });
   }
 
+  // ============================================================
+  // INICIALIZACIÓN
+  // ============================================================
   Future<void> _inicializarApp() async {
     await _pedirPermisos();
 
-    // ⚠️ DESCOMENTAR PARA EJECUTAR EL SCRIPT DE MANTENIMIENTO
-    // await _ejecutarScriptsMantenimiento();
+    if (kDebugMode) {
+      await _diagnosticarUsuarios();
+    }
 
-    await _diagnosticarUsuarios();
-    await _verificarConfiguracion();
+    await _decidirNavegacion();
   }
 
   // ============================================================
-  // DIAGNÓSTICO DE USUARIOS (solo en debug, sin PINs)
+  // DIAGNÓSTICO DE USUARIOS (solo debug)
   // ============================================================
   Future<void> _diagnosticarUsuarios() async {
-    // ✅ Solo corre en modo debug. En release no se ejecuta.
-    if (!kDebugMode) return;
-
     try {
       final isar = IsarService();
       final usuarios = await isar.obtenerUsuarios();
@@ -53,74 +57,91 @@ class _SplashScreenState extends State<SplashScreen> {
           'estado: ${u.estado}, email: ${u.email ?? "sin email"})',
         );
       }
-
-      // ✅ Verificación genérica: al menos un admin activo con PIN de 4 dígitos
-      final adminValido = usuarios.any(
-        (u) => u.rol == 'admin' && u.activo && u.pin.length == 4,
-      );
-      debugPrint(
-        '🔍 Admin válido detectado: ${adminValido ? "✅ OK" : "❌ FALLÓ"}',
-      );
-
-      // ✅ Todos los usuarios activos deben tener PIN de 4 dígitos
-      final todosConPinValido = usuarios
-          .where((u) => u.activo)
-          .every((u) => u.pin.length == 4);
-      debugPrint(
-        '🔍 Todos los activos con PIN de 4 dígitos: '
-        '${todosConPinValido ? "✅ OK" : "❌ FALLÓ"}',
-      );
     } catch (e) {
       debugPrint('❌ Error en _diagnosticarUsuarios: $e');
     }
   }
 
   // ============================================================
-  // 🔧 SCRIPT DE MANTENIMIENTO (versión final)
+  // DECISIÓN DE NAVEGACIÓN
   // ============================================================
-  /*Future<void> _ejecutarScriptsMantenimiento() async {
+  Future<void> _decidirNavegacion() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final flagKey = 'scripts_mantenimiento_v6';
-      if (prefs.getBool(flagKey) == true) {
-        debugPrint('⚠️ Scripts de mantenimiento ya ejecutados. Omitiendo.');
+      // 1. Verificar que SupabaseConfig esté configurado
+      if (!SupabaseConfig.estaConfigurado) {
+        debugPrint('⚠️ SupabaseConfig no está configurado');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _mensajeCarga = 'Error de configuración';
+          });
+          await Future.delayed(const Duration(milliseconds: 800));
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ConfiguracionEmpresaScreen(),
+              ),
+            );
+          }
+        }
         return;
       }
 
-      debugPrint('🛠️ Ejecutando script de corrección (ID 6)...');
-
+      // 2. Verificar si hay usuarios locales en Isar
       final isar = IsarService();
+      final usuarios = await isar.obtenerUsuariosActivos();
+      final hayUsuarios = usuarios.isNotEmpty;
 
-      final usuario = await isar.obtenerUsuarioPorId(6);
-      if (usuario != null) {
-        usuario.supabaseId = null;
-        usuario.password = '101010';
-        usuario.pin = '1010';
-        await isar.guardarUsuario(usuario);
-        debugPrint('✅ supabaseId limpiado para "yan camacaro" (ID 6)');
+      debugPrint('🔍 ¿Hay usuarios en Isar? $hayUsuarios');
+
+      // 3. Pequeño delay para que se vea el splash
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        _mensajeCarga = 'Iniciando...';
+      });
+
+      // 4. Navegar según corresponda
+      if (hayUsuarios) {
+        // Uso diario: usuario ya configuró esta tablet
+        debugPrint('➡️ Navegando a LoginScreen (usuarios existentes)');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
       } else {
-        debugPrint('⚠️ Usuario ID 6 no encontrado');
+        // Primer uso: dispositivo nuevo sin usuarios
+        debugPrint('➡️ Navegando a WelcomeScreen (primer uso)');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+        );
       }
+    } catch (e, stack) {
+      debugPrint('❌ Error en _decidirNavegacion: $e');
+      debugPrint('Stack: $stack');
 
-      final sync = SyncService();
-      await sync.sincronizarUsuariosASupabase();
-      debugPrint('✅ Sincronización completada');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _mensajeCarga = 'Error al iniciar';
+        });
 
-      final verificado = await isar.obtenerUsuarioPorId(6);
-      if (verificado != null &&
-          verificado.supabaseId != null &&
-          verificado.supabaseId!.isNotEmpty) {
-        debugPrint('✅ Usuario ID 6 sincronizado correctamente (ID: ${verificado.supabaseId})');
-      } else {
-        debugPrint('⚠️ Usuario ID 6 aún sin supabaseId. Revisa logs y trigger.');
+        // Fallback: ir a WelcomeScreen para que el usuario pueda empezar
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+          );
+        }
       }
-
-      await prefs.setBool(flagKey, true);
-      debugPrint('✅ Script de mantenimiento ejecutado correctamente.');
-    } catch (e) {
-      debugPrint('❌ Error en script de mantenimiento: $e');
     }
-  }*/
+  }
 
   // ============================================================
   // PERMISOS
@@ -140,46 +161,9 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  Future<void> _verificarConfiguracion() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final url = prefs.getString('supabase_url');
-      final anonKey = prefs.getString('supabase_anon_key');
-
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-
-        if (url != null &&
-            anonKey != null &&
-            url.isNotEmpty &&
-            anonKey.isNotEmpty) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-                builder: (_) => const ConfiguracionEmpresaScreen()),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ Error en _verificarConfiguracion: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-              builder: (_) => const ConfiguracionEmpresaScreen()),
-        );
-      }
-    }
-  }
-
+  // ============================================================
+  // BUILD
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -232,7 +216,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Cargando configuración...',
+                  _mensajeCarga,
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade500,
@@ -241,7 +225,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ] else ...[
                 const SizedBox(height: 24),
                 Text(
-                  'Iniciando...',
+                  _mensajeCarga,
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade500,
