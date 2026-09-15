@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../controllers/cart_controller.dart';
-import '../../providers/bcv_provider.dart';
-import '../../providers/themes/app_colors.dart';
-import '../../utils/responsive_helper.dart';
+import '../../../controllers/cart_controller.dart';
+import '../../../providers/bcv_provider.dart';
+import '../../../providers/themes/app_colors.dart';
+import '../../../utils/responsive_helper.dart';
 import 'cart_bottom_sheet.dart';
 
 class FixedCartSummary extends ConsumerWidget {

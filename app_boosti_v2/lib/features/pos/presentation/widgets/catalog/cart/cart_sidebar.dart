@@ -3,11 +3,16 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../controllers/cart_controller.dart';
-import '../../providers/bcv_provider.dart';
-import '../../providers/themes/app_colors.dart';
-import '../../utils/responsive_helper.dart';
-import 'iva_toggle_button.dart';
+import '../../../controllers/cart_controller.dart';
+import '../../../controllers/cart_sessions_controller.dart';
+import '../../../providers/bcv_provider.dart';
+import '../../../providers/themes/app_colors.dart';
+import '../../../utils/responsive_helper.dart';
+import '../iva_toggle_button.dart';
+import '../cart/parked_carts_dialog.dart';
+import '../cart/save_cart_dialog.dart';
+import 'cart_header_action.dart';
+
 
 class CartSidebar extends ConsumerWidget {
   final VoidCallback onCobrar;
@@ -22,7 +27,6 @@ class CartSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cartState = ref.watch(cartProvider);
-    // ✅ NUEVO: controller completo en lugar de solo tasa
     final bcvController = ref.watch(bcvProvider);
     final isTablet = ResponsiveHelper.isTablet(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -93,11 +97,12 @@ class CartSidebar extends ConsumerWidget {
           ),
           child: Column(
             children: [
-              // ══════════════════════════════════════════════════════════
-              // HEADER
-              // ══════════════════════════════════════════════════════════
+              // ═══════════════════════════════════════════════════════
+              // HEADER con botones de parkear / ver en espera / limpiar
+              // ═══════════════════════════════════════════════════════
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(color: borderColor, width: 1),
@@ -108,41 +113,80 @@ class CartSidebar extends ConsumerWidget {
                     Icon(
                       Icons.shopping_cart_outlined,
                       color: textSecondaryColor,
-                      size: 20,
+                      size: 18,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Text(
                       'Carrito',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: isTablet ? 18 : 16,
+                        fontSize: isTablet ? 16 : 14,
                         color: textColor,
                       ),
                     ),
                     const Spacer(),
+
+                    // Botón "Poner en espera" (solo icono en el sidebar)
                     if (cartState.items.isNotEmpty)
-                      TextButton.icon(
-                        onPressed: onLimpiar,
-                        icon: const Icon(Icons.delete_outline,
-                            size: 16, color: redError),
-                        label: const Text(
-                          'Limpiar',
-                          style: TextStyle(fontSize: 12, color: redError),
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final count = ref.watch(cartSessionsProvider).count;
+                          final bloqueado = count >= kMaxCarritosEnEspera;
+                          return Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: CartHeaderAction(
+                              icon: Icons.pause_circle_outline_rounded,
+                              tooltip: bloqueado
+                                  ? 'Límite alcanzado ($kMaxCarritosEnEspera)'
+                                  : 'Poner en espera',
+                              color: pumpkinSpice,
+                              compact: true,
+                              onPressed: bloqueado
+                                  ? null
+                                  : () => SaveCartDialog.mostrar(context),
+                            ),
+                          );
+                        },
+                      ),
+
+                    // 🆕 Botón "Ver carritos en espera" con badge
+                         Consumer(
+                          builder: (context, ref, _) {
+                            final count = ref.watch(cartSessionsProvider).count;
+                            return Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: CartHeaderAction(
+                                icon: Icons.playlist_play_rounded,
+                                tooltip: 'Carritos en espera ($count)',
+                                color: const Color(0xFF8B5CF6),
+                                compact: true,
+                                badge: count,
+                                onPressed: () => ParkedCartsDialog.mostrar(context),
+                              ),
+                            );
+                          },
                         ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+
+                    // Botón "Limpiar"
+                        if (cartState.items.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: CartHeaderAction(
+                              icon: Icons.delete_outline_rounded,
+                              tooltip: 'Limpiar carrito',
+                              color: redError,
+                              compact: true,
+                              onPressed: onLimpiar,
+
                         ),
                       ),
                   ],
                 ),
               ),
 
-              // ══════════════════════════════════════════════════════════
+              // ═══════════════════════════════════════════════════════
               // LISTA DE ITEMS
-              // ══════════════════════════════════════════════════════════
+              // ═══════════════════════════════════════════════════════
               Expanded(
                 child: cartState.items.isEmpty
                     ? Center(
@@ -159,7 +203,8 @@ class CartSidebar extends ConsumerWidget {
                               'Carrito vacío',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: textSecondaryColor.withValues(alpha: 0.5),
+                                color:
+                                    textSecondaryColor.withValues(alpha: 0.5),
                               ),
                             ),
                           ],
@@ -180,7 +225,8 @@ class CartSidebar extends ConsumerWidget {
                           return Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: borderColor, width: 1),
+                              border:
+                                  Border.all(color: borderColor, width: 1),
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(9),
@@ -239,18 +285,19 @@ class CartSidebar extends ConsumerWidget {
                                                 if (tieneDescuento) ...[
                                                   const SizedBox(width: 4),
                                                   Container(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        horizontal: 4,
-                                                        vertical: 1),
+                                                    padding:
+                                                        const EdgeInsets
+                                                            .symmetric(
+                                                            horizontal: 4,
+                                                            vertical: 1),
                                                     decoration: BoxDecoration(
                                                       color: const Color(
                                                               0xFFF59E0B)
                                                           .withValues(
                                                               alpha: 0.2),
                                                       borderRadius:
-                                                          BorderRadius.circular(
-                                                              3),
+                                                          BorderRadius
+                                                              .circular(3),
                                                     ),
                                                     child: const Text(
                                                       'Dscto.',
@@ -258,8 +305,8 @@ class CartSidebar extends ConsumerWidget {
                                                         fontSize: 9,
                                                         fontWeight:
                                                             FontWeight.bold,
-                                                        color:
-                                                            Color(0xFFF59E0B),
+                                                        color: Color(
+                                                            0xFFF59E0B),
                                                       ),
                                                     ),
                                                   ),
@@ -334,8 +381,7 @@ class CartSidebar extends ConsumerWidget {
                                           }
                                         },
                                         padding: EdgeInsets.zero,
-                                        constraints:
-                                            const BoxConstraints(),
+                                        constraints: const BoxConstraints(),
                                       ),
                                     ],
                                   ),
@@ -347,9 +393,9 @@ class CartSidebar extends ConsumerWidget {
                       ),
               ),
 
-              // ══════════════════════════════════════════════════════════
+              // ═══════════════════════════════════════════════════════
               // TOTALES Y BOTÓN PAGAR
-              // ══════════════════════════════════════════════════════════
+              // ═══════════════════════════════════════════════════════
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -359,7 +405,6 @@ class CartSidebar extends ConsumerWidget {
                 ),
                 child: Column(
                   children: [
-                    // Botón IVA
                     Row(
                       children: [
                         const IvaToggleButton(),
@@ -376,12 +421,6 @@ class CartSidebar extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
-
-                    // ══════════════════════════════════════════════════════
-                    // TOTALES MULTI-MONEDA
-                    // ══════════════════════════════════════════════════════
-
-                    // Total USD
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -403,8 +442,6 @@ class CartSidebar extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-
-                    // Total en moneda local
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -427,8 +464,6 @@ class CartSidebar extends ConsumerWidget {
                         ),
                       ],
                     ),
-
-                    // Total EUR (solo si aplica)
                     if (bcvController.config.manejaEuro &&
                         bcvController.tasaEuro > 0) ...[
                       const SizedBox(height: 4),
@@ -455,8 +490,6 @@ class CartSidebar extends ConsumerWidget {
                         ],
                       ),
                     ],
-
-                    // Desglose de IVA
                     if (cartState.ivaHabilitado &&
                         cartState.configIva.porcentajeIva > 0 &&
                         cartState.items.isNotEmpty) ...[
@@ -515,7 +548,6 @@ class CartSidebar extends ConsumerWidget {
                         ),
                       ),
                     ],
-
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
@@ -557,7 +589,6 @@ class CartSidebar extends ConsumerWidget {
     );
   }
 
-  // ---------- DIÁLOGO: CONFIRMAR ELIMINAR PRODUCTO ----------
   Future<bool?> _confirmarEliminarProducto(
       BuildContext context, String nombre) {
     return showDialog<bool>(

@@ -62,7 +62,10 @@ SupabaseClient get _supabase {
   final List<RealtimeChannel> _channels = [];
   final VoidCallback? onDataChanged;
 
-  SyncService({this.onDataChanged});
+    SyncService({
+    this.onDataChanged,
+    SupabaseClient? supabaseClient,
+  }) : _supabaseClient = supabaseClient;
 
   void iniciarSuscripcionesRealtime() {
     try {

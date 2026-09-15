@@ -1605,7 +1605,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     );
   }
 
-  Widget _buildClienteLista(
+ Widget _buildClienteLista(
     List<ClienteEntity> clientes,
     ColorScheme colorScheme,
     bool isDark,
@@ -1634,32 +1634,40 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
         ),
         itemBuilder: (context, i) {
           final c = clientes[i];
-          return MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: ListTile(
-              dense: true,
-              leading: CircleAvatar(
-                radius: 16,
-                backgroundColor: colorMetodo.withValues(alpha: 0.15),
-                child: Icon(
-                  c.frecuente ? Icons.star : Icons.person_outline,
-                  size: 16,
-                  color: colorMetodo,
+          // ✅ Material transparente: da un canvas al ink splash del ListTile
+          //    evitando la aserción "ListTile background color or ink splashes
+          //    may be invisible".
+          return Material(
+            color: Colors.transparent,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: ListTile(
+                dense: true,
+                leading: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: colorMetodo.withValues(alpha: 0.15),
+                  child: Icon(
+                    c.frecuente ? Icons.star : Icons.person_outline,
+                    size: 16,
+                    color: colorMetodo,
+                  ),
                 ),
+                title: Text(
+                  c.nombre,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                subtitle: Text(
+                  '${c.documento ?? "Sin documento"}${c.telefono != null ? " · ${c.telefono}" : ""}',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                onTap: () => setState(() {
+                  _clienteSeleccionado = c;
+                  _clienteSearchController.text = c.nombre;
+                }),
               ),
-              title: Text(
-                c.nombre,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-              ),
-              subtitle: Text(
-                '${c.documento ?? "Sin documento"}${c.telefono != null ? " · ${c.telefono}" : ""}',
-                style: const TextStyle(fontSize: 11),
-              ),
-              onTap: () => setState(() {
-                _clienteSeleccionado = c;
-                _clienteSearchController.text = c.nombre;
-              }),
             ),
           );
         },

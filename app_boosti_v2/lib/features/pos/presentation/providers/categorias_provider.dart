@@ -1,22 +1,27 @@
+// lib/features/pos/presentation/providers/categorias_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/Local/entities/categoria_entity.dart';
-import 'isar_provider.dart';       // ✅ Provider centralizado
-import 'sync_provider.dart';       // ✅ Provider centralizado de sincronización
-// 🔥 OCULTAR AMBOS
+import 'isar_provider.dart';
+import 'sync_provider.dart';
 
 // ============================================================
 // PROVIDERS DE LECTURA
 // ============================================================
 
-/// Provider que devuelve SOLO categorías ACTIVAS (para listados generales)
-final categoriasProvider = FutureProvider<List<CategoriaEntity>>((ref) async {
-  final isar = ref.watch(isarServiceProvider);
-  return await isar.obtenerCategorias(soloActivas: true);
-});
+/// Provider que devuelve SOLO categorías ACTIVAS (para listados generales).
+/// ✅ autoDispose: refetchea cuando ningún widget lo escucha y vuelve a
+/// montarse, garantizando datos frescos sin invalidación manual.
+final categoriasProvider = FutureProvider.autoDispose<List<CategoriaEntity>>(
+  (ref) async {
+    final isar = ref.watch(isarServiceProvider);
+    return await isar.obtenerCategorias(soloActivas: true);
+  },
+);
 
-/// Provider que devuelve TODAS las categorías (activas e inactivas)
-final todasLasCategoriasProvider = FutureProvider<List<CategoriaEntity>>((ref) async {
+/// Provider que devuelve TODAS las categorías (activas e inactivas).
+final todasLasCategoriasProvider =
+    FutureProvider.autoDispose<List<CategoriaEntity>>((ref) async {
   final isar = ref.watch(isarServiceProvider);
   return await isar.obtenerCategorias(soloActivas: false);
 });
@@ -25,7 +30,8 @@ final todasLasCategoriasProvider = FutureProvider<List<CategoriaEntity>>((ref) a
 // NOTIFIER PRINCIPAL (CRUD)
 // ============================================================
 
-final categoriasNotifierProvider = StateNotifierProvider<CategoriasNotifier, List<CategoriaEntity>>((ref) {
+final categoriasNotifierProvider =
+    StateNotifierProvider<CategoriasNotifier, List<CategoriaEntity>>((ref) {
   return CategoriasNotifier(ref);
 });
 
@@ -39,7 +45,12 @@ class CategoriasNotifier extends StateNotifier<List<CategoriaEntity>> {
   Future<void> _cargarCategorias() async {
     final isar = ref.read(isarServiceProvider);
     final lista = await isar.obtenerCategorias(soloActivas: true);
+    if (!mounted) return;
     state = lista;
+    // ✅ Notificar a los FutureProviders para que refetcheen.
+    //    Sin esto, los chips y otros listados quedan desincronizados.
+    ref.invalidate(categoriasProvider);
+    ref.invalidate(todasLasCategoriasProvider);
   }
 
   // ---------- CRUD ----------
@@ -56,7 +67,11 @@ class CategoriasNotifier extends StateNotifier<List<CategoriaEntity>> {
     await ref.read(syncServiceProvider).sincronizarCategorias();
   }
 
-  Future<void> editarCategoria(int id, String nuevoNombre, {String? nuevaDescripcion}) async {
+  Future<void> editarCategoria(
+    int id,
+    String nuevoNombre, {
+    String? nuevaDescripcion,
+  }) async {
     final isar = ref.read(isarServiceProvider);
     final categoria = await isar.obtenerCategoriaPorId(id);
     if (categoria != null) {

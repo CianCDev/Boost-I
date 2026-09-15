@@ -9,12 +9,20 @@ class CardActionButton extends StatefulWidget {
   final String tooltip;
   final VoidCallback onPressed;
 
+  /// Tamaño del icono. Por defecto 20 (como antes).
+  final double iconSize;
+
+  /// Padding interno. Por defecto 8 (como antes).
+  final EdgeInsets padding;
+
   const CardActionButton({
     super.key,
     required this.icon,
     required this.color,
     required this.tooltip,
     required this.onPressed,
+    this.iconSize = 20,
+    this.padding = const EdgeInsets.all(8),
   });
 
   @override
@@ -32,16 +40,17 @@ class _CardActionButtonState extends State<CardActionButton> {
       onExit: (_) => setState(() => _hovered = false),
       child: Tooltip(
         message: widget.tooltip,
+        waitDuration: const Duration(milliseconds: 400),
         child: GestureDetector(
           onTap: widget.onPressed,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             margin: const EdgeInsets.symmetric(horizontal: 2),
-            padding: const EdgeInsets.all(8),
+            padding: widget.padding,
             decoration: BoxDecoration(
               color: widget.color.withValues(alpha: _hovered ? 0.22 : 0.12),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: widget.color.withValues(alpha: _hovered ? 0.5 : 0.25),
                 width: 1,
@@ -50,7 +59,7 @@ class _CardActionButtonState extends State<CardActionButton> {
                   ? [
                       BoxShadow(
                         color: widget.color.withValues(alpha: 0.25),
-                        blurRadius: 8,
+                        blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
                     ]
@@ -58,7 +67,7 @@ class _CardActionButtonState extends State<CardActionButton> {
             ),
             child: Icon(
               widget.icon,
-              size: 20,
+              size: widget.iconSize,
               color: widget.color,
             ),
           ),

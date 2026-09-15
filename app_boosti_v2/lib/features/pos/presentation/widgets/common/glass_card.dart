@@ -1,4 +1,5 @@
 // lib/features/pos/presentation/widgets/common/glass_card.dart
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
 /// Card base con glassmorphism, hover y estado.
@@ -19,6 +20,10 @@ class GlassCard extends StatefulWidget {
   /// Margin externo.
   final EdgeInsets margin;
 
+  /// Fuerza fondo más transparente cuando la card vive dentro de otro
+  /// contenedor de vidrio (diálogos). Evita el "doble blanco".
+  final bool nestedGlass;
+
   const GlassCard({
     super.key,
     required this.child,
@@ -29,6 +34,7 @@ class GlassCard extends StatefulWidget {
     this.isHighlighted = false,
     this.highlightColor = const Color(0xFF10B981),
     this.margin = const EdgeInsets.only(bottom: 10),
+    this.nestedGlass = false,
   });
 
   @override
@@ -44,13 +50,18 @@ class _GlassCardState extends State<GlassCard> {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    // Superficie adaptable
+    // ✅ Alpha dinámico:
+    // - `nestedGlass: false` → uso normal (dentro de pantallas opacas).
+    // - `nestedGlass: true`  → dentro de un GlassDialog/GlassCard padre.
+    //    Bajamos alpha y añadimos blur para que se note la capa de vidrio.
+    final baseAlpha = widget.nestedGlass ? 0.45 : 0.75;
     final baseColor = isDark
         ? colorScheme.surfaceContainerHigh.withValues(alpha: 0.5)
-        : Colors.white.withValues(alpha: 0.75);
+        : Colors.white.withValues(alpha: baseAlpha);
+
     final hoverColor = isDark
-        ? colorScheme.surfaceContainerHighest
-        : Colors.white;
+        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.7)
+        : Colors.white.withValues(alpha: widget.nestedGlass ? 0.65 : 1.0);
 
     final borderColor = widget.isHighlighted
         ? widget.highlightColor.withValues(alpha: 0.5)
@@ -60,7 +71,7 @@ class _GlassCardState extends State<GlassCard> {
 
     final borderWidth = widget.isHighlighted ? 2.0 : 1.5;
 
-    return Padding(
+    final card = Padding(
       padding: widget.margin,
       child: MouseRegion(
         cursor: widget.onTap != null
@@ -80,7 +91,7 @@ class _GlassCardState extends State<GlassCard> {
                 color: Colors.black.withValues(
                   alpha: isDark
                       ? (_hovered ? 0.4 : 0.25)
-                      : (_hovered ? 0.12 : 0.06),
+                      : (_hovered ? 0.10 : 0.05),
                 ),
                 blurRadius: _hovered ? 20 : 10,
                 offset: Offset(0, _hovered ? 8 : 4),
@@ -113,7 +124,8 @@ class _GlassCardState extends State<GlassCard> {
                           borderRadius: BorderRadius.circular(4),
                           boxShadow: [
                             BoxShadow(
-                              color: widget.statusColor.withValues(alpha: 0.4),
+                              color: widget.statusColor
+                                  .withValues(alpha: 0.4),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -131,5 +143,19 @@ class _GlassCardState extends State<GlassCard> {
         ),
       ),
     );
+
+    // ✅ Si la card está anidada dentro de otro vidrio, envolvemos con
+    //    BackdropFilter para que el blur del padre se refuerce.
+    if (widget.nestedGlass) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: card,
+        ),
+      );
+    }
+
+    return card;
   }
 }

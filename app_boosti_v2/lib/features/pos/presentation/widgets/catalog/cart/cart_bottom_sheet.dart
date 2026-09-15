@@ -3,12 +3,16 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../controllers/cart_controller.dart';
-import '../../providers/bcv_provider.dart';
-import '../../providers/themes/app_colors.dart';
-import '../../utils/responsive_helper.dart';
-import '../../controllers/bcv_controller.dart';
-import 'iva_toggle_button.dart';
+import '../../../controllers/cart_controller.dart';
+import '../../../controllers/cart_sessions_controller.dart';
+import '../../../providers/bcv_provider.dart';
+import '../../../providers/themes/app_colors.dart';
+import '../../../utils/responsive_helper.dart';
+import '../../../controllers/bcv_controller.dart';
+import '../iva_toggle_button.dart';
+import 'parked_carts_dialog.dart';
+import 'save_cart_dialog.dart';
+import 'cart_header_action.dart';
 
 class CartBottomSheet extends ConsumerWidget {
   final VoidCallback onCobrar;
@@ -98,52 +102,103 @@ class CartBottomSheet extends ConsumerWidget {
   }
 
   // ---------- HEADER ----------
-  Widget _buildHeader(
-    BuildContext context,
-    WidgetRef ref,
-    bool hasItems,
-    bool isTablet,
-    ColorScheme colorScheme,
-  ) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Text(
-            'Mi Carrito',
-            style: TextStyle(
-              fontSize: isTablet ? 28 : 22,
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
+ Widget _buildHeader(
+  BuildContext context,
+  WidgetRef ref,
+  bool hasItems,
+  bool isTablet,
+  ColorScheme colorScheme,
+) {
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Expanded(
+        child: Row(
           children: [
-            if (hasItems)
-              IconButton(
-                icon: Icon(Icons.refresh_outlined, size: isTablet ? 28 : 24),
-                color: redError,
-                hoverColor: Colors.red.withValues(alpha: 0.1),
-                splashColor: Colors.red.withValues(alpha: 0.2),
-                tooltip: 'Limpiar carrito',
-                onPressed: () => _confirmarLimpiar(context, ref),
-              ),
-            IconButton(
-              icon: Icon(Icons.close_rounded, size: isTablet ? 28 : 24),
+            Icon(
+              Icons.shopping_cart_outlined,
               color: colorScheme.onSurfaceVariant,
-              hoverColor: Colors.grey.withValues(alpha: 0.1),
-              splashColor: Colors.grey.withValues(alpha: 0.2),
-              tooltip: 'Cerrar',
-              onPressed: () => Navigator.of(context).pop(),
+              size: isTablet ? 24 : 20,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Mi Carrito',
+                style: TextStyle(
+                  fontSize: isTablet ? 24 : 20,
+                  fontWeight: FontWeight.w800,
+                  color: colorScheme.onSurface,
+                  letterSpacing: -0.3,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
-      ],
-    );
-  }
+      ),
+      const SizedBox(width: 8),
+      Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          // Pausar (si hay items)
+          if (hasItems)
+            Consumer(
+              builder: (context, ref, _) {
+                final count = ref.watch(cartSessionsProvider).count;
+                final bloqueado = count >= kMaxCarritosEnEspera;
+                return CartHeaderAction(
+                  icon: Icons.pause_circle_outline_rounded,
+                  label: 'Poner en espera',
+                  tooltip: bloqueado
+                      ? 'Límite alcanzado ($kMaxCarritosEnEspera)'
+                      : 'Poner en espera',
+                  color: const Color(0xFFF59E0B),
+                  onPressed: bloqueado
+                      ? null
+                      : () => SaveCartDialog.mostrar(context),
+                );
+              },
+            ),
+
+          // Ver carritos en espera
+          Consumer(
+            builder: (context, ref, _) {
+              final count = ref.watch(cartSessionsProvider).count;
+              return CartHeaderAction(
+                icon: Icons.playlist_play_rounded,
+                label: 'En espera',
+                tooltip: 'Carritos en espera ($count)',
+                color: const Color(0xFF8B5CF6),
+                badge: count,
+                onPressed: () => ParkedCartsDialog.mostrar(context),
+              );
+            },
+          ),
+
+          // Limpiar (si hay items)
+          if (hasItems)
+            CartHeaderAction(
+              icon: Icons.delete_outline_rounded,
+              label: 'Limpiar',
+              tooltip: 'Limpiar carrito',
+              color: redError,
+              onPressed: () => _confirmarLimpiar(context, ref),
+            ),
+
+          // Cerrar
+          CartHeaderAction(
+            icon: Icons.close_rounded,
+            tooltip: 'Cerrar',
+            color: colorScheme.onSurfaceVariant,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    ],
+  );
+}
 
   // ---------- ESTADO VACÍO ----------
   Widget _buildEmptyState(ColorScheme colorScheme) {

@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 // Entidades
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
+import 'cart_session_entity.dart';
 import 'cliente_entity.dart';
 import '../entities/turno_entity.dart';
 import '../entities/log_entity.dart';
@@ -117,6 +118,7 @@ class IsarService {
         PedidoEntitySchema,
         DetallePedidoEntitySchema,
         RecepcionEntitySchema,
+        CartSessionEntitySchema,
         TurnoEntitySchema,
         LocalEntitySchema,
         ProveedorEntitySchema,
@@ -167,6 +169,7 @@ class IsarService {
         DepartamentoEntitySchema,
         TelegramConfigEntitySchema,
         CategoriaEntitySchema,
+        CartSessionEntitySchema,
         MarcaEntitySchema,
         MovimientoLoteEntitySchema,
         ClienteEntitySchema,
@@ -1171,6 +1174,143 @@ Future<void> initForTesting(String directoryPath) async {
           hint: 'obtenerTotalVentasPorEmpleadoYRango_fallo',
           extras: {'empleado': empleado});
       return 0.0;
+    }
+  }
+
+   // ==================== CARRITOS EN ESPERA (PARK SALE) ====================
+
+  /// Devuelve todas las sesiones en espera de un usuario.
+  /// NO incluye sesiones abandonadas automáticamente (se marcan visualmente).
+  Future<List<CartSessionEntity>> obtenerSesionesDeUsuario(int usuarioId) async {
+    try {
+      final isar = await db;
+      final sesiones = await isar.cartSessionEntitys
+          .filter()
+          .usuarioIdEqualTo(usuarioId)
+          .findAll();
+
+      // Ordenar: primero las más recientes
+      sesiones.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return sesiones;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerSesionesDeUsuario_fallo',
+          extras: {'usuarioId': usuarioId});
+      return [];
+    }
+  }
+
+  /// Cuenta cuántas sesiones tiene un usuario.
+  Future<int> contarSesionesDeUsuario(int usuarioId) async {
+    try {
+      final isar = await db;
+      return await isar.cartSessionEntitys
+          .filter()
+          .usuarioIdEqualTo(usuarioId)
+          .count();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'contarSesionesDeUsuario_fallo',
+          extras: {'usuarioId': usuarioId});
+      return 0;
+    }
+  }
+
+  /// Guarda o actualiza una sesión.
+  Future<void> guardarSesion(CartSessionEntity sesion) async {
+    try {
+      final isar = await db;
+      sesion.updatedAt = DateTime.now();
+      await isar.writeTxn(() async {
+        await isar.cartSessionEntitys.put(sesion);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'guardarSesion_fallo',
+          extras: {'sessionId': sesion.sessionId, 'usuarioId': sesion.usuarioId});
+      rethrow;
+    }
+  }
+
+  /// Elimina una sesión por su UUID.
+  Future<bool> eliminarSesion(String sessionId) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn(() async {
+        final sesion = await isar.cartSessionEntitys
+            .filter()
+            .sessionIdEqualTo(sessionId)
+            .findFirst();
+        if (sesion == null) return false;
+        return await isar.cartSessionEntitys.delete(sesion.id);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'eliminarSesion_fallo',
+          extras: {'sessionId': sessionId});
+      return false;
+    }
+  }
+
+  /// Elimina TODAS las sesiones de un usuario.
+  /// Se llama al cerrar sesión.
+  Future<int> eliminarSesionesDeUsuario(int usuarioId) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn(() async {
+        final sesiones = await isar.cartSessionEntitys
+            .filter()
+            .usuarioIdEqualTo(usuarioId)
+            .findAll();
+        if (sesiones.isEmpty) return 0;
+
+        final ids = sesiones.map((s) => s.id).toList();
+        return await isar.cartSessionEntitys.deleteAll(ids);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'eliminarSesionesDeUsuario_fallo',
+          extras: {'usuarioId': usuarioId});
+      return 0;
+    }
+  }
+
+  /// Marca como abandonadas las sesiones con más de 24h.
+  /// Se llama al cargar sesiones.
+  Future<int> marcarSesionesAbandonadas(int usuarioId) async {
+    try {
+      final isar = await db;
+      final limite = DateTime.now().subtract(const Duration(hours: 24));
+      int actualizadas = 0;
+
+      await isar.writeTxn(() async {
+        final sesiones = await isar.cartSessionEntitys
+            .filter()
+            .usuarioIdEqualTo(usuarioId)
+            .createdAtLessThan(limite)
+            .findAll();
+
+        for (final s in sesiones) {
+          if (s.status != CartSessionStatus.abandonado) {
+            s.status = CartSessionStatus.abandonado;
+            await isar.cartSessionEntitys.put(s);
+            actualizadas++;
+          }
+        }
+      });
+
+      return actualizadas;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'marcarSesionesAbandonadas_fallo',
+          extras: {'usuarioId': usuarioId});
+      return 0;
     }
   }
 

@@ -5,12 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/cart_item.dart';
 import '../../domain/models/product_item.dart';
 
-// ============================================================
-// CONFIGURACIÓN DE IVA POR PAÍS
-// ============================================================
-// TODO(multi-pais): Migrar a entidad `ConfiguracionPais` cuando
-// se implemente la configuración inicial post-empresa.
-
 class ConfiguracionIva {
   final String codigoPais;
   final double porcentajeIva;
@@ -31,10 +25,6 @@ class ConfiguracionIva {
 
   static ConfiguracionIva porDefecto() => porPais['VE']!;
 }
-
-// ============================================================
-// ESTADO DEL CARRITO
-// ============================================================
 
 class CartState {
   final List<CartItem> items;
@@ -103,10 +93,6 @@ class CartState {
   }
 }
 
-// ============================================================
-// NOTIFIER
-// ============================================================
-
 class CartNotifier extends StateNotifier<CartState> {
   CartNotifier({ConfiguracionIva? configIva})
       : super(CartState(configIva: configIva ?? ConfiguracionIva.porDefecto()));
@@ -121,6 +107,22 @@ class CartNotifier extends StateNotifier<CartState> {
 
   void setConfigIva(ConfiguracionIva config) {
     state = state.copyWith(configIva: config);
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // 🆕 NUEVO: Reemplazar TODOS los items de una sola vez.
+  // Usado al retomar un carrito parkeado.
+  // ════════════════════════════════════════════════════════════
+  void reemplazarItems(
+    List<CartItem> nuevosItems, {
+    ConfiguracionIva? configIva,
+    bool? ivaHabilitado,
+  }) {
+    state = CartState(
+      items: nuevosItems,
+      configIva: configIva ?? state.configIva,
+      ivaHabilitado: ivaHabilitado ?? state.ivaHabilitado,
+    );
   }
 
   void agregarProducto(
@@ -280,10 +282,6 @@ class CartNotifier extends StateNotifier<CartState> {
     return valor.roundToDouble();
   }
 }
-
-// ============================================================
-// PROVIDER
-// ============================================================
 
 final cartProvider = StateNotifierProvider<CartNotifier, CartState>((ref) {
   return CartNotifier();

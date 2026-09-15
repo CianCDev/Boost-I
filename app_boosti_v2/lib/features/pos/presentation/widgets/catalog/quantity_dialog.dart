@@ -2,7 +2,6 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../data/Local/entities/producto_entity.dart';
@@ -39,7 +38,6 @@ class _QuantityDialogState extends State<QuantityDialog> {
   bool _formValido = true;
 
   /// Guard de re-entrada SIN setState.
-  /// Previene que el botón se presione múltiples veces bloqueando la ejecución.
   bool _cerrando = false;
 
   StreamSubscription<double>? _weightSubscription;
@@ -64,10 +62,13 @@ class _QuantityDialogState extends State<QuantityDialog> {
     if (widget.producto.esPesado) {
       _weightSubscription = _scaleService.weightStream.listen((peso) {
         if (peso > 0 && mounted && _usandoPesoAutomatico) {
-          setState(() {
-            _cantidadController.text = peso.toStringAsFixed(3);
-          });
-          _revalidarFormulario();
+          final nuevoPeso = peso.toStringAsFixed(3);
+          // OPTIMIZACIÓN: Solo actualizamos si el peso realmente cambió.
+          // Además, modificar .text no requiere setState, el TextField se repinta solo.
+          if (_cantidadController.text != nuevoPeso) {
+            _cantidadController.text = nuevoPeso;
+            _revalidarFormulario(); 
+          }
         }
       });
     }
@@ -96,11 +97,12 @@ class _QuantityDialogState extends State<QuantityDialog> {
     );
   }
 
-  /// Verifica si hay datos mayores a cero para habilitar/deshabilitar el botón
   void _revalidarFormulario() {
     final c = double.tryParse(_cantidadController.text) ?? 0;
     final p = double.tryParse(_precioController.text) ?? 0;
     final valido = c > 0 && p > 0;
+    
+    // Solo hacemos setState si el estado de validación cambia (evita rebuilds innecesarios)
     if (valido != _formValido) {
       setState(() => _formValido = valido);
     }
@@ -125,59 +127,51 @@ class _QuantityDialogState extends State<QuantityDialog> {
       backgroundColor: Colors.transparent,
       elevation: 0,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 500),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.85)
-                  : Colors.white.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : Colors.white.withValues(alpha: 0.4),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 30,
-                  spreadRadius: -5,
-                  offset: const Offset(0, 12),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 500),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.08),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 20,
+              spreadRadius: -2,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildHeader(isDark),
+              const SizedBox(height: 20),
+              Text(
+                widget.producto.esPesado
+                    ? 'El peso se actualiza automáticamente desde la balanza:'
+                    : 'Ingresa la cantidad deseada (unidades):',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                  fontWeight: FontWeight.w500,
                 ),
-              ],
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildHeader(isDark),
-                  const SizedBox(height: 20),
-                  Text(
-                    widget.producto.esPesado
-                        ? 'El peso se actualiza automáticamente desde la balanza:'
-                        : 'Ingresa la cantidad deseada (unidades):',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDark ? Colors.white70 : Colors.black54,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildCantidadField(isDark),
-                  const SizedBox(height: 12),
-                  _buildPrecioField(isDark),
-                  const SizedBox(height: 28),
-                  _buildBotones(isDark, colorScheme),
-                ],
               ),
-            ),
+              const SizedBox(height: 16),
+              _buildCantidadField(isDark),
+              const SizedBox(height: 12),
+              _buildPrecioField(isDark),
+              const SizedBox(height: 28),
+              _buildBotones(isDark, colorScheme),
+            ],
           ),
         ),
       ),
@@ -190,19 +184,8 @@ class _QuantityDialogState extends State<QuantityDialog> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF10B981), Color(0xFF059669)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: const Color(0xFF10B981),
             borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
           child: Icon(
             widget.producto.esPesado
@@ -432,7 +415,6 @@ class _QuantityDialogState extends State<QuantityDialog> {
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: habilitado ? 4 : 0,
-            shadowColor: const Color(0xFF10B981).withValues(alpha: 0.4),
           ),
           onPressed: habilitado ? _agregar : null,
           child: _procesando
@@ -454,20 +436,16 @@ class _QuantityDialogState extends State<QuantityDialog> {
   }
 
   Future<void> _agregar() async {
-    // 1. Guard contra doble ejecución en el mismo ciclo.
     if (_cerrando) return;
-    _cerrando = true;
 
     final cantidad = double.tryParse(_cantidadController.text);
     if (cantidad == null || cantidad <= 0) {
-      _cerrando = false;
       _mostrarSnack('Ingrese una cantidad válida');
       return;
     }
 
     final precioIngresado = double.tryParse(_precioController.text);
     if (precioIngresado == null || precioIngresado <= 0) {
-      _cerrando = false;
       _mostrarSnack('Ingrese un precio válido');
       return;
     }
@@ -476,7 +454,6 @@ class _QuantityDialogState extends State<QuantityDialog> {
       final precioOriginal = widget.producto.precioUnidad;
       final topeDescuento = precioOriginal * 0.80;
 
-      // 2. Validación asíncrona (si requiere admin)
       if (!_adminValidoParaEstaVenta && precioIngresado < topeDescuento) {
         setState(() => _procesando = true);
 
@@ -497,7 +474,6 @@ class _QuantityDialogState extends State<QuantityDialog> {
         if (validado != true) {
           setState(() => _procesando = false);
           _revalidarFormulario();
-          _cerrando = false;
           return;
         }
 
@@ -505,14 +481,11 @@ class _QuantityDialogState extends State<QuantityDialog> {
         setState(() => _procesando = false);
       }
 
-      // 3. Detener escuchas
+      // Marcamos el estado de cierre definitivo
+      _cerrando = true;
       _weightSubscription?.cancel();
       _weightSubscription = null;
 
-      // 4. Bajar el teclado para evitar saltos y tirones visuales al hacer pop
-      FocusManager.instance.primaryFocus?.unfocus();
-
-      // 5. Preparar la instancia final
       final productoConPrecio = ProductoEntity()
         ..id = widget.producto.id
         ..codigoBarras = widget.producto.codigoBarras
@@ -525,17 +498,18 @@ class _QuantityDialogState extends State<QuantityDialog> {
         ..proveedorNombre = widget.producto.proveedorNombre
         ..proveedorTelefono = widget.producto.proveedorTelefono;
 
-      final callback = widget.onAgregar;
-
-      // 6. Cerrar el diálogo ANTES de ejecutar el Riverpod y el redibujado de la UI principal
+      // 1. Ocultar teclado y quitar el diálogo de la pantalla INMEDIATAMENTE
+      FocusManager.instance.primaryFocus?.unfocus();
       if (mounted) Navigator.of(context).pop();
 
-      // 7. Retrasar el cálculo del carrito 150ms 
-      // Esto libera el hilo principal permitiendo que Navigator.pop renderice sus 60 FPS sin tirones.
-      Future.delayed(const Duration(milliseconds: 150), () {
-        callback(productoConPrecio, cantidad);
+      // 2. Diferimos la actualización de Riverpod (carrito).
+      // Esto evita que la carga masiva en memoria ocurra exactamente en el 
+      // mismo frame en el que el teclado baja y el diálogo se cierra, 
+      // eliminando los parpadeos y "tirones" de pantalla.
+      Future.delayed(const Duration(milliseconds: 50), () {
+        widget.onAgregar(productoConPrecio, cantidad);
       });
-      
+
     } catch (e) {
       if (!mounted) return;
       setState(() => _procesando = false);

@@ -35,33 +35,38 @@ class GlassDialog extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
             constraints: BoxConstraints(
               maxWidth: maxWidth,
               maxHeight: screen.height * maxHeightFactor,
             ),
             decoration: BoxDecoration(
+              // ✅ Alpha baja para que el blur se perciba:
+              // 0.95 → parecía opaco, el vidrio no se veía.
               color: isDark
-                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.95)
-                  : Colors.white.withValues(alpha: 0.95),
+                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.72)
+                  : Colors.white.withValues(alpha: 0.78),
               borderRadius: BorderRadius.circular(28),
               border: Border.all(
                 color: isDark
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : Colors.white,
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : Colors.white.withValues(alpha: 0.9),
                 width: 1.5,
               ),
               boxShadow: [
+                // Resplandor del acento
                 BoxShadow(
-                  color: accentColor.withValues(alpha: 0.1),
-                  blurRadius: 40,
-                  offset: const Offset(0, 10),
+                  color: accentColor.withValues(alpha: 0.18),
+                  blurRadius: 50,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 12),
                 ),
+                // Sombra profunda
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, 5),
+                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.12),
+                  blurRadius: 30,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
