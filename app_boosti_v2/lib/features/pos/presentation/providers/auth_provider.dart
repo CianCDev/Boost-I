@@ -68,10 +68,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(errorMessage: message);
   }
 
-  Future<void> inicializarAdminPorDefecto() async {
-    await _isarService.inicializarUsuarioAdminPorDefecto();
-    await loadUsuarios();
-  }
+
 
   Future<bool> loginWithPin(
       UsuarioEntity usuarioSeleccionado, String pin) async {

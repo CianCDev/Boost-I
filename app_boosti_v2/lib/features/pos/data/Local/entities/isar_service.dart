@@ -82,9 +82,9 @@ class IsarService {
 
   /// Inicializa la base de datos Isar con todos los esquemas.
   /// Usa el ID de empresa de SharedPreferences para aislar los datos.
-  Future<Isar> _initIsar({
+Future<Isar> _initIsar({
   String? testDirectory,
-  bool skipDemoInit = false,
+  bool skipDemoInit = true,
 }) async {
   if (_isarInstance != null && _isarInstance!.isOpen) {
     return _isarInstance!;

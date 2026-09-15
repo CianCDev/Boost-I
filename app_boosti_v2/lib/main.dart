@@ -83,7 +83,7 @@ void main() async {
   // ============================================================
   final isarService = IsarService();
 
-  await isarService.inicializarUsuarioAdminPorDefecto();
+
   await isarService.migrarStockExistenteALotes();
 
   try {
