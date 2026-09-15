@@ -449,7 +449,7 @@ class SyncService {
       };
 
       for (var data in response) {
-        final int idIsar = data['id_isar'] as int? ?? 0;
+        final idIsar = (data['id_isar'] as num?)?.toInt() ?? 0;
         if (idIsar == 0) {
           debugPrint('⚠️ Usuario sin id_isar, omitiendo: ${data['nombre']}');
           continue;
@@ -847,9 +847,7 @@ class SyncService {
         return payload;
       }).toList();
 
-      await _supabase
-          .from('productos')
-          .upsert(payloadList, onConflict: 'id_isar');
+      await _supabase.from('productos').upsert(payloadList, onConflict: 'uuid');
 
       final idsIsar = productosLocales.map((p) => p.id).toList();
       final response = await _supabase

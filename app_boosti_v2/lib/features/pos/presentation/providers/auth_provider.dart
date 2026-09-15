@@ -88,22 +88,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
         return false;
       }
-
-      // 2️⃣ Login exitoso localmente → intentar sincronizar con Supabase
-      if (usuarioValido.email != null && usuarioValido.email!.isNotEmpty) {
-        final password = usuarioValido.password ?? pin;
-        try {
-          await Supabase.instance.client.auth.signInWithPassword(
-            email: usuarioValido.email!,
-            password: password,
-          );
-          debugPrint(
-              '✅ Login en Supabase exitoso para ${usuarioValido.nombre}');
-        } catch (e) {
-          debugPrint('⚠️ Login en Supabase falló (modo offline): $e');
-        }
-      }
-
+      // 2️⃣ Login local exitoso. NO se hace login en Supabase aquí.
+      //
+      // El JWT con tenant_id se obtiene en loginWithEmail (admin configura
+      // el dispositivo). El login por PIN es para uso diario offline.
+      //
+      // Si se intentara signInWithPassword con el PIN hasheado, fallaría
+      // siempre con invalid_credentials (ya que el PIN real no está en Supabase).
       // 3️⃣ Actualizar estado local y en Supabase (device_id, estado)
       await _isarService.guardarLog(
         LogEntity()
