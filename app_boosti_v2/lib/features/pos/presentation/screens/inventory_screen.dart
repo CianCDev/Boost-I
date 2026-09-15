@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
+
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/inventory_provider.dart';
@@ -14,18 +15,18 @@ import '../services/sync_service.dart';
 import '../services/printer_service.dart';
 import '../services/label_generator.dart';
 import '../services/label_pdf_generator.dart';
+import '../utils/responsive_helper.dart';
+import '../widgets/appbar.dart';
 import '../widgets/inventory/inventory_product_card.dart';
 import '../widgets/inventory/inventory_product_card_skeleton.dart';
 import '../widgets/inventory/inventory_search_bar.dart';
 import '../widgets/inventory/inventory_category_chips.dart';
 import '../widgets/inventory/barcode_generator_dialog.dart';
 import '../widgets/inventory/marcas_managment_dialog.dart';
-import '../widgets/shared/barcode_scanner_dialog.dart';
-import '../utils/responsive_helper.dart';
 import '../widgets/inventory/product_form_dialog.dart';
 import '../widgets/inventory/product_detail_dialog.dart';
-import '../widgets/appbar.dart';
 import '../widgets/inventory/categorias_management_dialog.dart';
+import '../widgets/shared/barcode_scanner_dialog.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   @Deprecated('Use usuarioActualProvider instead.')
@@ -46,12 +47,11 @@ class InventoryScreen extends ConsumerStatefulWidget {
 
 class _InventoryScreenState extends ConsumerState<InventoryScreen>
     with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
+  late final AnimationController _animationController;
 
-  UsuarioEntity get usuarioActual =>
-      ref.read(usuarioActualProvider) ??
-      widget.usuarioLogueado ??
-      (throw StateError('No hay usuario autenticado para Inventario'));
+  /// Atajo sin `throw` para métodos que necesitan el usuario fuera de build.
+  UsuarioEntity? get _user =>
+      ref.read(usuarioActualProvider) ?? widget.usuarioLogueado;
 
   @override
   void initState() {
@@ -61,9 +61,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       duration: const Duration(milliseconds: 300),
     )..forward();
 
-    if (widget.codigoBarrasInicial != null && widget.codigoBarrasInicial!.isNotEmpty) {
+    final codigo = widget.codigoBarrasInicial;
+    if (codigo != null && codigo.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _mostrarFormularioProducto(codigoBarrasPrecargado: widget.codigoBarrasInicial);
+        if (!mounted) return;
+        _mostrarFormularioProducto(codigoBarrasPrecargado: codigo);
       });
     }
   }
@@ -75,15 +77,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   // ============================================================
-  // MÉTODOS DE ACCIÓN
+  // SCAN / CRUD
   // ============================================================
+
   Future<void> _scanBarcode() async {
     final codigo = await showDialog<String>(
       context: context,
       barrierDismissible: true,
       builder: (_) => const BarcodeScannerDialog(),
     );
-    if (codigo == null || codigo.isEmpty) return;
+    if (codigo == null || codigo.isEmpty || !mounted) return;
 
     final productos = ref.read(productosProvider).items;
     final producto = productos.firstWhere(
@@ -98,48 +101,61 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('Producto no encontrado'),
-        content: Text('El código "$codigo" no está registrado.\n¿Deseas crearlo ahora?'),
+        content: Text(
+          'El código "$codigo" no está registrado.\n'
+          '¿Deseas crearlo ahora?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary),
-            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.primary,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Crear Producto'),
           ),
         ],
       ),
     );
+
     if (confirm == true && mounted) {
       _mostrarFormularioProducto(codigoBarrasPrecargado: codigo);
     }
   }
 
-  void _mostrarFormularioProducto({ProductoEntity? productoAEditar, String? codigoBarrasPrecargado}) {
-    final esAdmin = usuarioActual.rol == 'admin';
-    if (!esAdmin) return;
+  void _mostrarFormularioProducto({
+    ProductoEntity? productoAEditar,
+    String? codigoBarrasPrecargado,
+  }) {
+    final user = _user;
+    if (user == null || user.rol != 'admin') return;
 
     showDialog(
       context: context,
-      builder: (context) => ProductFormDialog(
+      builder: (ctx) => ProductFormDialog(
         producto: productoAEditar,
-        usuarioActual: usuarioActual,
+        usuarioActual: user,
         onGuardar: (producto) async {
           final productosNotifier = ref.read(productosProvider.notifier);
-          if (productoAEditar == null) {
-            await productosNotifier.guardarProducto(producto, usuarioActual, esNuevo: true);
-          } else {
-            await productosNotifier.guardarProducto(producto, usuarioActual, esNuevo: false);
-          }
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Producto ${productoAEditar != null ? 'actualizado' : 'creado'} exitosamente'),
-                backgroundColor: Theme.of(context).colorScheme.primary,
+          await productosNotifier.guardarProducto(
+            producto,
+            user,
+            esNuevo: productoAEditar == null,
+          );
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Producto ${productoAEditar != null ? 'actualizado' : 'creado'} exitosamente',
               ),
-            );
-          }
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
+          );
         },
         codigoBarrasPrecargado: codigoBarrasPrecargado,
       ),
@@ -147,32 +163,39 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   }
 
   void _mostrarDetalleProducto(ProductoEntity producto) {
+    final user = _user;
+    if (user == null) return;
+
     showDialog(
       context: context,
-      builder: (context) => ProductDetailDialog(
+      builder: (ctx) => ProductDetailDialog(
         producto: producto,
-        esAdmin: usuarioActual.rol == 'admin',
+        esAdmin: user.rol == 'admin',
         onEditar: () {
-          Navigator.pop(context);
+          Navigator.pop(ctx);
           _mostrarFormularioProducto(productoAEditar: producto);
         },
         onEliminar: () async {
-          final productosNotifier = ref.read(productosProvider.notifier);
-          await productosNotifier.eliminarProducto(producto.id, usuarioActual);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Producto eliminado correctamente'), backgroundColor: Color(0xFF10B981)),
-            );
-          }
+          await ref
+              .read(productosProvider.notifier)
+              .eliminarProducto(producto.id, user);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Producto eliminado correctamente'),
+              backgroundColor: Color(0xFF10B981),
+            ),
+          );
         },
       ),
     );
   }
 
   // ============================================================
-  // DIÁLOGO DE CANTIDAD DE ETIQUETAS (CON PDF)
+  // ETIQUETAS — diálogo de cantidades
   // ============================================================
-  void _mostrarDialogoCantidadEtiquetas() async {
+
+  Future<void> _mostrarDialogoCantidadEtiquetas() async {
     final state = ref.read(inventoryProvider);
     final productosSeleccionados = state.productosFiltrados
         .where((p) => state.productosSeleccionados.contains(p.id))
@@ -180,117 +203,130 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
     if (productosSeleccionados.isEmpty) return;
 
-    final Map<int, int> cantidades = {};
-    for (final p in productosSeleccionados) {
-      cantidades[p.id] = 1;
-    }
+    final cantidades = <int, int>{
+      for (final p in productosSeleccionados) p.id: 1,
+    };
 
     final isMobile = ResponsiveHelper.isMobile(context);
 
     await showDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: const Text('Cantidad de etiquetas'),
-              content: SizedBox(
-                width: isMobile ? 300 : 500,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: productosSeleccionados.map((p) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: Text(p.nombre, style: const TextStyle(fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              flex: 1,
-                              child: TextFormField(
-                                initialValue: '1',
-                                keyboardType: TextInputType.number,
-                                textAlign: TextAlign.center,
-                                enableInteractiveSelection: false,
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(vertical: 4),
-                                ),
-                                onChanged: (val) {
-                                  final int? cantidad = int.tryParse(val);
-                                  if (cantidad != null && cantidad > 0) {
-                                    setStateDialog(() {
-                                      cantidades[p.id] = cantidad;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Cantidad de etiquetas'),
+          content: SizedBox(
+            width: isMobile ? 300 : 500,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: productosSeleccionados.map((p) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            p.nombre,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 1,
+                          child: TextFormField(
+                            initialValue: '1',
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.center,
+                            enableInteractiveSelection: false,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              contentPadding:
+                                  EdgeInsets.symmetric(vertical: 4),
+                            ),
+                            onChanged: (val) {
+                              final cantidad = int.tryParse(val);
+                              if (cantidad != null && cantidad > 0) {
+                                setDialogState(() {
+                                  cantidades[p.id] = cantidad;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar'),
-                ),
-                // Botón Generar PDF
-                ElevatedButton.icon(
-                  onPressed: () {
-                    final validCantidades = Map<int, int>.from(cantidades)..removeWhere((key, value) => value < 1);
-                    if (validCantidades.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Ingresa al menos 1 etiqueta por producto')),
-                      );
-                      return;
-                    }
-                    Navigator.pop(context);
-                    _generarPDFEtiquetas(validCantidades);
-                  },
-                  icon: const Icon(Icons.picture_as_pdf_rounded),
-                  label: const Text('Generar PDF'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700),
-                ),
-                const SizedBox(width: 8),
-                // Botón Imprimir
-                ElevatedButton(
-                  onPressed: () {
-                    final validCantidades = Map<int, int>.from(cantidades)..removeWhere((key, value) => value < 1);
-                    if (validCantidades.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Ingresa al menos 1 etiqueta por producto')),
-                      );
-                      return;
-                    }
-                    Navigator.pop(context);
-                    _imprimirEtiquetasSeleccionadas(validCantidades);
-                  },
-                  child: const Text('Imprimir'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                final valid = Map<int, int>.from(cantidades)
+                  ..removeWhere((_, v) => v < 1);
+                if (valid.isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Ingresa al menos 1 etiqueta por producto'),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx);
+                _generarPDFEtiquetas(valid);
+              },
+              icon: const Icon(Icons.picture_as_pdf_rounded),
+              label: const Text('Generar PDF'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: () {
+                final valid = Map<int, int>.from(cantidades)
+                  ..removeWhere((_, v) => v < 1);
+                if (valid.isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Ingresa al menos 1 etiqueta por producto'),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx);
+                _imprimirEtiquetasSeleccionadas(valid);
+              },
+              child: const Text('Imprimir'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   // ============================================================
-  // IMPRESIÓN DE ETIQUETAS (TÉRMICA) - VERSIÓN ÚNICA Y CORREGIDA
+  // IMPRESIÓN TÉRMICA
   // ============================================================
-  Future<void> _imprimirEtiquetasSeleccionadas(Map<int, int> cantidades) async {
+
+  Future<void> _imprimirEtiquetasSeleccionadas(
+    Map<int, int> cantidades,
+  ) async {
     final selectedPrinter = ref.read(printerProvider);
     if (selectedPrinter == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay impresora seleccionada'), backgroundColor: Colors.orange),
+        const SnackBar(
+          content: Text('No hay impresora seleccionada'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
@@ -299,20 +335,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     final labels = <LabelItem>[];
 
     for (final entry in cantidades.entries) {
-      final producto = state.productosFiltrados.firstWhere((p) => p.id == entry.key);
+      final producto = state.productosFiltrados
+          .cast<ProductoEntity?>()
+          .firstWhere((p) => p!.id == entry.key, orElse: () => null);
+      if (producto == null) continue;
       labels.add(LabelItem(
         nombre: producto.nombre,
         precio: producto.precioUnidad,
         codigoBarras: producto.codigoBarras,
-        cantidad: entry.value, // La impresora térmica repetirá esta cantidad
+        cantidad: entry.value,
       ));
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    if (labels.isEmpty) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
       const SnackBar(
         content: Row(
           children: [
-            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
             SizedBox(width: 12),
             Text('Imprimiendo etiquetas...'),
           ],
@@ -321,37 +367,59 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       ),
     );
 
-    final result = await PrinterService().printLabel(
-      printer: selectedPrinter.device,
-      labels: labels,
-    );
-
-    ScaffoldMessenger.of(context).clearSnackBars();
-
-    if (result.success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('✅ ${labels.fold<int>(0, (sum, item) => sum + item.cantidad)} etiquetas impresas correctamente'), backgroundColor: const Color(0xFF10B981)),
+    try {
+      final result = await PrinterService().printLabel(
+        printer: selectedPrinter.device,
+        labels: labels,
       );
-      ref.read(inventoryProvider.notifier).limpiarSeleccion();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Error al imprimir: ${result.message}'), backgroundColor: Colors.red),
+
+      if (!mounted) return;
+      messenger.clearSnackBars();
+
+      if (result.success) {
+        final total = labels.fold<int>(0, (s, i) => s + i.cantidad);
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('✅ $total etiquetas impresas correctamente'),
+            backgroundColor: const Color(0xFF10B981),
+          ),
+        );
+        ref.read(inventoryProvider.notifier).limpiarSeleccion();
+      } else {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('❌ Error al imprimir: ${result.message}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('❌ Error al imprimir: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
 
   // ============================================================
-  // GENERACIÓN DE PDF - VERSIÓN CORREGIDA (REPITE ETIQUETAS)
+  // GENERACIÓN PDF
   // ============================================================
+
   Future<void> _generarPDFEtiquetas(Map<int, int> cantidades) async {
     final state = ref.read(inventoryProvider);
     final labels = <LabelItem>[];
 
     for (final entry in cantidades.entries) {
-      final producto = state.productosFiltrados.firstWhere((p) => p.id == entry.key);
-      final cantidad = entry.value;
-      // Repetir la etiqueta según la cantidad solicitada
-      for (var i = 0; i < cantidad; i++) {
+      final producto = state.productosFiltrados
+          .cast<ProductoEntity?>()
+          .firstWhere((p) => p!.id == entry.key, orElse: () => null);
+      if (producto == null) continue;
+
+      for (var i = 0; i < entry.value; i++) {
         labels.add(LabelItem(
           nombre: producto.nombre,
           precio: producto.precioUnidad,
@@ -361,18 +429,28 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
       }
     }
 
+    if (labels.isEmpty) return;
+
     try {
       await LabelPdfGenerator.sharePdf(
         labels: labels,
         title: 'Etiquetas de Productos',
       );
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ PDF generado y compartido correctamente'), backgroundColor: Color(0xFF10B981)),
+        const SnackBar(
+          content: Text('✅ PDF generado y compartido correctamente'),
+          backgroundColor: Color(0xFF10B981),
+        ),
       );
       ref.read(inventoryProvider.notifier).limpiarSeleccion();
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Error al generar PDF: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('❌ Error al generar PDF: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -380,143 +458,111 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   // ============================================================
   // BUILD
   // ============================================================
+
   @override
   Widget build(BuildContext context) {
-    debugPrint('🔵 [InventoryScreen] build ejecutado');
-    ref.watch(usuarioActualProvider);
+    final usuario =
+        ref.watch(usuarioActualProvider) ?? widget.usuarioLogueado;
+
+    // Guard: pantalla transitoria mientras carga el usuario.
+    if (usuario == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final isAdmin = usuario.rol == 'admin';
     final contenido = _buildBody(context);
 
-    if (widget.showAppBar) {
-      final isMobile = ResponsiveHelper.isMobile(context);
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      final isAdmin = usuarioActual.rol == 'admin';
-      final state = ref.watch(inventoryProvider);
+    if (!widget.showAppBar) return contenido;
 
-      final gradient = isDark
-          ? const LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [Color(0xFF10B981), Color(0xFF059669)],
-            )
-          : const LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [Color(0xFF5352ED), Color(0xFF4840E8), Color(0xFF5955EE)],
-            );
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final isTablet = ResponsiveHelper.isTablet(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-      return Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-        appBar: CustomAppBar(
-          title: isMobile ? 'Inventario' : 'Gestión de Inventario',
-          showBackButton: true,
-          centerTitle: false,
-          gradient: gradient,
-          actions: [
-            _buildActionButton(
-              context,
-              icon: Icons.branding_watermark_rounded,
-              tooltip: 'Gestionar marcas',
+    // Solo miramos seleccionMultiple del state para el badge de "N seleccionados".
+    final seleccionMultiple = ref.watch(
+      inventoryProvider.select((s) => s.seleccionMultiple),
+    );
+    final cantidadSeleccionados = ref.watch(
+      inventoryProvider.select((s) => s.cantidadSeleccionados),
+    );
+
+    final gradient = isDark
+        ? const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Color(0xFF10B981), Color(0xFF059669)],
+          )
+        : const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Color(0xFF5352ED), Color(0xFF4840E8), Color(0xFF5955EE)],
+          );
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
+      appBar: CustomAppBar(
+        title: isMobile ? 'Inventario' : 'Gestión de Inventario',
+        showBackButton: true,
+        centerTitle: false,
+        gradient: gradient,
+        actions: [
+          _AppBarActionButton(
+            icon: Icons.branding_watermark_rounded,
+            tooltip: 'Gestionar marcas',
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => const MarcasManagementDialog(),
+            ),
+            isTablet: isTablet,
+          ),
+          const SizedBox(width: 8),
+          if (isAdmin) ...[
+            _RepararImagenesAction(isTablet: isTablet),
+            const SizedBox(width: 8),
+            _AppBarActionButton(
+              icon: Icons.category_outlined,
+              tooltip: 'Gestionar categorías',
               onPressed: () => showDialog(
                 context: context,
-                builder: (_) => const MarcasManagementDialog(),
+                builder: (_) => const CategoriasManagementDialog(),
               ),
-              isTablet: ResponsiveHelper.isTablet(context),
+              isTablet: isTablet,
             ),
             const SizedBox(width: 8),
-            if (isAdmin) ...[
-              _buildActionButton(
-                context,
-                icon: Icons.image_search_outlined,
-                tooltip: 'Reparar imágenes faltantes',
-                onPressed: () async {
-                  final count = await SyncService().repararImagenesFaltantes();
-                  if (!mounted) return;
-                  showDialog(
-                    context: context,
-                    barrierDismissible: true,
-                    builder: (context) => AlertDialog(
-                      title: Text(count > 0 ? '✅ Imágenes reparadas' : ' Sin cambios'),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (count > 0)
-                            Lottie.asset(
-                              'assets/animations/success.json',
-                              width: 100,
-                              height: 100,
-                              repeat: false,
-                            )
-                          else
-                            const Icon(Icons.info_outline, size: 60, color: Colors.orange),
-                          const SizedBox(height: 12),
-                          Text(
-                            count > 0
-                                ? 'Se repararon $count imágenes correctamente.'
-                                : 'No se encontraron imágenes faltantes.',
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Aceptar'),
-                        ),
-                      ],
-                    ),
-                  );
-                  await ref.read(productosProvider.notifier).cargarProductos();
-                },
-                isTablet: ResponsiveHelper.isTablet(context),
-              ),
-              const SizedBox(width: 8),
-            ],
-            if (isAdmin) ...[
-              _buildActionButton(
-                context,
-                icon: Icons.category_outlined,
-                tooltip: 'Gestionar categorías',
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => const CategoriasManagementDialog(),
-                  );
-                },
-                isTablet: ResponsiveHelper.isTablet(context),
-              ),
-              const SizedBox(width: 8),
-            ],
-            _buildActionButton(
-              context,
-              icon: Icons.qr_code,
-              tooltip: 'Generar Código de Barras',
-              onPressed: () => showDialog(context: context, builder: (_) => const BarcodeGeneratorDialog()),
-              isTablet: ResponsiveHelper.isTablet(context),
-            ),
-            const SizedBox(width: 12),
-            if (state.seleccionMultiple) ...[
-              Row(
-                children: [
-                  Text(
-                    '${state.cantidadSeleccionados} seleccionados',
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => ref.read(inventoryProvider.notifier).limpiarSeleccion(),
-                  ),
-                ],
-              ),
-            ],
           ],
-        ),
-        floatingActionButton: _buildFAB(context),
-        body: contenido,
-      );
-    } else {
-      return contenido;
-    }
+          _AppBarActionButton(
+            icon: Icons.qr_code,
+            tooltip: 'Generar código de barras',
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => const BarcodeGeneratorDialog(),
+            ),
+            isTablet: isTablet,
+          ),
+          const SizedBox(width: 12),
+          if (seleccionMultiple) ...[
+            Text(
+              '$cantidadSeleccionados seleccionados',
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: () =>
+                  ref.read(inventoryProvider.notifier).limpiarSeleccion(),
+            ),
+          ],
+        ],
+      ),
+      floatingActionButton: _buildFAB(context, isAdmin: isAdmin),
+      body: contenido,
+    );
   }
+
+  // ============================================================
+  // BODY
+  // ============================================================
 
   Widget _buildBody(BuildContext context) {
     final productosState = ref.watch(productosProvider);
@@ -526,167 +572,137 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     final screenWidth = MediaQuery.of(context).size.width;
     final colorScheme = Theme.of(context).colorScheme;
 
-    int crossAxisCount;
-    double childAspectRatio;
-    if (screenWidth < 600) {
-      crossAxisCount = 2;
-      childAspectRatio = 0.60;
-    } else if (screenWidth < 900) {
-      crossAxisCount = 3;
-      childAspectRatio = 0.65;
-    } else if (screenWidth < 1200) {
-      crossAxisCount = 4;
-      childAspectRatio = 0.70;
-    } else {
-      crossAxisCount = 5;
-      childAspectRatio = 0.75;
-    }
-    if (isMobile && MediaQuery.of(context).orientation == Orientation.landscape) {
-      crossAxisCount = 3;
-      childAspectRatio = 0.60;
+    if (productosState.isLoading) {
+      return GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: isMobile ? 2 : 4,
+          childAspectRatio: 0.8,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        itemCount: 6,
+        itemBuilder: (_, __) => const InventoryProductCardSkeleton(),
+      );
     }
 
+    final (crossAxisCount, childAspectRatio) =
+        _gridDimensions(screenWidth, isMobile);
     final productosFiltrados = inventoryState.productosFiltrados;
 
-    return productosState.isLoading
-        ? GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: isMobile ? 2 : 4,
-              childAspectRatio: 0.8,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          InventorySearchBar(
+            onScanPressed: _scanBarcode,
+            onSearchChanged: (value) =>
+                ref.read(inventoryProvider.notifier).setFiltroBusqueda(value),
+          ),
+          const SizedBox(height: 12),
+          const InventoryCategoryChips(),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              '${productosFiltrados.length} productos',
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-            itemCount: 6,
-            itemBuilder: (context, index) => const InventoryProductCardSkeleton(),
-          )
-        : Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              children: [
-                InventorySearchBar(
-                  onScanPressed: _scanBarcode,
-                  onSearchChanged: (value) => ref.read(inventoryProvider.notifier).setFiltroBusqueda(value),
-                ),
-                const SizedBox(height: 12),
-                const InventoryCategoryChips(),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${productosFiltrados.length} productos',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => ref
+                  .read(productosProvider.notifier)
+                  .recargarDesdeSupabase(),
+              color: colorScheme.primary,
+              child: productosFiltrados.isEmpty
+                  ? _buildEmptyState(colorScheme)
+                  : GridView.builder(
+                      key: const PageStorageKey('inventory_grid'),
+                      addAutomaticKeepAlives: true,
+                      padding: const EdgeInsets.only(bottom: 100),
+                      gridDelegate:
+                          SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        childAspectRatio: childAspectRatio,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () => ref.read(productosProvider.notifier).recargarDesdeSupabase(),
-                    color: colorScheme.primary,
-                    child: productosFiltrados.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.inventory_2_outlined, size: 48, color: colorScheme.outline),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No se encontraron productos.',
-                                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14),
-                                ),
-                              ],
-                            ),
-                          )
-                        : GridView.builder(
-                            key: const PageStorageKey('inventory_grid'),
-                            addAutomaticKeepAlives: true,
-                            padding: const EdgeInsets.only(bottom: 100),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: crossAxisCount,
-                              childAspectRatio: childAspectRatio,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                            ),
-                            itemCount: productosFiltrados.length,
-                            itemBuilder: (context, index) {
-                              final p = productosFiltrados[index];
-                              final isSelected = inventoryState.seleccionMultiple && inventoryState.productosSeleccionados.contains(p.id);
+                      itemCount: productosFiltrados.length,
+                      itemBuilder: (context, index) {
+                        final p = productosFiltrados[index];
+                        final isSelected =
+                            inventoryState.seleccionMultiple &&
+                                inventoryState.productosSeleccionados
+                                    .contains(p.id);
 
-                              return InventoryProductCard(
-                                key: ValueKey(p.id),
-                                producto: p,
-                                stockBajo: p.stock <= p.stockMinimo,
-                                onTap: () {
-                                  if (inventoryState.seleccionMultiple) {
-                                    ref.read(inventoryProvider.notifier).toggleSeleccionProducto(p.id);
-                                  } else {
-                                    _mostrarDetalleProducto(p);
-                                  }
-                                },
-                                onLongPress: () {
-                                  ref.read(inventoryProvider.notifier).toggleSeleccionProducto(p.id);
-                                },
-                                isSelected: isSelected,
-                                isMobile: isMobile,
-                                isTablet: isTablet,
-                                index: index,
-                                animationController: _animationController,
-                              );
-                            },
-                          ),
-                  ),
-                ),
-              ],
+                        return InventoryProductCard(
+                          key: ValueKey(p.id),
+                          producto: p,
+                          stockBajo: p.stock <= p.stockMinimo,
+                          onTap: () {
+                            if (inventoryState.seleccionMultiple) {
+                              ref
+                                  .read(inventoryProvider.notifier)
+                                  .toggleSeleccionProducto(p.id);
+                            } else {
+                              _mostrarDetalleProducto(p);
+                            }
+                          },
+                          onLongPress: () => ref
+                              .read(inventoryProvider.notifier)
+                              .toggleSeleccionProducto(p.id),
+                          isSelected: isSelected,
+                          isMobile: isMobile,
+                          isTablet: isTablet,
+                          index: index,
+                          animationController: _animationController,
+                        );
+                      },
+                    ),
             ),
-          );
+          ),
+        ],
+      ),
+    );
   }
 
-  // ============================================================
-  // BOTONES DE ACCIÓN DEL APPBAR
-  // ============================================================
-  Widget _buildActionButton(
-    BuildContext context, {
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onPressed,
-    required bool isTablet,
-  }) {
-    final size = isTablet ? 48.0 : 40.0;
-    final iconSize = isTablet ? 26.0 : 22.0;
-    bool isActionHovered = false;
+  /// Dimensiones responsivas de la grilla. Extraído para claridad.
+  (int, double) _gridDimensions(double screenWidth, bool isMobile) {
+    if (isMobile &&
+        MediaQuery.of(context).orientation == Orientation.landscape) {
+      return (3, 0.60);
+    }
+    if (screenWidth < 600) return (2, 0.60);
+    if (screenWidth < 900) return (3, 0.65);
+    if (screenWidth < 1200) return (4, 0.70);
+    return (5, 0.75);
+  }
 
-    return Tooltip(
-      message: tooltip,
-      child: StatefulBuilder(
-        builder: (context, setState) {
-          return MouseRegion(
-            cursor: SystemMouseCursors.click,
-            onEnter: (_) => setState(() => isActionHovered = true),
-            onExit: (_) => setState(() => isActionHovered = false),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: isActionHovered ? 0.15 : 0.08),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: IconButton(
-                icon: Icon(icon, color: Colors.white, size: iconSize),
-                onPressed: onPressed,
-                padding: EdgeInsets.zero,
-                splashRadius: isTablet ? 28 : 22,
-                mouseCursor: SystemMouseCursors.click,
-              ),
+  Widget _buildEmptyState(ColorScheme colorScheme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 48,
+            color: colorScheme.outline,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No se encontraron productos.',
+            style: TextStyle(
+              color: colorScheme.onSurfaceVariant,
+              fontSize: 14,
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
@@ -694,13 +710,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   // ============================================================
   // FAB
   // ============================================================
-  Widget? _buildFAB(BuildContext context) {
-    final isAdmin = usuarioActual.rol == 'admin';
+
+  Widget? _buildFAB(BuildContext context, {required bool isAdmin}) {
     if (!isAdmin) return null;
 
-    final state = ref.watch(inventoryProvider);
+    final seleccionMultiple = ref.watch(
+      inventoryProvider.select((s) => s.seleccionMultiple),
+    );
+    final cantidadSeleccionados = ref.watch(
+      inventoryProvider.select((s) => s.cantidadSeleccionados),
+    );
 
-    if (state.seleccionMultiple && state.productosSeleccionados.isNotEmpty) {
+    if (seleccionMultiple && cantidadSeleccionados > 0) {
       return FloatingActionButton.extended(
         backgroundColor: pumpkinSpice,
         foregroundColor: Colors.white,
@@ -708,19 +729,166 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         onPressed: _mostrarDialogoCantidadEtiquetas,
         icon: const Icon(Icons.local_offer_outlined, size: 24),
         label: Text(
-          'Imprimir etiquetas (${state.cantidadSeleccionados})',
+          'Imprimir etiquetas ($cantidadSeleccionados)',
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
       );
-    } else {
-      return FloatingActionButton.extended(
-        backgroundColor: primaryGreen,
-        foregroundColor: Colors.white,
-        elevation: 8,
-        onPressed: () => _mostrarFormularioProducto(),
-        icon: const Icon(Icons.add, size: 24),
-        label: Text(ResponsiveHelper.isMobile(context) ? 'Nuevo' : 'Nuevo Producto'),
-      );
     }
+
+    return FloatingActionButton.extended(
+      backgroundColor: primaryGreen,
+      foregroundColor: Colors.white,
+      elevation: 8,
+      onPressed: () => _mostrarFormularioProducto(),
+      icon: const Icon(Icons.add, size: 24),
+      label: Text(
+        ResponsiveHelper.isMobile(context) ? 'Nuevo' : 'Nuevo Producto',
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// APPBAR ACTION BUTTON
+// ══════════════════════════════════════════════════════════════
+
+class _AppBarActionButton extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+  final bool isTablet;
+
+  const _AppBarActionButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    required this.isTablet,
+  });
+
+  @override
+  State<_AppBarActionButton> createState() => _AppBarActionButtonState();
+}
+
+class _AppBarActionButtonState extends State<_AppBarActionButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = widget.isTablet ? 48.0 : 40.0;
+    final iconSize = widget.isTablet ? 26.0 : 22.0;
+
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: _hovered ? 0.15 : 0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: IconButton(
+            icon: Icon(widget.icon, color: Colors.white, size: iconSize),
+            onPressed: widget.onPressed,
+            padding: EdgeInsets.zero,
+            splashRadius: widget.isTablet ? 28 : 22,
+            mouseCursor: SystemMouseCursors.click,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// REPARAR IMÁGENES (con estado de loading)
+// ══════════════════════════════════════════════════════════════
+
+class _RepararImagenesAction extends ConsumerStatefulWidget {
+  final bool isTablet;
+  const _RepararImagenesAction({required this.isTablet});
+
+  @override
+  ConsumerState<_RepararImagenesAction> createState() =>
+      _RepararImagenesActionState();
+}
+
+class _RepararImagenesActionState
+    extends ConsumerState<_RepararImagenesAction> {
+  bool _loading = false;
+
+  Future<void> _reparar() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+
+    try {
+      final count = await SyncService().repararImagenesFaltantes();
+      if (!mounted) return;
+
+      await showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) => AlertDialog(
+          title: Text(count > 0 ? '✅ Imágenes reparadas' : 'Sin cambios'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (count > 0)
+                Lottie.asset(
+                  'assets/animations/success.json',
+                  width: 100,
+                  height: 100,
+                  repeat: false,
+                )
+              else
+                const Icon(Icons.info_outline, size: 60, color: Colors.orange),
+              const SizedBox(height: 12),
+              Text(
+                count > 0
+                    ? 'Se repararon $count imágenes correctamente.'
+                    : 'No se encontraron imágenes faltantes.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Aceptar'),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted) return;
+      await ref.read(productosProvider.notifier).cargarProductos();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al reparar imágenes: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AppBarActionButton(
+      icon: _loading
+          ? Icons.hourglass_top_rounded
+          : Icons.image_search_outlined,
+      tooltip: _loading ? 'Reparando imágenes...' : 'Reparar imágenes faltantes',
+      onPressed: _loading ? () {} : _reparar,
+      isTablet: widget.isTablet,
+    );
   }
 }

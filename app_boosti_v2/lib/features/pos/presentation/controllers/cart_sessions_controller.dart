@@ -42,6 +42,55 @@ class CartSessionsState {
       error: clearError ? null : (error ?? this.error),
     );
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // IGUALDAD ESTRUCTURAL
+  // ══════════════════════════════════════════════════════════════
+  //
+  // Sin esto, `state = CartSessionsState(sessions: [...])` siempre
+  // emite, porque cada instancia es un objeto nuevo y `==` por defecto
+  // compara referencias. Riverpod entonces dispara rebuilds aunque el
+  // contenido sea idéntico.
+  //
+  // Comparar por `sessionId + updatedAt + status + nombre` cubre
+  // cualquier mutación real: parkear (add), retomar (remove), renombrar
+  // (updatedAt + nombre), toggle de status (status + updatedAt).
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CartSessionsState &&
+          other.isLoading == isLoading &&
+          other.error == error &&
+          _mismasSesiones(other.sessions, sessions);
+
+  @override
+  int get hashCode => Object.hash(
+        isLoading,
+        error,
+        Object.hashAll(sessions.map((s) => s.sessionId)),
+      );
+
+  static bool _mismasSesiones(
+    List<CartSessionEntity> a,
+    List<CartSessionEntity> b,
+  ) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      final x = a[i];
+      final y = b[i];
+      if (x.sessionId != y.sessionId) return false;
+      if (x.updatedAt != y.updatedAt) return false;
+      if (x.status != y.status) return false;
+      if (x.nombre != y.nombre) return false;
+    }
+    return true;
+  }
+
+  @override
+  String toString() =>
+      'CartSessionsState(count=$count, loading=$isLoading, err=$error)';
 }
 
 class CartSessionsNotifier extends StateNotifier<CartSessionsState> {
@@ -58,14 +107,28 @@ class CartSessionsNotifier extends StateNotifier<CartSessionsState> {
 
   Future<void> cargarSesiones(int usuarioId) async {
     _usuarioId = usuarioId;
+
+    // ✅ Fase 1: mostrar loading (emite si cambia)
+    final antesLoading = state;
     state = state.copyWith(isLoading: true, clearError: true);
+    // Nota: si ya estaba cargando, no emite — la igualdad estructural lo absorbe.
+
     try {
       await _isar.marcarSesionesAbandonadas(usuarioId);
       final sesiones = await _isar.obtenerSesionesDeUsuario(usuarioId);
-      state = CartSessionsState(sessions: sesiones);
+
+      // ✅ Fase 2: resultado. Si nada cambió (misma lista, mismo error),
+      //    solo bajamos isLoading sin re-emitir el contenido.
+      final nuevo = CartSessionsState(sessions: sesiones);
+      if (nuevo != state) {
+        state = nuevo;
+      } else if (state.isLoading) {
+        state = state.copyWith(isLoading: false);
+      }
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
+    // `antesLoading` no se usa — la igualdad hace el trabajo.
   }
 
   Future<void> recargar() async {
@@ -95,7 +158,6 @@ class CartSessionsNotifier extends StateNotifier<CartSessionsState> {
       final nombreCliente =
           cliente != null ? cliente.nombre : clienteNombreLibre;
 
-      // ✅ Mapear items UNA sola vez y reutilizar.
       final sessionItems =
           cartState.items.map(_cartItemToSessionItem).toList();
 
@@ -117,8 +179,6 @@ class CartSessionsNotifier extends StateNotifier<CartSessionsState> {
         ..updatedAt = DateTime.now()
         ..status = CartSessionStatus.enEspera
         ..items = sessionItems
-        // ✅ Sincronizamos itemsNombres desde los items mapeados
-        //    para que la card pueda mostrar la vista previa.
         ..itemsNombres =
             sessionItems.map((i) => i.productoNombre).toList();
 
@@ -144,8 +204,6 @@ class CartSessionsNotifier extends StateNotifier<CartSessionsState> {
         (s) => s.sessionId == sessionId,
       );
 
-      // Si el carrito actual tiene items, se parkea automáticamente
-      // antes de retomar el seleccionado.
       final cartState = _ref.read(cartProvider);
       if (cartState.items.isNotEmpty) {
         final error = await parkearCarritoActivo(nombre: nombreAutoPark);
