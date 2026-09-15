@@ -333,6 +333,120 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+    /// Obtiene la lista de locales a los que el usuario actual tiene acceso.
+  ///
+  /// Retorna una lista de mapas con: tenant_id, nombre, direccion, rol,
+  /// es_default. Lista vacía si falla o no hay sesión.
+  Future<List<Map<String, dynamic>>> obtenerMisLocales() async {
+    try {
+      final supabase = Supabase.instance.client;
+      if (supabase.auth.currentSession == null) {
+        return [];
+      }
+
+      final response = await supabase.rpc('mis_locales');
+      if (response is List) {
+        return response.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e, stack) {
+      ErrorService.captureError(
+        e,
+        stack: stack,
+        hint: 'obtenerMisLocales_fallo',
+      );
+      return [];
+    }
+  }
+
+  /// Cambia el local (tenant) activo del usuario.
+  ///
+  /// Flujo:
+  /// 1. Actualiza es_default en `usuarios_locales` vía RPC.
+  /// 2. Refresca el JWT de Supabase (el hook inyectará el nuevo tenant_id).
+  /// 3. Extrae el nuevo tenant_id del JWT.
+  /// 4. Actualiza el tenantActualProvider.
+  /// 5. Dispara sync para recargar datos del nuevo tenant.
+  ///
+  /// Retorna `true` si el cambio fue exitoso.
+  Future<bool> cambiarLocal(String nuevoTenantId) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final supabase = Supabase.instance.client;
+
+      // 1. Actualizar es_default en Supabase
+      final rpcOk = await supabase.rpc(
+        'set_active_tenant',
+        params: {'p_tenant_id': nuevoTenantId},
+      );
+
+      if (rpcOk != true) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'No se pudo cambiar el local',
+        );
+        return false;
+      }
+
+      // 2. Refrescar el JWT para que el hook inyecte el nuevo tenant_id
+      await supabase.auth.refreshSession();
+
+      final session = supabase.auth.currentSession;
+      if (session == null) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'Sesión expirada. Inicia sesión de nuevo.',
+        );
+        return false;
+      }
+
+      // 3. Extraer el nuevo tenant_id del JWT
+      final jwt = session.accessToken;
+      final tenantId = JwtService.extraerTenantId(jwt);
+      final rolJwt = JwtService.extraerRol(jwt);
+
+      if (tenantId == null || tenantId.isEmpty) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'JWT sin tenant_id tras el cambio',
+        );
+        return false;
+      }
+
+      debugPrint('✅ Tenant cambiado a: $tenantId (rol: $rolJwt)');
+
+      // 4. Actualizar el provider global
+      await _ref
+          .read(tenantActualProvider.notifier)
+          .setTenant(tenantId, rol: rolJwt);
+
+      // 5. Recargar datos del nuevo tenant
+      try {
+        await _syncService.sincronizarTodo();
+      } catch (e) {
+        debugPrint('⚠️ Error en sync post-cambio: $e');
+      }
+
+      // 6. Recargar usuarios locales
+      await loadUsuarios();
+
+      state = state.copyWith(isLoading: false, errorMessage: null);
+      return true;
+    } catch (e, stack) {
+      ErrorService.captureError(
+        e,
+        stack: stack,
+        hint: 'cambiarLocal_fallo',
+        extras: {'nuevoTenantId': nuevoTenantId},
+      );
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Error cambiando de local: $e',
+      );
+      return false;
+    }
+  }
+
   // 🔥 NUEVO MÉTODO: Cambiar cajero sin cerrar sesión
   Future<bool> cambiarCajero(UsuarioEntity nuevoCajero, String pin) async {
     // 1. Validar PIN del nuevo cajero

@@ -9,6 +9,9 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:uuid/uuid.dart';
 import '../../data/Local/entities/lote_entity.dart';
 // Entidades locales
+
+
+import '../utils/tenant_utils.dart';
 import '../../data/Local/entities/categoria_entity.dart';
 import '../../data/Local/entities/gasto_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
@@ -313,16 +316,24 @@ class SyncService {
             continue;
           }
 
-          try {
-            final response = await _supabase.auth.signUp(
-              email: usuario.email!,
-              password: usuario.password!,
-              data: {
-                'nombre': usuario.nombre,
-                'rol': usuario.rol,
-                'pin': usuario.pin,
-              },
-            );
+            try {
+              final tenantId = usuario.tenantId ?? getTenantIdFromJWT();
+              if (tenantId == null) {
+                debugPrint(
+                    '⚠️ Usuario "${usuario.nombre}" sin tenant_id. Saltando signUp.');
+                continue;
+              }
+
+              final response = await _supabase.auth.signUp(
+                email: usuario.email!,
+                password: usuario.password!,
+                data: {
+                  'nombre': usuario.nombre,
+                  'rol': usuario.rol,
+                  'pin': usuario.pin,
+                  'tenant_id': tenantId,
+                },
+              );
             if (response.user != null) {
               usuario.supabaseId = response.user!.id;
               await _isarService.guardarUsuario(usuario);
