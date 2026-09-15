@@ -6,11 +6,13 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../utils/responsive_helper.dart';
 import 'email_login_screen.dart';
 import 'login_screen.dart';
+import 'register_company_screen.dart';
 
 /// Pantalla de bienvenida para el primer uso de la app.
 ///
-/// Ofrece 2 caminos:
+/// Ofrece 3 caminos:
 /// - "Ya tengo una cuenta" → EmailLoginScreen (admin configura dispositivo)
+/// - "Crear mi empresa"    → RegisterCompanyScreen (nuevo negocio)
 /// - "Ya está configurada" → LoginScreen (empleado entra con PIN)
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -188,6 +190,29 @@ class WelcomeScreen extends StatelessWidget {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (_) => const EmailLoginScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // ========================================
+                            // BOTÓN: CREAR MI EMPRESA (register)
+                            // ========================================
+                            _buildPrimaryButton(
+                              context: context,
+                              height: buttonHeight,
+                              isMobile: isMobile,
+                              icon: Icons.business_rounded,
+                              title: 'Crear mi empresa',
+                              subtitle: 'Registrar un nuevo negocio',
+                              color: const Color(0xFF8B5CF6),
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const RegisterCompanyScreen(),
                                   ),
                                 );
                               },

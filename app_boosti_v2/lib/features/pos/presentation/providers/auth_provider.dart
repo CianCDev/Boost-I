@@ -251,10 +251,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       // 8. Disparar sincronización inicial en segundo plano
       //    (ahora hay JWT con tenant_id → RLS permite el push)
-      _syncService.sincronizarTodo().catchError((e) {
+      try {
+        await _syncService.sincronizarTodo();
+      } catch (e) {
         debugPrint('⚠️ Error en sync post-login: $e');
-      });
-
+      }
       return true;
     } catch (e, stack) {
       // ✅ REPORTAR ERROR
@@ -267,6 +268,66 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Error en login: $e',
+      );
+      return false;
+    }
+  }
+
+  /// Registra una nueva empresa (tenant) llamando a la Edge Function
+  /// `create-tenant`, y luego hace login con las credenciales para obtener
+  /// el JWT con el `tenant_id` correcto.
+  Future<bool> registerCompany({
+    required String empresa,
+    required String adminNombre,
+    required String email,
+    required String password,
+    String? telefono,
+    String? rif,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final supabase = Supabase.instance.client;
+
+      // 1. Llamar a Edge Function create-tenant
+      final response = await supabase.functions.invoke(
+        'create-tenant',
+        body: {
+          'empresa': empresa,
+          'admin_nombre': adminNombre,
+          'email': email,
+          'password': password,
+          if (telefono != null) 'telefono': telefono,
+          if (rif != null) 'rif': rif,
+        },
+      );
+
+      final data = response.data as Map<String, dynamic>?;
+      if (data == null || data['success'] != true) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: data?['error'] ??
+              'No se pudo crear la cuenta. Verifica tus datos o inicia sesión si ya tienes una cuenta.',
+        );
+        return false;
+      }
+
+      debugPrint('✅ Tenant creado: ${data['tenant_id']}');
+
+      // 2. Ahora hacer login con las mismas credenciales
+      //    para obtener el JWT con tenant_id
+      final success = await loginWithEmail(email, password);
+      return success;
+    } catch (e, stack) {
+      ErrorService.captureError(
+        e,
+        stack: stack,
+        hint: 'registerCompany_fallo',
+        extras: {'email': email, 'empresa': empresa},
+      );
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage:
+            'No se pudo crear la cuenta. Verifica tus datos o inicia sesión si ya tienes una cuenta.',
       );
       return false;
     }
