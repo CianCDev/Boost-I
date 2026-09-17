@@ -1,4 +1,5 @@
 // lib/features/pos/presentation/providers/auth_provider.dart
+import 'dart:convert'; // ✅ NUEVO: para utf8 y base64Url (debug del JWT)
 import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -67,8 +68,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   void setError(String message) {
     state = state.copyWith(errorMessage: message);
   }
-
-
 
   Future<bool> loginWithPin(
       UsuarioEntity usuarioSeleccionado, String pin) async {
@@ -231,7 +230,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
           .update({'device_id': deviceId}).eq('id', response.user!.id);
 
       // 6. Actualizar estado
-      // 6. Actualizar estado
       state = state.copyWith(
         isLoading: false,
         currentUser: usuario,
@@ -273,36 +271,43 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  // En tu AuthProvider o un nuevo LocalProvider
-Future<String?> crearNuevoLocal(String nombre, String direccion) async {
-  try {
-    // Llamamos a la función SQL 'crear_nuevo_local_para_usuario'
-    final dynamic response = await Supabase.instance.client.rpc(
-      'crear_nuevo_local_para_usuario',
-      params: {
-        'p_nombre': nombre,
-        'p_direccion': direccion,
-      },
-    ).select().single(); // .select().single() espera un único valor de retorno (el UUID)
+  /// Crea un nuevo local (tenant) para el usuario autenticado actual.
+  ///
+  /// Usa la función SQL `crear_nuevo_local_para_usuario` que:
+  /// - Se ejecuta con SECURITY DEFINER (no necesita RLS INSERT en locales)
+  /// - Verifica auth.uid() internamente (no se puede falsificar el usuario)
+  /// - Asigna automáticamente el local al usuario como admin
+  ///
+  /// Retorna el UUID del nuevo local o null si falla.
+  Future<String?> crearNuevoLocal({
+    required String nombre,
+    String? direccion,
+    String? telefono,
+    String? email,
+    String? rif,
+  }) async {
+    try {
+      final dynamic response = await Supabase.instance.client.rpc(
+        'crear_nuevo_local_para_usuario',
+        params: {
+          'p_nombre': nombre,
+          'p_direccion': direccion,
+          'p_telefono': telefono,
+          'p_email': email,
+          'p_rif': rif,
+        },
+      );
 
-    if (response != null) {
-      debugPrint('✅ Local creado con tenant_id: $response');
-      
-      // Refrescamos la sesión para que el JWT incluya los nuevos datos si es necesario
-      await Supabase.instance.client.auth.refreshSession();
-      
-      // Notificamos a la app que la lista de locales ha cambiado
-      // Aquí podrías recargar tus providers de locales.
-      
-      return response as String;
+      if (response != null) {
+        debugPrint('✅ Local creado con tenant_id: $response');
+        return response as String;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error al crear nuevo local: $e');
+      rethrow;
     }
-    return null;
-  } catch (e) {
-    debugPrint('❌ Error al crear nuevo local: $e');
-    // Aquí puedes manejar el error y mostrar un mensaje al usuario.
-    rethrow;
   }
-}
 
   /// Registra una nueva empresa (tenant) llamando a la Edge Function
   /// `create-tenant`, y luego hace login con las credenciales para obtener
@@ -364,7 +369,7 @@ Future<String?> crearNuevoLocal(String nombre, String direccion) async {
     }
   }
 
-    /// Obtiene la lista de locales a los que el usuario actual tiene acceso.
+  /// Obtiene la lista de locales a los que el usuario actual tiene acceso.
   ///
   /// Retorna una lista de mapas con: tenant_id, nombre, direccion, rol,
   /// es_default. Lista vacía si falla o no hay sesión.
@@ -422,6 +427,19 @@ Future<String?> crearNuevoLocal(String nombre, String direccion) async {
       // 2. Refrescar el JWT para que el hook inyecte el nuevo tenant_id
       await supabase.auth.refreshSession();
 
+      // 3. Debug del JWT (temporal — quitar en producción)
+      final token = supabase.auth.currentSession?.accessToken;
+      if (token != null) {
+        try {
+          final parts = token.split('.');
+          final payload =
+              utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+          debugPrint('🔑 JWT payload: $payload');
+        } catch (e) {
+          debugPrint('⚠️ Error decodificando JWT: $e');
+        }
+      }
+
       final session = supabase.auth.currentSession;
       if (session == null) {
         state = state.copyWith(
@@ -431,7 +449,7 @@ Future<String?> crearNuevoLocal(String nombre, String direccion) async {
         return false;
       }
 
-      // 3. Extraer el nuevo tenant_id del JWT
+      // 4. Extraer el nuevo tenant_id del JWT
       final jwt = session.accessToken;
       final tenantId = JwtService.extraerTenantId(jwt);
       final rolJwt = JwtService.extraerRol(jwt);
@@ -446,19 +464,19 @@ Future<String?> crearNuevoLocal(String nombre, String direccion) async {
 
       debugPrint('✅ Tenant cambiado a: $tenantId (rol: $rolJwt)');
 
-      // 4. Actualizar el provider global
+      // 5. Actualizar el provider global
       await _ref
           .read(tenantActualProvider.notifier)
           .setTenant(tenantId, rol: rolJwt);
 
-      // 5. Recargar datos del nuevo tenant
+      // 6. Recargar datos del nuevo tenant
       try {
         await _syncService.sincronizarTodo();
       } catch (e) {
         debugPrint('⚠️ Error en sync post-cambio: $e');
       }
 
-      // 6. Recargar usuarios locales
+      // 7. Recargar usuarios locales
       await loadUsuarios();
 
       state = state.copyWith(isLoading: false, errorMessage: null);

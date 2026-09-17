@@ -205,7 +205,7 @@ class SyncService {
   // USUARIOS
   // ============================================================
 
-  Future<void> sincronizarUsuariosASupabase() async {
+    Future<void> sincronizarUsuariosASupabase() async {
     // ✅ Sin sesión activa no hay tenant_id → RLS bloqueará
     if (!_tieneSesionSupabase()) {
       debugPrint(
@@ -225,12 +225,27 @@ class SyncService {
       int sincronizados = 0;
       int recuperados = 0;
 
+      // ✅ Obtener el usuario actual para saltarlo (evita error 42501
+      // cuando el usuario opera en un tenant distinto a su "home tenant")
+      final currentUserId = _supabase.auth.currentUser?.id;
+
       for (var usuario in usuarios) {
         try {
           // ============================================================
           // CASO 1: Ya tiene supabaseId → actualizar
           // ============================================================
           if (usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
+            // ✅ Saltar al usuario actual: no tiene sentido que el cliente
+            // actualice su propio registro. Su estado se gestiona al
+            // cambiar de tenant (que dispara refreshSession) o vía la
+            // propia sesión. Además, si el usuario opera en un tenant
+            // distinto a su "home tenant", RLS bloqueará el UPDATE.
+            if (usuario.supabaseId == currentUserId) {
+              debugPrint(
+                  'ℹ️ Saltando usuario actual "${usuario.nombre}" en sync de usuarios');
+              continue;
+            }
+
             final existing = await _supabase
                 .from('usuarios')
                 .select('id')
@@ -316,24 +331,24 @@ class SyncService {
             continue;
           }
 
-            try {
-              final tenantId = usuario.tenantId ?? getTenantIdFromJWT();
-              if (tenantId == null) {
-                debugPrint(
-                    '⚠️ Usuario "${usuario.nombre}" sin tenant_id. Saltando signUp.');
-                continue;
-              }
+          try {
+            final tenantId = usuario.tenantId ?? getTenantIdFromJWT();
+            if (tenantId == null) {
+              debugPrint(
+                  '⚠️ Usuario "${usuario.nombre}" sin tenant_id. Saltando signUp.');
+              continue;
+            }
 
-              final response = await _supabase.auth.signUp(
-                email: usuario.email!,
-                password: usuario.password!,
-                data: {
-                  'nombre': usuario.nombre,
-                  'rol': usuario.rol,
-                  'pin': usuario.pin,
-                  'tenant_id': tenantId,
-                },
-              );
+            final response = await _supabase.auth.signUp(
+              email: usuario.email!,
+              password: usuario.password!,
+              data: {
+                'nombre': usuario.nombre,
+                'rol': usuario.rol,
+                'pin': usuario.pin,
+                'tenant_id': tenantId,
+              },
+            );
             if (response.user != null) {
               usuario.supabaseId = response.user!.id;
               await _isarService.guardarUsuario(usuario);
