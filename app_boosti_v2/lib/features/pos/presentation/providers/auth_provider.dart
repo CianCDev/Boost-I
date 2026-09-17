@@ -427,7 +427,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // 2. Refrescar el JWT para que el hook inyecte el nuevo tenant_id
       await supabase.auth.refreshSession();
 
-      // 3. Debug del JWT (temporal — quitar en producción)
+/*       // 3. Debug del JWT (temporal — quitar en producción)
       final token = supabase.auth.currentSession?.accessToken;
       if (token != null) {
         try {
@@ -438,7 +438,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         } catch (e) {
           debugPrint('⚠️ Error decodificando JWT: $e');
         }
-      }
+      } */
 
       final session = supabase.auth.currentSession;
       if (session == null) {
