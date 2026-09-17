@@ -1,1298 +1,865 @@
-// ignore_for_file: use_build_context_synchronously
-
-import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
-import 'package:app_boosti_v2/features/pos/presentation/screens/lotes/lotes_dashboard_screen.dart';
-import 'package:app_boosti_v2/features/pos/presentation/screens/pedido/pedidos_screen.dart';
-import 'package:app_boosti_v2/features/pos/presentation/widgets/menu/diagnostico_lote_dialog.dart';
+// lib/features/pos/presentation/screens/pos_menu_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:lottie/lottie.dart';
 
+import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/turno_entity.dart';
+import '../../domain/permissions/roles.dart';
+import '../config/menu_config.dart';
 import '../providers/auth_provider.dart';
+import '../providers/isar_provider.dart';
+import '../providers/lock_provider.dart';
+import '../providers/sync_provider.dart';
+import '../providers/usuario_provider.dart';
+import '../services/backup_service.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
-import '../../data/Local/entities/isar_service.dart';
-import '../../data/Local/entities/usuario_entity.dart';
-import '../widgets/menu/turno_status_banner.dart';
-import 'audit_log_screen.dart';
-import 'cash_closing_screen.dart';
-import 'configuracion_empresa_screen.dart';
-import 'sales_history_screen.dart';
-import '../widgets/monitor_empleado_widget.dart' as monitor;
-import '../widgets/gestion_personal_dialog.dart';
-import '../../presentation/providers/usuario_provider.dart';
-import '../services/backup_service.dart';
-import '../services/error_service.dart'; // ✅ NUEVO
-import 'login_screen.dart';
-import 'gastos_screen.dart';
-import '../../data/Local/entities/turno_entity.dart';
-import '../widgets/printer_selection_widget.dart';
-import 'user_settings_screen.dart';
-import '../screens/dashboard_screen.dart';
-import '../screens/proveedores/proveedores_screen.dart';
-import '../screens/departamentos/departamentos_screen.dart';
-import '../screens/locales/locales_screen.dart';
-import '../screens/telegram/telegram_config_screen.dart';
 import '../widgets/appbar.dart';
+import '../widgets/menu/pos_menu_card.dart';
 import '../widgets/menu/turno_closing_dialog.dart';
-
-class MenuOption {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-  final VoidCallback? onTap;
-  final bool isAdminOnly;
-
-  const MenuOption({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-    this.onTap,
-    this.isAdminOnly = false,
-  });
-}
-
-class MenuSection {
-  final String title;
-  final IconData? icon;
-  final Color? sectionColor;
-  final List<MenuOption> options;
-
-  const MenuSection({
-    required this.title,
-    this.icon,
-    this.sectionColor,
-    required this.options,
-  });
-}
+import '../widgets/menu/turno_status_banner.dart';
+import 'empleados/employees_screen.dart';
+import 'login_screen.dart';
 
 class PosMenuScreen extends ConsumerStatefulWidget {
-  final bool showAppBar;
-  const PosMenuScreen({super.key, this.showAppBar = true});
+  const PosMenuScreen({super.key});
 
   @override
   ConsumerState<PosMenuScreen> createState() => _PosMenuScreenState();
 }
 
 class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
-    with SingleTickerProviderStateMixin {
-  final IsarService _isarService = IsarService();
-  final SyncService _syncService = SyncService();
-  int _ventasPendientesSync = 0;
+    with TickerProviderStateMixin {
+  // ── Animación de entrada de secciones ──
+  late final AnimationController _animationController;
+
+  // ── Animación del buscador (independiente) ──
+  late final AnimationController _searchBarController;
+  late final FocusNode _searchFocusNode;
+  bool _isSearchFocused = false;
+
+  final TextEditingController _searchController = TextEditingController();
+
+  late final IsarService _isarService;
+  late final SyncService _syncService;
+  final BackupService _backupService = BackupService();
+
   bool _sincronizando = false;
   TurnoEntity? _turnoAbierto;
-  late AnimationController _animationController;
+  int _ventasPendientesSync = 0;
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
+
+    // Animación de entrada de secciones
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
+      duration: const Duration(milliseconds: 800),
+    )..forward();
+
+    // Animación de entrada del buscador
+    _searchBarController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    )..forward();
+
+    // FocusNode para reaccionar al foco del buscador
+    _searchFocusNode = FocusNode();
+    _searchFocusNode.addListener(() {
+      if (!mounted) return;
+      setState(() => _isSearchFocused = _searchFocusNode.hasFocus);
+    });
+
+    _isarService = ref.read(isarServiceProvider);
+    _syncService = ref.read(syncServiceProvider);
+
+    _cargarEstadoInicial();
     _cargarEstadoSync();
-    _cargarEstadoTurno();
-    _animationController.forward();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _searchBarController.dispose();
+    _searchFocusNode.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
-  // ============================================================
-  // MÉTODOS DE NEGOCIO
-  // ============================================================
+  // ════════════════════════════════════════════════════════════════
+  // CARGA DE ESTADO
+  // ════════════════════════════════════════════════════════════════
 
-  Future<void> _cargarEstadoSync() async {
-    try {
-      final pendientes = await _isarService.obtenerVentasPendientesSync();
-      if (mounted) {
-        setState(() => _ventasPendientesSync = pendientes.length);
-      }
-    } catch (e, stack) {
-      ErrorService.captureError(e, stack: stack, hint: 'cargarEstadoSync_fallo');
-    }
+  Future<void> _cargarEstadoInicial() async {
+    await _cargarEstadoTurno();
   }
 
   Future<void> _cargarEstadoTurno() async {
     try {
       final usuario = ref.read(usuarioActualProvider);
-      if (usuario != null) {
-        final turno = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
-        if (mounted) {
-          setState(() => _turnoAbierto = turno);
-        }
-      }
-    } catch (e, stack) {
-      ErrorService.captureError(e, stack: stack, hint: 'cargarEstadoTurno_fallo');
+      if (usuario == null) return;
+
+      final turno =
+          await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
+      if (mounted) setState(() => _turnoAbierto = turno);
+    } catch (e) {
+      debugPrint('Error cargando turno: $e');
     }
   }
 
-  // ============================================================
-  // DIÁLOGO DE ÉXITO CON LOTTIE
-  // ============================================================
-  void _mostrarDialogoExito(String titulo, String mensaje) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        titlePadding: const EdgeInsets.fromLTRB(32, 32, 32, 8),
-        contentPadding: const EdgeInsets.fromLTRB(32, 16, 32, 24),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        title: Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: const Color(0xFF10B981), size: 32),
-            const SizedBox(width: 12),
-            Text(
-              titulo,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 24,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+  Future<void> _cargarEstadoSync() async {
+    try {
+      final pendientes = await _isarService.obtenerVentasPendientesSync();
+      if (mounted) setState(() => _ventasPendientesSync = pendientes.length);
+    } catch (e) {
+      debugPrint('Error cargando estado sync: $e');
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // HELPERS
+  // ════════════════════════════════════════════════════════════════
+
+  static String? _formatearHora(DateTime? fecha) {
+    if (fecha == null) return null;
+    final local = fecha.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Filtra las secciones y opciones por el texto de búsqueda.
+  List<MenuSection> _filtrarSecciones(
+    List<MenuSection> secciones,
+    String query,
+  ) {
+    if (query.trim().isEmpty) return secciones;
+
+    final q = query.toLowerCase().trim();
+
+    return secciones
+        .map((s) {
+          final opcionesFiltradas = s.options.where((o) {
+            return o.title.toLowerCase().contains(q) ||
+                o.subtitle.toLowerCase().contains(q);
+          }).toList();
+
+          if (opcionesFiltradas.isEmpty) return null;
+
+          return s.copyWith(options: opcionesFiltradas);
+        })
+        .whereType<MenuSection>()
+        .toList();
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // ACCIONES DE TURNO
+  // ════════════════════════════════════════════════════════════════
+
+  Future<void> _abrirTurno() async {
+    final usuario = ref.read(usuarioActualProvider);
+    if (usuario == null || !mounted) return;
+
+    final montoController = TextEditingController(text: '0.00');
+
+    try {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text('Abrir turno'),
+          content: TextField(
+            controller: montoController,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Monto inicial',
+              prefixText: '\$ ',
             ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildLottieWithFallback('assets/animations/Clock Alarm Animation.json'),
-            const SizedBox(height: 20),
-            Text(
-              mensaje,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                height: 1.5,
-              ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
             ),
-          ],
-        ),
-        actions: [
-          Center(
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF10B981),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                textStyle: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
               ),
-              child: const Text('Aceptar'),
+              child: const Text('Abrir'),
             ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
 
-  Widget _buildLottieWithFallback(String assetPath) {
-    return Lottie.asset(
-      assetPath,
-      width: 200,
-      height: 200,
-      fit: BoxFit.contain,
-      errorBuilder: (context, error, stackTrace) {
-        return Icon(
-          Icons.timer,
-          size: 100,
-          color: const Color(0xFF10B981),
-        );
-      },
-    );
-  }
+      if (confirm != true || !mounted) return;
 
-  // ============================================================
-  // ABRIR TURNO
-  // ============================================================
-  Future<void> _abrirTurno() async {
-    final usuario = ref.read(usuarioActualProvider);
-    if (usuario == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No hay usuario autenticado.')),
-        );
-      }
-      return;
-    }
-
-    final turnoExistente = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
-    if (turnoExistente != null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ya tienes un turno abierto.')),
-        );
-      }
-      return;
-    }
-
-    final nuevoTurno = TurnoEntity()
-      ..usuarioId = usuario.id
-      ..usuarioNombre = usuario.nombre
-      ..cajaId = ''
-      ..cajaNombre = usuario.cajaAsignada
-      ..montoInicial = 0.0
-      ..fechaApertura = DateTime.now()
-      ..estado = 'abierto'
-      ..syncStatus = 'pending';
-
-    await _isarService.guardarTurno(nuevoTurno);
-    await _isarService.actualizarEstadoUsuario(usuario.id, 'activo');
-    await _syncService.actualizarEstadoUsuarioEnSupabase(usuario.id, 'activo');
-    await _isarService.guardarLog(
-      LogEntity()
-        ..accion = 'APERTURA_TURNO'
+      final monto = double.tryParse(montoController.text) ?? 0.0;
+      final nuevoTurno = TurnoEntity()
+        ..turnoId = DateTime.now().millisecondsSinceEpoch.toString()
+        ..usuarioId = usuario.id
         ..usuarioNombre = usuario.nombre
-        ..usuarioRol = usuario.rol
-        ..detalles = 'Caja: ${usuario.cajaAsignada}'
-        ..fecha = DateTime.now()
-        ..sincronizado = false,
-    );
+        ..cajaId = usuario.cajaAsignada
+        ..cajaNombre = usuario.cajaAsignada
+        ..montoInicial = monto
+        ..fechaApertura = DateTime.now()
+        ..estado = 'abierto'
+        ..syncStatus = 'pending';
 
-    await _cargarEstadoTurno();
+      await _isarService.guardarTurno(nuevoTurno);
+      await _cargarEstadoTurno();
 
-    if (mounted) {
-      _mostrarDialogoExito('Turno abierto', 'El turno se ha iniciado correctamente.');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Turno abierto correctamente'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+    } finally {
+      montoController.dispose();
     }
   }
 
-  // ============================================================
-  // CERRAR TURNO (CON BACKUP)
-  // ============================================================
   Future<void> _cerrarTurno() async {
-    final usuario = ref.read(usuarioActualProvider);
-    if (usuario == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No hay usuario autenticado.')),
-        );
-      }
-      return;
-    }
-
-    final turnoAbierto = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
-    if (turnoAbierto == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No hay turno abierto para este usuario.')),
-        );
-      }
-      return;
-    }
-
-    try {
-      await _syncService.descargarVentasDesdeSupabase();
-    } catch (e) {
-      debugPrint('⚠️ Error descargando ventas para el turno: $e');
-    }
-
-    final double montoFinal = await _isarService.obtenerTotalVentasPorEmpleadoYRango(
-      usuario.nombre,
-      turnoAbierto.fechaApertura,
-      DateTime.now(),
-    );
+    if (_turnoAbierto == null || !mounted) return;
 
     final confirm = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => TurnoClosingDialog(
-        montoInicial: turnoAbierto.montoInicial,
-        montoFinal: montoFinal,
-        fechaApertura: turnoAbierto.fechaApertura,
+      builder: (_) => TurnoClosingDialog(
+        fechaApertura: _turnoAbierto!.fechaApertura,
+        montoInicial: _turnoAbierto!.montoInicial,
+        montoFinal: 0.0,
         onConfirm: () => Navigator.pop(context, true),
       ),
     );
 
-    if (confirm == true) {
-      try {
-        turnoAbierto.montoFinal = montoFinal;
-        turnoAbierto.fechaCierre = DateTime.now();
-        turnoAbierto.estado = 'cerrado';
-        turnoAbierto.syncStatus = 'pending';
+    if (confirm != true || !mounted) return;
 
-        await _isarService.guardarTurno(turnoAbierto);
-        await _isarService.actualizarEstadoUsuario(usuario.id, 'inactivo');
-        await _syncService.sincronizarTurnos();
-        await _isarService.guardarLog(
-          LogEntity()
-            ..accion = 'CIERRE_TURNO'
-            ..usuarioNombre = usuario.nombre
-            ..usuarioRol = usuario.rol
-            ..detalles = 'Monto final: \$${montoFinal.toStringAsFixed(2)}'
-            ..fecha = DateTime.now()
-            ..sincronizado = false,
-        );
-
-        // ✅ BACKUP AL CERRAR TURNO
-        try {
-          final backupService = BackupService();
-          final exito = await backupService.crearBackupPorTurno();
-          if (exito) {
-            debugPrint('✅ Backup generado al cerrar turno');
-          } else {
-            debugPrint('⚠️ Error generando backup al cerrar turno');
-          }
-        } catch (e, stack) {
-          ErrorService.captureError(e, stack: stack, hint: 'backup_cerrar_turno_fallo');
-          debugPrint('❌ Error crítico al generar backup al cerrar turno: $e');
-        }
-
-        await _cargarEstadoTurno();
-
-        if (mounted) {
-          _mostrarDialogoExito(
-            'Turno cerrado',
-            'El turno se ha cerrado correctamente.\nMonto final: \$${montoFinal.toStringAsFixed(2)}',
-          );
-        }
-      } catch (e, stack) {
-        ErrorService.captureError(e, stack: stack, hint: 'cerrarTurno_fallo');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('❌ Error al cerrar turno: $e'), backgroundColor: Colors.red),
-          );
-        }
-      }
-    }
+    await _isarService.cerrarTurno(_turnoAbierto!.id, 0.0);
+    await _cargarEstadoTurno();
   }
 
-  // ============================================================
-  // SINCRONIZAR CON PROGRESO
-  // ============================================================
+  // ════════════════════════════════════════════════════════════════
+  // SINCRONIZACIÓN
+  // ════════════════════════════════════════════════════════════════
+
   Future<void> _sincronizarConProgreso() async {
     if (_sincronizando) return;
-    setState(() => _sincronizando = true);
-
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final currentContext = context;
-
-    String mensajeProgreso = 'Iniciando sincronización...';
-    bool sincronizacionActiva = true;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return WillPopScope(
-            onWillPop: () async => false,
-            child: AlertDialog(
-              title: const Text('Sincronizando...'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const LinearProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(
-                    mensajeProgreso,
-                    style: TextStyle(color: Colors.grey.shade700),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    sincronizacionActiva = false;
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Cancelar'),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-
-    if (!sincronizacionActiva) {
-      setState(() => _sincronizando = false);
-      return;
-    }
+    if (mounted) setState(() => _sincronizando = true);
 
     try {
-      await _actualizarProgreso('Sincronizando ventas...');
-      final result = await _syncService.sincronizarTodoConResumen();
+      final resumen = await _syncService.sincronizarTodoConResumen();
+      if (!mounted) return;
 
-      Navigator.pop(context);
+      setState(() => _sincronizando = false);
+      await _cargarEstadoSync();
 
-      final mensaje = StringBuffer('✅ Sincronización completada\n');
-      if (result['ventas']! > 0) mensaje.writeln('• ${result['ventas']} ventas');
-      if (result['productos']! > 0) mensaje.writeln('• ${result['productos']} productos');
-      if (result['proveedores']! > 0) mensaje.writeln('• ${result['proveedores']} proveedores');
-      if (result['gastos']! > 0) mensaje.writeln('• ${result['gastos']} gastos');
-      if (result['pedidos']! > 0) mensaje.writeln('• ${result['pedidos']} pedidos');
-      if (result['lotes']! > 0) mensaje.writeln('• ${result['lotes']} lotes');
-      if (result['locales']! > 0) mensaje.writeln('• ${result['locales']} locales');
-      if (result['departamentos']! > 0) mensaje.writeln('• ${result['departamentos']} departamentos');
-      if (result['telegram']! > 0) mensaje.writeln('• ${result['telegram']} configuraciones de Telegram');
-      if (result.values.every((v) => v == 0)) mensaje.writeln('Todo estaba sincronizado ✅');
-
-      if (!currentContext.mounted) return;
-      scaffoldMessenger.showSnackBar(
+      if (!mounted) return;
+      final total = resumen.values.fold<int>(0, (s, v) => s + v);
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(mensaje.toString()),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 4),
+          content: Text(
+            total > 0
+                ? '✅ $total registros sincronizados'
+                : '✅ Todo al día — sin cambios pendientes',
+          ),
+          backgroundColor: const Color(0xFF10B981),
         ),
       );
     } catch (e) {
-      try {
-        Navigator.pop(context);
-      } catch (_) {}
-
-      if (!currentContext.mounted) return;
-      scaffoldMessenger.showSnackBar(
+      if (!mounted) return;
+      setState(() => _sincronizando = false);
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Error al sincronizar: $e'),
+          content: Text('Error sincronizando: $e'),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
         ),
       );
-      debugPrint('❌ Error en sincronización: $e');
-      ErrorService.captureError(e, hint: 'sincronizarTodo_fallo');
-    } finally {
-      if (mounted) {
-        setState(() => _sincronizando = false);
-        _cargarEstadoSync();
-      }
     }
-  }
-
-  Future<void> _actualizarProgreso(String mensaje) async {
-    debugPrint('📌 $mensaje');
-    await Future.delayed(const Duration(milliseconds: 300));
-  }
-
-  // ============================================================
-  // OTRAS ACCIONES
-  // ============================================================
-  Future<void> _logout() async {
-    final usuario = ref.read(usuarioActualProvider);
-    TurnoEntity? turnoAbierto;
-    if (usuario != null) {
-      turnoAbierto = await _isarService.obtenerTurnoAbiertoPorUsuario(usuario.id);
-    }
-
-    if (turnoAbierto != null) {
-      final cerrarTurno = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Turno abierto'),
-          content: Text(
-            'Tienes un turno abierto (iniciado a las ${_formatearHora(turnoAbierto!.fechaApertura)}).\n'
-            '¿Quieres cerrarlo antes de salir?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Salir sin cerrar'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF10B981),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Cerrar turno'),
-            ),
-          ],
-        ),
-      );
-
-      if (cerrarTurno == true) {
-        await _cerrarTurno();
-      }
-    }
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cerrar Sesión'),
-        content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Cerrar Sesión'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    await ref.read(authProvider.notifier).logout();
-    ref.read(usuarioActualProvider.notifier).clearUsuario();
-
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    }
-  }
-
-  String _formatearHora(DateTime fecha) {
-    final local = fecha.toLocal();
-    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 
   Future<void> _crearBackup() async {
     try {
-      final backupService = BackupService();
-      final exito = await backupService.crearBackupYCompartir();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(exito
-                ? '✅ Backup creado y compartido'
-                : '❌ Error al crear el backup'),
-            backgroundColor: exito ? const Color(0xFF10B981) : Colors.red,
-          ),
-        );
-      }
-    } catch (e, stack) {
-      ErrorService.captureError(e, stack: stack, hint: 'crearBackup_manual_fallo');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Error al crear backup: $e'), backgroundColor: Colors.red),
-        );
-      }
+      await _backupService.crearBackupYCompartir();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Backup creado'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
-  // ============================================================
-  // CONFIGURACIÓN DE SECCIONES DEL MENÚ
-  // ============================================================
-  List<MenuSection> _getMenuSections() {
-    final usuario = ref.read(usuarioActualProvider);
-    final bool esAdmin = usuario?.rol == 'admin';
-    final bool tieneTurno = _turnoAbierto != null;
+  // ════════════════════════════════════════════════════════════════
+  // LOGOUT
+  // ════════════════════════════════════════════════════════════════
 
-    final opcionesPrincipales = [
-      MenuOption(
-        title: 'Panel de Control',
-        subtitle: 'Estadísticas y métricas del negocio',
-        icon: Icons.dashboard_rounded,
-        color: const Color(0xFF3B82F6),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+  Future<void> _logout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Volver al Catálogo',
-        subtitle: 'Pantalla de ventas y cobro',
-        icon: Icons.point_of_sale_rounded,
-        color: const Color(0xFF10B981),
-        onTap: () => Navigator.pop(context),
-      ),
-      MenuOption(
-        title: tieneTurno ? 'Cerrar Turno' : 'Abrir Turno',
-        subtitle: tieneTurno ? 'Finalizar jornada' : 'Iniciar jornada laboral',
-        icon: tieneTurno ? Icons.stop_rounded : Icons.play_arrow_rounded,
-        color: tieneTurno ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-        onTap: tieneTurno ? _cerrarTurno : _abrirTurno,
-      ),
-      MenuOption(
-        title: 'Sincronizar Datos',
-        subtitle: _sincronizando
-            ? 'Enviando datos a la nube...'
-            : '$_ventasPendientesSync pendientes',
-        icon: Icons.sync_rounded,
-        color: _ventasPendientesSync > 0
-            ? const Color(0xFFF59E0B)
-            : const Color(0xFF10B981),
-        onTap: _sincronizarConProgreso,
-      ),
-      MenuOption(
-        title: 'Configurar Impresora',
-        subtitle: 'Seleccionar y probar impresora POS',
-        icon: Icons.print_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () => showDialog(
-          context: context,
-          builder: (context) => const PrinterSelectionDialog(),
-        ),
-      ),
-    ];
-
-    final opcionesAdmin = [
-      MenuOption(
-        title: 'Monitor de Empleados',
-        subtitle: 'Estado de cajeros conectados',
-        icon: Icons.people_alt_rounded,
-        color: const Color(0xFF3B82F6),
-        onTap: () => showDialog(
-          context: context,
-          builder: (context) => const monitor.EmployeeMonitorDialog(),
-        ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Gestión de Personal',
-        subtitle: 'Crear y administrar admins y cajeros',
-        icon: Icons.admin_panel_settings_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () => showDialog(
-          context: context,
-          builder: (context) => const PersonnelManagementDialog(),
-        ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Auditoría',
-        subtitle: 'Registro de eventos del sistema',
-        icon: Icons.history_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const AuditLogScreen()),
-        ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Historial de Ventas',
-        subtitle: 'Ventas del día y turnos',
-        icon: Icons.receipt_long_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const SalesHistoryScreen()),
-        ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Pedidos a Proveedores',
-        subtitle: 'Crear y gestionar pedidos',
-        icon: Icons.local_shipping_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const PedidosProveedorScreen(),
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
           ),
-        ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Gestión de Locales',
-        subtitle: 'Crear y administrar sedes/tiendas',
-        icon: Icons.storefront_rounded,
-        color: const Color(0xFF3B82F6),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const LocalesScreen()),
-        ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Gestión de Departamentos',
-        subtitle: 'Crear y administrar departamentos',
-        icon: Icons.business_center_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const DepartamentosScreen()),
-        ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Proveedores',
-        subtitle: 'Gestionar proveedores',
-        icon: Icons.business_center_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const ProveedoresScreen(),
-          ),
-        ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Registrar Gasto',
-        subtitle: 'Agregar egresos del día',
-        icon: Icons.money_off_rounded,
-        color: const Color(0xFFEF4444),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const GastosScreen()),
-        ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Cierre de Caja',
-        subtitle: 'Arqueo y balance del día',
-        icon: Icons.money_off_csred_rounded,
-        color: const Color(0xFFF59E0B),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const CashClosingScreen()),
-        ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Backup de Datos',
-        subtitle: 'Crear y compartir copia de seguridad',
-        icon: Icons.backup_rounded,
-        color: const Color(0xFFF59E0B),
-        onTap: _crearBackup,
-        isAdminOnly: true,
-      ),
-      // ==========================================================
-      // 🆕 APARTADO DE GESTIÓN DE LOTES (exclusivo admin)
-      // ==========================================================
-      MenuOption(
-        title: 'Gestión de Lotes',
-        subtitle: 'Verificar y administrar lotes por local',
-        icon: Icons.inventory_2_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const LotesDashboardScreen(),
-          ),
-        ),
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: 'Diagnóstico de Lotes',
-        subtitle: 'Verificar estado del inventario por lotes',
-        icon: Icons.analytics_rounded,
-        color: const Color(0xFF3B82F6),
-        onTap: () => showDialog(
-          context: context,
-          builder: (_) => const DiagnosticoLotesDialog(),
-        ),
-        isAdminOnly: true,
-      ),
-      // ==========================================================
-      // Fin del apartado de lotes
-      // ==========================================================
-      MenuOption(
-        title: 'Configurar Telegram',
-        subtitle: 'Bot de notificaciones y comandos',
-        icon: Icons.telegram,
-        color: const Color(0xFF10B981),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const TelegramConfigScreen()),
-        ),
-        isAdminOnly: true,
-      ),
-      // ==========================================================
-      // 🧪 BOTONES DE PRUEBA PARA MONITOREO (solo admin)
-      // ==========================================================
-      MenuOption(
-        title: '🧪 Probar Error Controlado',
-        subtitle: 'Envía un error de prueba a Sentry',
-        icon: Icons.bug_report_rounded,
-        color: Colors.orange,
-        onTap: () {
-          ErrorService.captureError(
-            Exception('🧪 Error de prueba desde el menú'),
-            hint: 'prueba_menu_error',
-            extras: {
-              'usuario': usuario?.nombre ?? 'Desconocido',
-              'timestamp': DateTime.now().toString(),
-              'plataforma': 'Windows',
-            },
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Error enviado a Sentry'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
             ),
-          );
-        },
-        isAdminOnly: true,
-      ),
-      MenuOption(
-        title: '💥 Probar Crash Fatal',
-        subtitle: 'Provoca un crash para verificar Crashlytics/Sentry',
-        icon: Icons.error_outline_rounded,
-        color: Colors.red,
-        onTap: () {
-          // Este crash será capturado por el handler global de Flutter
-          // y enviado a Sentry (y a Crashlytics si está disponible)
-          throw Exception('💥 CRASH FATAL DE PRUEBA DESDE EL MENÚ');
-        },
-        isAdminOnly: true,
-      ),
-    ];
-
-    final opcionesConfiguracion = [
-      MenuOption(
-        title: 'Ajustes de Usuario',
-        subtitle: 'Nombre, PIN, tema y más',
-        icon: Icons.settings_rounded,
-        color: const Color(0xFF8B5CF6),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => UserSettingsScreen(
-              usuarioLogueado: usuario!,
-            ),
+            child: const Text('Cerrar sesión'),
           ),
-        ),
-      ),
-      if (esAdmin)
-        MenuOption(
-          title: 'Cambiar de Empresa',
-          subtitle: 'Seleccionar otra organización',
-          icon: Icons.business_center,
-          color: const Color(0xFF8B5CF6),
-          onTap: () async {
-            final confirm = await showDialog<bool>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Cambiar de Empresa'),
-                content: const Text('Esto cerrará la sesión y reiniciará la aplicación. ¿Continuar?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancelar'),
-                  ),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEF4444),
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Continuar'),
-                  ),
-                ],
-              ),
-            );
-            if (confirm != true) return;
-
-            await ref.read(authProvider.notifier).logout();
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.remove('supabase_url');
-            await prefs.remove('supabase_anon_key');
-            await prefs.remove('empresa_id');
-
-            if (context.mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const ConfiguracionEmpresaScreen()),
-              );
-            }
-          },
-          isAdminOnly: true,
-        ),
-    ];
-
-    final opcionSalir = MenuOption(
-      title: 'Salir del POS',
-      subtitle: 'Cerrar sesión y volver al login',
-      icon: Icons.logout_rounded,
-      color: const Color(0xFFEF4444),
-      onTap: _logout,
-    );
-
-    final List<MenuSection> secciones = [];
-
-    secciones.add(
-      MenuSection(
-        title: 'Acciones principales',
-        icon: Icons.star_rounded,
-        sectionColor: const Color(0xFF3B82F6),
-        options: opcionesPrincipales,
+        ],
       ),
     );
+    if (confirm != true || !mounted) return;
 
-    if (esAdmin) {
-      secciones.add(
-        MenuSection(
-          title: 'Administración y reportes',
-          icon: Icons.analytics_rounded,
-          sectionColor: const Color(0xFF8B5CF6),
-          options: opcionesAdmin,
-        ),
-      );
-    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('selected_user_id');
 
-    if (opcionesConfiguracion.isNotEmpty) {
-      secciones.add(
-        MenuSection(
-          title: 'Configuración y utilidades',
-          icon: Icons.tune_rounded,
-          sectionColor: const Color(0xFFF59E0B),
-          options: opcionesConfiguracion,
-        ),
-      );
-    }
+    if (!mounted) return;
+    ref.read(authProvider.notifier).logout();
+    ref.read(lockProvider.notifier).unlock();
 
-    secciones.add(
-      MenuSection(
-        title: 'Cerrar sesión',
-        icon: Icons.exit_to_app_rounded,
-        sectionColor: const Color(0xFFEF4444),
-        options: [opcionSalir],
-      ),
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
     );
-
-    return secciones;
   }
 
-  // ============================================================
+  // ════════════════════════════════════════════════════════════════
   // BUILD
-  // ============================================================
+  // ════════════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
-    ref.listen<UsuarioEntity?>(usuarioActualProvider, (previous, next) {
-      if (previous?.id != next?.id) {
-        _cargarEstadoTurno();
-      }
-    });
+    final usuario = ref.watch(usuarioActualProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
-    final theme = Theme.of(context);
-    final tieneTurno = _turnoAbierto != null;
-    final usuario = ref.watch(usuarioActualProvider);
-    final esAdmin = usuario?.rol == 'admin';
 
-    final secciones = _getMenuSections()
-        .map((section) {
-          final opcionesFiltradas = section.options
-              .where((opt) => !opt.isAdminOnly || esAdmin)
-              .toList();
-          return MenuSection(
-            title: section.title,
-            icon: section.icon,
-            sectionColor: section.sectionColor,
-            options: opcionesFiltradas,
-          );
-        })
-        .where((section) => section.options.isNotEmpty)
-        .toList();
+    if (usuario == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-    final contenido = Column(
-      children: [
-        TurnoStatusBanner(
-          tieneTurno: tieneTurno,
-          horaApertura: tieneTurno ? _formatearHora(_turnoAbierto!.fechaApertura) : null,
-          onAbrirTurno: _abrirTurno,
-          onCerrarTurno: _cerrarTurno,
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              children: [
-                for (var section in secciones) ...[
-                  _buildSectionTitle(section.title, section.icon, section.sectionColor, isMobile),
-                  const SizedBox(height: 8),
-                  _buildOptionsGrid(
-                    section.options,
-                    isMobile,
-                    isTablet,
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ],
+    final role = UserRole.fromString(usuario.rol);
+
+    // Guard para roles RRHH
+    if (Permissions.isEmployeesOnlyRole(role)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const EmployeesScreen()),
+        );
+      });
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Construir secciones desde el config
+    final todasLasSecciones = MenuBuilder.buildSections(
+      usuario: usuario,
+      context: context,
+      onCrearBackup: _crearBackup,
+      onSincronizar: _sincronizarConProgreso,
+      ventasPendientesSync: _ventasPendientesSync,
     );
 
-    if (widget.showAppBar) {
-      final gradient = theme.brightness == Brightness.dark
-          ? const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF10B981), Color(0xFF059669)],
-            )
-          : const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF5352ED), Color(0xFF4840E8), Color(0xFF5955EE)],
-            );
+    // Filtrar por permisos
+    final seccionesConPermisos = todasLasSecciones
+        .map((s) => s.copyWith(
+              options: s.options
+                  .where((o) => MenuBuilder.puedeVerOpcion(role, o.id))
+                  .toList(),
+            ))
+        .where((s) => s.options.isNotEmpty)
+        .toList();
 
-      return Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: CustomAppBar(
-          title: 'Panel de Control',
-          gradient: gradient,
-          showBackButton: true,
-          actions: [
-            if (usuario != null)
-              Padding(
-                padding: const EdgeInsets.only(right: 16.0),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.person_outline,
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      usuario.nombre,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+    // Filtrar por búsqueda
+    final secciones = _filtrarSecciones(seccionesConPermisos, _searchQuery);
+
+    final gradient = isDark
+        ? LinearGradient(
+            colors: [
+              const Color(0xFF10B981).withValues(alpha: 0.8),
+              const Color(0xFF059669),
+            ],
+          )
+        : const LinearGradient(
+            colors: [Color(0xFF5352ED), Color(0xFF4840E8)],
+          );
+
+    return Scaffold(
+      backgroundColor: colorScheme.surfaceContainerLow,
+      appBar: CustomAppBar(
+        title: isMobile ? 'Menú' : 'Menú Principal',
+        showBackButton: false,
+        gradient: gradient,
+        actions: [
+          if (_sincronizando)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
                 ),
               ),
-          ],
-        ),
-        body: contenido,
-      );
-    } else {
-      return contenido;
-    }
+            ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _sincronizarConProgreso,
+        child: _buildBody(secciones, isMobile, isTablet, colorScheme),
+      ),
+    );
   }
 
-  // ==========================================
-  // TÍTULO DE SECCIÓN
-  // ==========================================
-  Widget _buildSectionTitle(String title, IconData? icon, Color? color, bool isMobile) {
-    final theme = Theme.of(context);
-    final Color accentColor = color ?? theme.colorScheme.primary;
+  // ════════════════════════════════════════════════════════════════
+  // CUERPO PRINCIPAL
+  // ════════════════════════════════════════════════════════════════
 
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
-      child: Row(
-        children: [
-          if (icon != null) ...[
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+  Widget _buildBody(
+    List<MenuSection> secciones,
+    bool isMobile,
+    bool isTablet,
+    ColorScheme colorScheme,
+  ) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 24,
+        vertical: 16,
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1000),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Buscador con animación de entrada ──
+              _buildSearchBar(colorScheme, isMobile),
+              const SizedBox(height: 16),
+
+              TurnoStatusBanner(
+                tieneTurno: _turnoAbierto != null,
+                horaApertura: _formatearHora(_turnoAbierto?.fechaApertura),
+                onAbrirTurno: _abrirTurno,
+                onCerrarTurno: _cerrarTurno,
               ),
-              child: Icon(
-                icon,
-                size: isMobile ? 16 : 20,
-                color: accentColor,
+              const SizedBox(height: 20),
+
+              // ── Resultados con animación de búsqueda en tiempo real ──
+              _buildAnimatedResults(secciones, isMobile, isTablet, colorScheme),
+
+              const SizedBox(height: 30),
+
+              // ── Botón de Cerrar Sesión (mismo ancho que los demás) ──
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: OutlinedButton.icon(
+                  onPressed: _logout,
+                  icon: const Icon(Icons.logout_rounded, size: 20),
+                  label: const Text(
+                    'Cerrar sesión',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colorScheme.error,
+                    side: BorderSide(
+                      color: colorScheme.error.withValues(alpha: 0.4),
+                    ),
+                    minimumSize: const Size(0, 56),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // RESULTADOS ANIMADOS
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _buildAnimatedResults(
+    List<MenuSection> secciones,
+    bool isMobile,
+    bool isTablet,
+    ColorScheme colorScheme,
+  ) {
+    // Clave estable que cambia cuando cambia la búsqueda o el número de secciones
+    final resultsKey = ValueKey<String>(
+      'results::${_searchQuery.trim().toLowerCase()}::${secciones.length}',
+    );
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 280),
+      reverseDuration: const Duration(milliseconds: 200),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      // Apilamos para que el contenido anterior se desvanezca sin saltar el layout
+      layoutBuilder: (currentChild, previousChildren) {
+        return Stack(
+          alignment: Alignment.topCenter,
+          children: [
+            ...previousChildren,
+            if (currentChild != null) currentChild,
           ],
-          Text(
-            title,
+        );
+      },
+      transitionBuilder: (child, animation) {
+        final slide = Tween<Offset>(
+          begin: const Offset(0, 0.04),
+          end: Offset.zero,
+        ).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        );
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(position: slide, child: child),
+        );
+      },
+      child: KeyedSubtree(
+        key: resultsKey,
+        child: secciones.isEmpty
+            ? _buildEmptyState(colorScheme)
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: secciones.asMap().entries.map((entry) {
+                  return _buildSection(
+                    section: entry.value,
+                    index: entry.key,
+                    isMobile: isMobile,
+                    isTablet: isTablet,
+                  );
+                }).toList(),
+              ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // BUSCADOR ANIMADO
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _buildSearchBar(ColorScheme colorScheme, bool isMobile) {
+    final primary = colorScheme.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Colores que combinan con el tema
+    final unfocusedFill = isDark
+        ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.55)
+        : colorScheme.surfaceContainerHighest;
+    final focusedFill = isDark
+        ? primary.withValues(alpha: 0.14)
+        : primary.withValues(alpha: 0.08);
+
+    final unfocusedBorder =
+        colorScheme.outlineVariant.withValues(alpha: isDark ? 0.35 : 0.6);
+
+    return FadeTransition(
+      opacity: CurvedAnimation(
+        parent: _searchBarController,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+      ),
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, -0.35),
+          end: Offset.zero,
+        ).animate(
+          CurvedAnimation(
+            parent: _searchBarController,
+            curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic),
+          ),
+        ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: _isSearchFocused
+                ? [
+                    BoxShadow(
+                      color: primary.withValues(alpha: isDark ? 0.30 : 0.20),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : const [],
+          ),
+          child: TextField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            onChanged: (value) => setState(() => _searchQuery = value),
+            textInputAction: TextInputAction.search,
             style: TextStyle(
-              fontSize: isMobile ? 14 : 18,
-              fontWeight: FontWeight.w700,
-              color: theme.colorScheme.onSurface,
-              letterSpacing: 0.3,
+              fontSize: isMobile ? 14 : 15,
+              color: colorScheme.onSurface,
+            ),
+            cursorColor: primary,
+            decoration: InputDecoration(
+              hintText: 'Buscar opción...',
+              hintStyle: TextStyle(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                fontSize: isMobile ? 14 : 15,
+              ),
+              // Icono de búsqueda que rota sutilmente al enfocar
+              prefixIcon: AnimatedRotation(
+                turns: _isSearchFocused ? 0.05 : 0.0,
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  padding: const EdgeInsets.all(12),
+                  child: Icon(
+                    Icons.search_rounded,
+                    color: _isSearchFocused
+                        ? primary
+                        : colorScheme.onSurfaceVariant,
+                    size: 22,
+                  ),
+                ),
+              ),
+              // Botón "limpiar" con animación de escala
+              suffixIcon: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                switchInCurve: Curves.easeOutBack,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) {
+                  return ScaleTransition(
+                    scale: animation,
+                    child: FadeTransition(opacity: animation, child: child),
+                  );
+                },
+                child: _searchQuery.isEmpty
+                    ? const SizedBox.shrink(key: ValueKey('empty'))
+                    : IconButton(
+                        key: const ValueKey('clear'),
+                        icon: const Icon(Icons.clear_rounded, size: 20),
+                        color: colorScheme.onSurfaceVariant,
+                        tooltip: 'Limpiar',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                          // Devolvemos el foco al buscador tras limpiar
+                          _searchFocusNode.requestFocus();
+                        },
+                      ),
+              ),
+              filled: true,
+              fillColor: _isSearchFocused ? focusedFill : unfocusedFill,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: unfocusedBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: primary, width: 1.5),
+              ),
             ),
           ),
-          const Spacer(),
-          Container(
-            height: 1.5,
-            width: isMobile ? 30 : 60,
-            color: accentColor.withValues(alpha: 0.2),
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // EMPTY STATE
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _buildEmptyState(ColorScheme colorScheme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 60),
+      child: Column(
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.85, end: 1.0),
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutBack,
+            builder: (context, scale, child) {
+              return Transform.scale(scale: scale, child: child);
+            },
+            child: Icon(
+              Icons.search_off_rounded,
+              size: 64,
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Sin resultados',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No se encontraron opciones para "$_searchQuery"',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ==========================================
-  // GRID DE OPCIONES CON ANIMACIÓN
-  // ==========================================
+  // ════════════════════════════════════════════════════════════════
+  // SECCIÓN Y GRID
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _buildSection({
+    required MenuSection section,
+    required int index,
+    required bool isMobile,
+    required bool isTablet,
+  }) {
+    final intervalStart = (index * 0.15).clamp(0.0, 0.7);
+    final intervalEnd = (intervalStart + 0.4).clamp(0.0, 1.0);
+
+    return FadeTransition(
+      opacity: CurvedAnimation(
+        parent: _animationController,
+        curve: Interval(intervalStart, intervalEnd, curve: Curves.easeOut),
+      ),
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.1),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: _animationController,
+          curve:
+              Interval(intervalStart, intervalEnd, curve: Curves.easeOutCubic),
+        )),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionTitle(section.title, section.color),
+            const SizedBox(height: 12),
+            _buildOptionsGrid(section.options, isMobile, isTablet),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 20,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.2,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildOptionsGrid(
     List<MenuOption> options,
     bool isMobile,
     bool isTablet,
   ) {
-    int crossAxisCount;
-    if (isMobile) {
-      crossAxisCount = 1;
-    } else if (isTablet) {
-      crossAxisCount = 2;
-    } else {
-      crossAxisCount = 2;
+    if (options.isEmpty) return const SizedBox.shrink();
+
+    if (options.length == 1) {
+      final singleOpt = options.first;
+      return PosMenuCard(
+        title: singleOpt.title,
+        subtitle: singleOpt.subtitle,
+        icon: singleOpt.icon,
+        color: singleOpt.color,
+        onTap: singleOpt.onTap,
+      );
     }
 
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20),
-      child: AnimationLimiter(
-        child: GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            childAspectRatio: isMobile ? 5.0 : 6.0,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-          ),
-          itemCount: options.length,
-          itemBuilder: (context, index) {
-            final option = options[index];
-            return AnimationConfiguration.staggeredGrid(
-              position: index,
-              duration: const Duration(milliseconds: 400),
-              columnCount: crossAxisCount,
-              child: ScaleAnimation(
-                scale: 0.85,
-                curve: Curves.easeOutCubic,
-                child: FadeInAnimation(
-                  curve: Curves.easeOutCubic,
-                  child: _buildMenuCard(
-                    context,
-                    option: option,
-                    isMobile: isMobile,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
+    final crossAxisCount = isMobile ? 1 : (isTablet ? 2 : 3);
 
-  // ==========================================
-  // TARJETA DE MENÚ CON CURSOR POINTER
-  // ==========================================
-  Widget _buildMenuCard(BuildContext context, {
-    required MenuOption option,
-    required bool isMobile,
-  }) {
-    final theme = Theme.of(context);
-    final isHovered = ValueNotifier<bool>(false);
-    final bool isDark = theme.brightness == Brightness.dark;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => isHovered.value = true,
-      onExit: (_) => isHovered.value = false,
-      child: ValueListenableBuilder(
-        valueListenable: isHovered,
-        builder: (context, hovered, child) {
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-            transform: hovered ? (Matrix4.identity()..scale(1.01)) : Matrix4.identity(),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: hovered
-                    ? option.color.withValues(alpha: 0.6)
-                    : isDark
-                        ? Colors.grey.shade700.withValues(alpha: 0.4)
-                        : Colors.grey.shade300.withValues(alpha: 0.6),
-                width: hovered ? 1.5 : 1.0,
-              ),
-              boxShadow: hovered
-                  ? [
-                      BoxShadow(
-                        color: option.color.withValues(alpha: 0.2),
-                        blurRadius: 24,
-                        spreadRadius: 2,
-                        offset: const Offset(0, 8),
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: isDark
-                            ? Colors.black.withValues(alpha: 0.25)
-                            : Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: option.onTap,
-                borderRadius: BorderRadius.circular(14),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 14 : 20,
-                    vertical: isMobile ? 10 : 14,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: option.color.withValues(alpha: hovered ? 0.2 : 0.08),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          option.icon,
-                          size: isMobile ? 22 : 28,
-                          color: option.color,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              option.title,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                fontSize: isMobile ? 15 : 17,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              option.subtitle,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontSize: isMobile ? 11 : 13,
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: isMobile ? 14 : 18,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.15),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: isMobile ? 3.2 : 2.5,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
+      itemCount: options.length,
+      itemBuilder: (_, i) {
+        final opt = options[i];
+        return PosMenuCard(
+          title: opt.title,
+          subtitle: opt.subtitle,
+          icon: opt.icon,
+          color: opt.color,
+          onTap: opt.onTap,
+        );
+      },
     );
   }
 }

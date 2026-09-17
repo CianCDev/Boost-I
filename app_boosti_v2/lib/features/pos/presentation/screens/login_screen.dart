@@ -4,14 +4,18 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart'; // Agregado para el logo
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../data/Local/entities/usuario_entity.dart';
+import '../../domain/permissions/roles.dart';
 import '../providers/auth_provider.dart';
 import '../providers/usuario_provider.dart';
 import '../services/sync_service.dart';
-import '../services/error_service.dart'; // ✅ NUEVO
+import '../services/error_service.dart';
 import '../utils/responsive_helper.dart';
+import 'empleados/employees_screen.dart';
+import 'main_pos_screen.dart';
 import 'inventory_catalog_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -23,14 +27,22 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen>
     with SingleTickerProviderStateMixin {
+  // ══════════════════════════════════════════════════════════════
+  // PALETA DE COLORES DEL LOGIN
+  // ══════════════════════════════════════════════════════════════
+  static const Color _bgDeep = Color(0xFF050816);
+  static const Color _bgNavy = Color(0xFF0A0E27);
+  static const Color _bgIndigo = Color(0xFF1A1A4E);
+  static const Color _bgPurple = Color(0xFF2D1B69);
+  static const Color _bgViolet = Color(0xFF4C2B8C);
+  static const Color _accent = Color(0xFF10B981);
+  static const Color _accentDeep = Color(0xFF059669);
+
   final TextEditingController _pinController = TextEditingController();
   bool _obscurePin = true;
   int? _selectedUserId;
   bool _isLoading = false;
   String? _errorMessage;
-  // Mantenemos tu key original tal como la definiste
-  final GlobalKey<ScaffoldMessengerState> _scaffoldKey =
-      GlobalKey<ScaffoldMessengerState>();
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -54,24 +66,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       begin: const Offset(0, 0.3),
       end: Offset.zero,
     ).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeOutCubic,
+      ),
     );
     _animationController.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // 1. 🔥 CRÍTICO: Cargar usuarios locales en el authProvider de inmediato
       await ref.read(authProvider.notifier).loadUsuarios();
-
-      // 2. Refrescar el provider secundario (opcional)
       final usuariosActualizados = await ref.refresh(usuariosProvider.future);
       if (usuariosActualizados.isNotEmpty) {
-        debugPrint('✅ Usuarios recargados en login: ${usuariosActualizados.length}');
+        debugPrint(
+            '✅ Usuarios recargados en login: ${usuariosActualizados.length}');
       }
-
-      // 3. Validar que el usuario guardado todavía exista en la lista
       _validateSelectedUser();
-
-      // 4. Ejecutar sincronización en segundo plano sin bloquear la UI
       _sincronizarUsuarios(showFeedback: false, isInitialLoad: true);
     });
   }
@@ -91,9 +100,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       final prefs = await SharedPreferences.getInstance();
       final savedId = prefs.getInt('selected_user_id');
       if (savedId != null && mounted) {
-        setState(() {
-          _selectedUserId = savedId;
-        });
+        setState(() => _selectedUserId = savedId);
       }
     } catch (e) {
       debugPrint('Error cargando el usuario guardado: $e');
@@ -114,20 +121,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (_selectedUserId != null) {
       final exists = authState.usuarios.any((u) => u.id == _selectedUserId);
       if (!exists && authState.usuarios.isNotEmpty) {
-        setState(() {
-          _selectedUserId = authState.usuarios.first.id;
-        });
+        setState(() => _selectedUserId = authState.usuarios.first.id);
         _saveSelectedUser(_selectedUserId!);
       }
     } else if (authState.usuarios.isNotEmpty) {
-      setState(() {
-        _selectedUserId = authState.usuarios.first.id;
-      });
+      setState(() => _selectedUserId = authState.usuarios.first.id);
       _saveSelectedUser(_selectedUserId!);
     }
   }
-
-  // ============================================================
+ // ============================================================
   // SINCRONIZACIÓN
   // ============================================================
   Future<void> _sincronizarUsuarios({
@@ -135,8 +137,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     bool isInitialLoad = false,
   }) async {
     if (!mounted) return;
-
-    // Solo mostramos el spinner si es una acción manual del usuario
     if (!isInitialLoad) setState(() => _isLoading = true);
 
     try {
@@ -149,9 +149,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         _showSnackbar('⚠️ Error sincronizando: $e', Colors.red);
       }
     } finally {
-      // Siempre recargar locales (incluso si falla la sincronización)
       await ref.read(authProvider.notifier).loadUsuarios();
-      // Actualizar el usuario seleccionado por si hubo cambios
       _validateSelectedUser();
       if (mounted && !isInitialLoad) setState(() => _isLoading = false);
     }
@@ -163,20 +161,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       SnackBar(
         content: Text(
           message,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         backgroundColor: color,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
         margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
       ),
     );
   }
 
   // ============================================================
-  // LOGIN (CON SINCRONIZACIÓN INICIAL)
+  // LOGIN
   // ============================================================
-  void _loginWithPin() async {
+  Future<void> _loginWithPin() async {
     final authState = ref.read(authProvider);
     if (authState.usuarios.isEmpty) {
       _showSnackbar('No hay usuarios disponibles', Colors.orange);
@@ -201,48 +204,62 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       return;
     }
 
-    setState(() => _isLoading = true);
-    final success = await ref.read(authProvider.notifier).loginWithPin(
-          usuarioSeleccionado,
-          pin,
-        );
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final success = await ref
+        .read(authProvider.notifier)
+        .loginWithPin(usuarioSeleccionado, pin);
+
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (success && mounted) {
-      final user = ref.read(authProvider).currentUser;
-      if (user != null) {
-        ref.read(usuarioActualProvider.notifier).setUsuario(user);
-        
-        // ✅ REGISTRAR USUARIO EN MONITOREO
-        ErrorService.setUser(
-          user.id.toString(),
-          user.email,
-          user.nombre,
-        );
-        
-        await _saveSelectedUser(user.id);
-
-        // 🔥 Sincronizar datos esenciales para el nuevo dispositivo
-        try {
-          final syncService = SyncService();
-          await syncService.descargarLocalesDesdeSupabase();  // Para obtener UUID
-          await syncService.descargarPedidosDesdeSupabase();  // Para obtener pedidos
-          debugPrint('✅ Sincronización inicial completada después del login');
-        } catch (e) {
-          debugPrint('⚠️ Error en sincronización inicial: $e');
-          // No bloqueamos el login si falla
-        }
-
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => InventoryCatalogScreen(usuarioLogueado: user),
-          ),
-        );
-      }
-    } else if (mounted) {
+    if (!success) {
       setState(() => _errorMessage = 'PIN incorrecto. Intenta de nuevo.');
+      return;
     }
+
+    final user = ref.read(authProvider).currentUser;
+    if (user == null) return;
+
+    ref.read(usuarioActualProvider.notifier).setUsuario(user);
+    ErrorService.setUser(user.id.toString(), user.email, user.nombre);
+    await _saveSelectedUser(user.id);
+
+    // Sincronización inicial en background
+    try {
+      final syncService = SyncService();
+      await syncService.descargarLocalesDesdeSupabase();
+      await syncService.descargarPedidosDesdeSupabase();
+      debugPrint('✅ Sincronización inicial completada después del login');
+    } catch (e) {
+      debugPrint('⚠️ Error en sincronización inicial: $e');
+    }
+
+    if (!mounted) return;
+    _redirigirSegunRol(user);
   }
+
+/// Navega a la pantalla correspondiente según el rol del usuario.
+void _redirigirSegunRol(UsuarioEntity usuario) {
+  final role = UserRole.fromString(usuario.rol);
+
+  // Roles restringidos (RRHH por ahora) → van directo a su pantalla.
+  if (Permissions.isEmployeesOnlyRole(role)) {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const EmployeesScreen()),
+    );
+    return;
+  }
+
+  // ✅ CAMBIO: resto de roles → welcome screen (no directo al POS)
+  Navigator.of(context).pushReplacement(
+    MaterialPageRoute(builder: (_) => const MainPosScreen()),
+  );
+}
+ 
 
   // ============================================================
   // BUILD
@@ -271,7 +288,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final usuariosOrdenados = List<UsuarioEntity>.from(authState.usuarios)
       ..sort((a, b) => a.nombre.compareTo(b.nombre));
 
-    // Si no hay usuario seleccionado pero hay usuarios, seleccionar el primero
     if (_selectedUserId == null && usuariosOrdenados.isNotEmpty) {
       _selectedUserId = usuariosOrdenados.first.id;
     }
@@ -286,28 +302,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
 
     return Scaffold(
-      // key: _scaffoldKey, // Opcional, pero lo dejé comentado si genera error de tipado al compilar.
-      backgroundColor: const Color(0xFF0A0E27),
+      backgroundColor: _bgDeep,
       body: Stack(
         children: [
-          // Fondo base con gradiente
+          // Fondo gradiente profundo
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF0A0E27),
-                  Color(0xFF1A1A4E),
-                  Color(0xFF2D1B69),
-                  Color(0xFF4C2B8C),
-                ],
+                colors: [_bgDeep, _bgNavy, _bgPurple, _bgViolet],
                 stops: [0.0, 0.3, 0.7, 1.0],
               ),
             ),
           ),
-          
-          // Blob superior izquierdo (Verde esmeralda)
+
+          // Blob verde esmeralda (arriba izquierda)
           Positioned(
             top: -150,
             left: -100,
@@ -317,14 +327,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 width: 400,
                 height: 400,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                  color: _accent.withValues(alpha: 0.25),
                   shape: BoxShape.circle,
                 ),
               ),
             ),
           ),
 
-          // Blob inferior derecho (Púrpura intenso)
+          // Blob púrpura intenso (abajo derecha)
           Positioned(
             bottom: -150,
             right: -100,
@@ -334,7 +344,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 width: 450,
                 height: 450,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
+                  color: _bgViolet.withValues(alpha: 0.45),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -344,7 +354,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           SafeArea(
             child: Center(
               child: authState.isLoading && authState.usuarios.isEmpty
-                  ? const CircularProgressIndicator(color: Color(0xFF10B981))
+                  ? const CircularProgressIndicator(color: _accent)
                   : FadeTransition(
                       opacity: _fadeAnimation,
                       child: SlideTransition(
@@ -359,14 +369,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(32),
                               boxShadow: [
+                                // Sombra profunda
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.3),
-                                  blurRadius: 40,
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  blurRadius: 50,
                                   spreadRadius: -5,
-                                  offset: const Offset(0, 20),
+                                  offset: const Offset(0, 25),
                                 ),
+                                // Glow esmeralda sutil
                                 BoxShadow(
-                                  color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                                  color: _accent.withValues(alpha: 0.15),
                                   blurRadius: 60,
                                   spreadRadius: -10,
                                   offset: const Offset(0, 0),
@@ -376,28 +388,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(32),
                               child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                                filter:
+                                    ImageFilter.blur(sigmaX: 24, sigmaY: 24),
                                 child: Container(
                                   padding: EdgeInsets.all(paddingSize),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(32),
+                                    // Borde de vidrio sutil
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.25),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.12),
                                       width: 1.2,
                                     ),
+                                    // ✅ Glass oscuro: misma paleta que el fondo
                                     gradient: LinearGradient(
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                       colors: [
-                                        Colors.white.withValues(alpha: 0.18),
-                                        Colors.white.withValues(alpha: 0.05),
+                                        _bgIndigo.withValues(alpha: 0.65),
+                                        _bgNavy.withValues(alpha: 0.55),
                                       ],
                                       stops: const [0.0, 1.0],
                                     ),
                                   ),
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
                                     children: [
                                       _buildLogo(logoSize, isMobile),
                                       const SizedBox(height: 16),
@@ -405,7 +422,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                         child: Text(
                                           'Inicia sesión para acceder al POS',
                                           style: TextStyle(
-                                            color: Colors.white.withValues(alpha: 0.8),
+                                            color: Colors.white
+                                                .withValues(alpha: 0.75),
                                             fontSize: isMobile ? 13 : 15,
                                             fontWeight: FontWeight.w400,
                                             letterSpacing: 0.3,
@@ -413,29 +431,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                         ),
                                       ),
                                       const SizedBox(height: 32),
-                                      _buildPinMode(isMobile, isTablet, usuariosOrdenados),
+                                      _buildPinMode(
+                                          isMobile, isTablet, usuariosOrdenados),
                                       if (_errorMessage != null) ...[
                                         const SizedBox(height: 16),
                                         Container(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 10),
+                                            horizontal: 12,
+                                            vertical: 10,
+                                          ),
                                           decoration: BoxDecoration(
-                                            color: Colors.red.withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(12),
+                                            color: Colors.red
+                                                .withValues(alpha: 0.15),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                             border: Border.all(
-                                              color: Colors.red.withValues(alpha: 0.3),
+                                              color: Colors.red
+                                                  .withValues(alpha: 0.35),
                                             ),
                                           ),
                                           child: Row(
                                             children: [
-                                              Icon(Icons.error_outline,
-                                                  color: Colors.red.shade300, size: 20),
+                                              Icon(
+                                                Icons.error_outline,
+                                                color: Colors.red.shade300,
+                                                size: 20,
+                                              ),
                                               const SizedBox(width: 12),
                                               Expanded(
                                                 child: Text(
                                                   _errorMessage!,
                                                   style: TextStyle(
-                                                    color: Colors.red.shade300,
+                                                    color:
+                                                        Colors.red.shade300,
                                                     fontSize: 13,
                                                     fontWeight: FontWeight.w600,
                                                   ),
@@ -446,14 +474,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                         ),
                                       ],
                                       const SizedBox(height: 32),
-                                      _buildLoginButton(buttonHeight, isMobile),
+                                      _buildLoginButton(
+                                          buttonHeight, isMobile),
                                       const SizedBox(height: 20),
                                       Center(
                                         child: Text(
                                           'PIN de ejemplo: $ejemploPins',
                                           style: TextStyle(
                                             fontSize: isMobile ? 11 : 12,
-                                            color: Colors.white.withValues(alpha: 0.4),
+                                            color: Colors.white
+                                                .withValues(alpha: 0.35),
                                             fontWeight: FontWeight.w400,
                                           ),
                                           textAlign: TextAlign.center,
@@ -464,10 +494,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                         child: TextButton(
                                           onPressed: _isLoading
                                               ? null
-                                              : () => _sincronizarUsuarios(showFeedback: true),
+                                              : () => _sincronizarUsuarios(
+                                                  showFeedback: true),
                                           style: TextButton.styleFrom(
-                                            foregroundColor: Colors.white.withValues(alpha: 0.7),
-                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                            foregroundColor: Colors.white
+                                                .withValues(alpha: 0.7),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 8,
+                                            ),
                                           ),
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
@@ -475,9 +510,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                               Icon(
                                                 _isLoading
                                                     ? Icons.sync_rounded
-                                                    : Icons.cloud_sync_rounded,
+                                                    : Icons
+                                                        .cloud_sync_rounded,
                                                 size: 18,
-                                                color: Colors.white.withValues(alpha: 0.7),
+                                                color: Colors.white
+                                                    .withValues(alpha: 0.7),
                                               ),
                                               const SizedBox(width: 8),
                                               Text(
@@ -485,7 +522,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                                 style: TextStyle(
                                                   fontSize: 13,
                                                   fontWeight: FontWeight.w500,
-                                                  color: Colors.white.withValues(alpha: 0.7),
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.7),
                                                 ),
                                               ),
                                             ],
@@ -509,43 +547,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // COMPONENTES UI (ESTILOS PORTADOS)
+  // LOGO
   // ============================================================
-
- Widget _buildLogo(double size, bool isMobile) {
-  final double iconSize = size * 0.5;
-  return Column(
-    children: [
-      Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF10B981), Color(0xFF059669)],
-          ),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF10B981).withValues(alpha: 0.4),
-              blurRadius: 30,
-              offset: const Offset(0, 10),
+  Widget _buildLogo(double size, bool isMobile) {
+    final double iconSize = size * 0.5;
+    return Column(
+      children: [
+        Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [_accent, _accentDeep],
             ),
-          ],
-        ),
-        child: Center(
-          child: SvgPicture.asset(
-            'assets/logoboosti300px.svg', // 👈 Cambia 'assets/logoboosti300px.svg' por 'assets/logo.svg'
-            width: iconSize,
-            height: iconSize,
-            colorFilter: const ColorFilter.mode(
-              Colors.white,
-              BlendMode.srcIn,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: _accent.withValues(alpha: 0.45),
+                blurRadius: 30,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Center(
+            child: SvgPicture.asset(
+              'assets/logoboosti300px.svg',
+              width: iconSize,
+              height: iconSize,
+              colorFilter: const ColorFilter.mode(
+                Colors.white,
+                BlendMode.srcIn,
+              ),
             ),
           ),
         ),
-      ),
         const SizedBox(height: 20),
         ShaderMask(
           shaderCallback: (bounds) => const LinearGradient(
@@ -556,7 +593,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           child: Text(
             'BoostI POS',
             style: TextStyle(
-              fontSize: isMobile ? 28 : 36, // Ajustado al tamaño de fuente del layout nuevo
+              fontSize: isMobile ? 28 : 36,
               fontWeight: FontWeight.w900,
               color: Colors.white,
               letterSpacing: 0.5,
@@ -567,8 +604,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildPinMode(bool isMobile, bool isTablet, List<UsuarioEntity> usuarios) {
-    final fontSizeLabel = isMobile ? 13.0 : 15.0; // Tamaños provenientes del layout nuevo
+  // ============================================================
+  // PIN MODE
+  // ============================================================
+  Widget _buildPinMode(
+    bool isMobile,
+    bool isTablet,
+    List<UsuarioEntity> usuarios,
+  ) {
+    final fontSizeLabel = isMobile ? 13.0 : 15.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -585,12 +629,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.06),
+            color: _bgNavy.withValues(alpha: 0.65),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.12),
+            ),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          // Envuelto en Theme para los estilos al interactuar
           child: Theme(
             data: Theme.of(context).copyWith(
               hoverColor: Colors.white.withValues(alpha: 0.08),
@@ -603,30 +648,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 value: _selectedUserId,
                 isExpanded: true,
                 borderRadius: BorderRadius.circular(16),
-                icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white.withValues(alpha: 0.5)),
+                icon: Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Colors.white.withValues(alpha: 0.5),
+                ),
                 style: TextStyle(
                   fontSize: isMobile ? 16 : 18,
                   fontWeight: FontWeight.w500,
                   color: Colors.white,
                 ),
-                dropdownColor: const Color(0xFF2A2D53), // Estilo exacto de la imagen
-                itemHeight: 64, 
+                // ✅ Dropdown en tono azul profundo consistente con la paleta
+                dropdownColor: _bgIndigo,
+                itemHeight: 64,
                 menuMaxHeight: 350,
                 items: usuarios.map((u) {
-                  final isAdmin = u.rol == 'admin';
+                  final role = UserRole.fromString(u.rol);
+                  final isAdmin = role == UserRole.admin;
+                  final isRrhh = role == UserRole.rrhh;
+                  final isSupervisor = role == UserRole.supervisor;
+
+                  Color chipColor;
+                  IconData chipIcon;
+
+                  if (isAdmin) {
+                    chipColor = const Color(0xFF3B82F6);
+                    chipIcon = Icons.admin_panel_settings_rounded;
+                  } else if (isRrhh) {
+                    chipColor = const Color(0xFF8B5CF6);
+                    chipIcon = Icons.badge_rounded;
+                  } else if (isSupervisor) {
+                    chipColor = const Color(0xFFF59E0B);
+                    chipIcon = Icons.supervisor_account_rounded;
+                  } else {
+                    chipColor = _accent;
+                    chipIcon = Icons.person_rounded;
+                  }
+
                   return DropdownMenuItem<int>(
                     value: u.id,
                     child: Row(
                       children: [
                         CircleAvatar(
                           radius: 16,
-                          backgroundColor: isAdmin
-                              ? const Color(0xFF3B82F6).withValues(alpha: 0.2)
-                              : const Color(0xFF10B981).withValues(alpha: 0.2),
+                          backgroundColor: chipColor.withValues(alpha: 0.2),
                           child: Icon(
-                            isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
+                            chipIcon,
                             size: 18,
-                            color: isAdmin ? const Color(0xFF3B82F6) : const Color(0xFF10B981),
+                            color: chipColor,
                           ),
                         ),
                         const SizedBox(width: 14),
@@ -638,21 +706,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               Text(
                                 u.nombre,
                                 style: TextStyle(
-                                  fontWeight: isAdmin ? FontWeight.w600 : FontWeight.w400,
+                                  fontWeight: isAdmin
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
                                   fontSize: isMobile ? 15 : 16,
                                   color: Colors.white,
                                 ),
                               ),
-                              if (isAdmin)
+                              if (isAdmin || isRrhh || isSupervisor)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 2),
                                   child: Text(
-                                    'ADMINISTRADOR',
+                                    role.label.toUpperCase(),
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: 0.5,
-                                      color: const Color(0xFF3B82F6).withValues(alpha: 0.9),
+                                      color: chipColor.withValues(alpha: 0.9),
                                     ),
                                   ),
                                 ),
@@ -705,18 +775,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
             counterText: '',
             filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.06),
+            fillColor: _bgNavy.withValues(alpha: 0.65),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF10B981), width: 2.0),
+              borderSide: const BorderSide(color: _accent, width: 2.0),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
             ),
             prefixIcon: Padding(
               padding: const EdgeInsets.only(left: 16.0, right: 12.0),
@@ -730,14 +804,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               padding: const EdgeInsets.only(right: 8.0),
               child: IconButton(
                 icon: Icon(
-                  _obscurePin ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  _obscurePin
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
                   color: Colors.white.withValues(alpha: 0.5),
                   size: 22,
                 ),
                 onPressed: () => setState(() => _obscurePin = !_obscurePin),
               ),
             ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: isTablet ? 22 : 18),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: isTablet ? 22 : 18,
+            ),
           ),
           onFieldSubmitted: (_) => _loginWithPin(),
         ),
@@ -745,24 +824,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
+  // ============================================================
+  // BOTÓN LOGIN
+  // ============================================================
   Widget _buildLoginButton(double height, bool isMobile) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       height: height,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF10B981),
+          backgroundColor: _accent,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           elevation: 0,
-          shadowColor: const Color(0xFF10B981).withValues(alpha: 0.4),
+          shadowColor: _accent.withValues(alpha: 0.4),
         ),
         onPressed: _isLoading || _selectedUserId == null ? null : _loginWithPin,
         child: _isLoading
             ? const SizedBox(
                 height: 24,
                 width: 24,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -776,7 +863,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_rounded, size: isMobile ? 20 : 24),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: isMobile ? 20 : 24,
+                  ),
                 ],
               ),
       ),

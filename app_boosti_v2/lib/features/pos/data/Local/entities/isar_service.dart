@@ -26,10 +26,13 @@ import 'codigo_barra_alia_entity.dart';
 import '../entities/lote_entity.dart';
 import '../entities/departamento_entity.dart';
 import '../entities/telegram_config_entity.dart';
+import 'empleado_entity.dart';
 import 'gasto_entity.dart';
 import 'marca_entity.dart';
 import '../entities/movimiento_lote_entity.dart';
 import '../../../presentation/services/error_service.dart'; // ✅ NUEVO
+import 'horario_entity.dart';
+import 'nomina_pago_entity.dart';
 
 // ============================================================
 // CLASE AUXILIAR PARA HISTORIAL DE CÓDIGOS
@@ -130,6 +133,9 @@ class IsarService {
         MarcaEntitySchema,
         MovimientoLoteEntitySchema,
         ClienteEntitySchema,
+        EmpleadoInfoEntitySchema,   // ✅ NUEVO
+        HorarioEntitySchema,        // ✅ NUEVO
+        NominaPagoEntitySchema,
       ],
       directory: dbPath,
       // ✅ Inspector deshabilitado en tests
@@ -172,6 +178,9 @@ class IsarService {
         CartSessionEntitySchema,
         MarcaEntitySchema,
         MovimientoLoteEntitySchema,
+        EmpleadoInfoEntitySchema,
+        HorarioEntitySchema,
+        NominaPagoEntitySchema,
         ClienteEntitySchema,
       ],
       directory: fallbackPath,

@@ -109,6 +109,7 @@ class CartSessionsNotifier extends StateNotifier<CartSessionsState> {
     _usuarioId = usuarioId;
 
     // ✅ Fase 1: mostrar loading (emite si cambia)
+    // ignore: unused_local_variable
     final antesLoading = state;
     state = state.copyWith(isLoading: true, clearError: true);
     // Nota: si ya estaba cargando, no emite — la igualdad estructural lo absorbe.

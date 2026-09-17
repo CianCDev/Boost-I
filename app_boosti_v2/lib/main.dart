@@ -1,5 +1,6 @@
-import 'package:app_boosti_v2/features/pos/presentation/providers/themes/theme.dart';
-import 'package:app_boosti_v2/features/pos/presentation/providers/themes/theme_provider.dart';
+// lib/main.dart
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,103 +9,124 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'features/pos/data/Local/entities/isar_service.dart';
-import 'features/pos/presentation/screens/splash_screen.dart';
-import 'features/pos/presentation/screens/configuracion_empresa_screen.dart';
-import 'features/pos/presentation/screens/login_screen.dart';
-import 'features/pos/presentation/screens/inventory_catalog_screen.dart';
+import 'features/pos/domain/permissions/roles.dart';
 import 'features/pos/presentation/providers/lock_provider.dart';
-import 'features/pos/presentation/screens/rest_screen.dart';
-import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 import 'features/pos/presentation/providers/sync_provider.dart';
-import 'features/pos/presentation/services/sync_service.dart';
-
-// ✅ NUEVAS IMPORTACIONES PARA MONITOREO Y BACKUP
-import 'features/pos/presentation/services/error_service.dart';
+import 'features/pos/presentation/providers/themes/theme.dart';
+import 'features/pos/presentation/providers/themes/theme_provider.dart';
+import 'features/pos/presentation/providers/usuario_provider.dart';
+import 'features/pos/presentation/screens/configuracion_empresa_screen.dart';
+import 'features/pos/presentation/screens/empleados/employees_screen.dart';
+import 'features/pos/presentation/screens/login_screen.dart';
+import 'features/pos/presentation/screens/main_pos_screen.dart';
+import 'features/pos/presentation/screens/rest_screen.dart';
+import 'features/pos/presentation/screens/splash_screen.dart';
 import 'features/pos/presentation/services/backup_service.dart';
+import 'features/pos/presentation/services/error_service.dart';
 import 'features/pos/presentation/services/ota_update_service.dart';
+import 'features/pos/presentation/services/sync_service.dart';
+import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 
 void main() async {
-
-  // ✅ Solo imprime en debug (no ensucia logs de producción)
   if (kDebugMode) {
-    debugPrint('🚀 OTA TEST - VERSION 2 - ${DateTime.now()}');
+    debugPrint('🚀 BoostiPOS iniciando — ${DateTime.now()}');
   }
 
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ============================================================
-  // ✅ 0. INICIALIZAR MONITOREO Y BACKUP
-  // ============================================================
-  await ErrorService.init(); // Inicializa Sentry + Crashlytics
-  BackupService.register(); // Programa el backup cada 12h
-
-  // ============================================================
-  // 1. INICIALIZAR SUPABASE (de forma síncrona con await)
-  // ============================================================
+  // ════════════════════════════════════════════════════════════════
+  // 1. INICIALIZACIONES EN PARALELO (independientes entre sí)
+  // ════════════════════════════════════════════════════════════════
   final prefs = await SharedPreferences.getInstance();
-  String? url = prefs.getString('supabase_url');
-  final anonKey = prefs.getString('supabase_anon_key');
-  bool supabaseInitialized = false;
 
-  if (url != null && url.isNotEmpty && anonKey != null && anonKey.isNotEmpty) {
-    if (url.endsWith('/')) url = url.substring(0, url.length - 1);
-    final uri = Uri.tryParse(url);
-    if (uri != null) {
-      url = '${uri.scheme}://${uri.host}';
-    }
+  // Estas 3 no dependen entre sí → corren en paralelo con Future.wait
+  final results = await Future.wait([
+    ErrorService.init().catchError((e) {
+      debugPrint('⚠️ ErrorService.init falló: $e');
+    }),
+    _inicializarSupabase(prefs),
+    _inicializarIsar(),
+  ]);
 
-    try {
-      await Supabase.initialize(url: url, publishableKey: anonKey);
-      supabaseInitialized = true;
-      debugPrint('✅ Supabase inicializado correctamente');
-    } catch (e) {
-      debugPrint('⚠️ Error inicializando Supabase: $e');
-      supabaseInitialized = false;
-    }
-  } else {
-    debugPrint(
-        '⚠️ No hay configuración de Supabase, se mostrará pantalla de configuración');
-  }
+  final supabaseInitialized = results[1] as bool;
 
-  // ============================================================
-  // 2. INICIALIZAR ISAR Y MIGRACIONES
-  // ============================================================
-  final isarService = IsarService();
+  // 2. TAREAS EN BACKGROUND (no bloquean el arranque)
+// Estos métodos son `void` (no Future), así que se llaman directo.
+// Igual corren "en segundo plano" desde el punto de vista del usuario
+// porque no bloquean `runApp`.
+try {
+  BackupService.register();
+} catch (e) {
+  debugPrint('⚠️ BackupService.register falló: $e');
+}
 
-  await isarService.inicializarUsuarioAdminPorDefecto();
-  await isarService.migrarStockExistenteALotes();
+try {
+  OtaUpdateService.checkForUpdateSilently();
+} catch (e) {
+  debugPrint('⚠️ OTA check falló: $e');
+}
 
-  try {
-    final actualizados = await isarService.asignarSupabaseIdsAFaltantes();
-    debugPrint(
-        '✅ Migración de supabaseId: $actualizados productos actualizados.');
-  } catch (e) {
-    debugPrint('❌ Error en migración de supabaseId: $e');
-  }
-
-  // ============================================================
-  // 3. ARRANCAR COMPROBACIÓN SILENCIOSA DE OTA
-  // ============================================================
-  try {
-    OtaUpdateService.checkForUpdateSilently();
-  } catch (_) {
-    // Nunca bloquear el arranque.
-  }
-
-  // ============================================================
-  // 4. EJECUTAR APP
-  // ============================================================
+  // ════════════════════════════════════════════════════════════════
+  // 3. APP
+  // ════════════════════════════════════════════════════════════════
   runApp(
     DevicePreview(
       enabled: !kReleaseMode,
-      builder: (context) => ProviderScope(
-        child: BoostiPOS(
-          supabaseInitialized: supabaseInitialized,
-        ),
+      builder: (_) => ProviderScope(
+        child: BoostiPOS(supabaseInitialized: supabaseInitialized),
       ),
     ),
   );
 }
+
+// ════════════════════════════════════════════════════════════════════
+// HELPERS DE INICIALIZACIÓN
+// ════════════════════════════════════════════════════════════════════
+
+Future<bool> _inicializarSupabase(SharedPreferences prefs) async {
+  String? url = prefs.getString('supabase_url');
+  final anonKey = prefs.getString('supabase_anon_key');
+
+  if (url == null || url.isEmpty || anonKey == null || anonKey.isEmpty) {
+    debugPrint('⚠️ Sin config Supabase → se mostrará ConfiguracionEmpresa');
+    return false;
+  }
+
+  // Normalizar URL
+  if (url.endsWith('/')) url = url.substring(0, url.length - 1);
+  final uri = Uri.tryParse(url);
+  if (uri != null) {
+    url = '${uri.scheme}://${uri.host}';
+  }
+
+  try {
+    await Supabase.initialize(url: url, publishableKey: anonKey);
+    debugPrint('✅ Supabase inicializado');
+    return true;
+  } catch (e) {
+    debugPrint('⚠️ Error inicializando Supabase: $e');
+    return false;
+  }
+}
+
+Future<void> _inicializarIsar() async {
+  try {
+    final isarService = IsarService();
+    await isarService.inicializarUsuarioAdminPorDefecto();
+    await isarService.migrarStockExistenteALotes();
+
+    final actualizados = await isarService.asignarSupabaseIdsAFaltantes();
+    if (actualizados > 0) {
+      debugPrint('✅ supabaseId asignados: $actualizados productos');
+    }
+  } catch (e) {
+    debugPrint('❌ Error en inicialización de Isar: $e');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// APP ROOT
+// ════════════════════════════════════════════════════════════════════
 
 class BoostiPOS extends ConsumerStatefulWidget {
   final bool supabaseInitialized;
@@ -116,29 +138,70 @@ class BoostiPOS extends ConsumerStatefulWidget {
 }
 
 class _BoostiPOSState extends ConsumerState<BoostiPOS> {
+  bool _syncStarted = false;
+
   @override
   void initState() {
     super.initState();
     if (widget.supabaseInitialized) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final syncService = ref.read(syncServiceProvider);
-        syncService.iniciarSuscripcionesRealtime();
-        syncService.iniciarMonitoreo();
-        _ejecutarSincronizacionInicial(syncService);
+        if (!mounted || _syncStarted) return;
+        _syncStarted = true;
+        _startBackgroundSync();
       });
     }
   }
 
-  Future<void> _ejecutarSincronizacionInicial(SyncService syncService) async {
+  Future<void> _startBackgroundSync() async {
+    final syncService = ref.read(syncServiceProvider);
+    syncService.iniciarSuscripcionesRealtime();
+    syncService.iniciarMonitoreo();
+
+    // Solo sincronizar si hay sesión activa
+    final usuario = ref.read(usuarioActualProvider);
+    if (usuario == null) {
+      debugPrint('ℹ️ Sin sesión → se omite sync inicial');
+      return;
+    }
+
     try {
-      debugPrint('🚀 Ejecutando sincronización inicial desde main...');
+      debugPrint('🚀 Sincronización inicial en background...');
       await syncService.descargarLocalesDesdeSupabase();
       await syncService.sincronizarUsuariosDesdeSupabase();
       await syncService.descargarPedidosDesdeSupabase();
-      debugPrint('✅ Sincronización inicial completada desde main');
+      debugPrint('✅ Sincronización inicial completada');
     } catch (e) {
-      debugPrint('⚠️ Error en sincronización inicial desde main: $e');
+      debugPrint('⚠️ Sync inicial falló (no bloquea): $e');
     }
+  }
+
+  /// Determina la pantalla inicial según configuración + sesión.
+  ///
+  /// Prioridad:
+  ///   1. Sin config Supabase → ConfiguracionEmpresaScreen
+  ///   2. Con sesión RRHH → EmployeesScreen
+  ///   3. Con sesión otro rol → MainPosScreen (welcome)
+  ///   4. Sin sesión → SplashScreen (permisos + Login)
+  Widget _homeInicial() {
+    if (!widget.supabaseInitialized) {
+      return const ConfiguracionEmpresaScreen();
+    }
+
+    final usuario = ref.watch(usuarioActualProvider);
+    if (usuario != null) {
+      final role = UserRole.fromString(usuario.rol);
+
+      // RRHH: solo ve empleados
+      if (Permissions.isEmployeesOnlyRole(role)) {
+        return const EmployeesScreen();
+      }
+
+      // Resto: welcome screen
+      return const MainPosScreen();
+    }
+
+    // Sin sesión → Splash hace chequeos y deriva a Login
+    return const SplashScreen();
   }
 
   @override
@@ -152,13 +215,12 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
       theme: lightTheme(),
       darkTheme: darkTheme(),
       themeMode: themeMode,
-      home: widget.supabaseInitialized
-          ? const SplashScreen()
-          : const ConfiguracionEmpresaScreen(),
+      home: _homeInicial(),
       routes: {
-        '/configuracion': (context) => const ConfiguracionEmpresaScreen(),
-        '/login': (context) => const LoginScreen(),
-        '/catalogo': (context) => const InventoryCatalogScreen(),
+        '/configuracion': (_) => const ConfiguracionEmpresaScreen(),
+        '/login': (_) => const LoginScreen(),
+        '/main': (_) => const MainPosScreen(),
+        '/employees': (_) => const EmployeesScreen(),
       },
       builder: (context, child) {
         return UserActivityDetector(

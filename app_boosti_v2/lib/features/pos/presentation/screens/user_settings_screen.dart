@@ -1,11 +1,13 @@
+// lib/features/pos/presentation/screens/user_settings_screen.dart
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:ui';
+
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
-import '../../presentation/providers/usuario_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/themes/theme_provider.dart';
+import '../providers/usuario_provider.dart';
 import '../utils/responsive_helper.dart';
 import '../widgets/admin_validation_dialog.dart';
 import '../widgets/appbar.dart';
@@ -13,9 +15,12 @@ import '../widgets/cambiar_pin_dialog.dart';
 import 'login_screen.dart';
 
 class UserSettingsScreen extends ConsumerStatefulWidget {
-  final UsuarioEntity usuarioLogueado;
+  /// ⚠️ Deprecado: usar `usuarioActualProvider` internamente.
+  /// Se mantiene por compatibilidad con navegaciones antiguas.
+  @Deprecated('Use usuarioActualProvider instead.')
+  final UsuarioEntity? usuarioLogueado;
 
-  const UserSettingsScreen({super.key, required this.usuarioLogueado});
+  const UserSettingsScreen({super.key, this.usuarioLogueado});
 
   @override
   ConsumerState<UserSettingsScreen> createState() => _UserSettingsScreenState();
@@ -29,10 +34,13 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
   bool _guardandoNombre = false;
   late AnimationController _themeAnimationController;
 
+  /// Usuario activo: primero del provider, fallback al parámetro legacy.
+  UsuarioEntity? get _user =>
+      ref.read(usuarioActualProvider) ?? widget.usuarioLogueado;
+
   @override
   void initState() {
     super.initState();
-    _nombreController.text = widget.usuarioLogueado.nombre;
     _themeAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -46,9 +54,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
     super.dispose();
   }
 
-  Future<void> _cambiarNombre() async {
+  Future<void> _cambiarNombre(UsuarioEntity usuario) async {
     final nuevoNombre = _nombreController.text.trim();
-    if (nuevoNombre.isEmpty || nuevoNombre == widget.usuarioLogueado.nombre) {
+    if (nuevoNombre.isEmpty || nuevoNombre == usuario.nombre) {
       setState(() => _editandoNombre = false);
       return;
     }
@@ -56,11 +64,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
     setState(() => _guardandoNombre = true);
 
     try {
-      widget.usuarioLogueado.nombre = nuevoNombre;
-      await _isarService.guardarUsuario(widget.usuarioLogueado);
+      usuario.nombre = nuevoNombre;
+      await _isarService.guardarUsuario(usuario);
 
       if (!mounted) return;
-      ref.read(usuarioActualProvider.notifier).setUsuario(widget.usuarioLogueado);
+      ref.read(usuarioActualProvider.notifier).setUsuario(usuario);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -87,26 +95,26 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
     }
   }
 
-  Future<void> _cambiarPin() async {
-    final esAdmin = widget.usuarioLogueado.rol == 'admin';
+  Future<void> _cambiarPin(UsuarioEntity usuario) async {
+    final esAdmin = usuario.rol == 'admin';
 
     if (esAdmin) {
       await showDialog(
         context: context,
-        builder: (context) => AdminPinChangeDialog(
-          admin: widget.usuarioLogueado,
+        builder: (_) => AdminPinChangeDialog(
+          admin: usuario,
           isarService: _isarService,
         ),
       );
     } else {
       await showDialog(
         context: context,
-        builder: (context) => AdminValidationDialog(
+        builder: (dialogContext) => AdminValidationDialog(
           onSuccess: () {
             showDialog(
-              context: context,
-              builder: (context) => CashierPinChangeDialog(
-                cajero: widget.usuarioLogueado,
+              context: dialogContext,
+              builder: (_) => CashierPinChangeDialog(
+                cajero: usuario,
                 isarService: _isarService,
               ),
             );
@@ -120,13 +128,13 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
   Future<void> _cerrarSesion() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Cerrar Sesión'),
+        title: const Text('Cerrar sesión'),
         content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
@@ -137,27 +145,28 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Cerrar Sesión'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cerrar sesión'),
           ),
         ],
       ),
     );
 
-    if (confirm == true) {
-      await ref.read(authProvider.notifier).logout();
-      if (!mounted) return;
+    if (confirm != true || !mounted) return;
 
-      ref.read(usuarioActualProvider.notifier).clearUsuario();
+    await ref.read(authProvider.notifier).logout();
+    if (!mounted) return;
 
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    }
+    ref.read(usuarioActualProvider.notifier).clearUsuario();
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
   }
 
-  // Widget para tarjetas con glassmorphism
+  // ─── Widgets auxiliares (sin cambios) ───────────────────────────
+
   Widget _buildGlassCard({
     required Widget child,
     required bool isDark,
@@ -165,7 +174,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
     VoidCallback? onTap,
   }) {
     return MouseRegion(
-      cursor: onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      cursor:
+          onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         decoration: BoxDecoration(
@@ -205,7 +215,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
     );
   }
 
-  // Widget para sección con título e ícono
   Widget _buildSectionHeader(
     String title,
     IconData icon,
@@ -252,15 +261,32 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
     );
   }
 
+  // ─── BUILD ──────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    final usuario =
+        ref.watch(usuarioActualProvider) ?? widget.usuarioLogueado;
+
+    if (usuario == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Sincronizar el controller la primera vez.
+    if (_nombreController.text.isEmpty) {
+      _nombreController.text = usuario.nombre;
+    }
+
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final colorPrimary = const Color(0xFF8B5CF6);
     final theme = Theme.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = theme.brightness == Brightness.dark;
 
-    final double maxWidth = isMobile ? double.infinity : (isTablet ? 900 : 1200);
+    final double maxWidth =
+        isMobile ? double.infinity : (isTablet ? 900 : 1200);
     final double paddingHorizontal = isMobile ? 16 : (isTablet ? 60 : 80);
     final double paddingVertical = isMobile ? 16 : (isTablet ? 36 : 48);
     final double avatarRadius = isMobile ? 32 : (isTablet ? 56 : 72);
@@ -289,7 +315,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ========== ENCABEZADO DE PERFIL (GLASS) ==========
+                // ═══ ENCABEZADO DE PERFIL ═══
                 _buildGlassCard(
                   isDark: isDark,
                   elevation: 20,
@@ -320,8 +346,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                             radius: avatarRadius,
                             backgroundColor: Colors.transparent,
                             child: Text(
-                              widget.usuarioLogueado.nombre.isNotEmpty
-                                  ? widget.usuarioLogueado.nombre[0].toUpperCase()
+                              usuario.nombre.isNotEmpty
+                                  ? usuario.nombre[0].toUpperCase()
                                   : '?',
                               style: TextStyle(
                                 fontSize: avatarRadius * 0.9,
@@ -337,7 +363,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                widget.usuarioLogueado.nombre,
+                                usuario.nombre,
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: fontSizeTitle,
@@ -348,31 +374,35 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                               Row(
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
-                                      color: widget.usuarioLogueado.rol == 'admin'
-                                          ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
-                                          : const Color(0xFF10B981).withValues(alpha: 0.15),
+                                      color: usuario.rol == 'admin'
+                                          ? const Color(0xFF3B82F6)
+                                              .withValues(alpha: 0.15)
+                                          : const Color(0xFF10B981)
+                                              .withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(16),
                                     ),
                                     child: Text(
-                                      widget.usuarioLogueado.rol.toUpperCase(),
+                                      usuario.rol.toUpperCase(),
                                       style: TextStyle(
                                         fontSize: isMobile ? 12 : 14,
                                         fontWeight: FontWeight.bold,
-                                        color: widget.usuarioLogueado.rol == 'admin'
+                                        color: usuario.rol == 'admin'
                                             ? const Color(0xFF3B82F6)
                                             : const Color(0xFF10B981),
                                       ),
                                     ),
                                   ),
-                                  if (widget.usuarioLogueado.cajaAsignada.isNotEmpty) ...[
+                                  if (usuario.cajaAsignada.isNotEmpty) ...[
                                     const SizedBox(width: 12),
                                     Text(
-                                      '• ${widget.usuarioLogueado.cajaAsignada}',
+                                      '• ${usuario.cajaAsignada}',
                                       style: TextStyle(
                                         fontSize: isMobile ? 12 : 14,
-                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                        color: theme.colorScheme.onSurface
+                                            .withValues(alpha: 0.6),
                                       ),
                                     ),
                                   ],
@@ -388,7 +418,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
 
                 SizedBox(height: sectionSpacing),
 
-                // ========== SECCIÓN: INFORMACIÓN PERSONAL ==========
+                // ═══ INFORMACIÓN PERSONAL ═══
                 _buildSectionHeader(
                   'Información Personal',
                   Icons.person_outline_rounded,
@@ -397,7 +427,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                 ),
                 const SizedBox(height: 12),
 
-                // Card de nombre (glass + hover)
+                // Card de nombre
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: AnimatedContainer(
@@ -428,7 +458,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                         child: Container(
                           decoration: BoxDecoration(
                             color: isDark
-                                ? const Color(0xFF1A1A1A).withValues(alpha: 0.65)
+                                ? const Color(0xFF1A1A1A)
+                                    .withValues(alpha: 0.65)
                                 : Colors.white.withValues(alpha: 0.70),
                           ),
                           child: _editandoNombre
@@ -441,68 +472,86 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                                         autofocus: true,
                                         style: TextStyle(
                                           fontSize: fontSizeBody,
-                                          color: theme.colorScheme.onSurface,
+                                          color:
+                                              theme.colorScheme.onSurface,
                                         ),
                                         decoration: InputDecoration(
                                           labelText: 'Nuevo nombre',
                                           labelStyle: TextStyle(
                                             fontSize: fontSizeBody,
-                                            color: theme.colorScheme.onSurfaceVariant,
+                                            color: theme
+                                                .colorScheme.onSurfaceVariant,
                                           ),
                                           border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(10),
+                                            borderRadius:
+                                                BorderRadius.circular(10),
                                             borderSide: BorderSide(
                                               color: isDark
-                                                  ? Colors.white.withValues(alpha: 0.2)
-                                                  : Colors.black.withValues(alpha: 0.1),
+                                                  ? Colors.white
+                                                      .withValues(alpha: 0.2)
+                                                  : Colors.black
+                                                      .withValues(alpha: 0.1),
                                             ),
                                           ),
                                           prefixIcon: Icon(
                                             Icons.person_outline_rounded,
                                             size: iconSize,
-                                            color: theme.colorScheme.onSurfaceVariant,
+                                            color: theme
+                                                .colorScheme.onSurfaceVariant,
                                           ),
                                         ),
-                                        onSubmitted: (_) => _cambiarNombre(),
+                                        onSubmitted: (_) =>
+                                            _cambiarNombre(usuario),
                                       ),
                                       const SizedBox(height: 16),
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.end,
                                         children: [
                                           TextButton(
                                             onPressed: () {
                                               setState(() {
                                                 _editandoNombre = false;
-                                                _nombreController.text = widget.usuarioLogueado.nombre;
+                                                _nombreController.text =
+                                                    usuario.nombre;
                                               });
                                             },
                                             child: Text(
                                               'Cancelar',
                                               style: TextStyle(
                                                 fontSize: fontSizeBody,
-                                                color: theme.colorScheme.onSurfaceVariant,
+                                                color: theme.colorScheme
+                                                    .onSurfaceVariant,
                                               ),
                                             ),
                                           ),
                                           const SizedBox(width: 12),
                                           ElevatedButton(
-                                            onPressed: _guardandoNombre ? null : _cambiarNombre,
+                                            onPressed: _guardandoNombre
+                                                ? null
+                                                : () => _cambiarNombre(
+                                                    usuario),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFF10B981),
+                                              backgroundColor:
+                                                  const Color(0xFF10B981),
                                               foregroundColor: Colors.white,
                                               padding: EdgeInsets.symmetric(
-                                                horizontal: isMobile ? 20 : 32,
-                                                vertical: isMobile ? 12 : 16,
+                                                horizontal:
+                                                    isMobile ? 20 : 32,
+                                                vertical:
+                                                    isMobile ? 12 : 16,
                                               ),
                                               shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(10),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
                                               ),
                                             ),
                                             child: _guardandoNombre
                                                 ? const SizedBox(
                                                     width: 28,
                                                     height: 28,
-                                                    child: CircularProgressIndicator(
+                                                    child:
+                                                        CircularProgressIndicator(
                                                       strokeWidth: 2,
                                                       color: Colors.white,
                                                     ),
@@ -511,7 +560,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                                                     'Guardar',
                                                     style: TextStyle(
                                                       fontSize: fontSizeBody,
-                                                      fontWeight: FontWeight.w600,
+                                                      fontWeight:
+                                                          FontWeight.w600,
                                                     ),
                                                   ),
                                           ),
@@ -521,11 +571,15 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                                   ),
                                 )
                               : ListTile(
-                                  contentPadding: EdgeInsets.symmetric(horizontal: cardPadding, vertical: 8),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: cardPadding,
+                                    vertical: 8,
+                                  ),
                                   leading: Container(
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                                      color: const Color(0xFF3B82F6)
+                                          .withValues(alpha: 0.1),
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
@@ -543,10 +597,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                                     ),
                                   ),
                                   subtitle: Text(
-                                    widget.usuarioLogueado.nombre,
+                                    usuario.nombre,
                                     style: TextStyle(
                                       fontSize: fontSizeSubtitle,
-                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                      color: theme.colorScheme.onSurface
+                                          .withValues(alpha: 0.6),
                                     ),
                                   ),
                                   trailing: IconButton(
@@ -555,10 +610,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                                       color: const Color(0xFF3B82F6),
                                       size: iconSize,
                                     ),
-                                    onPressed: () => setState(() => _editandoNombre = true),
+                                    onPressed: () => setState(
+                                        () => _editandoNombre = true),
                                   ),
-                                  onTap: () => setState(() => _editandoNombre = true),
-                                  dense: false,
+                                  onTap: () => setState(
+                                      () => _editandoNombre = true),
                                 ),
                         ),
                       ),
@@ -567,7 +623,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                 ),
                 const SizedBox(height: 12),
 
-                // Card de cambiar PIN (glass + hover)
+                // Card de cambiar PIN
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: AnimatedContainer(
@@ -598,15 +654,18 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                         child: Container(
                           decoration: BoxDecoration(
                             color: isDark
-                                ? const Color(0xFF1A1A1A).withValues(alpha: 0.65)
+                                ? const Color(0xFF1A1A1A)
+                                    .withValues(alpha: 0.65)
                                 : Colors.white.withValues(alpha: 0.70),
                           ),
                           child: ListTile(
-                            contentPadding: EdgeInsets.symmetric(horizontal: cardPadding, vertical: 8),
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: cardPadding, vertical: 8),
                             leading: Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
+                                color: const Color(0xFF0EA5E9)
+                                    .withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
@@ -624,18 +683,20 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                               ),
                             ),
                             subtitle: Text(
-                              'Actualizar tu PIN de ${widget.usuarioLogueado.rol}',
+                              'Actualizar tu PIN de ${usuario.rol}',
                               style: TextStyle(
                                 fontSize: fontSizeSubtitle,
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.6),
                               ),
                             ),
                             trailing: Icon(
                               Icons.arrow_forward_ios_rounded,
                               size: iconSize * 0.6,
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                              color: theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.4),
                             ),
-                            onTap: _cambiarPin,
+                            onTap: () => _cambiarPin(usuario),
                           ),
                         ),
                       ),
@@ -644,7 +705,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                 ),
                 const SizedBox(height: 12),
 
-                // ========== TEMA OSCURO (GLASS) ==========
+                // ═══ TEMA OSCURO ═══
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 400),
                   curve: Curves.easeInOut,
@@ -674,26 +735,31 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                       child: Container(
                         decoration: BoxDecoration(
                           color: isDark
-                              ? const Color(0xFF1A1A1A).withValues(alpha: 0.65)
+                              ? const Color(0xFF1A1A1A)
+                                  .withValues(alpha: 0.65)
                               : Colors.white.withValues(alpha: 0.70),
                         ),
                         child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: cardPadding, vertical: 10),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: cardPadding, vertical: 10),
                           child: Row(
                             children: [
                               AnimatedContainer(
-                                duration: const Duration(milliseconds: 400),
+                                duration:
+                                    const Duration(milliseconds: 400),
                                 curve: Curves.easeInOut,
                                 transform: isDark
                                     ? (Matrix4.identity()..rotateZ(0.2))
                                     : Matrix4.identity(),
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                                  color: const Color(0xFFF59E0B)
+                                      .withValues(alpha: 0.1),
                                   shape: BoxShape.circle,
                                 ),
                                 child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 400),
+                                  duration:
+                                      const Duration(milliseconds: 400),
                                   switchInCurve: Curves.easeOutCubic,
                                   switchOutCurve: Curves.easeInCubic,
                                   transitionBuilder: (child, animation) {
@@ -706,7 +772,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                                     );
                                   },
                                   child: Icon(
-                                    isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                                    isDark
+                                        ? Icons.dark_mode_rounded
+                                        : Icons.light_mode_rounded,
                                     key: ValueKey(isDark),
                                     color: const Color(0xFFF59E0B),
                                     size: iconSize,
@@ -716,21 +784,25 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                               const SizedBox(width: 18),
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       'Tema oscuro',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w600,
                                         fontSize: fontSizeBody,
-                                        color: theme.colorScheme.onSurface,
+                                        color:
+                                            theme.colorScheme.onSurface,
                                       ),
                                     ),
                                     AnimatedSwitcher(
-                                      duration: const Duration(milliseconds: 400),
+                                      duration: const Duration(
+                                          milliseconds: 400),
                                       switchInCurve: Curves.easeOutCubic,
                                       switchOutCurve: Curves.easeInCubic,
-                                      transitionBuilder: (child, animation) {
+                                      transitionBuilder:
+                                          (child, animation) {
                                         return FadeTransition(
                                           opacity: animation,
                                           child: SlideTransition(
@@ -750,7 +822,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                                           fontWeight: FontWeight.w500,
                                           color: isDark
                                               ? const Color(0xFFF59E0B)
-                                              : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                              : theme
+                                                  .colorScheme.onSurface
+                                                  .withValues(alpha: 0.6),
                                         ),
                                       ),
                                     ),
@@ -762,19 +836,33 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                                 child: Switch(
                                   value: isDark,
                                   onChanged: (value) {
-                                    _themeAnimationController.forward(from: 0.0);
-                                    ref.read(themeProvider.notifier).setTheme(
-                                      value ? ThemeMode.dark : ThemeMode.light,
+                                    _themeAnimationController.forward(
+                                        from: 0.0);
+                                    ref
+                                        .read(themeProvider.notifier)
+                                        .setTheme(
+                                          value
+                                              ? ThemeMode.dark
+                                              : ThemeMode.light,
+                                        );
+                                    Future.delayed(
+                                      const Duration(milliseconds: 500),
+                                      () {
+                                        if (mounted) {
+                                          _themeAnimationController
+                                              .reverse();
+                                        }
+                                      },
                                     );
-                                    Future.delayed(const Duration(milliseconds: 500), () {
-                                      _themeAnimationController.reverse();
-                                    });
                                   },
                                   activeThumbColor: const Color(0xFFF59E0B),
-                                  activeTrackColor: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                                  activeTrackColor:
+                                      const Color(0xFFF59E0B)
+                                          .withValues(alpha: 0.4),
                                   inactiveThumbColor: Colors.grey.shade400,
                                   inactiveTrackColor: Colors.grey.shade300,
-                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                 ),
                               ),
                             ],
@@ -787,7 +875,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
 
                 SizedBox(height: sectionSpacing),
 
-                // ========== SECCIÓN: ACCIONES ==========
+                // ═══ ACCIONES ═══
                 _buildSectionHeader(
                   'Acciones',
                   Icons.settings_rounded,
@@ -796,7 +884,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                 ),
                 const SizedBox(height: 12),
 
-                // Card de cerrar sesión (glass + hover)
+                // Card de cerrar sesión
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: AnimatedContainer(
@@ -827,15 +915,18 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                         child: Container(
                           decoration: BoxDecoration(
                             color: isDark
-                                ? const Color(0xFF1A1A1A).withValues(alpha: 0.65)
+                                ? const Color(0xFF1A1A1A)
+                                    .withValues(alpha: 0.65)
                                 : Colors.white.withValues(alpha: 0.70),
                           ),
                           child: ListTile(
-                            contentPadding: EdgeInsets.symmetric(horizontal: cardPadding, vertical: 8),
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: cardPadding, vertical: 8),
                             leading: Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                                color: const Color(0xFFEF4444)
+                                    .withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
@@ -845,7 +936,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                               ),
                             ),
                             title: const Text(
-                              'Cerrar Sesión',
+                              'Cerrar sesión',
                               style: TextStyle(
                                 color: Color(0xFFEF4444),
                                 fontWeight: FontWeight.w500,
@@ -855,13 +946,15 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                               'Salir de la aplicación',
                               style: TextStyle(
                                 fontSize: fontSizeSubtitle,
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.6),
                               ),
                             ),
                             trailing: Icon(
                               Icons.arrow_forward_ios_rounded,
                               size: iconSize * 0.6,
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                              color: theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.4),
                             ),
                             onTap: _cerrarSesion,
                           ),

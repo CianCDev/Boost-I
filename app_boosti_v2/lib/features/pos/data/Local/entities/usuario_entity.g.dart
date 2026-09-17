@@ -47,93 +47,124 @@ const UsuarioEntitySchema = CollectionSchema(
       name: r'deviceId',
       type: IsarType.string,
     ),
-    r'dynamicId': PropertySchema(
+    r'direccion': PropertySchema(
       id: 6,
+      name: r'direccion',
+      type: IsarType.string,
+    ),
+    r'dynamicId': PropertySchema(
+      id: 7,
       name: r'dynamicId',
       type: IsarType.string,
     ),
     r'email': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'email',
       type: IsarType.string,
     ),
     r'estado': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'estado',
       type: IsarType.string,
     ),
     r'fechaSincronizacion': PropertySchema(
-      id: 9,
+      id: 10,
       name: r'fechaSincronizacion',
       type: IsarType.dateTime,
     ),
+    r'fotoUrl': PropertySchema(
+      id: 11,
+      name: r'fotoUrl',
+      type: IsarType.string,
+    ),
     r'inicioDescanso': PropertySchema(
-      id: 10,
+      id: 12,
       name: r'inicioDescanso',
       type: IsarType.dateTime,
     ),
     r'localId': PropertySchema(
-      id: 11,
+      id: 13,
       name: r'localId',
       type: IsarType.long,
     ),
     r'minutosDescanso': PropertySchema(
-      id: 12,
+      id: 14,
       name: r'minutosDescanso',
       type: IsarType.long,
     ),
     r'nombre': PropertySchema(
-      id: 13,
+      id: 15,
       name: r'nombre',
       type: IsarType.string,
     ),
+    r'numeroDocumento': PropertySchema(
+      id: 16,
+      name: r'numeroDocumento',
+      type: IsarType.string,
+    ),
     r'password': PropertySchema(
-      id: 14,
+      id: 17,
       name: r'password',
       type: IsarType.string,
     ),
     r'pin': PropertySchema(
-      id: 15,
+      id: 18,
       name: r'pin',
       type: IsarType.string,
     ),
     r'rol': PropertySchema(
-      id: 16,
+      id: 19,
       name: r'rol',
       type: IsarType.string,
     ),
     r'sincronizado': PropertySchema(
-      id: 17,
+      id: 20,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'supabaseId': PropertySchema(
-      id: 18,
+      id: 21,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'supabaseUid': PropertySchema(
-      id: 19,
+      id: 22,
       name: r'supabaseUid',
       type: IsarType.string,
     ),
+    r'supervisorId': PropertySchema(
+      id: 23,
+      name: r'supervisorId',
+      type: IsarType.long,
+    ),
+    r'telefono': PropertySchema(
+      id: 24,
+      name: r'telefono',
+      type: IsarType.string,
+    ),
     r'tenantId': PropertySchema(
-      id: 20,
+      id: 25,
       name: r'tenantId',
       type: IsarType.string,
     ),
+    r'tipoDocumento': PropertySchema(
+      id: 26,
+      name: r'tipoDocumento',
+      type: IsarType.string,
+      enumMap: _UsuarioEntitytipoDocumentoEnumValueMap,
+    ),
     r'ultimaActividad': PropertySchema(
-      id: 21,
+      id: 27,
       name: r'ultimaActividad',
       type: IsarType.dateTime,
     ),
     r'ultimaActualizacion': PropertySchema(
-      id: 22,
+      id: 28,
       name: r'ultimaActualizacion',
       type: IsarType.dateTime,
     ),
     r'updatedAt': PropertySchema(
-      id: 23,
+      id: 29,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -185,6 +216,12 @@ int _usuarioEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final value = object.direccion;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.dynamicId.length * 3;
   {
     final value = object.email;
@@ -193,7 +230,19 @@ int _usuarioEntityEstimateSize(
     }
   }
   bytesCount += 3 + object.estado.length * 3;
+  {
+    final value = object.fotoUrl;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.nombre.length * 3;
+  {
+    final value = object.numeroDocumento;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   {
     final value = object.password;
     if (value != null) {
@@ -215,9 +264,21 @@ int _usuarioEntityEstimateSize(
     }
   }
   {
+    final value = object.telefono;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final value = object.tenantId;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.tipoDocumento;
+    if (value != null) {
+      bytesCount += 3 + value.name.length * 3;
     }
   }
   return bytesCount;
@@ -235,24 +296,30 @@ void _usuarioEntitySerialize(
   writer.writeString(offsets[3], object.departamento);
   writer.writeLong(offsets[4], object.departamentoId);
   writer.writeString(offsets[5], object.deviceId);
-  writer.writeString(offsets[6], object.dynamicId);
-  writer.writeString(offsets[7], object.email);
-  writer.writeString(offsets[8], object.estado);
-  writer.writeDateTime(offsets[9], object.fechaSincronizacion);
-  writer.writeDateTime(offsets[10], object.inicioDescanso);
-  writer.writeLong(offsets[11], object.localId);
-  writer.writeLong(offsets[12], object.minutosDescanso);
-  writer.writeString(offsets[13], object.nombre);
-  writer.writeString(offsets[14], object.password);
-  writer.writeString(offsets[15], object.pin);
-  writer.writeString(offsets[16], object.rol);
-  writer.writeBool(offsets[17], object.sincronizado);
-  writer.writeString(offsets[18], object.supabaseId);
-  writer.writeString(offsets[19], object.supabaseUid);
-  writer.writeString(offsets[20], object.tenantId);
-  writer.writeDateTime(offsets[21], object.ultimaActividad);
-  writer.writeDateTime(offsets[22], object.ultimaActualizacion);
-  writer.writeDateTime(offsets[23], object.updatedAt);
+  writer.writeString(offsets[6], object.direccion);
+  writer.writeString(offsets[7], object.dynamicId);
+  writer.writeString(offsets[8], object.email);
+  writer.writeString(offsets[9], object.estado);
+  writer.writeDateTime(offsets[10], object.fechaSincronizacion);
+  writer.writeString(offsets[11], object.fotoUrl);
+  writer.writeDateTime(offsets[12], object.inicioDescanso);
+  writer.writeLong(offsets[13], object.localId);
+  writer.writeLong(offsets[14], object.minutosDescanso);
+  writer.writeString(offsets[15], object.nombre);
+  writer.writeString(offsets[16], object.numeroDocumento);
+  writer.writeString(offsets[17], object.password);
+  writer.writeString(offsets[18], object.pin);
+  writer.writeString(offsets[19], object.rol);
+  writer.writeBool(offsets[20], object.sincronizado);
+  writer.writeString(offsets[21], object.supabaseId);
+  writer.writeString(offsets[22], object.supabaseUid);
+  writer.writeLong(offsets[23], object.supervisorId);
+  writer.writeString(offsets[24], object.telefono);
+  writer.writeString(offsets[25], object.tenantId);
+  writer.writeString(offsets[26], object.tipoDocumento?.name);
+  writer.writeDateTime(offsets[27], object.ultimaActividad);
+  writer.writeDateTime(offsets[28], object.ultimaActualizacion);
+  writer.writeDateTime(offsets[29], object.updatedAt);
 }
 
 UsuarioEntity _usuarioEntityDeserialize(
@@ -268,25 +335,32 @@ UsuarioEntity _usuarioEntityDeserialize(
   object.departamento = reader.readStringOrNull(offsets[3]);
   object.departamentoId = reader.readLongOrNull(offsets[4]);
   object.deviceId = reader.readStringOrNull(offsets[5]);
-  object.dynamicId = reader.readString(offsets[6]);
-  object.email = reader.readStringOrNull(offsets[7]);
-  object.estado = reader.readString(offsets[8]);
-  object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[9]);
+  object.direccion = reader.readStringOrNull(offsets[6]);
+  object.dynamicId = reader.readString(offsets[7]);
+  object.email = reader.readStringOrNull(offsets[8]);
+  object.estado = reader.readString(offsets[9]);
+  object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[10]);
+  object.fotoUrl = reader.readStringOrNull(offsets[11]);
   object.id = id;
-  object.inicioDescanso = reader.readDateTimeOrNull(offsets[10]);
-  object.localId = reader.readLongOrNull(offsets[11]);
-  object.minutosDescanso = reader.readLongOrNull(offsets[12]);
-  object.nombre = reader.readString(offsets[13]);
-  object.password = reader.readStringOrNull(offsets[14]);
-  object.pin = reader.readString(offsets[15]);
-  object.rol = reader.readString(offsets[16]);
-  object.sincronizado = reader.readBool(offsets[17]);
-  object.supabaseId = reader.readStringOrNull(offsets[18]);
-  object.supabaseUid = reader.readStringOrNull(offsets[19]);
-  object.tenantId = reader.readStringOrNull(offsets[20]);
-  object.ultimaActividad = reader.readDateTimeOrNull(offsets[21]);
-  object.ultimaActualizacion = reader.readDateTimeOrNull(offsets[22]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[23]);
+  object.inicioDescanso = reader.readDateTimeOrNull(offsets[12]);
+  object.localId = reader.readLongOrNull(offsets[13]);
+  object.minutosDescanso = reader.readLongOrNull(offsets[14]);
+  object.nombre = reader.readString(offsets[15]);
+  object.numeroDocumento = reader.readStringOrNull(offsets[16]);
+  object.password = reader.readStringOrNull(offsets[17]);
+  object.pin = reader.readString(offsets[18]);
+  object.rol = reader.readString(offsets[19]);
+  object.sincronizado = reader.readBool(offsets[20]);
+  object.supabaseId = reader.readStringOrNull(offsets[21]);
+  object.supabaseUid = reader.readStringOrNull(offsets[22]);
+  object.supervisorId = reader.readLongOrNull(offsets[23]);
+  object.telefono = reader.readStringOrNull(offsets[24]);
+  object.tenantId = reader.readStringOrNull(offsets[25]);
+  object.tipoDocumento = _UsuarioEntitytipoDocumentoValueEnumMap[
+      reader.readStringOrNull(offsets[26])];
+  object.ultimaActividad = reader.readDateTimeOrNull(offsets[27]);
+  object.ultimaActualizacion = reader.readDateTimeOrNull(offsets[28]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[29]);
   return object;
 }
 
@@ -310,45 +384,71 @@ P _usuarioEntityDeserializeProp<P>(
     case 5:
       return (reader.readStringOrNull(offset)) as P;
     case 6:
-      return (reader.readString(offset)) as P;
-    case 7:
       return (reader.readStringOrNull(offset)) as P;
-    case 8:
+    case 7:
       return (reader.readString(offset)) as P;
+    case 8:
+      return (reader.readStringOrNull(offset)) as P;
     case 9:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 10:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 11:
-      return (reader.readLongOrNull(offset)) as P;
-    case 12:
-      return (reader.readLongOrNull(offset)) as P;
-    case 13:
-      return (reader.readString(offset)) as P;
-    case 14:
       return (reader.readStringOrNull(offset)) as P;
+    case 12:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 13:
+      return (reader.readLongOrNull(offset)) as P;
+    case 14:
+      return (reader.readLongOrNull(offset)) as P;
     case 15:
       return (reader.readString(offset)) as P;
     case 16:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 17:
-      return (reader.readBool(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 18:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 19:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 20:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 21:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 22:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 23:
+      return (reader.readLongOrNull(offset)) as P;
+    case 24:
+      return (reader.readStringOrNull(offset)) as P;
+    case 25:
+      return (reader.readStringOrNull(offset)) as P;
+    case 26:
+      return (_UsuarioEntitytipoDocumentoValueEnumMap[
+          reader.readStringOrNull(offset)]) as P;
+    case 27:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 28:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 29:
       return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
 }
+
+const _UsuarioEntitytipoDocumentoEnumValueMap = {
+  r'v': r'v',
+  r'e': r'e',
+  r'j': r'j',
+  r'p': r'p',
+};
+const _UsuarioEntitytipoDocumentoValueEnumMap = {
+  r'v': TipoDocumento.v,
+  r'e': TipoDocumento.e,
+  r'j': TipoDocumento.j,
+  r'p': TipoDocumento.p,
+};
 
 Id _usuarioEntityGetId(UsuarioEntity object) {
   return object.id;
@@ -1149,6 +1249,160 @@ extension UsuarioEntityQueryFilter
   }
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'direccion',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'direccion',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'direccion',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'direccion',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'direccion',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'direccion',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'direccion',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'direccion',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'direccion',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'direccion',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'direccion',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      direccionIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'direccion',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       dynamicIdEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -1648,6 +1902,160 @@ extension UsuarioEntityQueryFilter
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'fotoUrl',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'fotoUrl',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'fotoUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'fotoUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'fotoUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'fotoUrl',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'fotoUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'fotoUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'fotoUrl',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'fotoUrl',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'fotoUrl',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      fotoUrlIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'fotoUrl',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition> idEqualTo(
       Id value) {
     return QueryBuilder.apply(this, (query) {
@@ -2055,6 +2463,160 @@ extension UsuarioEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'nombre',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'numeroDocumento',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'numeroDocumento',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'numeroDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'numeroDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'numeroDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'numeroDocumento',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'numeroDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'numeroDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'numeroDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'numeroDocumento',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'numeroDocumento',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      numeroDocumentoIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'numeroDocumento',
         value: '',
       ));
     });
@@ -2801,6 +3363,234 @@ extension UsuarioEntityQueryFilter
   }
 
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supervisorIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'supervisorId',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supervisorIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'supervisorId',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supervisorIdEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'supervisorId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supervisorIdGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'supervisorId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supervisorIdLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'supervisorId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      supervisorIdBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'supervisorId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'telefono',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'telefono',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'telefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'telefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'telefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'telefono',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'telefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'telefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'telefono',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'telefono',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'telefono',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      telefonoIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'telefono',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
       tenantIdIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -2949,6 +3739,160 @@ extension UsuarioEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'tenantId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'tipoDocumento',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'tipoDocumento',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoEqualTo(
+    TipoDocumento? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoGreaterThan(
+    TipoDocumento? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoLessThan(
+    TipoDocumento? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoBetween(
+    TipoDocumento? lower,
+    TipoDocumento? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'tipoDocumento',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'tipoDocumento',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tipoDocumento',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      tipoDocumentoIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'tipoDocumento',
         value: '',
       ));
     });
@@ -3265,6 +4209,19 @@ extension UsuarioEntityQuerySortBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByDireccion() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'direccion', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByDireccionDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'direccion', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByDynamicId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'dynamicId', Sort.asc);
@@ -3313,6 +4270,18 @@ extension UsuarioEntityQuerySortBy
       sortByFechaSincronizacionDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'fechaSincronizacion', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByFotoUrl() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fotoUrl', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByFotoUrlDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fotoUrl', Sort.desc);
     });
   }
 
@@ -3365,6 +4334,20 @@ extension UsuarioEntityQuerySortBy
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByNombreDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombre', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByNumeroDocumento() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'numeroDocumento', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByNumeroDocumentoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'numeroDocumento', Sort.desc);
     });
   }
 
@@ -3445,6 +4428,33 @@ extension UsuarioEntityQuerySortBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortBySupervisorId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supervisorId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortBySupervisorIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supervisorId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByTelefono() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'telefono', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByTelefonoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'telefono', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByTenantId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'tenantId', Sort.asc);
@@ -3455,6 +4465,20 @@ extension UsuarioEntityQuerySortBy
       sortByTenantIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'tenantId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByTipoDocumento() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumento', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByTipoDocumentoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumento', Sort.desc);
     });
   }
 
@@ -3582,6 +4606,19 @@ extension UsuarioEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByDireccion() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'direccion', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByDireccionDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'direccion', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByDynamicId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'dynamicId', Sort.asc);
@@ -3630,6 +4667,18 @@ extension UsuarioEntityQuerySortThenBy
       thenByFechaSincronizacionDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'fechaSincronizacion', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByFotoUrl() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fotoUrl', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByFotoUrlDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'fotoUrl', Sort.desc);
     });
   }
 
@@ -3694,6 +4743,20 @@ extension UsuarioEntityQuerySortThenBy
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByNombreDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombre', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByNumeroDocumento() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'numeroDocumento', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByNumeroDocumentoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'numeroDocumento', Sort.desc);
     });
   }
 
@@ -3774,6 +4837,33 @@ extension UsuarioEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenBySupervisorId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supervisorId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenBySupervisorIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'supervisorId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByTelefono() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'telefono', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByTelefonoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'telefono', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByTenantId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'tenantId', Sort.asc);
@@ -3784,6 +4874,20 @@ extension UsuarioEntityQuerySortThenBy
       thenByTenantIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'tenantId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByTipoDocumento() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumento', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByTipoDocumentoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumento', Sort.desc);
     });
   }
 
@@ -3871,6 +4975,13 @@ extension UsuarioEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByDireccion(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'direccion', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByDynamicId(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -3899,6 +5010,13 @@ extension UsuarioEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByFotoUrl(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'fotoUrl', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct>
       distinctByInicioDescanso() {
     return QueryBuilder.apply(this, (query) {
@@ -3923,6 +5041,14 @@ extension UsuarioEntityQueryWhereDistinct
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'nombre', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct>
+      distinctByNumeroDocumento({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'numeroDocumento',
+          caseSensitive: caseSensitive);
     });
   }
 
@@ -3968,10 +5094,32 @@ extension UsuarioEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct>
+      distinctBySupervisorId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'supervisorId');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByTelefono(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'telefono', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByTenantId(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'tenantId', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByTipoDocumento(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'tipoDocumento',
+          caseSensitive: caseSensitive);
     });
   }
 
@@ -4041,6 +5189,12 @@ extension UsuarioEntityQueryProperty
     });
   }
 
+  QueryBuilder<UsuarioEntity, String?, QQueryOperations> direccionProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'direccion');
+    });
+  }
+
   QueryBuilder<UsuarioEntity, String, QQueryOperations> dynamicIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'dynamicId');
@@ -4063,6 +5217,12 @@ extension UsuarioEntityQueryProperty
       fechaSincronizacionProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'fechaSincronizacion');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, String?, QQueryOperations> fotoUrlProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'fotoUrl');
     });
   }
 
@@ -4089,6 +5249,13 @@ extension UsuarioEntityQueryProperty
   QueryBuilder<UsuarioEntity, String, QQueryOperations> nombreProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'nombre');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, String?, QQueryOperations>
+      numeroDocumentoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'numeroDocumento');
     });
   }
 
@@ -4128,9 +5295,28 @@ extension UsuarioEntityQueryProperty
     });
   }
 
+  QueryBuilder<UsuarioEntity, int?, QQueryOperations> supervisorIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'supervisorId');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, String?, QQueryOperations> telefonoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'telefono');
+    });
+  }
+
   QueryBuilder<UsuarioEntity, String?, QQueryOperations> tenantIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'tenantId');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, TipoDocumento?, QQueryOperations>
+      tipoDocumentoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'tipoDocumento');
     });
   }
 

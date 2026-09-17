@@ -78,13 +78,23 @@ const TelegramConfigEntitySchema = CollectionSchema(
       name: r'supabaseId',
       type: IsarType.string,
     ),
-    r'updatedAt': PropertySchema(
+    r'syncStatus': PropertySchema(
       id: 12,
+      name: r'syncStatus',
+      type: IsarType.string,
+    ),
+    r'tenantId': PropertySchema(
+      id: 13,
+      name: r'tenantId',
+      type: IsarType.string,
+    ),
+    r'updatedAt': PropertySchema(
+      id: 14,
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
     r'usuarioId': PropertySchema(
-      id: 13,
+      id: 15,
       name: r'usuarioId',
       type: IsarType.long,
     )
@@ -94,21 +104,7 @@ const TelegramConfigEntitySchema = CollectionSchema(
   deserialize: _telegramConfigEntityDeserialize,
   deserializeProp: _telegramConfigEntityDeserializeProp,
   idName: r'id',
-  indexes: {
-    r'usuarioId': IndexSchema(
-      id: -6806307564427522310,
-      name: r'usuarioId',
-      unique: false,
-      replace: false,
-      properties: [
-        IndexPropertySchema(
-          name: r'usuarioId',
-          type: IndexType.value,
-          caseSensitive: false,
-        )
-      ],
-    )
-  },
+  indexes: {},
   links: {},
   embeddedSchemas: {},
   getId: _telegramConfigEntityGetId,
@@ -144,6 +140,13 @@ int _telegramConfigEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  bytesCount += 3 + object.syncStatus.length * 3;
+  {
+    final value = object.tenantId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -165,8 +168,10 @@ void _telegramConfigEntitySerialize(
   writer.writeBool(offsets[9], object.notificarVentas);
   writer.writeBool(offsets[10], object.sincronizado);
   writer.writeString(offsets[11], object.supabaseId);
-  writer.writeDateTime(offsets[12], object.updatedAt);
-  writer.writeLong(offsets[13], object.usuarioId);
+  writer.writeString(offsets[12], object.syncStatus);
+  writer.writeString(offsets[13], object.tenantId);
+  writer.writeDateTime(offsets[14], object.updatedAt);
+  writer.writeLong(offsets[15], object.usuarioId);
 }
 
 TelegramConfigEntity _telegramConfigEntityDeserialize(
@@ -189,8 +194,10 @@ TelegramConfigEntity _telegramConfigEntityDeserialize(
   object.notificarVentas = reader.readBool(offsets[9]);
   object.sincronizado = reader.readBool(offsets[10]);
   object.supabaseId = reader.readStringOrNull(offsets[11]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[12]);
-  object.usuarioId = reader.readLong(offsets[13]);
+  object.syncStatus = reader.readString(offsets[12]);
+  object.tenantId = reader.readStringOrNull(offsets[13]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[14]);
+  object.usuarioId = reader.readLong(offsets[15]);
   return object;
 }
 
@@ -226,8 +233,12 @@ P _telegramConfigEntityDeserializeProp<P>(
     case 11:
       return (reader.readStringOrNull(offset)) as P;
     case 12:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 13:
+      return (reader.readStringOrNull(offset)) as P;
+    case 14:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 15:
       return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -254,15 +265,6 @@ extension TelegramConfigEntityQueryWhereSort
       anyId() {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(const IdWhereClause.any());
-    });
-  }
-
-  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhere>
-      anyUsuarioId() {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(
-        const IndexWhereClause.any(indexName: r'usuarioId'),
-      );
     });
   }
 }
@@ -332,99 +334,6 @@ extension TelegramConfigEntityQueryWhere
         lower: lowerId,
         includeLower: includeLower,
         upper: upperId,
-        includeUpper: includeUpper,
-      ));
-    });
-  }
-
-  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhereClause>
-      usuarioIdEqualTo(int usuarioId) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IndexWhereClause.equalTo(
-        indexName: r'usuarioId',
-        value: [usuarioId],
-      ));
-    });
-  }
-
-  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhereClause>
-      usuarioIdNotEqualTo(int usuarioId) {
-    return QueryBuilder.apply(this, (query) {
-      if (query.whereSort == Sort.asc) {
-        return query
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'usuarioId',
-              lower: [],
-              upper: [usuarioId],
-              includeUpper: false,
-            ))
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'usuarioId',
-              lower: [usuarioId],
-              includeLower: false,
-              upper: [],
-            ));
-      } else {
-        return query
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'usuarioId',
-              lower: [usuarioId],
-              includeLower: false,
-              upper: [],
-            ))
-            .addWhereClause(IndexWhereClause.between(
-              indexName: r'usuarioId',
-              lower: [],
-              upper: [usuarioId],
-              includeUpper: false,
-            ));
-      }
-    });
-  }
-
-  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhereClause>
-      usuarioIdGreaterThan(
-    int usuarioId, {
-    bool include = false,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IndexWhereClause.between(
-        indexName: r'usuarioId',
-        lower: [usuarioId],
-        includeLower: include,
-        upper: [],
-      ));
-    });
-  }
-
-  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhereClause>
-      usuarioIdLessThan(
-    int usuarioId, {
-    bool include = false,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IndexWhereClause.between(
-        indexName: r'usuarioId',
-        lower: [],
-        upper: [usuarioId],
-        includeUpper: include,
-      ));
-    });
-  }
-
-  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterWhereClause>
-      usuarioIdBetween(
-    int lowerUsuarioId,
-    int upperUsuarioId, {
-    bool includeLower = true,
-    bool includeUpper = true,
-  }) {
-    return QueryBuilder.apply(this, (query) {
-      return query.addWhereClause(IndexWhereClause.between(
-        indexName: r'usuarioId',
-        lower: [lowerUsuarioId],
-        includeLower: includeLower,
-        upper: [upperUsuarioId],
         includeUpper: includeUpper,
       ));
     });
@@ -1505,6 +1414,300 @@ extension TelegramConfigEntityQueryFilter on QueryBuilder<TelegramConfigEntity,
   }
 
   QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> syncStatusEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> syncStatusGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> syncStatusLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> syncStatusBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'syncStatus',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> syncStatusStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> syncStatusEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+          QAfterFilterCondition>
+      syncStatusContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'syncStatus',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+          QAfterFilterCondition>
+      syncStatusMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'syncStatus',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> syncStatusIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'syncStatus',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> syncStatusIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'syncStatus',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> tenantIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'tenantId',
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> tenantIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'tenantId',
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> tenantIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> tenantIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> tenantIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> tenantIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'tenantId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> tenantIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> tenantIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+          QAfterFilterCondition>
+      tenantIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'tenantId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+          QAfterFilterCondition>
+      tenantIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'tenantId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> tenantIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tenantId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
+      QAfterFilterCondition> tenantIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'tenantId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity,
       QAfterFilterCondition> updatedAtIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -1798,6 +2001,34 @@ extension TelegramConfigEntityQuerySortBy
   }
 
   QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      sortBySyncStatus() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncStatus', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      sortBySyncStatusDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncStatus', Sort.desc);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      sortByTenantId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tenantId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      sortByTenantIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tenantId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
       sortByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -1997,6 +2228,34 @@ extension TelegramConfigEntityQuerySortThenBy
   }
 
   QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      thenBySyncStatus() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncStatus', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      thenBySyncStatusDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncStatus', Sort.desc);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      thenByTenantId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tenantId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
+      thenByTenantIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tenantId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QAfterSortBy>
       thenByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -2112,6 +2371,20 @@ extension TelegramConfigEntityQueryWhereDistinct
   }
 
   QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QDistinct>
+      distinctBySyncStatus({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'syncStatus', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QDistinct>
+      distinctByTenantId({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'tenantId', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, TelegramConfigEntity, QDistinct>
       distinctByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'updatedAt');
@@ -2214,6 +2487,20 @@ extension TelegramConfigEntityQueryProperty on QueryBuilder<
       supabaseIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'supabaseId');
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, String, QQueryOperations>
+      syncStatusProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'syncStatus');
+    });
+  }
+
+  QueryBuilder<TelegramConfigEntity, String?, QQueryOperations>
+      tenantIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'tenantId');
     });
   }
 

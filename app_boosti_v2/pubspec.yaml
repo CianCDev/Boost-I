@@ -36,6 +36,11 @@ dependencies:
   share_plus: ^10.0.0
   archive: ^3.4.0
 
+
+
+#seguridad
+  crypto: ^3.0.7
+
   # Imágenes y cámara
   image: ^4.3.0
   image_picker: ^1.1.2

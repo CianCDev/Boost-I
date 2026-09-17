@@ -137,6 +137,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   EstadoPedido? _estadoFiltro;
   String? _localDestinoUuid; // ✅ UUID
   late AnimationController _animationController;
+  // ignore: unused_field
   late Animation<double> _fadeAnimation;
 
   String _periodoSeleccionado = 'todos';
