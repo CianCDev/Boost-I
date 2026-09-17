@@ -3292,16 +3292,31 @@ class SyncService {
   // REPARACIÓN DE IMÁGENES
   // ============================================================
 
-  Future<int> repararImagenesFaltantes() async {
+   Future<int> repararImagenesFaltantes() async {
     try {
       debugPrint('🔍 [SyncService] Iniciando reparación de imágenes...');
+
+      // ✅ Obtener tenant activo
+      final tenantId = getTenantIdFromJWT();
+      if (tenantId == null || tenantId.isEmpty) {
+        debugPrint('⚠️ [repararImagenes] Sin tenant_id activo. Abortando.');
+        return 0;
+      }
+
       final productos = await _isarService.obtenerProductos();
       final supabase = Supabase.instance.client;
       int reparados = 0;
 
-      final allFiles = await supabase.storage.from('productos').list();
-      debugPrint('📁 [SyncService] Archivos en Storage: ${allFiles.length}');
+      // ✅ Listar SOLO los archivos del tenant actual
+      final tenantPath = '$tenantId/productos';
+      final allFiles = await supabase.storage
+          .from('productos')
+          .list(path: tenantPath);
 
+      debugPrint(
+          '📁 [SyncService] Archivos en Storage ($tenantPath): ${allFiles.length}');
+
+      // ✅ Mapear archivos por código de barras
       final Map<String, String> archivosPorCodigo = {};
       for (var file in allFiles) {
         final name = file.name;
@@ -3318,12 +3333,14 @@ class SyncService {
 
         final fileName = archivosPorCodigo[p.codigoBarras];
         if (fileName != null) {
+          // ✅ Path completo: {tenant_id}/productos/{fileName}
+          final fullPath = '$tenantPath/$fileName';
           final publicUrl =
-              supabase.storage.from('productos').getPublicUrl(fileName);
+              supabase.storage.from('productos').getPublicUrl(fullPath);
           p.imagenUrl = publicUrl;
           await _isarService.guardarProducto(p);
           reparados++;
-          debugPrint('🖼️ Imagen reparada para ${p.nombre}');
+          debugPrint('🖼️ Imagen reparada para ${p.nombre}: $fullPath');
         } else {
           debugPrint(
               '⚠️ No se encontró imagen para ${p.nombre} (código: ${p.codigoBarras})');

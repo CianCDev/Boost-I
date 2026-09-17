@@ -22,6 +22,7 @@ import '../../providers/categorias_provider.dart';
 import '../../providers/productos_provider.dart';
 import '../../services/sync_service.dart';
 import '../../utils/responsive_helper.dart';
+import '../../utils/tenant_utils.dart'; // ✅ NUEVO: getTenantIdFromJWT()
 import '../proveedores/crear_proveedor_dialog.dart';
 import '../shared/barcode_scanner_dialog.dart';
 import '../common/glass_dialog.dart';
@@ -480,6 +481,50 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     });
   }
 
+  // ==================== SUBIR IMAGEN ====================
+  /// Sube una imagen al bucket `productos` con path multi-tenant.
+  ///
+  /// Path: `{tenant_id}/productos/{codigo}_{timestamp}.{ext}`
+  ///
+  /// El primer folder DEBE ser el tenant_id para que la policy
+  /// `storage_tenant_all` lo permita (valida que foldername[1] sea
+  /// igual a current_tenant_id()).
+  ///
+  /// Retorna la URL pública o null si falla.
+  Future<String?> _uploadImage(File image, String codigo) async {
+    try {
+      // ✅ Obtener tenant_id (del JWT o del provider)
+      final tenantId = getTenantIdFromJWT();
+      if (tenantId == null || tenantId.isEmpty) {
+        debugPrint(
+            '⚠️ [_uploadImage] Sin tenant_id activo. No se puede subir imagen.');
+        return null;
+      }
+
+      final ext = image.path.split('.').last;
+      final fileName =
+          '$tenantId/productos/${codigo}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+      debugPrint('📤 [_uploadImage] Subiendo a: $fileName');
+
+      await Supabase.instance.client.storage
+          .from('productos')
+          .upload(fileName, image);
+
+      // Bucket público: getPublicUrl funciona directamente
+      final publicUrl = Supabase.instance.client.storage
+          .from('productos')
+          .getPublicUrl(fileName);
+
+      debugPrint('✅ [_uploadImage] Imagen subida: $publicUrl');
+      return publicUrl;
+    } catch (e, stack) {
+      debugPrint('❌ [_uploadImage] Error: $e');
+      debugPrint('❌ [_uploadImage] Stack: $stack');
+      return null;
+    }
+  }
+
   // ==================== GUARDAR ====================
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) {
@@ -570,23 +615,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       }
     } finally {
       if (mounted) setState(() => _guardando = false);
-    }
-  }
-
-  Future<String?> _uploadImage(File image, String codigo) async {
-    try {
-      final ext = image.path.split('.').last;
-      final fileName =
-          '${codigo}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      await Supabase.instance.client.storage
-          .from('productos')
-          .upload(fileName, image);
-      final publicUrl = Supabase.instance.client.storage
-          .from('productos')
-          .getPublicUrl(fileName);
-      return publicUrl;
-    } catch (e) {
-      return null;
     }
   }
 
