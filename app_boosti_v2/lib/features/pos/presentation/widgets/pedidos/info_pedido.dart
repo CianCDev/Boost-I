@@ -66,7 +66,6 @@ class InfoPedido extends StatelessWidget {
                 DateFormat('dd/MM/yyyy HH:mm').format(pedido.fechaPedido),
                 colorScheme,
               ),
-              _infoItem('Local', pedido.localDestinoId.toString(), colorScheme),
               if (pedido.observaciones?.isNotEmpty ?? false)
                 _infoItem('Observaciones', pedido.observaciones!, colorScheme),
             ],
