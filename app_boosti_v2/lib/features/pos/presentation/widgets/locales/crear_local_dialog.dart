@@ -1,13 +1,15 @@
 // lib/features/pos/presentation/widgets/locales/crear_local_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
-import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 import '../common/glass_dialog.dart';
 import '../common/dialog_header.dart';
 import '../dialogos_genericos/error_dialog.dart';
 import '../dialogos_genericos/succes_dialog.dart';
+import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
+
 
 class CrearLocalDialog extends ConsumerStatefulWidget {
   final LocalEntity? local;
@@ -58,48 +60,105 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
 
     setState(() => _isSaving = true);
 
-    final local = LocalEntity()
-      ..nombre = _nombreController.text.trim()
-      ..direccion = _direccionController.text.trim().isNotEmpty
-          ? _direccionController.text.trim()
-          : null
-      ..telefono = _telefonoController.text.trim().isNotEmpty
-          ? _telefonoController.text.trim()
-          : null
-      ..email = _emailController.text.trim().isNotEmpty
-          ? _emailController.text.trim()
-          : null
-      ..rif = _rifController.text.trim().isNotEmpty
-          ? _rifController.text.trim()
-          : null
-      ..activo = _activo
-      ..supabaseId = widget.local?.supabaseId
-      ..sincronizado = false;
-
-    if (widget.local != null) local.id = widget.local!.id;
-
     try {
-      await ref.read(guardarLocalProvider(local).future);
+      final supabase = Supabase.instance.client;
+      final esEdicion = widget.local != null;
+
+      if (!esEdicion) {
+        // ============================================================
+        // CREACIÓN: usar RPC segura 'crear_nuevo_local_para_usuario'
+        // El local se crea directamente en Supabase con tenant_id propio,
+        // y el usuario autenticado queda asignado como admin.
+        // Esta función SQL tiene SECURITY DEFINER y valida auth.uid()
+        // internamente, así que es imposible falsificar al usuario.
+        // ============================================================
+      await supabase.rpc(
+        'crear_nuevo_local_para_usuario',
+        params: {
+          'p_nombre': _nombreController.text.trim(),
+          'p_direccion': _direccionController.text.trim(),
+          'p_telefono': _telefonoController.text.trim(),
+          'p_email': _emailController.text.trim(),
+          'p_rif': _rifController.text.trim(),
+        },
+      );
+
+      // ✅ NUEVO: descargar los locales de Supabase a Isar
+      // antes de refrescar el provider. Sin esto, la lista
+      // lee de Isar y no ve el local recién creado en Supabase.
+      await SyncService().descargarLocalesDesdeSupabase();
+
+      // Ahora sí, refrescar la lista
+      ref.invalidate(localesProvider);
+      } else {
+        // ============================================================
+        // EDICIÓN: actualizar metadata local + Supabase
+        // La policy 'locales_tenant_update' permite UPDATE solo si el
+        // local es el tenant activo del usuario.
+        // ============================================================
+        final local = LocalEntity()
+          ..id = widget.local!.id
+          ..nombre = _nombreController.text.trim()
+          ..direccion = _direccionController.text.trim().isNotEmpty
+              ? _direccionController.text.trim()
+              : null
+          ..telefono = _telefonoController.text.trim().isNotEmpty
+              ? _telefonoController.text.trim()
+              : null
+          ..email = _emailController.text.trim().isNotEmpty
+              ? _emailController.text.trim()
+              : null
+          ..rif = _rifController.text.trim().isNotEmpty
+              ? _rifController.text.trim()
+              : null
+          ..activo = _activo
+          ..supabaseId = widget.local!.supabaseId
+          ..sincronizado = false;
+
+        await ref.read(guardarLocalProvider(local).future);
+
+        // Actualizar en Supabase si tiene supabaseId
+        if (widget.local!.supabaseId != null &&
+            widget.local!.supabaseId!.isNotEmpty) {
+          await supabase.from('locales').update({
+            'nombre': local.nombre,
+            'direccion': local.direccion,
+            'telefono': local.telefono,
+            'email': local.email,
+            'rif': local.rif,
+            'activo': local.activo,
+            'updated_at': DateTime.now().toIso8601String(),
+          }).eq('id', widget.local!.supabaseId!);
+
+          ref.invalidate(localesProvider);
+        }
+      }
+
       if (!mounted) return;
       await showDialog(
         context: context,
         builder: (_) => SuccessDialog(
-          title: widget.local == null ? 'Local creado' : 'Local actualizado',
+          title: esEdicion ? 'Local actualizado' : 'Local creado',
           content: 'Se ha guardado correctamente.',
         ),
       );
       if (mounted) Navigator.pop(context, true);
-      Future.microtask(() async {
-        try {
-          await SyncService().sincronizarLocalesPendientes();
-        } catch (_) {}
-      });
     } catch (e) {
       if (mounted) {
+        final mensaje = e.toString();
+        final esErrorRls = mensaje.contains('row-level security') ||
+            mensaje.contains('42501') ||
+            mensaje.contains('permission denied');
+
         await showDialog(
           context: context,
-          builder: (_) =>
-              ErrorDialog(title: 'Error al guardar', content: e.toString()),
+          builder: (_) => ErrorDialog(
+            title: 'Error al guardar',
+            content: esErrorRls
+                ? 'No tienes permiso para realizar esta acción. '
+                    'Verifica que tu sesión esté activa.'
+                : mensaje,
+          ),
         );
         setState(() => _isSaving = false);
       }
@@ -173,12 +232,14 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
               ),
               const SizedBox(height: 20),
 
-              // ===== TOGGLE ACTIVO =====
-              _ActivoToggle(
-                value: _activo,
-                onChanged: (v) => setState(() => _activo = v),
-              ),
-              const SizedBox(height: 24),
+              // ===== TOGGLE ACTIVO (solo en edición) =====
+              if (esEdicion) ...[
+                _ActivoToggle(
+                  value: _activo,
+                  onChanged: (v) => setState(() => _activo = v),
+                ),
+                const SizedBox(height: 24),
+              ],
 
               // ===== BOTONES =====
               Row(

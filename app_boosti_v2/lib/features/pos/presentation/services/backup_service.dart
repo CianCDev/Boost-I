@@ -8,6 +8,7 @@ import 'package:workmanager/workmanager.dart';
 import 'package:flutter/foundation.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
+import '../../presentation/utils/tenant_utils.dart'; // ✅ getTenantIdFromJWT()
 import 'error_service.dart';
 
 /// Servicio para realizar backups automáticos de la base de datos Isar a Supabase Storage.
@@ -169,6 +170,11 @@ class BackupService {
   // ============================================================
 
   /// Crea un backup completo y lo sube a Supabase Storage.
+  ///
+  /// El path remoto es: `{tenant_id}/backup_{timestamp}_{motivo}.zip`
+  ///
+  /// El primer folder DEBE ser el tenant_id para que la policy
+  /// `backups_tenant_isolation` lo permita.
   Future<bool> crearBackupAutomatico({String reason = 'programado'}) async {
     try {
       debugPrint('🔄 Iniciando backup ($reason)...');
@@ -181,7 +187,16 @@ class BackupService {
         return false;
       }
 
-      // ✅ PASO 2: Cerrar Isar para evitar corrupción
+      // ✅ PASO 2: Obtener tenant_id activo
+      final tenantId = getTenantIdFromJWT();
+      if (tenantId == null || tenantId.isEmpty) {
+        debugPrint(
+            '❌ [backup] Sin tenant_id activo. El backup no se puede completar.');
+        return false;
+      }
+      debugPrint('🏢 Tenant activo para backup: $tenantId');
+
+      // ✅ PASO 3: Cerrar Isar para evitar corrupción
       final isar = await _isarService.db;
       if (!isar.isOpen) {
         debugPrint('❌ Isar no está abierto');
@@ -191,13 +206,13 @@ class BackupService {
       await isar.close();
       debugPrint('🔒 Isar cerrado para backup');
 
-      // ✅ PASO 3: Obtener ruta de la base de datos
+      // ✅ PASO 4: Obtener ruta de la base de datos
       final appDir = await getApplicationDocumentsDirectory();
       final prefs = await SharedPreferences.getInstance();
       final empresaId = prefs.getString('empresa_id') ?? 'default';
       final dbPath = '${appDir.path}/isar_$empresaId';
 
-      // ✅ PASO 4: Comprimir todos los archivos de Isar en un ZIP
+      // ✅ PASO 5: Comprimir todos los archivos de Isar en un ZIP
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
       final zipFile = File('${appDir.path}/backup_temp.zip');
       final archive = Archive();
@@ -217,11 +232,11 @@ class BackupService {
       await zipFile.writeAsBytes(zipBytes!);
       debugPrint('📦 Backup comprimido: ${zipFile.lengthSync()} bytes');
 
-      // ✅ PASO 5: Subir a Supabase Storage (con el cliente autenticado)
+      // ✅ PASO 6: Subir a Supabase Storage (con el cliente autenticado)
       final supabase = Supabase.instance.client;
       final bucketName = 'backups';
 
-      // Crear el bucket si no existe (opcional)
+      // Crear el bucket si no existe (por si acaso)
       try {
         await supabase.storage.createBucket(
           bucketName,
@@ -233,16 +248,19 @@ class BackupService {
       }
 
       final motivo = reason == 'programado' ? 'auto' : reason;
-      final remotePath = '$empresaId/backup_${timestamp}_$motivo.zip';
+      // ✅ Path multi-tenant: {tenant_id}/backup_...
+      final remotePath = '$tenantId/backup_${timestamp}_$motivo.zip';
+
+      debugPrint('📤 [backup] Subiendo a: $remotePath');
 
       // ✅ Subir usando el cliente autenticado (seguro)
       await supabase.storage.from(bucketName).upload(remotePath, zipFile);
 
-      // ✅ PASO 6: Limpieza local
+      // ✅ PASO 7: Limpieza local
       await zipFile.delete();
       debugPrint('✅ Backup subido a Supabase: $remotePath');
 
-      // ✅ PASO 7: Reabrir Isar
+      // ✅ PASO 8: Reabrir Isar
       await _isarService.db;
       debugPrint('🔓 Isar reabierto');
 
@@ -329,7 +347,9 @@ class BackupService {
     }
   }
 
-  /// Lista los backups disponibles en Supabase.
+  /// Lista los backups disponibles en Supabase para el tenant actual.
+  ///
+  /// Solo lista los archivos dentro de `{tenant_id}/`.
   Future<List<String>> listarBackups() async {
     try {
       // 🔥 Verificar autenticación antes de listar
@@ -339,14 +359,24 @@ class BackupService {
         return [];
       }
 
+      // ✅ Obtener tenant activo
+      final tenantId = getTenantIdFromJWT();
+      if (tenantId == null || tenantId.isEmpty) {
+        debugPrint('⚠️ [listarBackups] Sin tenant_id activo.');
+        return [];
+      }
+
       final supabase = Supabase.instance.client;
       final bucketName = 'backups';
-      final prefs = await SharedPreferences.getInstance();
-      final empresaId = prefs.getString('empresa_id') ?? 'default';
 
+      // ✅ Listar SOLO los archivos del tenant actual
       final response =
-          await supabase.storage.from(bucketName).list(path: empresaId);
-      return response.map((obj) => obj.name).toList();
+          await supabase.storage.from(bucketName).list(path: tenantId);
+
+      final backups = response.map((obj) => obj.name).toList();
+      debugPrint(
+          '📋 [listarBackups] ${backups.length} backups encontrados para el tenant');
+      return backups;
     } catch (e) {
       ErrorService.captureError(e, hint: 'Listar_backups_fallido');
       return [];

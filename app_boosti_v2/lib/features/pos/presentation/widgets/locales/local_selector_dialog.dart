@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/tenant_provider.dart';
@@ -11,6 +12,7 @@ import '../../providers/tenant_provider.dart';
 ///
 /// Muestra una lista con todos los locales a los que el usuario tiene acceso.
 /// El local activo aparece con un check verde.
+/// También permite crear un nuevo local (tenant) desde este mismo diálogo.
 class LocalSelectorDialog extends ConsumerStatefulWidget {
   const LocalSelectorDialog({super.key});
 
@@ -31,6 +33,7 @@ class LocalSelectorDialog extends ConsumerStatefulWidget {
 class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
   List<Map<String, dynamic>> _locales = [];
   bool _isLoading = true;
+  bool _creandoLocal = false;
   String? _errorMessage;
   String? _cambiandoTenantId;
 
@@ -68,8 +71,7 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
 
     setState(() => _cambiandoTenantId = tenantId);
 
-    final ok =
-        await ref.read(authProvider.notifier).cambiarLocal(tenantId);
+    final ok = await ref.read(authProvider.notifier).cambiarLocal(tenantId);
 
     if (!mounted) return;
 
@@ -83,6 +85,156 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
     }
   }
 
+  // ============================================================
+  // CREAR NUEVO LOCAL — Llama a la función SQL vía RPC
+  // ============================================================
+  Future<void> _mostrarFormularioCrearLocal() async {
+    final nombreCtrl = TextEditingController();
+    final direccionCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A4E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.add_business_rounded, color: Color(0xFF8B5CF6)),
+            SizedBox(width: 10),
+            Text(
+              'Crear nuevo local',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 17,
+              ),
+            ),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: nombreCtrl,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Nombre del local *',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white38),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF8B5CF6), width: 2),
+                  ),
+                ),
+                validator: (v) =>
+                    v?.trim().isNotEmpty == true ? null : 'Requerido',
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: direccionCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Dirección (opcional)',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white38),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF8B5CF6), width: 2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF8B5CF6),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(ctx, true);
+              }
+            },
+            child: const Text('Crear local'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    setState(() => _creandoLocal = true);
+
+    try {
+      // ✅ Llamada segura vía RPC a la función SQL con SECURITY DEFINER.
+      // La función obtiene el usuario internamente con auth.uid().
+      await Supabase.instance.client.rpc(
+        'crear_nuevo_local_para_usuario',
+        params: {
+          'p_nombre': nombreCtrl.text.trim(),
+          'p_direccion': direccionCtrl.text.trim(),
+        },
+      );
+
+      if (!mounted) return;
+
+      // Recargar la lista de locales para que aparezca el nuevo
+      await _cargarLocales();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Local creado correctamente'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      final msg = e.toString();
+      final esErrorRls = msg.contains('row-level security') ||
+          msg.contains('42501') ||
+          msg.contains('permission denied');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(esErrorRls
+              ? '❌ No tienes permiso para crear locales. Contacta a soporte.'
+              : '❌ Error al crear local: $e'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _creandoLocal = false);
+      }
+    }
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     final tenantActual = ref.watch(tenantActualProvider).tenantId;
@@ -99,7 +251,7 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+            constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700),
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
@@ -162,12 +314,33 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
                         ],
                       ),
                     ),
+                    // ✅ Botón "+" para crear nuevo local
+                    IconButton(
+                      tooltip: 'Crear nuevo local',
+                      onPressed: (_cambiandoTenantId == null && !_creandoLocal)
+                          ? _mostrarFormularioCrearLocal
+                          : null,
+                      icon: _creandoLocal
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF8B5CF6),
+                              ),
+                            )
+                          : const Icon(
+                              Icons.add_circle_outline_rounded,
+                              color: Color(0xFF8B5CF6),
+                              size: 26,
+                            ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 20),
 
                 // ============================================================
-                // CONTENIDO
+                // CONTENIDO (LISTA DE LOCALES)
                 // ============================================================
                 Flexible(
                   child: _buildContenido(tenantActual),
@@ -207,7 +380,7 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
                 SizedBox(
                   height: 48,
                   child: TextButton(
-                    onPressed: _cambiandoTenantId == null
+                    onPressed: (_cambiandoTenantId == null && !_creandoLocal)
                         ? () => Navigator.of(context).pop(false)
                         : null,
                     style: TextButton.styleFrom(
@@ -249,14 +422,31 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
     if (_locales.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 40),
-        child: Center(
-          child: Text(
-            'No hay locales disponibles',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.5),
-              fontSize: 14,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.store_mall_directory_outlined,
+              size: 48,
+              color: Colors.white.withValues(alpha: 0.3),
             ),
-          ),
+            const SizedBox(height: 12),
+            Text(
+              'No hay locales disponibles',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Usa el botón "+" para crear uno nuevo',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.35),
+                fontSize: 12,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -294,12 +484,13 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
     required bool esActivo,
     required bool cambiando,
   }) {
+    final deshabilitado =
+        tenantId == null || esActivo || _cambiandoTenantId != null || _creandoLocal;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: tenantId == null || esActivo || _cambiandoTenantId != null
-            ? null
-            : () => _cambiarLocal(tenantId),
+        onTap: deshabilitado ? null : () => _cambiarLocal(tenantId),
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(16),

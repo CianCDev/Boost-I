@@ -208,7 +208,7 @@ class SyncService {
   // USUARIOS
   // ============================================================
 
-  Future<void> sincronizarUsuariosASupabase() async {
+    Future<void> sincronizarUsuariosASupabase() async {
     // ✅ Sin sesión activa no hay tenant_id → RLS bloqueará
     if (!_tieneSesionSupabase()) {
       debugPrint(
@@ -228,12 +228,27 @@ class SyncService {
       int sincronizados = 0;
       int recuperados = 0;
 
+      // ✅ Obtener el usuario actual para saltarlo (evita error 42501
+      // cuando el usuario opera en un tenant distinto a su "home tenant")
+      final currentUserId = _supabase.auth.currentUser?.id;
+
       for (var usuario in usuarios) {
         try {
           // ============================================================
           // CASO 1: Ya tiene supabaseId → actualizar
           // ============================================================
           if (usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
+            // ✅ Saltar al usuario actual: no tiene sentido que el cliente
+            // actualice su propio registro. Su estado se gestiona al
+            // cambiar de tenant (que dispara refreshSession) o vía la
+            // propia sesión. Además, si el usuario opera en un tenant
+            // distinto a su "home tenant", RLS bloqueará el UPDATE.
+            if (usuario.supabaseId == currentUserId) {
+              debugPrint(
+                  'ℹ️ Saltando usuario actual "${usuario.nombre}" en sync de usuarios');
+              continue;
+            }
+
             final existing = await _supabase
                 .from('usuarios')
                 .select('id')
@@ -319,24 +334,24 @@ class SyncService {
             continue;
           }
 
-            try {
-              final tenantId = usuario.tenantId ?? getTenantIdFromJWT();
-              if (tenantId == null) {
-                debugPrint(
-                    '⚠️ Usuario "${usuario.nombre}" sin tenant_id. Saltando signUp.');
-                continue;
-              }
+          try {
+            final tenantId = usuario.tenantId ?? getTenantIdFromJWT();
+            if (tenantId == null) {
+              debugPrint(
+                  '⚠️ Usuario "${usuario.nombre}" sin tenant_id. Saltando signUp.');
+              continue;
+            }
 
-              final response = await _supabase.auth.signUp(
-                email: usuario.email!,
-                password: usuario.password!,
-                data: {
-                  'nombre': usuario.nombre,
-                  'rol': usuario.rol,
-                  'pin': usuario.pin,
-                  'tenant_id': tenantId,
-                },
-              );
+            final response = await _supabase.auth.signUp(
+              email: usuario.email!,
+              password: usuario.password!,
+              data: {
+                'nombre': usuario.nombre,
+                'rol': usuario.rol,
+                'pin': usuario.pin,
+                'tenant_id': tenantId,
+              },
+            );
             if (response.user != null) {
               usuario.supabaseId = response.user!.id;
               await _isarService.guardarUsuario(usuario);
@@ -2230,23 +2245,13 @@ class SyncService {
           await _isarService.guardarLocal(localActivo);
           debugPrint('✅ Local actualizado con supabaseId: $localSupabaseId');
         } else {
-          debugPrint('❌ No se encontró el local en Supabase. Creándolo...');
-          final newLocal = await _supabase
-              .from('locales')
-              .insert({
-                'id_isar': localActivo.id,
-                'nombre': localActivo.nombre,
-                'direccion': localActivo.direccion,
-                'telefono': localActivo.telefono,
-                'email': localActivo.email,
-                'activo': true,
-              })
-              .select()
-              .single();
-          localSupabaseId = newLocal['id'] as String;
-          localActivo.supabaseId = localSupabaseId;
-          await _isarService.guardarLocal(localActivo);
-          debugPrint('✅ Local creado en Supabase con ID: $localSupabaseId');
+          // ✅ Los locales NO se crean desde aquí. Se crean vía RPC
+          // 'crear_nuevo_local_para_usuario' desde el LocalSelectorDialog.
+          debugPrint(
+              '⚠️ Local "${localActivo.nombre}" no existe en Supabase. '
+              'No se puede sincronizar clientes sin un tenant válido. '
+              'Créalo desde el diálogo "Cambiar local".');
+          return;
         }
       }
 
@@ -3290,16 +3295,31 @@ class SyncService {
   // REPARACIÓN DE IMÁGENES
   // ============================================================
 
-  Future<int> repararImagenesFaltantes() async {
+   Future<int> repararImagenesFaltantes() async {
     try {
       debugPrint('🔍 [SyncService] Iniciando reparación de imágenes...');
+
+      // ✅ Obtener tenant activo
+      final tenantId = getTenantIdFromJWT();
+      if (tenantId == null || tenantId.isEmpty) {
+        debugPrint('⚠️ [repararImagenes] Sin tenant_id activo. Abortando.');
+        return 0;
+      }
+
       final productos = await _isarService.obtenerProductos();
       final supabase = Supabase.instance.client;
       int reparados = 0;
 
-      final allFiles = await supabase.storage.from('productos').list();
-      debugPrint('📁 [SyncService] Archivos en Storage: ${allFiles.length}');
+      // ✅ Listar SOLO los archivos del tenant actual
+      final tenantPath = '$tenantId/productos';
+      final allFiles = await supabase.storage
+          .from('productos')
+          .list(path: tenantPath);
 
+      debugPrint(
+          '📁 [SyncService] Archivos en Storage ($tenantPath): ${allFiles.length}');
+
+      // ✅ Mapear archivos por código de barras
       final Map<String, String> archivosPorCodigo = {};
       for (var file in allFiles) {
         final name = file.name;
@@ -3316,12 +3336,14 @@ class SyncService {
 
         final fileName = archivosPorCodigo[p.codigoBarras];
         if (fileName != null) {
+          // ✅ Path completo: {tenant_id}/productos/{fileName}
+          final fullPath = '$tenantPath/$fileName';
           final publicUrl =
-              supabase.storage.from('productos').getPublicUrl(fileName);
+              supabase.storage.from('productos').getPublicUrl(fullPath);
           p.imagenUrl = publicUrl;
           await _isarService.guardarProducto(p);
           reparados++;
-          debugPrint('🖼️ Imagen reparada para ${p.nombre}');
+          debugPrint('🖼️ Imagen reparada para ${p.nombre}: $fullPath');
         } else {
           debugPrint(
               '⚠️ No se encontró imagen para ${p.nombre} (código: ${p.codigoBarras})');
@@ -3391,7 +3413,7 @@ class SyncService {
       await sincronizarLotesPendientes();
       await descargarLotesDesdeSupabase();
 
-      await sincronizarLocalesPendientes();
+      //await sincronizarLocalesPendientes();
       await descargarLocalesDesdeSupabase();
       await sincronizarDepartamentosPendientes();
       await descargarDepartamentosDesdeSupabase();
@@ -3461,11 +3483,11 @@ class SyncService {
         lotes = lotesPend.length;
       }
 
-      final localesPend = await _isarService.obtenerLocalesPendientesSync();
+    /*   final localesPend = await _isarService.obtenerLocalesPendientesSync();
       if (localesPend.isNotEmpty) {
         await sincronizarLocalesPendientes();
         locales = localesPend.length;
-      }
+      } */
 
       final deptosPend =
           await _isarService.obtenerDepartamentosPendientesSync();
