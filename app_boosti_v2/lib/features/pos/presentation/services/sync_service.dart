@@ -2227,23 +2227,13 @@ class SyncService {
           await _isarService.guardarLocal(localActivo);
           debugPrint('✅ Local actualizado con supabaseId: $localSupabaseId');
         } else {
-          debugPrint('❌ No se encontró el local en Supabase. Creándolo...');
-          final newLocal = await _supabase
-              .from('locales')
-              .insert({
-                'id_isar': localActivo.id,
-                'nombre': localActivo.nombre,
-                'direccion': localActivo.direccion,
-                'telefono': localActivo.telefono,
-                'email': localActivo.email,
-                'activo': true,
-              })
-              .select()
-              .single();
-          localSupabaseId = newLocal['id'] as String;
-          localActivo.supabaseId = localSupabaseId;
-          await _isarService.guardarLocal(localActivo);
-          debugPrint('✅ Local creado en Supabase con ID: $localSupabaseId');
+          // ✅ Los locales NO se crean desde aquí. Se crean vía RPC
+          // 'crear_nuevo_local_para_usuario' desde el LocalSelectorDialog.
+          debugPrint(
+              '⚠️ Local "${localActivo.nombre}" no existe en Supabase. '
+              'No se puede sincronizar clientes sin un tenant válido. '
+              'Créalo desde el diálogo "Cambiar local".');
+          return;
         }
       }
 
@@ -3388,7 +3378,7 @@ class SyncService {
       await sincronizarLotesPendientes();
       await descargarLotesDesdeSupabase();
 
-      await sincronizarLocalesPendientes();
+      //await sincronizarLocalesPendientes();
       await descargarLocalesDesdeSupabase();
       await sincronizarDepartamentosPendientes();
       await descargarDepartamentosDesdeSupabase();
@@ -3458,11 +3448,11 @@ class SyncService {
         lotes = lotesPend.length;
       }
 
-      final localesPend = await _isarService.obtenerLocalesPendientesSync();
+    /*   final localesPend = await _isarService.obtenerLocalesPendientesSync();
       if (localesPend.isNotEmpty) {
         await sincronizarLocalesPendientes();
         locales = localesPend.length;
-      }
+      } */
 
       final deptosPend =
           await _isarService.obtenerDepartamentosPendientesSync();

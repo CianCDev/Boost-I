@@ -273,6 +273,37 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  // En tu AuthProvider o un nuevo LocalProvider
+Future<String?> crearNuevoLocal(String nombre, String direccion) async {
+  try {
+    // Llamamos a la función SQL 'crear_nuevo_local_para_usuario'
+    final dynamic response = await Supabase.instance.client.rpc(
+      'crear_nuevo_local_para_usuario',
+      params: {
+        'p_nombre': nombre,
+        'p_direccion': direccion,
+      },
+    ).select().single(); // .select().single() espera un único valor de retorno (el UUID)
+
+    if (response != null) {
+      debugPrint('✅ Local creado con tenant_id: $response');
+      
+      // Refrescamos la sesión para que el JWT incluya los nuevos datos si es necesario
+      await Supabase.instance.client.auth.refreshSession();
+      
+      // Notificamos a la app que la lista de locales ha cambiado
+      // Aquí podrías recargar tus providers de locales.
+      
+      return response as String;
+    }
+    return null;
+  } catch (e) {
+    debugPrint('❌ Error al crear nuevo local: $e');
+    // Aquí puedes manejar el error y mostrar un mensaje al usuario.
+    rethrow;
+  }
+}
+
   /// Registra una nueva empresa (tenant) llamando a la Edge Function
   /// `create-tenant`, y luego hace login con las credenciales para obtener
   /// el JWT con el `tenant_id` correcto.
