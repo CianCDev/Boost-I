@@ -13,6 +13,7 @@ import '../../providers/lock_provider.dart';
 import '../../providers/usuario_provider.dart';
 import '../../services/sync_service.dart';
 import '../clientes/clientes_dialog.dart';
+import '../locales/local_selector_dialog.dart';
 import 'cambiar_cajero_dialog.dart';
 import 'descuentos_especiales_dialog.dart';
 import 'keyboard_shortcuts_dialog.dart';
@@ -42,6 +43,10 @@ class _SidePanelState extends ConsumerState<SidePanel>
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
 
+  /// Número de locales a los que el usuario tiene acceso.
+  /// Solo se usa para decidir si mostrar el botón "Cambiar local".
+  int _numLocales = 0;
+
   @override
   void initState() {
     super.initState();
@@ -60,6 +65,9 @@ class _SidePanelState extends ConsumerState<SidePanel>
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
     _controller.forward();
+
+    // Cargar número de locales del usuario (para mostrar/ocultar botón)
+    _cargarNumLocales();
   }
 
   @override
@@ -76,6 +84,42 @@ class _SidePanelState extends ConsumerState<SidePanel>
       widget.onClose();
       if (afterClose != null) afterClose();
     });
+  }
+
+  // ==================== MULTI-LOCAL ====================
+
+  /// Carga el número de locales a los que el usuario tiene acceso.
+  /// Solo se usa para decidir si mostrar el botón "Cambiar local".
+  Future<void> _cargarNumLocales() async {
+    try {
+      final locales =
+          await ref.read(authProvider.notifier).obtenerMisLocales();
+      if (mounted) {
+        setState(() => _numLocales = locales.length);
+        debugPrint('🏢 Locales disponibles: ${locales.length}');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error cargando número de locales: $e');
+    }
+  }
+
+  /// Abre el diálogo para cambiar de local activo.
+  /// Abre el diálogo para cambiar de local activo.
+  Future<void> _mostrarCambiarLocal(BuildContext context) async {
+    // Guardar el messenger ANTES del await para evitar warning de
+    // BuildContext across async gaps.
+    final messenger = ScaffoldMessenger.of(context);
+
+    final cambio = await LocalSelectorDialog.show(context);
+
+    if (cambio == true && mounted) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('✅ Local cambiado correctamente'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+    }
   }
 
   // ==================== CAMBIAR CAJERO ====================
@@ -111,7 +155,7 @@ class _SidePanelState extends ConsumerState<SidePanel>
     );
   }
 
-  // ==================== DESCANSO (corregido) ====================
+  // ==================== DESCANSO ====================
 
   void _mostrarDialogoDescanso(
     BuildContext context,
@@ -139,7 +183,8 @@ class _SidePanelState extends ConsumerState<SidePanel>
           final sync = SyncService();
 
           await isar.actualizarEstadoUsuario(currentUser.id, 'inactivo');
-          await sync.actualizarEstadoUsuarioEnSupabase(currentUser.id, 'inactivo');
+          await sync.actualizarEstadoUsuarioEnSupabase(
+              currentUser.id, 'inactivo');
 
           // 2. Registrar log
           await isar.guardarLog(
@@ -152,7 +197,7 @@ class _SidePanelState extends ConsumerState<SidePanel>
               ..sincronizado = false,
           );
 
-          // 3. 🔥 BLOQUEAR PANTALLA usando lockProvider
+          // 3. Bloquear pantalla usando lockProvider
           lockNotifier.manualRest();
         },
       ),
@@ -183,7 +228,8 @@ class _SidePanelState extends ConsumerState<SidePanel>
               onTap: _closePanel,
               behavior: HitTestBehavior.opaque,
               child: Container(
-                color: Colors.black.withValues(alpha: 0.4 * _fadeAnimation.value),
+                color:
+                    Colors.black.withValues(alpha: 0.4 * _fadeAnimation.value),
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: SlideTransition(
@@ -203,14 +249,19 @@ class _SidePanelState extends ConsumerState<SidePanel>
                             decoration: BoxDecoration(
                               gradient: isDark
                                   ? const LinearGradient(
-                                      colors: [Color(0xFF23232D), Color(0xFF1A1A1A)],
+                                      colors: [
+                                        Color(0xFF23232D),
+                                        Color(0xFF1A1A1A)
+                                      ],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                     )
                                   : LinearGradient(
                                       colors: [
-                                        const Color(0xFFE8EAF6).withValues(alpha: 0.95),
-                                        const Color(0xFFF4F5F7).withValues(alpha: 0.98),
+                                        const Color(0xFFE8EAF6)
+                                            .withValues(alpha: 0.95),
+                                        const Color(0xFFF4F5F7)
+                                            .withValues(alpha: 0.98),
                                       ],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomCenter,
@@ -247,13 +298,36 @@ class _SidePanelState extends ConsumerState<SidePanel>
   }
 
   Widget _buildButtonList(BuildContext screenContext) {
-    final controller = Provider.of<PanelController>(screenContext, listen: false);
+    final controller =
+        Provider.of<PanelController>(screenContext, listen: false);
     final ref = this.ref;
     final usuarioActual = ref.watch(usuarioActualProvider);
     final puedeCambiarCajero = usuarioActual != null &&
         (usuarioActual.rol == 'admin' || usuarioActual.rol == 'supervisor');
 
     final categories = [
+      // ============================================================
+      // CATEGORÍA LOCAL (solo si el usuario tiene 2+ locales)
+      // ============================================================
+      if (_numLocales > 1)
+        _Category(
+          title: 'Local',
+          icon: Icons.business_rounded,
+          items: [
+            _PanelItem(
+              icon: Icons.swap_horiz_rounded,
+              label: 'Cambiar local',
+              color: const Color(0xFF8B5CF6),
+              action: () {
+                _closePanel(() => _mostrarCambiarLocal(screenContext));
+              },
+            ),
+          ],
+        ),
+
+      // ============================================================
+      // CATEGORÍA CONFIGURACIÓN
+      // ============================================================
       _Category(
         title: 'Configuración',
         icon: Icons.settings_rounded,
@@ -290,6 +364,10 @@ class _SidePanelState extends ConsumerState<SidePanel>
             ),
         ],
       ),
+
+      // ============================================================
+      // CATEGORÍA PROMOCIONES
+      // ============================================================
       _Category(
         title: 'Promociones',
         icon: Icons.local_offer_rounded,
@@ -324,6 +402,10 @@ class _SidePanelState extends ConsumerState<SidePanel>
           ),
         ],
       ),
+
+      // ============================================================
+      // CATEGORÍA PRODUCTOS
+      // ============================================================
       _Category(
         title: 'Productos',
         icon: Icons.inventory_2_rounded,
@@ -340,6 +422,10 @@ class _SidePanelState extends ConsumerState<SidePanel>
           ),
         ],
       ),
+
+      // ============================================================
+      // CATEGORÍA PEDIDOS
+      // ============================================================
       _Category(
         title: 'Pedidos',
         icon: Icons.shopping_bag_rounded,
@@ -354,6 +440,10 @@ class _SidePanelState extends ConsumerState<SidePanel>
           ),
         ],
       ),
+
+      // ============================================================
+      // CATEGORÍA SISTEMA
+      // ============================================================
       _Category(
         title: 'Sistema',
         icon: Icons.computer_rounded,
@@ -424,7 +514,8 @@ class _SidePanelState extends ConsumerState<SidePanel>
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          Icon(cat.icon, size: 16, color: isDark ? Colors.white54 : Colors.grey.shade600),
+          Icon(cat.icon,
+              size: 16, color: isDark ? Colors.white54 : Colors.grey.shade600),
           const SizedBox(width: 8),
           Text(
             cat.title,
@@ -455,7 +546,12 @@ class _PanelItem {
   final String label;
   final Color color;
   final VoidCallback action;
-  _PanelItem({required this.icon, required this.label, required this.color, required this.action});
+  _PanelItem({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.action,
+  });
 }
 
 // ==================== DIÁLOGO DE DESCANSO (estilizado) ====================
@@ -483,17 +579,27 @@ class _DialogoDescanso extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: isDark
-                ? [Colors.grey[900]!.withValues(alpha: 0.9), Colors.grey[850]!.withValues(alpha: 0.95)]
-                : [Colors.white.withValues(alpha: 0.85), const Color(0xFFF5F6FA).withValues(alpha: 0.9)],
+                ? [
+                    Colors.grey[900]!.withValues(alpha: 0.9),
+                    Colors.grey[850]!.withValues(alpha: 0.95)
+                  ]
+                : [
+                    Colors.white.withValues(alpha: 0.85),
+                    const Color(0xFFF5F6FA).withValues(alpha: 0.9)
+                  ],
           ),
           borderRadius: BorderRadius.circular(28),
           border: Border.all(
-            color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.4),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.white.withValues(alpha: 0.4),
             width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
-              color: isDark ? Colors.black.withValues(alpha: 0.5) : Colors.black.withValues(alpha: 0.12),
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.5)
+                  : Colors.black.withValues(alpha: 0.12),
               blurRadius: 40,
               spreadRadius: 4,
               offset: const Offset(0, 20),
@@ -503,7 +609,9 @@ class _DialogoDescanso extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
           child: BackdropFilter(
-            filter: isDark ? ImageFilter.blur(sigmaX: 12, sigmaY: 12) : ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+            filter: isDark
+                ? ImageFilter.blur(sigmaX: 12, sigmaY: 12)
+                : ImageFilter.blur(sigmaX: 6, sigmaY: 6),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -513,7 +621,8 @@ class _DialogoDescanso extends StatelessWidget {
                     color: Colors.brown.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.free_breakfast_rounded, size: 48, color: Colors.brown.shade600),
+                  child: Icon(Icons.free_breakfast_rounded,
+                      size: 48, color: Colors.brown.shade600),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -541,7 +650,8 @@ class _DialogoDescanso extends StatelessWidget {
                     TextButton(
                       onPressed: () => Navigator.pop(context),
                       style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
                       ),
                       child: const Text('Cancelar'),
                     ),
@@ -559,7 +669,8 @@ class _DialogoDescanso extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 12),
                         elevation: 4,
                         shadowColor: Colors.brown.withValues(alpha: 0.3),
                       ),

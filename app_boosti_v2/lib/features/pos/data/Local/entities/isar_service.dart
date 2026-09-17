@@ -6,6 +6,8 @@ import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import '../../../presentation/utils/pin_hasher.dart';
+
 // Entidades
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import 'cart_session_entity.dart';
@@ -84,9 +86,9 @@ class IsarService {
 
   /// Inicializa la base de datos Isar con todos los esquemas.
   /// Usa el ID de empresa de SharedPreferences para aislar los datos.
-  Future<Isar> _initIsar({
+Future<Isar> _initIsar({
   String? testDirectory,
-  bool skipDemoInit = false,
+  bool skipDemoInit = true,
 }) async {
   if (_isarInstance != null && _isarInstance!.isOpen) {
     return _isarInstance!;
@@ -194,6 +196,7 @@ class IsarService {
     try {
       await _inicializarProductosDemo(isar);
       await _inicializarUsuariosDemo(isar);
+      await migrarPinsAHash(isar);
     } catch (e) {
       debugPrint('⚠️ Error inicializando datos demo: $e');
     }
@@ -377,13 +380,18 @@ Future<void> initForTesting(String directoryPath) async {
     }
   }
 
-  Future<UsuarioEntity> guardarUsuario(UsuarioEntity usuario) async {
+  Future<void> guardarUsuario(UsuarioEntity usuario) async {
     try {
+      // Hashear el PIN si viene en plano (regla aplicada en un solo punto)
+      if (usuario.pin != null &&
+          usuario.pin!.isNotEmpty &&
+          !PinHasher.isHashed(usuario.pin!)) {
+        usuario.pin = PinHasher.hashWithNewSalt(usuario.pin!);
+      }
       final isar = await db;
       await isar.writeTxn(() async {
         await isar.usuarioEntitys.put(usuario);
       });
-      return usuario;
     } catch (e, stack) {
       ErrorService.captureError(e,
           stack: stack,
@@ -524,13 +532,40 @@ Future<void> initForTesting(String directoryPath) async {
         return null;
       }
 
-      return await isar.usuarioEntitys
+      // Buscamos por nombre (el PIN se valida en Dart, no en Isar,
+      // porque puede estar hasheado con salt aleatorio).
+      final candidatos = await isar.usuarioEntitys
           .filter()
           .nombreEqualTo(nombreNormalizado, caseSensitive: false)
-          .pinEqualTo(pinNormalizado)
           .and()
           .activoEqualTo(true)
-          .findFirst();
+          .findAll();
+
+      for (final usuario in candidatos) {
+        final storedPin = usuario.pin;
+        if (storedPin == null || storedPin.isEmpty) continue;
+
+        // Caso 1: PIN ya hasheado → verificar con PinHasher
+        if (PinHasher.isHashed(storedPin)) {
+          if (PinHasher.verify(pinNormalizado, storedPin)) {
+            return usuario;
+          }
+          continue;
+        }
+
+        // Caso 2: PIN en plano (legacy) → comparar y migrar en caliente
+        if (storedPin == pinNormalizado) {
+          usuario.pin = PinHasher.hashWithNewSalt(pinNormalizado);
+          await isar.writeTxn(() async {
+            await isar.usuarioEntitys.put(usuario);
+          });
+          debugPrint(
+              '🔐 PIN migrado a hash para "${usuario.nombre}" (ID: ${usuario.id})');
+          return usuario;
+        }
+      }
+
+      return null;
     } catch (e, stack) {
       ErrorService.captureError(e,
           stack: stack, hint: 'validarLogin_fallo', extras: {'nombre': nombre});
@@ -3410,6 +3445,31 @@ Future<void> initForTesting(String directoryPath) async {
           hint: 'eliminarTelegramConfig_fallo',
           extras: {'id': id});
       rethrow;
+    }
+  }
+
+  // ================================ métodos para pinshash=============================
+
+  Future<void> migrarPinsAHash(Isar isar) async {
+    try {
+      final usuarios = await isar.usuarioEntitys.where().findAll();
+      int migrados = 0;
+      for (final u in usuarios) {
+        if (u.pin != null && u.pin!.isNotEmpty && !PinHasher.isHashed(u.pin!)) {
+          u.pin = PinHasher.hashWithNewSalt(u.pin!);
+          await isar.writeTxn(() async {
+            await isar.usuarioEntitys.put(u);
+          });
+          migrados++;
+        }
+      }
+      if (migrados > 0) {
+        debugPrint('🔐 PINs migrados a hash: $migrados');
+      } else {
+        debugPrint('🔐 Todos los PINs ya están hasheados');
+      }
+    } catch (e, stack) {
+      ErrorService.captureError(e, stack: stack, hint: 'migrarPinsAHash_fallo');
     }
   }
 

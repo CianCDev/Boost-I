@@ -21,11 +21,17 @@ import 'features/pos/presentation/screens/login_screen.dart';
 import 'features/pos/presentation/screens/main_pos_screen.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
 import 'features/pos/presentation/screens/splash_screen.dart';
+
+// Servicios
 import 'features/pos/presentation/services/backup_service.dart';
 import 'features/pos/presentation/services/error_service.dart';
 import 'features/pos/presentation/services/ota_update_service.dart';
-import 'features/pos/presentation/services/sync_service.dart';
+
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
+
+// ════════════════════════════════════════════════════════════════════
+// MAIN
+// ════════════════════════════════════════════════════════════════════
 
 void main() async {
   if (kDebugMode) {
@@ -34,12 +40,9 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ════════════════════════════════════════════════════════════════
-  // 1. INICIALIZACIONES EN PARALELO (independientes entre sí)
-  // ════════════════════════════════════════════════════════════════
+  // 1. Inicializaciones en paralelo
   final prefs = await SharedPreferences.getInstance();
 
-  // Estas 3 no dependen entre sí → corren en paralelo con Future.wait
   final results = await Future.wait([
     ErrorService.init().catchError((e) {
       debugPrint('⚠️ ErrorService.init falló: $e');
@@ -50,25 +53,20 @@ void main() async {
 
   final supabaseInitialized = results[1] as bool;
 
-  // 2. TAREAS EN BACKGROUND (no bloquean el arranque)
-// Estos métodos son `void` (no Future), así que se llaman directo.
-// Igual corren "en segundo plano" desde el punto de vista del usuario
-// porque no bloquean `runApp`.
-try {
-  BackupService.register();
-} catch (e) {
-  debugPrint('⚠️ BackupService.register falló: $e');
-}
+  // 2. Tareas en background
+  try {
+    BackupService.register();
+  } catch (e) {
+    debugPrint('⚠️ BackupService.register falló: $e');
+  }
 
-try {
-  OtaUpdateService.checkForUpdateSilently();
-} catch (e) {
-  debugPrint('⚠️ OTA check falló: $e');
-}
+  try {
+    OtaUpdateService.checkForUpdateSilently();
+  } catch (e) {
+    debugPrint('⚠️ OTA check falló: $e');
+  }
 
-  // ════════════════════════════════════════════════════════════════
-  // 3. APP
-  // ════════════════════════════════════════════════════════════════
+  // 3. App
   runApp(
     DevicePreview(
       enabled: !kReleaseMode,
@@ -180,7 +178,7 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
   /// Prioridad:
   ///   1. Sin config Supabase → ConfiguracionEmpresaScreen
   ///   2. Con sesión RRHH → EmployeesScreen
-  ///   3. Con sesión otro rol → MainPosScreen (welcome)
+  ///   3. Con sesión otro rol → MainPosScreen
   ///   4. Sin sesión → SplashScreen (permisos + Login)
   Widget _homeInicial() {
     if (!widget.supabaseInitialized) {

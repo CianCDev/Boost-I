@@ -9,6 +9,8 @@ import '../../data/Local/entities/log_entity.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../providers/usuario_provider.dart';
+import '../providers/tenant_provider.dart';
+import '../utils/tenant_utils.dart';
 
 
 class PersonnelManagementDialog extends ConsumerStatefulWidget {
@@ -176,6 +178,15 @@ class _PersonnelManagementDialogState
     try {
       final supabase = Supabase.instance.client;
 
+      // ✅ NUEVO: Obtener tenant_id del provider (con fallback al JWT)
+      final tenantId = ref.read(tenantActualProvider).tenantId
+          ?? getTenantIdFromJWT();
+
+      if (tenantId == null) {
+        throw Exception(
+            'No hay tenant activo. Vuelve a iniciar sesión antes de crear usuarios.');
+      }
+
       final response = await supabase.auth.signUp(
         email: _emailController.text.trim(),
         password: password,
@@ -183,6 +194,7 @@ class _PersonnelManagementDialogState
           'nombre': _nombreController.text.trim(),
           'rol': _rolSeleccionado,
           'pin': _pinController.text.trim(),
+          'tenant_id': tenantId,
         },
       );
 
@@ -200,6 +212,7 @@ class _PersonnelManagementDialogState
         ..estado = 'inactivo'
         ..activo = true
         ..supabaseId = response.user!.id
+        ..tenantId = tenantId
         ..cajaAsignada = '';
 
       await _isarService.guardarUsuario(nuevoUsuario);

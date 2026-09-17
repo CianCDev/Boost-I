@@ -13,6 +13,7 @@ import '../../utils/responsive_helper.dart';
 import '../common/glass_dialog.dart';
 import '../common/dialog_header.dart';
 import '../proveedores/crear_proveedor_dialog.dart';
+import '../../utils/tenant_utils.dart'; // ✅ getTenantIdFromJWT()
 
 class MarcaFormDialog extends ConsumerStatefulWidget {
   final MarcaEntity? marca;
@@ -166,23 +167,48 @@ class _MarcaFormDialogState extends ConsumerState<MarcaFormDialog> {
   }
 
   // ==================== SUBIR IMAGEN ====================
-  Future<String?> _uploadLogo(File image, String nombre) async {
-    try {
-      final ext = image.path.split('.').last;
-      final fileName =
-          'marca_${nombre}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      await Supabase.instance.client.storage
-          .from('marcas')
-          .upload(fileName, image);
-      final publicUrl = Supabase.instance.client.storage
-          .from('marcas')
-          .getPublicUrl(fileName);
-      return publicUrl;
-    } catch (e) {
-      debugPrint('Error subiendo logo: $e');
+/// Sube el logo de una marca al bucket `marcas` con path multi-tenant.
+///
+/// Path: `{tenant_id}/marcas/{nombre}_{timestamp}.{ext}`
+///
+/// El primer folder DEBE ser el tenant_id para que la policy
+/// `storage_tenant_all` lo permita (valida que foldername[1] sea
+/// igual a current_tenant_id()).
+///
+/// Retorna la URL pública o null si falla.
+Future<String?> _uploadLogo(File image, String nombre) async {
+  try {
+    // ✅ Obtener tenant_id activo
+    final tenantId = getTenantIdFromJWT();
+    if (tenantId == null || tenantId.isEmpty) {
+      debugPrint(
+          '⚠️ [_uploadLogo] Sin tenant_id activo. No se puede subir logo.');
       return null;
     }
+
+    final ext = image.path.split('.').last;
+    final fileName =
+        '$tenantId/marcas/marca_${nombre}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+    debugPrint('📤 [_uploadLogo] Subiendo a: $fileName');
+
+    await Supabase.instance.client.storage
+        .from('marcas')
+        .upload(fileName, image);
+
+    // Bucket privado: usar signed URL (válida 1 hora)
+    final signedUrl = await Supabase.instance.client.storage
+        .from('marcas')
+        .createSignedUrl(fileName, 3600);
+
+    debugPrint('✅ [_uploadLogo] Logo subido: $signedUrl');
+    return signedUrl;
+  } catch (e, stack) {
+    debugPrint('❌ [_uploadLogo] Error: $e');
+    debugPrint('❌ [_uploadLogo] Stack: $stack');
+    return null;
   }
+}
 
   // ==================== GUARDAR ====================
   Future<void> _guardar() async {

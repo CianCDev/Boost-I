@@ -74,12 +74,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _animationController.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // 1. Cargar usuarios desde Isar local
       await ref.read(authProvider.notifier).loadUsuarios();
       final usuariosActualizados = await ref.refresh(usuariosProvider.future);
       if (usuariosActualizados.isNotEmpty) {
         debugPrint(
             '✅ Usuarios recargados en login: ${usuariosActualizados.length}');
       }
+
+      // 2. Validar selección guardada y sincronizar en background
       _validateSelectedUser();
       _sincronizarUsuarios(showFeedback: false, isInitialLoad: true);
     });
@@ -129,7 +132,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       _saveSelectedUser(_selectedUserId!);
     }
   }
- // ============================================================
+
+  // ============================================================
   // SINCRONIZACIÓN
   // ============================================================
   Future<void> _sincronizarUsuarios({
@@ -224,11 +228,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final user = ref.read(authProvider).currentUser;
     if (user == null) return;
 
+    // Registrar en monitoreo y guardar preferencia
     ref.read(usuarioActualProvider.notifier).setUsuario(user);
     ErrorService.setUser(user.id.toString(), user.email, user.nombre);
     await _saveSelectedUser(user.id);
 
-    // Sincronización inicial en background
+    // 🔥 Sincronización inicial en background para este dispositivo
     try {
       final syncService = SyncService();
       await syncService.descargarLocalesDesdeSupabase();
@@ -236,30 +241,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       debugPrint('✅ Sincronización inicial completada después del login');
     } catch (e) {
       debugPrint('⚠️ Error en sincronización inicial: $e');
+      // No bloqueamos el login si falla
     }
 
     if (!mounted) return;
-    _redirigirSegunRol(user);
+    redirigirSegunRol(user);
   }
 
-/// Navega a la pantalla correspondiente según el rol del usuario.
-void _redirigirSegunRol(UsuarioEntity usuario) {
-  final role = UserRole.fromString(usuario.rol);
+  /// Navega a la pantalla correspondiente según el rol del usuario.
+  void redirigirSegunRol(UsuarioEntity usuario) {
+    final role = UserRole.fromString(usuario.rol);
 
-  // Roles restringidos (RRHH por ahora) → van directo a su pantalla.
-  if (Permissions.isEmployeesOnlyRole(role)) {
+    // Roles restringidos (RRHH por ahora) → van directo a su pantalla.
+    if (Permissions.isEmployeesOnlyRole(role)) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const EmployeesScreen()),
+      );
+      return;
+    }
+
+    // ✅ Resto de roles → welcome screen (menú principal rediseñado)
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const EmployeesScreen()),
+      MaterialPageRoute(builder: (_) => const MainPosScreen()),
     );
-    return;
   }
-
-  // ✅ CAMBIO: resto de roles → welcome screen (no directo al POS)
-  Navigator.of(context).pushReplacement(
-    MaterialPageRoute(builder: (_) => const MainPosScreen()),
-  );
-}
- 
 
   // ============================================================
   // BUILD
@@ -369,14 +374,12 @@ void _redirigirSegunRol(UsuarioEntity usuario) {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(32),
                               boxShadow: [
-                                // Sombra profunda
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.5),
                                   blurRadius: 50,
                                   spreadRadius: -5,
                                   offset: const Offset(0, 25),
                                 ),
-                                // Glow esmeralda sutil
                                 BoxShadow(
                                   color: _accent.withValues(alpha: 0.15),
                                   blurRadius: 60,
@@ -394,13 +397,11 @@ void _redirigirSegunRol(UsuarioEntity usuario) {
                                   padding: EdgeInsets.all(paddingSize),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(32),
-                                    // Borde de vidrio sutil
                                     border: Border.all(
                                       color:
                                           Colors.white.withValues(alpha: 0.12),
                                       width: 1.2,
                                     ),
-                                    // ✅ Glass oscuro: misma paleta que el fondo
                                     gradient: LinearGradient(
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
@@ -416,7 +417,7 @@ void _redirigirSegunRol(UsuarioEntity usuario) {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
-                                      _buildLogo(logoSize, isMobile),
+                                      buildLogo(logoSize, isMobile),
                                       const SizedBox(height: 16),
                                       Center(
                                         child: Text(
@@ -431,7 +432,7 @@ void _redirigirSegunRol(UsuarioEntity usuario) {
                                         ),
                                       ),
                                       const SizedBox(height: 32),
-                                      _buildPinMode(
+                                      buildPinMode(
                                           isMobile, isTablet, usuariosOrdenados),
                                       if (_errorMessage != null) ...[
                                         const SizedBox(height: 16),
@@ -474,8 +475,7 @@ void _redirigirSegunRol(UsuarioEntity usuario) {
                                         ),
                                       ],
                                       const SizedBox(height: 32),
-                                      _buildLoginButton(
-                                          buttonHeight, isMobile),
+                                      buildLoginButton(buttonHeight, isMobile),
                                       const SizedBox(height: 20),
                                       Center(
                                         child: Text(
@@ -490,6 +490,8 @@ void _redirigirSegunRol(UsuarioEntity usuario) {
                                         ),
                                       ),
                                       const SizedBox(height: 8),
+
+                                      // ── Botón de sincronización manual ──
                                       Center(
                                         child: TextButton(
                                           onPressed: _isLoading
@@ -530,6 +532,21 @@ void _redirigirSegunRol(UsuarioEntity usuario) {
                                           ),
                                         ),
                                       ),
+
+                                      // ── Hint para tablets nuevas (del compi) ──
+                                      const SizedBox(height: 6),
+                                      Center(
+                                        child: Text(
+                                          '¿Tablet nueva? Pide al admin que la configure.',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.4),
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -549,7 +566,7 @@ void _redirigirSegunRol(UsuarioEntity usuario) {
   // ============================================================
   // LOGO
   // ============================================================
-  Widget _buildLogo(double size, bool isMobile) {
+  Widget buildLogo(double size, bool isMobile) {
     final double iconSize = size * 0.5;
     return Column(
       children: [
@@ -607,7 +624,7 @@ void _redirigirSegunRol(UsuarioEntity usuario) {
   // ============================================================
   // PIN MODE
   // ============================================================
-  Widget _buildPinMode(
+  Widget buildPinMode(
     bool isMobile,
     bool isTablet,
     List<UsuarioEntity> usuarios,
@@ -827,7 +844,7 @@ void _redirigirSegunRol(UsuarioEntity usuario) {
   // ============================================================
   // BOTÓN LOGIN
   // ============================================================
-  Widget _buildLoginButton(double height, bool isMobile) {
+  Widget buildLoginButton(double height, bool isMobile) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       height: height,

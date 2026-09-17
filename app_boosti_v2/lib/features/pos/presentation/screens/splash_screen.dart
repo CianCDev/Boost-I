@@ -7,12 +7,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../../core/config/supabase_config.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../domain/permissions/roles.dart';
 import '../providers/usuario_provider.dart';
+import 'configuracion_empresa_screen.dart';
 import 'empleados/employees_screen.dart';
 import 'login_screen.dart';
 import 'main_pos_screen.dart';
+import 'welcome_screen.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -22,6 +25,8 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  String _mensajeCarga = 'Cargando...';
+
   @override
   void initState() {
     super.initState();
@@ -43,25 +48,31 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       await _diagnosticarUsuarios();
     }
 
-    // 3. Pequeña pausa para que se vea el branding (opcional)
-    await Future.delayed(const Duration(milliseconds: 300));
+    // 3. Pausa breve para branding
+    if (mounted) {
+      setState(() => _mensajeCarga = 'Iniciando...');
+    }
+    await Future.delayed(const Duration(milliseconds: 400));
 
     if (!mounted) return;
-    _navegar();
+    await _decidirNavegacion();
   }
 
   bool get _esMobile => Platform.isAndroid || Platform.isIOS;
 
+  // ════════════════════════════════════════════════════════════════
+  // PERMISOS
+  // ════════════════════════════════════════════════════════════════
+
   Future<void> _pedirPermisos() async {
     try {
-      // Solo permisos relevantes en mobile.
       final permisos = <Permission>[
         Permission.camera,
         Permission.bluetoothScan,
         Permission.bluetoothConnect,
       ];
 
-      // Permission.storage solo en Android <33
+      // Permission.storage solo en Android <33 (evita pedirlo en iOS)
       if (Platform.isAndroid) {
         permisos.add(Permission.storage);
       }
@@ -70,37 +81,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     } catch (e) {
       debugPrint('⚠️ Error pidiendo permisos: $e');
     }
-  }
-
-  /// Decide a dónde ir. Como `main.dart` ya filtra el caso "sin config"
-  /// y "con sesión", aquí solo pueden darse:
-  ///   • Sin sesión → Login
-  ///   • Con sesión (por si alguien navegó manual) → MainPosScreen / Employees
-  void _navegar() {
-    final usuario = ref.read(usuarioActualProvider);
-
-    if (usuario == null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-      return;
-    }
-
-    final role = UserRole.fromString(usuario.rol);
-
-    if (Permissions.isEmployeesOnlyRole(role)) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const EmployeesScreen()),
-      );
-      return;
-    }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const MainPosScreen()),
-    );
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -123,12 +103,75 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       final adminValido = usuarios.any(
         (u) => u.rol == 'admin' && u.activo && u.pin.length == 4,
       );
-      debugPrint(
-        '🔍 Admin válido: ${adminValido ? "✅" : "❌"}',
-      );
+      debugPrint('🔍 Admin válido: ${adminValido ? "✅" : "❌"}');
     } catch (e) {
       debugPrint('❌ Error en diagnóstico: $e');
     }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // NAVEGACIÓN
+  // ════════════════════════════════════════════════════════════════
+
+  /// Prioridad:
+  ///   1. Sin config Supabase → ConfiguracionEmpresaScreen (defensivo)
+  ///   2. Con sesión RRHH → EmployeesScreen
+  ///   3. Con sesión otros → MainPosScreen
+  ///   4. Sin sesión + hay usuarios → LoginScreen
+  ///   5. Sin sesión + sin usuarios → WelcomeScreen (primer uso)
+  Future<void> _decidirNavegacion() async {
+    // ── 1. Verificación defensiva de config ──
+    if (!SupabaseConfig.estaConfigurado) {
+      debugPrint('⚠️ SupabaseConfig no configurado → ConfiguracionEmpresa');
+      if (!mounted) return;
+      setState(() => _mensajeCarga = 'Configuración requerida');
+      await Future.delayed(const Duration(milliseconds: 600));
+      _goTo(const ConfiguracionEmpresaScreen());
+      return;
+    }
+
+    // ── 2. ¿Hay sesión activa? ──
+    final usuario = ref.read(usuarioActualProvider);
+    if (usuario != null) {
+      final role = UserRole.fromString(usuario.rol);
+
+      if (Permissions.isEmployeesOnlyRole(role)) {
+        debugPrint('➡️ Sesión RRHH → EmployeesScreen');
+        _goTo(const EmployeesScreen());
+        return;
+      }
+
+      debugPrint('➡️ Sesión activa → MainPosScreen');
+      _goTo(const MainPosScreen());
+      return;
+    }
+
+    // ── 3. Sin sesión: verificar usuarios locales ──
+    try {
+      final isar = IsarService();
+      final usuarios = await isar.obtenerUsuariosActivos();
+      if (!mounted) return;
+
+      if (usuarios.isEmpty) {
+        debugPrint('➡️ Sin usuarios → WelcomeScreen (primer uso)');
+        _goTo(const WelcomeScreen());
+      } else {
+        debugPrint('➡️ Con usuarios → LoginScreen');
+        _goTo(const LoginScreen());
+      }
+    } catch (e) {
+      debugPrint('❌ Error verificando usuarios: $e');
+      // Fallback seguro: al Login (que maneja bien el caso vacío)
+      _goTo(const LoginScreen());
+    }
+  }
+
+  void _goTo(Widget screen) {
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
+    );
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -186,7 +229,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                'Cargando...',
+                _mensajeCarga,
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey.shade500,
