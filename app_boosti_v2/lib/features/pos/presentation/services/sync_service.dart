@@ -532,7 +532,8 @@ class SyncService {
           // ✅ Estado: no forzar 'inactivo' si viene estado desde nube
           final estadoNube = data['estado'] as String?;
           if (estadoNube != null && estadoNube.isNotEmpty) {
-            local.estado = estadoNube;
+          local.estado = estadoNube;
+          local.activo = estadoNube != 'inactivo' && estadoNube != 'desconectado';
           }
 
           // ✅ created/updated
@@ -3265,30 +3266,32 @@ class SyncService {
 
     try {
       final response = await _supabase
-          .from('usuarios')
-          .select('id_isar, nombre, pin, rol, email, activo, estado')
-          .eq('id', supabaseId)
-          .maybeSingle();
+    .from('usuarios')
+    .select('id_isar, nombre, pin, rol, email, estado, tenant_id')
+    .eq('id', supabaseId)
+    .maybeSingle();
 
-      if (response != null) {
-        final nuevoUsuario = UsuarioEntity()
-          ..supabaseId = supabaseId
-          ..id = response['id_isar'] as int? ?? Isar.autoIncrement
-          ..nombre = response['nombre'] ?? 'Usuario Sincronizado'
-          ..pin = response['pin'] ?? '1234'
-          ..rol = response['rol'] ?? 'cajero'
-          ..email = response['email'] as String?
-          ..activo = response['activo'] ?? true
-          ..estado = response['estado'] ?? 'inactivo'
-          ..cajaAsignada = ''
-          ..sincronizado = true
-          ..fechaSincronizacion = DateTime.now();
+if (response != null) {
+  final estadoNube = response['estado'] as String? ?? 'inactivo';
+  final nuevoUsuario = UsuarioEntity()
+    ..supabaseId = supabaseId
+    ..id = response['id_isar'] as int? ?? Isar.autoIncrement
+    ..nombre = response['nombre'] ?? 'Usuario Sincronizado'
+    ..pin = response['pin'] ?? '1234'
+    ..rol = response['rol'] ?? 'cajero'
+    ..email = response['email'] as String?
+    ..tenantId = response['tenant_id'] as String?
+    // activo se deriva de estado
+    ..activo = estadoNube != 'inactivo' && estadoNube != 'desconectado'
+    ..estado = estadoNube
+    ..cajaAsignada = ''
+    ..sincronizado = true
+    ..fechaSincronizacion = DateTime.now();
 
-        await _isarService.guardarUsuario(nuevoUsuario);
-        debugPrint(
-            '✅ Usuario creado automáticamente desde Supabase: ${nuevoUsuario.nombre} (ID: ${nuevoUsuario.id})');
-        return nuevoUsuario.id;
-      }
+  await _isarService.guardarUsuario(nuevoUsuario);
+  debugPrint('✅ Usuario creado automáticamente: ${nuevoUsuario.nombre} (ID: ${nuevoUsuario.id})');
+  return nuevoUsuario.id;
+}
     } catch (e) {
       debugPrint('⚠️ Error creando usuario desde Supabase: $e');
     }

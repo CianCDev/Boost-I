@@ -30,10 +30,10 @@ class FakeCartSessionsNotifier extends CartSessionsNotifier {
   String? simulatedError;
 
   FakeCartSessionsNotifier(
-    Ref ref, {
+    super.ref, {
     List<CartSessionEntity> initial = const [],
     this.simulatedError,
-  }) : super(ref) {
+  }){
     state = CartSessionsState(sessions: initial);
   }
 
@@ -56,7 +56,7 @@ class FakeCartSessionsNotifier extends CartSessionsNotifier {
 }
 
 class FakeUsuariosNotifier extends UsuariosNotifier {
-  FakeUsuariosNotifier(Ref ref, UsuarioEntity? initial) : super(ref) {
+  FakeUsuariosNotifier(super.ref, UsuarioEntity? initial){
     state = initial;
   }
 }

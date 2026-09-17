@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../domain/permissions/roles.dart';
 import '../providers/auth_provider.dart';
+import '../providers/tenant_provider.dart';
 import '../providers/usuario_provider.dart';
 import '../services/sync_service.dart';
 import '../services/error_service.dart';
@@ -232,6 +233,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     ref.read(usuarioActualProvider.notifier).setUsuario(user);
     ErrorService.setUser(user.id.toString(), user.email, user.nombre);
     await _saveSelectedUser(user.id);
+
+    final tenantState = ref.read(tenantActualProvider);
+    if (!tenantState.tieneTenant) {
+      debugPrint('⚠️ Login PIN sin tenant en prefs. La sincronización fallará.');
+    }
 
     // 🔥 Sincronización inicial en background para este dispositivo
     try {

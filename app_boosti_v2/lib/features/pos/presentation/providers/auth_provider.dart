@@ -1,5 +1,5 @@
 // lib/features/pos/presentation/providers/auth_provider.dart
-import 'dart:convert'; // ✅ NUEVO: para utf8 y base64Url (debug del JWT)
+// ✅ NUEVO: para utf8 y base64Url (debug del JWT)
 import 'package:app_boosti_v2/features/pos/data/Local/entities/log_entity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

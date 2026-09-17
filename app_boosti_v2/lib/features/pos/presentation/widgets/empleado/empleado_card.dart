@@ -1,7 +1,6 @@
 // lib/features/pos/presentation/widgets/empleados/employee_card.dart
 import 'package:flutter/material.dart';
 
-import '../../../data/Local/entities/usuario_entity.dart';
 import '../../../domain/models/empleado_view_model.dart';
 import '../../../domain/permissions/roles.dart';
 import '../../utils/responsive_helper.dart';

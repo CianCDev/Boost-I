@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../domain/permissions/roles.dart';
+import '../providers/tenant_provider.dart';
 import '../providers/usuario_provider.dart';
 import 'configuracion_empresa_screen.dart';
 import 'empleados/employees_screen.dart';
@@ -72,7 +73,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         Permission.bluetoothConnect,
       ];
 
-      // Permission.storage solo en Android <33 (evita pedirlo en iOS)
+      // Permission.storage solo en Android <33
       if (Platform.isAndroid) {
         permisos.add(Permission.storage);
       }
@@ -117,8 +118,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   ///   1. Sin config Supabase → ConfiguracionEmpresaScreen (defensivo)
   ///   2. Con sesión RRHH → EmployeesScreen
   ///   3. Con sesión otros → MainPosScreen
-  ///   4. Sin sesión + hay usuarios → LoginScreen
-  ///   5. Sin sesión + sin usuarios → WelcomeScreen (primer uso)
+  ///   4. Sin tenant configurado → WelcomeScreen (forzar setup)
+  ///   5. Sin sesión + hay usuarios → LoginScreen
+  ///   6. Sin sesión + sin usuarios → WelcomeScreen (primer uso)
   Future<void> _decidirNavegacion() async {
     // ── 1. Verificación defensiva de config ──
     if (!SupabaseConfig.estaConfigurado) {
@@ -146,17 +148,30 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       return;
     }
 
-    // ── 3. Sin sesión: verificar usuarios locales ──
+    // ── 3. ¿El dispositivo ya está configurado con tenant? ──
+    // ✅ CRÍTICO: sin tenant, la app no puede sincronizar con Supabase.
+    final tenantState = ref.read(tenantActualProvider);
+    final tieneTenant = tenantState.tieneTenant;
+
+    debugPrint('🔍 Tenant configurado: $tieneTenant (${tenantState.tenantId})');
+
+    if (!tieneTenant) {
+      debugPrint('➡️ Sin tenant configurado → WelcomeScreen (forzar setup)');
+      _goTo(const WelcomeScreen());
+      return;
+    }
+
+    // ── 4. Con tenant: verificar usuarios locales ──
     try {
       final isar = IsarService();
       final usuarios = await isar.obtenerUsuariosActivos();
       if (!mounted) return;
 
       if (usuarios.isEmpty) {
-        debugPrint('➡️ Sin usuarios → WelcomeScreen (primer uso)');
+        debugPrint('➡️ Sin usuarios → WelcomeScreen');
         _goTo(const WelcomeScreen());
       } else {
-        debugPrint('➡️ Con usuarios → LoginScreen');
+        debugPrint('➡️ Con usuarios + tenant → LoginScreen');
         _goTo(const LoginScreen());
       }
     } catch (e) {

@@ -33,6 +33,30 @@ class ProductoEntity {
   String proveedorEmail = '';
   String proveedorDireccion = '';
 
+
+
+   // ──────────────── Ventas al Mayor (NUEVO) ────────────────
+  /// Si `true`, el producto aparece en la pantalla de ventas al mayor.
+  bool permiteVentaMayor = false;
+
+  /// Precio unitario para ventas al por mayor.
+  double? precioMayor;
+
+  /// Cantidad mínima de unidades para aplicar `precioMayor`.
+  int? cantidadMinimaMayor;
+
+  /// Precio unitario para el nivel intermedio (medio mayor).
+  double? precioMedioMayor;
+
+  /// Cantidad mínima de unidades para aplicar `precioMedioMayor`.
+  int? cantidadMinimaMedioMayor;
+
+  /// Unidades contenidas en un bulto/caja (para ventas por empaque).
+  int unidadesPorBulto = 1;
+
+  /// Costo promedio del producto (para validar margen mínimo).
+  double? costoUnitarioPromedio;
+
   /// UUID del proveedor en Supabase (para la relación)
   @Index()
   String? proveedorSupabaseId;
@@ -92,6 +116,13 @@ class ProductoEntity {
     this.sincronizado = false,
     this.fechaSincronizacion,
     this.version = 0,
+    this.permiteVentaMayor = false,
+    this.precioMayor,
+    this.cantidadMinimaMayor,
+    this.precioMedioMayor,
+    this.cantidadMinimaMedioMayor,
+    this.unidadesPorBulto = 1,
+    this.costoUnitarioPromedio,
   });
 
   // ──────────────── Helpers privados ────────────────
@@ -170,6 +201,13 @@ class ProductoEntity {
       createdByName: json['created_by_name'] as String?,
       updatedByName: json['updated_by_name'] as String?,
       version: _asInt(json['version']) ?? 0,
+      permiteVentaMayor: json['permite_venta_mayor'] as bool? ?? false,
+      precioMayor: _asDouble(json['precio_mayor']),
+      cantidadMinimaMayor: _asInt(json['cantidad_minima_mayor']),
+      precioMedioMayor: _asDouble(json['precio_medio_mayor']),
+      cantidadMinimaMedioMayor: _asInt(json['cantidad_minima_medio_mayor']),
+      unidadesPorBulto: _asInt(json['unidades_por_bulto']) ?? 1,
+      costoUnitarioPromedio: _asDouble(json['costo_unitario_promedio']),
     );
   }
 
@@ -204,6 +242,13 @@ class ProductoEntity {
       'created_by_name': createdByName,
       'updated_by_name': updatedByName,
       'version': version,
+      'permite_venta_mayor': permiteVentaMayor,
+      'precio_mayor': precioMayor,
+      'cantidad_minima_mayor': cantidadMinimaMayor,
+      'precio_medio_mayor': precioMedioMayor,
+      'cantidad_minima_medio_mayor': cantidadMinimaMedioMayor,
+      'unidades_por_bulto': unidadesPorBulto,
+      'costo_unitario_promedio': costoUnitarioPromedio,
     };
   }
 }

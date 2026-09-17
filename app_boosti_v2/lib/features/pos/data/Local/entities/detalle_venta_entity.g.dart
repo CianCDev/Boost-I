@@ -18,48 +18,93 @@ const DetalleVentaEntitySchema = CollectionSchema(
   name: r'DetalleVentaEntity',
   id: -7850025648576014193,
   properties: {
-    r'cantidad': PropertySchema(
+    r'autorizadoPorLinea': PropertySchema(
       id: 0,
+      name: r'autorizadoPorLinea',
+      type: IsarType.string,
+    ),
+    r'cantidad': PropertySchema(
+      id: 1,
       name: r'cantidad',
       type: IsarType.double,
     ),
+    r'costoUnitarioSnapshot': PropertySchema(
+      id: 2,
+      name: r'costoUnitarioSnapshot',
+      type: IsarType.double,
+    ),
+    r'descuentoPorcentajeLinea': PropertySchema(
+      id: 3,
+      name: r'descuentoPorcentajeLinea',
+      type: IsarType.double,
+    ),
     r'esDescuentoEspecial': PropertySchema(
-      id: 1,
+      id: 4,
       name: r'esDescuentoEspecial',
       type: IsarType.bool,
     ),
+    r'loteIdIsar': PropertySchema(
+      id: 5,
+      name: r'loteIdIsar',
+      type: IsarType.long,
+    ),
     r'nombreProducto': PropertySchema(
-      id: 2,
+      id: 6,
       name: r'nombreProducto',
       type: IsarType.string,
     ),
+    r'precioDetalOriginal': PropertySchema(
+      id: 7,
+      name: r'precioDetalOriginal',
+      type: IsarType.double,
+    ),
+    r'precioMayorAplicado': PropertySchema(
+      id: 8,
+      name: r'precioMayorAplicado',
+      type: IsarType.double,
+    ),
     r'precioOriginal': PropertySchema(
-      id: 3,
+      id: 9,
       name: r'precioOriginal',
       type: IsarType.double,
     ),
     r'precioUnidad': PropertySchema(
-      id: 4,
+      id: 10,
       name: r'precioUnidad',
       type: IsarType.double,
     ),
     r'productoId': PropertySchema(
-      id: 5,
+      id: 11,
       name: r'productoId',
       type: IsarType.long,
     ),
     r'subtotal': PropertySchema(
-      id: 6,
+      id: 12,
       name: r'subtotal',
       type: IsarType.double,
     ),
     r'syncStatus': PropertySchema(
-      id: 7,
+      id: 13,
       name: r'syncStatus',
       type: IsarType.string,
     ),
+    r'tipoPrecio': PropertySchema(
+      id: 14,
+      name: r'tipoPrecio',
+      type: IsarType.string,
+    ),
+    r'unidadEmpaque': PropertySchema(
+      id: 15,
+      name: r'unidadEmpaque',
+      type: IsarType.string,
+    ),
+    r'unidadesPorEmpaque': PropertySchema(
+      id: 16,
+      name: r'unidadesPorEmpaque',
+      type: IsarType.long,
+    ),
     r'ventaIdFk': PropertySchema(
-      id: 8,
+      id: 17,
       name: r'ventaIdFk',
       type: IsarType.string,
     )
@@ -84,6 +129,12 @@ int _detalleVentaEntityEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  {
+    final value = object.autorizadoPorLinea;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.nombreProducto.length * 3;
   {
     final value = object.syncStatus;
@@ -91,6 +142,13 @@ int _detalleVentaEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final value = object.tipoPrecio;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  bytesCount += 3 + object.unidadEmpaque.length * 3;
   {
     final value = object.ventaIdFk;
     if (value != null) {
@@ -106,15 +164,24 @@ void _detalleVentaEntitySerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeDouble(offsets[0], object.cantidad);
-  writer.writeBool(offsets[1], object.esDescuentoEspecial);
-  writer.writeString(offsets[2], object.nombreProducto);
-  writer.writeDouble(offsets[3], object.precioOriginal);
-  writer.writeDouble(offsets[4], object.precioUnidad);
-  writer.writeLong(offsets[5], object.productoId);
-  writer.writeDouble(offsets[6], object.subtotal);
-  writer.writeString(offsets[7], object.syncStatus);
-  writer.writeString(offsets[8], object.ventaIdFk);
+  writer.writeString(offsets[0], object.autorizadoPorLinea);
+  writer.writeDouble(offsets[1], object.cantidad);
+  writer.writeDouble(offsets[2], object.costoUnitarioSnapshot);
+  writer.writeDouble(offsets[3], object.descuentoPorcentajeLinea);
+  writer.writeBool(offsets[4], object.esDescuentoEspecial);
+  writer.writeLong(offsets[5], object.loteIdIsar);
+  writer.writeString(offsets[6], object.nombreProducto);
+  writer.writeDouble(offsets[7], object.precioDetalOriginal);
+  writer.writeDouble(offsets[8], object.precioMayorAplicado);
+  writer.writeDouble(offsets[9], object.precioOriginal);
+  writer.writeDouble(offsets[10], object.precioUnidad);
+  writer.writeLong(offsets[11], object.productoId);
+  writer.writeDouble(offsets[12], object.subtotal);
+  writer.writeString(offsets[13], object.syncStatus);
+  writer.writeString(offsets[14], object.tipoPrecio);
+  writer.writeString(offsets[15], object.unidadEmpaque);
+  writer.writeLong(offsets[16], object.unidadesPorEmpaque);
+  writer.writeString(offsets[17], object.ventaIdFk);
 }
 
 DetalleVentaEntity _detalleVentaEntityDeserialize(
@@ -124,16 +191,25 @@ DetalleVentaEntity _detalleVentaEntityDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = DetalleVentaEntity();
-  object.cantidad = reader.readDouble(offsets[0]);
-  object.esDescuentoEspecial = reader.readBoolOrNull(offsets[1]);
+  object.autorizadoPorLinea = reader.readStringOrNull(offsets[0]);
+  object.cantidad = reader.readDouble(offsets[1]);
+  object.costoUnitarioSnapshot = reader.readDoubleOrNull(offsets[2]);
+  object.descuentoPorcentajeLinea = reader.readDouble(offsets[3]);
+  object.esDescuentoEspecial = reader.readBoolOrNull(offsets[4]);
   object.id = id;
-  object.nombreProducto = reader.readString(offsets[2]);
-  object.precioOriginal = reader.readDoubleOrNull(offsets[3]);
-  object.precioUnidad = reader.readDouble(offsets[4]);
-  object.productoId = reader.readLongOrNull(offsets[5]);
-  object.subtotal = reader.readDouble(offsets[6]);
-  object.syncStatus = reader.readStringOrNull(offsets[7]);
-  object.ventaIdFk = reader.readStringOrNull(offsets[8]);
+  object.loteIdIsar = reader.readLongOrNull(offsets[5]);
+  object.nombreProducto = reader.readString(offsets[6]);
+  object.precioDetalOriginal = reader.readDoubleOrNull(offsets[7]);
+  object.precioMayorAplicado = reader.readDoubleOrNull(offsets[8]);
+  object.precioOriginal = reader.readDoubleOrNull(offsets[9]);
+  object.precioUnidad = reader.readDouble(offsets[10]);
+  object.productoId = reader.readLongOrNull(offsets[11]);
+  object.subtotal = reader.readDouble(offsets[12]);
+  object.syncStatus = reader.readStringOrNull(offsets[13]);
+  object.tipoPrecio = reader.readStringOrNull(offsets[14]);
+  object.unidadEmpaque = reader.readString(offsets[15]);
+  object.unidadesPorEmpaque = reader.readLong(offsets[16]);
+  object.ventaIdFk = reader.readStringOrNull(offsets[17]);
   return object;
 }
 
@@ -145,22 +221,40 @@ P _detalleVentaEntityDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 1:
-      return (reader.readBoolOrNull(offset)) as P;
-    case 2:
-      return (reader.readString(offset)) as P;
-    case 3:
-      return (reader.readDoubleOrNull(offset)) as P;
-    case 4:
       return (reader.readDouble(offset)) as P;
+    case 2:
+      return (reader.readDoubleOrNull(offset)) as P;
+    case 3:
+      return (reader.readDouble(offset)) as P;
+    case 4:
+      return (reader.readBoolOrNull(offset)) as P;
     case 5:
       return (reader.readLongOrNull(offset)) as P;
     case 6:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 7:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 8:
+      return (reader.readDoubleOrNull(offset)) as P;
+    case 9:
+      return (reader.readDoubleOrNull(offset)) as P;
+    case 10:
+      return (reader.readDouble(offset)) as P;
+    case 11:
+      return (reader.readLongOrNull(offset)) as P;
+    case 12:
+      return (reader.readDouble(offset)) as P;
+    case 13:
+      return (reader.readStringOrNull(offset)) as P;
+    case 14:
+      return (reader.readStringOrNull(offset)) as P;
+    case 15:
+      return (reader.readString(offset)) as P;
+    case 16:
+      return (reader.readLong(offset)) as P;
+    case 17:
       return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -264,6 +358,160 @@ extension DetalleVentaEntityQueryWhere
 extension DetalleVentaEntityQueryFilter
     on QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QFilterCondition> {
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'autorizadoPorLinea',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'autorizadoPorLinea',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'autorizadoPorLinea',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'autorizadoPorLinea',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'autorizadoPorLinea',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'autorizadoPorLinea',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'autorizadoPorLinea',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'autorizadoPorLinea',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'autorizadoPorLinea',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'autorizadoPorLinea',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'autorizadoPorLinea',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      autorizadoPorLineaIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'autorizadoPorLinea',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
       cantidadEqualTo(
     double value, {
     double epsilon = Query.epsilon,
@@ -320,6 +568,156 @@ extension DetalleVentaEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
         property: r'cantidad',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      costoUnitarioSnapshotIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'costoUnitarioSnapshot',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      costoUnitarioSnapshotIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'costoUnitarioSnapshot',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      costoUnitarioSnapshotEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'costoUnitarioSnapshot',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      costoUnitarioSnapshotGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'costoUnitarioSnapshot',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      costoUnitarioSnapshotLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'costoUnitarioSnapshot',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      costoUnitarioSnapshotBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'costoUnitarioSnapshot',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      descuentoPorcentajeLineaEqualTo(
+    double value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'descuentoPorcentajeLinea',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      descuentoPorcentajeLineaGreaterThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'descuentoPorcentajeLinea',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      descuentoPorcentajeLineaLessThan(
+    double value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'descuentoPorcentajeLinea',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      descuentoPorcentajeLineaBetween(
+    double lower,
+    double upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'descuentoPorcentajeLinea',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -405,6 +803,80 @@ extension DetalleVentaEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
         property: r'id',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      loteIdIsarIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'loteIdIsar',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      loteIdIsarIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'loteIdIsar',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      loteIdIsarEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'loteIdIsar',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      loteIdIsarGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'loteIdIsar',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      loteIdIsarLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'loteIdIsar',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      loteIdIsarBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'loteIdIsar',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -545,6 +1017,174 @@ extension DetalleVentaEntityQueryFilter
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'nombreProducto',
         value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioDetalOriginalIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'precioDetalOriginal',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioDetalOriginalIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'precioDetalOriginal',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioDetalOriginalEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'precioDetalOriginal',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioDetalOriginalGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'precioDetalOriginal',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioDetalOriginalLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'precioDetalOriginal',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioDetalOriginalBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'precioDetalOriginal',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioMayorAplicadoIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'precioMayorAplicado',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioMayorAplicadoIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'precioMayorAplicado',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioMayorAplicadoEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'precioMayorAplicado',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioMayorAplicadoGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'precioMayorAplicado',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioMayorAplicadoLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'precioMayorAplicado',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      precioMayorAplicadoBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'precioMayorAplicado',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
       ));
     });
   }
@@ -994,6 +1634,352 @@ extension DetalleVentaEntityQueryFilter
   }
 
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'tipoPrecio',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'tipoPrecio',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tipoPrecio',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'tipoPrecio',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'tipoPrecio',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'tipoPrecio',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'tipoPrecio',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'tipoPrecio',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'tipoPrecio',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'tipoPrecio',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tipoPrecio',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      tipoPrecioIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'tipoPrecio',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadEmpaqueEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'unidadEmpaque',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadEmpaqueGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'unidadEmpaque',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadEmpaqueLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'unidadEmpaque',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadEmpaqueBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'unidadEmpaque',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadEmpaqueStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'unidadEmpaque',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadEmpaqueEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'unidadEmpaque',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadEmpaqueContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'unidadEmpaque',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadEmpaqueMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'unidadEmpaque',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadEmpaqueIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'unidadEmpaque',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadEmpaqueIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'unidadEmpaque',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadesPorEmpaqueEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'unidadesPorEmpaque',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadesPorEmpaqueGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'unidadesPorEmpaque',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadesPorEmpaqueLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'unidadesPorEmpaque',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      unidadesPorEmpaqueBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'unidadesPorEmpaque',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
       ventaIdFkIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -1157,6 +2143,20 @@ extension DetalleVentaEntityQueryLinks
 extension DetalleVentaEntityQuerySortBy
     on QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QSortBy> {
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByAutorizadoPorLinea() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'autorizadoPorLinea', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByAutorizadoPorLineaDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'autorizadoPorLinea', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
       sortByCantidad() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cantidad', Sort.asc);
@@ -1167,6 +2167,34 @@ extension DetalleVentaEntityQuerySortBy
       sortByCantidadDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cantidad', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByCostoUnitarioSnapshot() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'costoUnitarioSnapshot', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByCostoUnitarioSnapshotDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'costoUnitarioSnapshot', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByDescuentoPorcentajeLinea() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'descuentoPorcentajeLinea', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByDescuentoPorcentajeLineaDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'descuentoPorcentajeLinea', Sort.desc);
     });
   }
 
@@ -1185,6 +2213,20 @@ extension DetalleVentaEntityQuerySortBy
   }
 
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByLoteIdIsar() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'loteIdIsar', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByLoteIdIsarDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'loteIdIsar', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
       sortByNombreProducto() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombreProducto', Sort.asc);
@@ -1195,6 +2237,34 @@ extension DetalleVentaEntityQuerySortBy
       sortByNombreProductoDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombreProducto', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByPrecioDetalOriginal() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioDetalOriginal', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByPrecioDetalOriginalDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioDetalOriginal', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByPrecioMayorAplicado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMayorAplicado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByPrecioMayorAplicadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMayorAplicado', Sort.desc);
     });
   }
 
@@ -1269,6 +2339,48 @@ extension DetalleVentaEntityQuerySortBy
   }
 
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByTipoPrecio() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoPrecio', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByTipoPrecioDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoPrecio', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByUnidadEmpaque() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadEmpaque', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByUnidadEmpaqueDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadEmpaque', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByUnidadesPorEmpaque() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadesPorEmpaque', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByUnidadesPorEmpaqueDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadesPorEmpaque', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
       sortByVentaIdFk() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'ventaIdFk', Sort.asc);
@@ -1286,6 +2398,20 @@ extension DetalleVentaEntityQuerySortBy
 extension DetalleVentaEntityQuerySortThenBy
     on QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QSortThenBy> {
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByAutorizadoPorLinea() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'autorizadoPorLinea', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByAutorizadoPorLineaDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'autorizadoPorLinea', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
       thenByCantidad() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cantidad', Sort.asc);
@@ -1296,6 +2422,34 @@ extension DetalleVentaEntityQuerySortThenBy
       thenByCantidadDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'cantidad', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByCostoUnitarioSnapshot() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'costoUnitarioSnapshot', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByCostoUnitarioSnapshotDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'costoUnitarioSnapshot', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByDescuentoPorcentajeLinea() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'descuentoPorcentajeLinea', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByDescuentoPorcentajeLineaDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'descuentoPorcentajeLinea', Sort.desc);
     });
   }
 
@@ -1328,6 +2482,20 @@ extension DetalleVentaEntityQuerySortThenBy
   }
 
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByLoteIdIsar() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'loteIdIsar', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByLoteIdIsarDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'loteIdIsar', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
       thenByNombreProducto() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombreProducto', Sort.asc);
@@ -1338,6 +2506,34 @@ extension DetalleVentaEntityQuerySortThenBy
       thenByNombreProductoDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombreProducto', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByPrecioDetalOriginal() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioDetalOriginal', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByPrecioDetalOriginalDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioDetalOriginal', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByPrecioMayorAplicado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMayorAplicado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByPrecioMayorAplicadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMayorAplicado', Sort.desc);
     });
   }
 
@@ -1412,6 +2608,48 @@ extension DetalleVentaEntityQuerySortThenBy
   }
 
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByTipoPrecio() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoPrecio', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByTipoPrecioDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoPrecio', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByUnidadEmpaque() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadEmpaque', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByUnidadEmpaqueDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadEmpaque', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByUnidadesPorEmpaque() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadesPorEmpaque', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByUnidadesPorEmpaqueDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadesPorEmpaque', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
       thenByVentaIdFk() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'ventaIdFk', Sort.asc);
@@ -1429,9 +2667,31 @@ extension DetalleVentaEntityQuerySortThenBy
 extension DetalleVentaEntityQueryWhereDistinct
     on QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct> {
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
+      distinctByAutorizadoPorLinea({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'autorizadoPorLinea',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
       distinctByCantidad() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'cantidad');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
+      distinctByCostoUnitarioSnapshot() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'costoUnitarioSnapshot');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
+      distinctByDescuentoPorcentajeLinea() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'descuentoPorcentajeLinea');
     });
   }
 
@@ -1443,10 +2703,31 @@ extension DetalleVentaEntityQueryWhereDistinct
   }
 
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
+      distinctByLoteIdIsar() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'loteIdIsar');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
       distinctByNombreProducto({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'nombreProducto',
           caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
+      distinctByPrecioDetalOriginal() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'precioDetalOriginal');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
+      distinctByPrecioMayorAplicado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'precioMayorAplicado');
     });
   }
 
@@ -1486,6 +2767,28 @@ extension DetalleVentaEntityQueryWhereDistinct
   }
 
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
+      distinctByTipoPrecio({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'tipoPrecio', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
+      distinctByUnidadEmpaque({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'unidadEmpaque',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
+      distinctByUnidadesPorEmpaque() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'unidadesPorEmpaque');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
       distinctByVentaIdFk({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'ventaIdFk', caseSensitive: caseSensitive);
@@ -1501,10 +2804,31 @@ extension DetalleVentaEntityQueryProperty
     });
   }
 
+  QueryBuilder<DetalleVentaEntity, String?, QQueryOperations>
+      autorizadoPorLineaProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'autorizadoPorLinea');
+    });
+  }
+
   QueryBuilder<DetalleVentaEntity, double, QQueryOperations>
       cantidadProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'cantidad');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, double?, QQueryOperations>
+      costoUnitarioSnapshotProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'costoUnitarioSnapshot');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, double, QQueryOperations>
+      descuentoPorcentajeLineaProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'descuentoPorcentajeLinea');
     });
   }
 
@@ -1515,10 +2839,31 @@ extension DetalleVentaEntityQueryProperty
     });
   }
 
+  QueryBuilder<DetalleVentaEntity, int?, QQueryOperations>
+      loteIdIsarProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'loteIdIsar');
+    });
+  }
+
   QueryBuilder<DetalleVentaEntity, String, QQueryOperations>
       nombreProductoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'nombreProducto');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, double?, QQueryOperations>
+      precioDetalOriginalProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'precioDetalOriginal');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, double?, QQueryOperations>
+      precioMayorAplicadoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'precioMayorAplicado');
     });
   }
 
@@ -1554,6 +2899,27 @@ extension DetalleVentaEntityQueryProperty
       syncStatusProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'syncStatus');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, String?, QQueryOperations>
+      tipoPrecioProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'tipoPrecio');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, String, QQueryOperations>
+      unidadEmpaqueProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'unidadEmpaque');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, int, QQueryOperations>
+      unidadesPorEmpaqueProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'unidadesPorEmpaque');
     });
   }
 

@@ -22,138 +22,173 @@ const ProductoEntitySchema = CollectionSchema(
       name: r'activo',
       type: IsarType.bool,
     ),
-    r'categoria': PropertySchema(
+    r'cantidadMinimaMayor': PropertySchema(
       id: 1,
+      name: r'cantidadMinimaMayor',
+      type: IsarType.long,
+    ),
+    r'cantidadMinimaMedioMayor': PropertySchema(
+      id: 2,
+      name: r'cantidadMinimaMedioMayor',
+      type: IsarType.long,
+    ),
+    r'categoria': PropertySchema(
+      id: 3,
       name: r'categoria',
       type: IsarType.string,
     ),
     r'categoriaId': PropertySchema(
-      id: 2,
+      id: 4,
       name: r'categoriaId',
       type: IsarType.long,
     ),
     r'codigoBarras': PropertySchema(
-      id: 3,
+      id: 5,
       name: r'codigoBarras',
       type: IsarType.string,
     ),
+    r'costoUnitarioPromedio': PropertySchema(
+      id: 6,
+      name: r'costoUnitarioPromedio',
+      type: IsarType.double,
+    ),
     r'createdAt': PropertySchema(
-      id: 4,
+      id: 7,
       name: r'createdAt',
       type: IsarType.dateTime,
     ),
     r'createdBy': PropertySchema(
-      id: 5,
+      id: 8,
       name: r'createdBy',
       type: IsarType.long,
     ),
     r'createdByName': PropertySchema(
-      id: 6,
+      id: 9,
       name: r'createdByName',
       type: IsarType.string,
     ),
     r'esPesado': PropertySchema(
-      id: 7,
+      id: 10,
       name: r'esPesado',
       type: IsarType.bool,
     ),
     r'fechaSincronizacion': PropertySchema(
-      id: 8,
+      id: 11,
       name: r'fechaSincronizacion',
       type: IsarType.dateTime,
     ),
     r'imagenUrl': PropertySchema(
-      id: 9,
+      id: 12,
       name: r'imagenUrl',
       type: IsarType.string,
     ),
     r'marca': PropertySchema(
-      id: 10,
+      id: 13,
       name: r'marca',
       type: IsarType.string,
     ),
     r'marcaSupabaseId': PropertySchema(
-      id: 11,
+      id: 14,
       name: r'marcaSupabaseId',
       type: IsarType.string,
     ),
     r'nombre': PropertySchema(
-      id: 12,
+      id: 15,
       name: r'nombre',
       type: IsarType.string,
     ),
+    r'permiteVentaMayor': PropertySchema(
+      id: 16,
+      name: r'permiteVentaMayor',
+      type: IsarType.bool,
+    ),
+    r'precioMayor': PropertySchema(
+      id: 17,
+      name: r'precioMayor',
+      type: IsarType.double,
+    ),
+    r'precioMedioMayor': PropertySchema(
+      id: 18,
+      name: r'precioMedioMayor',
+      type: IsarType.double,
+    ),
     r'precioUnidad': PropertySchema(
-      id: 13,
+      id: 19,
       name: r'precioUnidad',
       type: IsarType.double,
     ),
     r'proveedorDireccion': PropertySchema(
-      id: 14,
+      id: 20,
       name: r'proveedorDireccion',
       type: IsarType.string,
     ),
     r'proveedorEmail': PropertySchema(
-      id: 15,
+      id: 21,
       name: r'proveedorEmail',
       type: IsarType.string,
     ),
     r'proveedorId': PropertySchema(
-      id: 16,
+      id: 22,
       name: r'proveedorId',
       type: IsarType.long,
     ),
     r'proveedorNombre': PropertySchema(
-      id: 17,
+      id: 23,
       name: r'proveedorNombre',
       type: IsarType.string,
     ),
     r'proveedorSupabaseId': PropertySchema(
-      id: 18,
+      id: 24,
       name: r'proveedorSupabaseId',
       type: IsarType.string,
     ),
     r'proveedorTelefono': PropertySchema(
-      id: 19,
+      id: 25,
       name: r'proveedorTelefono',
       type: IsarType.string,
     ),
     r'sincronizado': PropertySchema(
-      id: 20,
+      id: 26,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'stock': PropertySchema(
-      id: 21,
+      id: 27,
       name: r'stock',
       type: IsarType.double,
     ),
     r'stockMinimo': PropertySchema(
-      id: 22,
+      id: 28,
       name: r'stockMinimo',
       type: IsarType.double,
     ),
     r'supabaseId': PropertySchema(
-      id: 23,
+      id: 29,
       name: r'supabaseId',
       type: IsarType.string,
     ),
+    r'unidadesPorBulto': PropertySchema(
+      id: 30,
+      name: r'unidadesPorBulto',
+      type: IsarType.long,
+    ),
     r'updatedAt': PropertySchema(
-      id: 24,
+      id: 31,
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
     r'updatedBy': PropertySchema(
-      id: 25,
+      id: 32,
       name: r'updatedBy',
       type: IsarType.long,
     ),
     r'updatedByName': PropertySchema(
-      id: 26,
+      id: 33,
       name: r'updatedByName',
       type: IsarType.string,
     ),
     r'version': PropertySchema(
-      id: 27,
+      id: 34,
       name: r'version',
       type: IsarType.long,
     )
@@ -272,33 +307,40 @@ void _productoEntitySerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeBool(offsets[0], object.activo);
-  writer.writeString(offsets[1], object.categoria);
-  writer.writeLong(offsets[2], object.categoriaId);
-  writer.writeString(offsets[3], object.codigoBarras);
-  writer.writeDateTime(offsets[4], object.createdAt);
-  writer.writeLong(offsets[5], object.createdBy);
-  writer.writeString(offsets[6], object.createdByName);
-  writer.writeBool(offsets[7], object.esPesado);
-  writer.writeDateTime(offsets[8], object.fechaSincronizacion);
-  writer.writeString(offsets[9], object.imagenUrl);
-  writer.writeString(offsets[10], object.marca);
-  writer.writeString(offsets[11], object.marcaSupabaseId);
-  writer.writeString(offsets[12], object.nombre);
-  writer.writeDouble(offsets[13], object.precioUnidad);
-  writer.writeString(offsets[14], object.proveedorDireccion);
-  writer.writeString(offsets[15], object.proveedorEmail);
-  writer.writeLong(offsets[16], object.proveedorId);
-  writer.writeString(offsets[17], object.proveedorNombre);
-  writer.writeString(offsets[18], object.proveedorSupabaseId);
-  writer.writeString(offsets[19], object.proveedorTelefono);
-  writer.writeBool(offsets[20], object.sincronizado);
-  writer.writeDouble(offsets[21], object.stock);
-  writer.writeDouble(offsets[22], object.stockMinimo);
-  writer.writeString(offsets[23], object.supabaseId);
-  writer.writeDateTime(offsets[24], object.updatedAt);
-  writer.writeLong(offsets[25], object.updatedBy);
-  writer.writeString(offsets[26], object.updatedByName);
-  writer.writeLong(offsets[27], object.version);
+  writer.writeLong(offsets[1], object.cantidadMinimaMayor);
+  writer.writeLong(offsets[2], object.cantidadMinimaMedioMayor);
+  writer.writeString(offsets[3], object.categoria);
+  writer.writeLong(offsets[4], object.categoriaId);
+  writer.writeString(offsets[5], object.codigoBarras);
+  writer.writeDouble(offsets[6], object.costoUnitarioPromedio);
+  writer.writeDateTime(offsets[7], object.createdAt);
+  writer.writeLong(offsets[8], object.createdBy);
+  writer.writeString(offsets[9], object.createdByName);
+  writer.writeBool(offsets[10], object.esPesado);
+  writer.writeDateTime(offsets[11], object.fechaSincronizacion);
+  writer.writeString(offsets[12], object.imagenUrl);
+  writer.writeString(offsets[13], object.marca);
+  writer.writeString(offsets[14], object.marcaSupabaseId);
+  writer.writeString(offsets[15], object.nombre);
+  writer.writeBool(offsets[16], object.permiteVentaMayor);
+  writer.writeDouble(offsets[17], object.precioMayor);
+  writer.writeDouble(offsets[18], object.precioMedioMayor);
+  writer.writeDouble(offsets[19], object.precioUnidad);
+  writer.writeString(offsets[20], object.proveedorDireccion);
+  writer.writeString(offsets[21], object.proveedorEmail);
+  writer.writeLong(offsets[22], object.proveedorId);
+  writer.writeString(offsets[23], object.proveedorNombre);
+  writer.writeString(offsets[24], object.proveedorSupabaseId);
+  writer.writeString(offsets[25], object.proveedorTelefono);
+  writer.writeBool(offsets[26], object.sincronizado);
+  writer.writeDouble(offsets[27], object.stock);
+  writer.writeDouble(offsets[28], object.stockMinimo);
+  writer.writeString(offsets[29], object.supabaseId);
+  writer.writeLong(offsets[30], object.unidadesPorBulto);
+  writer.writeDateTime(offsets[31], object.updatedAt);
+  writer.writeLong(offsets[32], object.updatedBy);
+  writer.writeString(offsets[33], object.updatedByName);
+  writer.writeLong(offsets[34], object.version);
 }
 
 ProductoEntity _productoEntityDeserialize(
@@ -309,34 +351,41 @@ ProductoEntity _productoEntityDeserialize(
 ) {
   final object = ProductoEntity(
     activo: reader.readBoolOrNull(offsets[0]) ?? true,
-    categoria: reader.readStringOrNull(offsets[1]) ?? 'General',
-    categoriaId: reader.readLongOrNull(offsets[2]),
-    codigoBarras: reader.readStringOrNull(offsets[3]) ?? '',
-    createdAt: reader.readDateTimeOrNull(offsets[4]),
-    createdBy: reader.readLongOrNull(offsets[5]),
-    createdByName: reader.readStringOrNull(offsets[6]),
-    esPesado: reader.readBoolOrNull(offsets[7]) ?? false,
-    fechaSincronizacion: reader.readDateTimeOrNull(offsets[8]),
+    cantidadMinimaMayor: reader.readLongOrNull(offsets[1]),
+    cantidadMinimaMedioMayor: reader.readLongOrNull(offsets[2]),
+    categoria: reader.readStringOrNull(offsets[3]) ?? 'General',
+    categoriaId: reader.readLongOrNull(offsets[4]),
+    codigoBarras: reader.readStringOrNull(offsets[5]) ?? '',
+    costoUnitarioPromedio: reader.readDoubleOrNull(offsets[6]),
+    createdAt: reader.readDateTimeOrNull(offsets[7]),
+    createdBy: reader.readLongOrNull(offsets[8]),
+    createdByName: reader.readStringOrNull(offsets[9]),
+    esPesado: reader.readBoolOrNull(offsets[10]) ?? false,
+    fechaSincronizacion: reader.readDateTimeOrNull(offsets[11]),
     id: id,
-    imagenUrl: reader.readStringOrNull(offsets[9]),
-    marca: reader.readStringOrNull(offsets[10]) ?? '',
-    marcaSupabaseId: reader.readStringOrNull(offsets[11]),
-    nombre: reader.readStringOrNull(offsets[12]) ?? '',
-    precioUnidad: reader.readDoubleOrNull(offsets[13]) ?? 0.0,
-    proveedorDireccion: reader.readStringOrNull(offsets[14]) ?? '',
-    proveedorEmail: reader.readStringOrNull(offsets[15]) ?? '',
-    proveedorId: reader.readLongOrNull(offsets[16]),
-    proveedorNombre: reader.readStringOrNull(offsets[17]) ?? '',
-    proveedorSupabaseId: reader.readStringOrNull(offsets[18]),
-    proveedorTelefono: reader.readStringOrNull(offsets[19]) ?? '',
-    sincronizado: reader.readBoolOrNull(offsets[20]) ?? false,
-    stock: reader.readDoubleOrNull(offsets[21]) ?? 0.0,
-    stockMinimo: reader.readDoubleOrNull(offsets[22]) ?? 5.0,
-    supabaseId: reader.readStringOrNull(offsets[23]),
-    updatedAt: reader.readDateTimeOrNull(offsets[24]),
-    updatedBy: reader.readLongOrNull(offsets[25]),
-    updatedByName: reader.readStringOrNull(offsets[26]),
-    version: reader.readLongOrNull(offsets[27]) ?? 0,
+    imagenUrl: reader.readStringOrNull(offsets[12]),
+    marca: reader.readStringOrNull(offsets[13]) ?? '',
+    marcaSupabaseId: reader.readStringOrNull(offsets[14]),
+    nombre: reader.readStringOrNull(offsets[15]) ?? '',
+    permiteVentaMayor: reader.readBoolOrNull(offsets[16]) ?? false,
+    precioMayor: reader.readDoubleOrNull(offsets[17]),
+    precioMedioMayor: reader.readDoubleOrNull(offsets[18]),
+    precioUnidad: reader.readDoubleOrNull(offsets[19]) ?? 0.0,
+    proveedorDireccion: reader.readStringOrNull(offsets[20]) ?? '',
+    proveedorEmail: reader.readStringOrNull(offsets[21]) ?? '',
+    proveedorId: reader.readLongOrNull(offsets[22]),
+    proveedorNombre: reader.readStringOrNull(offsets[23]) ?? '',
+    proveedorSupabaseId: reader.readStringOrNull(offsets[24]),
+    proveedorTelefono: reader.readStringOrNull(offsets[25]) ?? '',
+    sincronizado: reader.readBoolOrNull(offsets[26]) ?? false,
+    stock: reader.readDoubleOrNull(offsets[27]) ?? 0.0,
+    stockMinimo: reader.readDoubleOrNull(offsets[28]) ?? 5.0,
+    supabaseId: reader.readStringOrNull(offsets[29]),
+    unidadesPorBulto: reader.readLongOrNull(offsets[30]) ?? 1,
+    updatedAt: reader.readDateTimeOrNull(offsets[31]),
+    updatedBy: reader.readLongOrNull(offsets[32]),
+    updatedByName: reader.readStringOrNull(offsets[33]),
+    version: reader.readLongOrNull(offsets[34]) ?? 0,
   );
   return object;
 }
@@ -351,58 +400,72 @@ P _productoEntityDeserializeProp<P>(
     case 0:
       return (reader.readBoolOrNull(offset) ?? true) as P;
     case 1:
-      return (reader.readStringOrNull(offset) ?? 'General') as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 2:
       return (reader.readLongOrNull(offset)) as P;
     case 3:
-      return (reader.readStringOrNull(offset) ?? '') as P;
+      return (reader.readStringOrNull(offset) ?? 'General') as P;
     case 4:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 5:
       return (reader.readLongOrNull(offset)) as P;
+    case 5:
+      return (reader.readStringOrNull(offset) ?? '') as P;
     case 6:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 7:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
-    case 8:
       return (reader.readDateTimeOrNull(offset)) as P;
+    case 8:
+      return (reader.readLongOrNull(offset)) as P;
     case 9:
       return (reader.readStringOrNull(offset)) as P;
     case 10:
-      return (reader.readStringOrNull(offset) ?? '') as P;
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 11:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 12:
-      return (reader.readStringOrNull(offset) ?? '') as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 13:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
-    case 14:
       return (reader.readStringOrNull(offset) ?? '') as P;
+    case 14:
+      return (reader.readStringOrNull(offset)) as P;
     case 15:
       return (reader.readStringOrNull(offset) ?? '') as P;
     case 16:
-      return (reader.readLongOrNull(offset)) as P;
-    case 17:
-      return (reader.readStringOrNull(offset) ?? '') as P;
-    case 18:
-      return (reader.readStringOrNull(offset)) as P;
-    case 19:
-      return (reader.readStringOrNull(offset) ?? '') as P;
-    case 20:
       return (reader.readBoolOrNull(offset) ?? false) as P;
-    case 21:
+    case 17:
+      return (reader.readDoubleOrNull(offset)) as P;
+    case 18:
+      return (reader.readDoubleOrNull(offset)) as P;
+    case 19:
       return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 20:
+      return (reader.readStringOrNull(offset) ?? '') as P;
+    case 21:
+      return (reader.readStringOrNull(offset) ?? '') as P;
     case 22:
-      return (reader.readDoubleOrNull(offset) ?? 5.0) as P;
-    case 23:
-      return (reader.readStringOrNull(offset)) as P;
-    case 24:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 25:
       return (reader.readLongOrNull(offset)) as P;
-    case 26:
+    case 23:
+      return (reader.readStringOrNull(offset) ?? '') as P;
+    case 24:
       return (reader.readStringOrNull(offset)) as P;
+    case 25:
+      return (reader.readStringOrNull(offset) ?? '') as P;
+    case 26:
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 27:
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 28:
+      return (reader.readDoubleOrNull(offset) ?? 5.0) as P;
+    case 29:
+      return (reader.readStringOrNull(offset)) as P;
+    case 30:
+      return (reader.readLongOrNull(offset) ?? 1) as P;
+    case 31:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 32:
+      return (reader.readLongOrNull(offset)) as P;
+    case 33:
+      return (reader.readStringOrNull(offset)) as P;
+    case 34:
       return (reader.readLongOrNull(offset) ?? 0) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -752,6 +815,154 @@ extension ProductoEntityQueryFilter
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMayorIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'cantidadMinimaMayor',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMayorIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'cantidadMinimaMayor',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMayorEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cantidadMinimaMayor',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMayorGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cantidadMinimaMayor',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMayorLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cantidadMinimaMayor',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMayorBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cantidadMinimaMayor',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMedioMayorIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'cantidadMinimaMedioMayor',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMedioMayorIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'cantidadMinimaMedioMayor',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMedioMayorEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'cantidadMinimaMedioMayor',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMedioMayorGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'cantidadMinimaMedioMayor',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMedioMayorLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'cantidadMinimaMedioMayor',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      cantidadMinimaMedioMayorBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'cantidadMinimaMedioMayor',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
       categoriaEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -1093,6 +1304,90 @@ extension ProductoEntityQueryFilter
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'codigoBarras',
         value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      costoUnitarioPromedioIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'costoUnitarioPromedio',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      costoUnitarioPromedioIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'costoUnitarioPromedio',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      costoUnitarioPromedioEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'costoUnitarioPromedio',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      costoUnitarioPromedioGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'costoUnitarioPromedio',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      costoUnitarioPromedioLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'costoUnitarioPromedio',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      costoUnitarioPromedioBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'costoUnitarioPromedio',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
       ));
     });
   }
@@ -2114,6 +2409,184 @@ extension ProductoEntityQueryFilter
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'nombre',
         value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      permiteVentaMayorEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'permiteVentaMayor',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMayorIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'precioMayor',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMayorIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'precioMayor',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMayorEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'precioMayor',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMayorGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'precioMayor',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMayorLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'precioMayor',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMayorBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'precioMayor',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMedioMayorIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'precioMedioMayor',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMedioMayorIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'precioMedioMayor',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMedioMayorEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'precioMedioMayor',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMedioMayorGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'precioMedioMayor',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMedioMayorLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'precioMedioMayor',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      precioMedioMayorBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'precioMedioMayor',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
       ));
     });
   }
@@ -3253,6 +3726,62 @@ extension ProductoEntityQueryFilter
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      unidadesPorBultoEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'unidadesPorBulto',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      unidadesPorBultoGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'unidadesPorBulto',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      unidadesPorBultoLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'unidadesPorBulto',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      unidadesPorBultoBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'unidadesPorBulto',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
       updatedAtIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -3632,6 +4161,34 @@ extension ProductoEntityQuerySortBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByCantidadMinimaMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cantidadMinimaMayor', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByCantidadMinimaMayorDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cantidadMinimaMayor', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByCantidadMinimaMedioMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cantidadMinimaMedioMayor', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByCantidadMinimaMedioMayorDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cantidadMinimaMedioMayor', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> sortByCategoria() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'categoria', Sort.asc);
@@ -3670,6 +4227,20 @@ extension ProductoEntityQuerySortBy
       sortByCodigoBarrasDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'codigoBarras', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByCostoUnitarioPromedio() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'costoUnitarioPromedio', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByCostoUnitarioPromedioDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'costoUnitarioPromedio', Sort.desc);
     });
   }
 
@@ -3789,6 +4360,48 @@ extension ProductoEntityQuerySortBy
       sortByNombreDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombre', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByPermiteVentaMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'permiteVentaMayor', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByPermiteVentaMayorDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'permiteVentaMayor', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByPrecioMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMayor', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByPrecioMayorDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMayor', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByPrecioMedioMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMedioMayor', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByPrecioMedioMayorDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMedioMayor', Sort.desc);
     });
   }
 
@@ -3944,6 +4557,20 @@ extension ProductoEntityQuerySortBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByUnidadesPorBulto() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadesPorBulto', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByUnidadesPorBultoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadesPorBulto', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> sortByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -4013,6 +4640,34 @@ extension ProductoEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByCantidadMinimaMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cantidadMinimaMayor', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByCantidadMinimaMayorDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cantidadMinimaMayor', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByCantidadMinimaMedioMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cantidadMinimaMedioMayor', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByCantidadMinimaMedioMayorDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'cantidadMinimaMedioMayor', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> thenByCategoria() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'categoria', Sort.asc);
@@ -4051,6 +4706,20 @@ extension ProductoEntityQuerySortThenBy
       thenByCodigoBarrasDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'codigoBarras', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByCostoUnitarioPromedio() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'costoUnitarioPromedio', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByCostoUnitarioPromedioDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'costoUnitarioPromedio', Sort.desc);
     });
   }
 
@@ -4182,6 +4851,48 @@ extension ProductoEntityQuerySortThenBy
       thenByNombreDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombre', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByPermiteVentaMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'permiteVentaMayor', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByPermiteVentaMayorDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'permiteVentaMayor', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByPrecioMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMayor', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByPrecioMayorDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMayor', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByPrecioMedioMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMedioMayor', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByPrecioMedioMayorDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'precioMedioMayor', Sort.desc);
     });
   }
 
@@ -4337,6 +5048,20 @@ extension ProductoEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByUnidadesPorBulto() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadesPorBulto', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByUnidadesPorBultoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidadesPorBulto', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy> thenByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -4399,6 +5124,20 @@ extension ProductoEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByCantidadMinimaMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cantidadMinimaMayor');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByCantidadMinimaMedioMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'cantidadMinimaMedioMayor');
+    });
+  }
+
   QueryBuilder<ProductoEntity, ProductoEntity, QDistinct> distinctByCategoria(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -4417,6 +5156,13 @@ extension ProductoEntityQueryWhereDistinct
       distinctByCodigoBarras({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'codigoBarras', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByCostoUnitarioPromedio() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'costoUnitarioPromedio');
     });
   }
 
@@ -4481,6 +5227,27 @@ extension ProductoEntityQueryWhereDistinct
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'nombre', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByPermiteVentaMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'permiteVentaMayor');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByPrecioMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'precioMayor');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByPrecioMedioMayor() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'precioMedioMayor');
     });
   }
 
@@ -4566,6 +5333,13 @@ extension ProductoEntityQueryWhereDistinct
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByUnidadesPorBulto() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'unidadesPorBulto');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
       distinctByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'updatedAt');
@@ -4608,6 +5382,20 @@ extension ProductoEntityQueryProperty
     });
   }
 
+  QueryBuilder<ProductoEntity, int?, QQueryOperations>
+      cantidadMinimaMayorProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cantidadMinimaMayor');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, int?, QQueryOperations>
+      cantidadMinimaMedioMayorProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'cantidadMinimaMedioMayor');
+    });
+  }
+
   QueryBuilder<ProductoEntity, String, QQueryOperations> categoriaProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'categoria');
@@ -4624,6 +5412,13 @@ extension ProductoEntityQueryProperty
       codigoBarrasProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'codigoBarras');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, double?, QQueryOperations>
+      costoUnitarioPromedioProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'costoUnitarioPromedio');
     });
   }
 
@@ -4682,6 +5477,27 @@ extension ProductoEntityQueryProperty
   QueryBuilder<ProductoEntity, String, QQueryOperations> nombreProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'nombre');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, bool, QQueryOperations>
+      permiteVentaMayorProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'permiteVentaMayor');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, double?, QQueryOperations>
+      precioMayorProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'precioMayor');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, double?, QQueryOperations>
+      precioMedioMayorProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'precioMedioMayor');
     });
   }
 
@@ -4754,6 +5570,13 @@ extension ProductoEntityQueryProperty
   QueryBuilder<ProductoEntity, String?, QQueryOperations> supabaseIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'supabaseId');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, int, QQueryOperations>
+      unidadesPorBultoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'unidadesPorBulto');
     });
   }
 

@@ -33,6 +33,27 @@ class ClienteEntity {
   DateTime? fechaNacimiento;
   String? notas;
 
+   // ──────────────── Datos fiscales + Mayorista (NUEVO) ────────────────
+
+  /// Razón social fiscal (obligatorio para venta al mayor).
+  String? razonSocial;
+
+  /// RIF completo (J-12345678-9). Obligatorio para venta al mayor.
+  String? rif;
+
+  /// Si el cliente opera como mayorista/distribuidor.
+  @Index()
+  bool esMayorista = false;
+
+  /// Límite de crédito (para Fase 2).
+  double? limiteCredito;
+
+  /// Días de crédito otorgados (para Fase 2).
+  int? diasCredito;
+
+  /// % de descuento preferencial fijo (opcional).
+  double? descuentoPreferencial;
+
   // Sincronización
   String syncStatus = 'pending'; // 'pending', 'synced', 'failed'
   DateTime? createdAt;

@@ -100,6 +100,15 @@ class Permissions {
   static bool canManageSchedules(UserRole r) =>
       r == UserRole.admin || r == UserRole.rrhh;
 
+       /// Puede acceder al módulo de Ventas al Mayor.
+  ///
+  /// Solo admin, supervisor y cajero. Otros roles quedan fuera.
+  static bool canAccessWholesale(UserRole role) {
+    return role == UserRole.admin ||
+        role == UserRole.supervisor ||
+        role == UserRole.cajero;
+  }
+
   // ══════════════════════════════════════════════════════════════
   // MÓDULO: POS / VENTAS
   // ══════════════════════════════════════════════════════════════

@@ -8,13 +8,20 @@ import 'package:device_preview/device_preview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// Entities & Services
 import 'features/pos/data/Local/entities/isar_service.dart';
 import 'features/pos/domain/permissions/roles.dart';
+import 'features/pos/domain/services/jwt_service.dart';
+
+// Providers
 import 'features/pos/presentation/providers/lock_provider.dart';
 import 'features/pos/presentation/providers/sync_provider.dart';
+import 'features/pos/presentation/providers/tenant_provider.dart';
 import 'features/pos/presentation/providers/themes/theme.dart';
 import 'features/pos/presentation/providers/themes/theme_provider.dart';
 import 'features/pos/presentation/providers/usuario_provider.dart';
+
+// Screens
 import 'features/pos/presentation/screens/configuracion_empresa_screen.dart';
 import 'features/pos/presentation/screens/empleados/employees_screen.dart';
 import 'features/pos/presentation/screens/login_screen.dart';
@@ -22,11 +29,12 @@ import 'features/pos/presentation/screens/main_pos_screen.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
 import 'features/pos/presentation/screens/splash_screen.dart';
 
-// Servicios
+// Services
 import 'features/pos/presentation/services/backup_service.dart';
 import 'features/pos/presentation/services/error_service.dart';
 import 'features/pos/presentation/services/ota_update_service.dart';
 
+// Widgets
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 
 // ════════════════════════════════════════════════════════════════════
@@ -40,7 +48,7 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Inicializaciones en paralelo
+  // ── 1. Inicializaciones en paralelo ──
   final prefs = await SharedPreferences.getInstance();
 
   final results = await Future.wait([
@@ -53,7 +61,7 @@ void main() async {
 
   final supabaseInitialized = results[1] as bool;
 
-  // 2. Tareas en background
+  // ── 2. Tareas en background (no bloquean el arranque) ──
   try {
     BackupService.register();
   } catch (e) {
@@ -66,7 +74,7 @@ void main() async {
     debugPrint('⚠️ OTA check falló: $e');
   }
 
-  // 3. App
+  // ── 3. App ──
   runApp(
     DevicePreview(
       enabled: !kReleaseMode,
@@ -137,16 +145,74 @@ class BoostiPOS extends ConsumerStatefulWidget {
 
 class _BoostiPOSState extends ConsumerState<BoostiPOS> {
   bool _syncStarted = false;
+  bool _bootstrapDone = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.supabaseInitialized) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _syncStarted) return;
-        _syncStarted = true;
-        _startBackgroundSync();
-      });
+    // Esperar el primer frame para acceder a ref de forma segura.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _bootstrap();
+    });
+  }
+
+  /// Inicialización del estado de sesión/tenant al arrancar.
+  ///
+  /// 1. Fuerza la construcción del TenantNotifier (lee de prefs).
+  /// 2. Rehidrata tenant + rol desde el JWT activo (si existe sesión).
+  /// 3. Arranca la sincronización de fondo.
+  Future<void> _bootstrap() async {
+    if (_bootstrapDone) return;
+    _bootstrapDone = true;
+
+    if (!mounted) return;
+
+    // ✅ Forzar inicialización del TenantNotifier (lee de prefs)
+    // Sin esto, el provider no se instancia hasta que alguien lo lea,
+    // y `SplashScreen._decidirNavegacion` vería un tenant vacío.
+    ref.read(tenantActualProvider);
+
+    // 1. Rehidratar tenant desde JWT activo (si existe)
+    await _cargarTenantDesdeSesion();
+
+    // 2. Sync en background
+    if (widget.supabaseInitialized && !_syncStarted) {
+      _syncStarted = true;
+      _startBackgroundSync();
+    }
+  }
+
+  /// Carga `tenant_id` y `rol` del JWT activo en Supabase (si existe).
+  ///
+  /// Si no hay sesión, deja que `TenantNotifier` cargue los valores
+  /// persistidos en SharedPreferences.
+  Future<void> _cargarTenantDesdeSesion() async {
+    try {
+      if (!widget.supabaseInitialized) return;
+
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session == null) {
+        debugPrint('ℹ️ Sin sesión Supabase → tenant desde prefs');
+        return;
+      }
+
+      final token = session.accessToken;
+      final tenantId = JwtService.extraerTenantId(token);
+      final rol = JwtService.extraerRol(token);
+
+      if (tenantId == null || tenantId.isEmpty) {
+        debugPrint(
+            '⚠️ Sesión activa pero JWT sin tenant_id. Revisar hook de Supabase.');
+        return;
+      }
+
+      await ref
+          .read(tenantActualProvider.notifier)
+          .setTenant(tenantId, rol: rol);
+
+      debugPrint('✅ Tenant rehidratado desde sesión: $tenantId (rol: $rol)');
+    } catch (e) {
+      debugPrint('⚠️ Error rehidratando tenant: $e');
     }
   }
 
@@ -177,9 +243,10 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
   ///
   /// Prioridad:
   ///   1. Sin config Supabase → ConfiguracionEmpresaScreen
-  ///   2. Con sesión RRHH → EmployeesScreen
-  ///   3. Con sesión otro rol → MainPosScreen
-  ///   4. Sin sesión → SplashScreen (permisos + Login)
+  ///   2. Con usuario local cargado:
+  ///      a. RRHH → EmployeesScreen
+  ///      b. Resto → MainPosScreen
+  ///   3. Sin usuario → SplashScreen (que validará tenant y redirigirá)
   Widget _homeInicial() {
     if (!widget.supabaseInitialized) {
       return const ConfiguracionEmpresaScreen();
@@ -189,16 +256,16 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
     if (usuario != null) {
       final role = UserRole.fromString(usuario.rol);
 
-      // RRHH: solo ve empleados
+      // RRHH: pantalla dedicada
       if (Permissions.isEmployeesOnlyRole(role)) {
         return const EmployeesScreen();
       }
 
-      // Resto: welcome screen
+      // Resto: welcome screen (menú principal)
       return const MainPosScreen();
     }
 
-    // Sin sesión → Splash hace chequeos y deriva a Login
+    // Sin usuario local → Splash valida y redirige
     return const SplashScreen();
   }
 

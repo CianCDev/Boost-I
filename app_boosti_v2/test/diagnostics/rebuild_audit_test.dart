@@ -105,7 +105,7 @@ UsuarioEntity _buildFakeUsuario() => UsuarioEntity()
   ..estado = 'activo';
 
 class _FakeUsuariosNotifier extends UsuariosNotifier {
-  _FakeUsuariosNotifier(Ref ref, UsuarioEntity? user) : super(ref) {
+  _FakeUsuariosNotifier(super.ref, UsuarioEntity? user){
     state = user;
   }
 }

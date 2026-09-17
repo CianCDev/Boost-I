@@ -2,7 +2,6 @@
 import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/catalog/quantity_dialog.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

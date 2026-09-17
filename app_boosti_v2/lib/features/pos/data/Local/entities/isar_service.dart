@@ -10,6 +10,7 @@ import '../../../presentation/utils/pin_hasher.dart';
 
 // Entidades
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
+import 'autorizacion_descuento_entity.dart';
 import 'cart_session_entity.dart';
 import 'cliente_entity.dart';
 import '../entities/turno_entity.dart';
@@ -28,6 +29,8 @@ import 'codigo_barra_alia_entity.dart';
 import '../entities/lote_entity.dart';
 import '../entities/departamento_entity.dart';
 import '../entities/telegram_config_entity.dart';
+import 'config_descuento_mayorista_entity.dart';
+import 'cotizacion_mayor_entity.dart';
 import 'empleado_entity.dart';
 import 'gasto_entity.dart';
 import 'marca_entity.dart';
@@ -35,6 +38,8 @@ import '../entities/movimiento_lote_entity.dart';
 import '../../../presentation/services/error_service.dart'; // ✅ NUEVO
 import 'horario_entity.dart';
 import 'nomina_pago_entity.dart';
+import 'pago_venta_entity.dart';
+
 
 // ============================================================
 // CLASE AUXILIAR PARA HISTORIAL DE CÓDIGOS
@@ -138,6 +143,10 @@ Future<Isar> _initIsar({
         EmpleadoInfoEntitySchema,   // ✅ NUEVO
         HorarioEntitySchema,        // ✅ NUEVO
         NominaPagoEntitySchema,
+        PagoVentaEntitySchema,
+        CotizacionMayorEntitySchema,
+        AutorizacionDescuentoEntitySchema,
+        ConfigDescuentoMayoristaEntitySchema,
       ],
       directory: dbPath,
       // ✅ Inspector deshabilitado en tests
@@ -184,6 +193,10 @@ Future<Isar> _initIsar({
         HorarioEntitySchema,
         NominaPagoEntitySchema,
         ClienteEntitySchema,
+        PagoVentaEntitySchema,
+        CotizacionMayorEntitySchema,
+        AutorizacionDescuentoEntitySchema,
+        ConfigDescuentoMayoristaEntitySchema,
       ],
       directory: fallbackPath,
       inspector: testDirectory == null,
@@ -383,10 +396,9 @@ Future<void> initForTesting(String directoryPath) async {
   Future<void> guardarUsuario(UsuarioEntity usuario) async {
     try {
       // Hashear el PIN si viene en plano (regla aplicada en un solo punto)
-      if (usuario.pin != null &&
-          usuario.pin!.isNotEmpty &&
-          !PinHasher.isHashed(usuario.pin!)) {
-        usuario.pin = PinHasher.hashWithNewSalt(usuario.pin!);
+      if (usuario.pin.isNotEmpty &&
+          !PinHasher.isHashed(usuario.pin)) {
+        usuario.pin = PinHasher.hashWithNewSalt(usuario.pin);
       }
       final isar = await db;
       await isar.writeTxn(() async {
@@ -543,7 +555,7 @@ Future<void> initForTesting(String directoryPath) async {
 
       for (final usuario in candidatos) {
         final storedPin = usuario.pin;
-        if (storedPin == null || storedPin.isEmpty) continue;
+        if (storedPin.isEmpty) continue;
 
         // Caso 1: PIN ya hasheado → verificar con PinHasher
         if (PinHasher.isHashed(storedPin)) {
@@ -2713,6 +2725,357 @@ Future<void> initForTesting(String directoryPath) async {
     }
   }
 
+  // ==================== PAGOS DE VENTA (Wholesale) ====================
+
+  Future<int> guardarPagoVenta(PagoVentaEntity pago) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn<int>(() async {
+        return await isar.pagoVentaEntitys.put(pago);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'guardarPagoVenta_fallo',
+          extras: {'ventaIdFk': pago.ventaIdFk, 'metodo': pago.metodo});
+      rethrow;
+    }
+  }
+
+  Future<List<PagoVentaEntity>> obtenerPagosPorVenta(int ventaIdFk) async {
+    try {
+      final isar = await db;
+      return await isar.pagoVentaEntitys
+          .filter()
+          .ventaIdFkEqualTo(ventaIdFk)
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerPagosPorVenta_fallo',
+          extras: {'ventaIdFk': ventaIdFk});
+      return [];
+    }
+  }
+
+  Future<List<PagoVentaEntity>> obtenerPagosPorVentaSupabaseId(
+      String ventaSupabaseId) async {
+    try {
+      if (ventaSupabaseId.isEmpty) return [];
+      final isar = await db;
+      return await isar.pagoVentaEntitys
+          .filter()
+          .ventaSupabaseIdEqualTo(ventaSupabaseId)
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerPagosPorVentaSupabaseId_fallo',
+          extras: {'ventaSupabaseId': ventaSupabaseId});
+      return [];
+    }
+  }
+
+  Future<List<PagoVentaEntity>> obtenerPagosVentaPendientesSync() async {
+    try {
+      final isar = await db;
+      return await isar.pagoVentaEntitys
+          .filter()
+          .syncStatusEqualTo('pending')
+          .or()
+          .syncStatusEqualTo('failed')
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerPagosVentaPendientesSync_fallo');
+      return [];
+    }
+  }
+
+  Future<void> actualizarSyncStatusPagoVenta(int id, String nuevoEstado) async {
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        final pago = await isar.pagoVentaEntitys.get(id);
+        if (pago != null) {
+          pago.syncStatus = nuevoEstado;
+          pago.updatedAt = DateTime.now();
+          await isar.pagoVentaEntitys.put(pago);
+        }
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'actualizarSyncStatusPagoVenta_fallo',
+          extras: {'id': id, 'nuevoEstado': nuevoEstado});
+      rethrow;
+    }
+  }
+
+
+    // ==================== COTIZACIONES MAYOR ====================
+
+  Future<int> guardarCotizacion(CotizacionMayorEntity cotizacion) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn<int>(() async {
+        cotizacion.updatedAt = DateTime.now();
+        cotizacion.createdAt ??= DateTime.now();
+        return await isar.cotizacionMayorEntitys.put(cotizacion);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'guardarCotizacion_fallo',
+          extras: {'numero': cotizacion.numero});
+      rethrow;
+    }
+  }
+
+  Future<List<CotizacionMayorEntity>> obtenerCotizaciones(
+      {String? estado}) async {
+    try {
+      final isar = await db;
+      List<CotizacionMayorEntity> lista;
+      if (estado == null || estado.isEmpty) {
+        lista = await isar.cotizacionMayorEntitys.where().findAll();
+      } else {
+        lista = await isar.cotizacionMayorEntitys
+            .filter()
+            .estadoEqualTo(estado)
+            .findAll();
+      }
+      // Ordenar en Dart (fechaEmision no tiene @Index)
+      lista.sort((a, b) => b.fechaEmision.compareTo(a.fechaEmision));
+      return lista;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerCotizaciones_fallo');
+      return [];
+    }
+  }
+
+  Future<CotizacionMayorEntity?> obtenerCotizacionPorId(int id) async {
+    try {
+      final isar = await db;
+      return await isar.cotizacionMayorEntitys.get(id);
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerCotizacionPorId_fallo',
+          extras: {'id': id});
+      return null;
+    }
+  }
+
+  Future<CotizacionMayorEntity?> obtenerCotizacionPorSupabaseId(
+      String supabaseId) async {
+    try {
+      if (supabaseId.isEmpty) return null;
+      final isar = await db;
+      return await isar.cotizacionMayorEntitys
+          .filter()
+          .supabaseIdEqualTo(supabaseId)
+          .findFirst();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerCotizacionPorSupabaseId_fallo',
+          extras: {'supabaseId': supabaseId});
+      return null;
+    }
+  }
+
+  Future<List<CotizacionMayorEntity>> obtenerCotizacionesPendientesSync() async {
+    try {
+      final isar = await db;
+      return await isar.cotizacionMayorEntitys
+          .filter()
+          .syncStatusEqualTo('pending')
+          .or()
+          .syncStatusEqualTo('failed')
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerCotizacionesPendientesSync_fallo');
+      return [];
+    }
+  }
+
+  Future<void> actualizarSyncStatusCotizacion(int id, String nuevoEstado) async {
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        final cot = await isar.cotizacionMayorEntitys.get(id);
+        if (cot != null) {
+          cot.syncStatus = nuevoEstado;
+          cot.updatedAt = DateTime.now();
+          await isar.cotizacionMayorEntitys.put(cot);
+        }
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'actualizarSyncStatusCotizacion_fallo',
+          extras: {'id': id, 'nuevoEstado': nuevoEstado});
+      rethrow;
+    }
+  }
+
+  Future<bool> eliminarCotizacion(int id) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn(() async {
+        return await isar.cotizacionMayorEntitys.delete(id);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'eliminarCotizacion_fallo',
+          extras: {'id': id});
+      return false;
+    }
+  }
+
+  /// Genera el próximo número de cotización con formato COT-YYYY-NNNN.
+  ///
+  /// Revisa todas las cotizaciones del año actual y devuelve el siguiente
+  /// correlativo. Si algo falla, devuelve un fallback con timestamp.
+  Future<String> generarNumeroCotizacion() async {
+    try {
+      final isar = await db;
+      final anio = DateTime.now().year;
+      final prefijo = 'COT-$anio-';
+
+      final todas = await isar.cotizacionMayorEntitys
+          .filter()
+          .numeroStartsWith(prefijo)
+          .findAll();
+
+      int maxNum = 0;
+      for (final c in todas) {
+        final partes = c.numero.split('-');
+        if (partes.length >= 3) {
+          final num = int.tryParse(partes[2]);
+          if (num != null && num > maxNum) maxNum = num;
+        }
+      }
+
+      final siguiente = (maxNum + 1).toString().padLeft(4, '0');
+      return '$prefijo$siguiente';
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'generarNumeroCotizacion_fallo');
+      // Fallback: timestamp
+      final ts = DateTime.now().millisecondsSinceEpoch % 10000;
+      return 'COT-${DateTime.now().year}-${ts.toString().padLeft(4, '0')}';
+    }
+  }
+  // ==================== CONFIG DESCUENTOS MAYORISTAS ====================
+
+  Future<int> guardarConfigDescuento(
+      ConfigDescuentoMayoristaEntity config) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn<int>(() async {
+        config.updatedAt = DateTime.now();
+        config.createdAt ??= DateTime.now();
+        return await isar.configDescuentoMayoristaEntitys.put(config);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'guardarConfigDescuento_fallo',
+          extras: {'nombre': config.nombre});
+      rethrow;
+    }
+  }
+
+  Future<List<ConfigDescuentoMayoristaEntity>> obtenerConfigDescuentos(
+      {bool soloActivos = true}) async {
+    try {
+      final isar = await db;
+      if (soloActivos) {
+        return await isar.configDescuentoMayoristaEntitys
+            .filter()
+            .activoEqualTo(true)
+            .findAll();
+      }
+      return await isar.configDescuentoMayoristaEntitys.where().findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerConfigDescuentos_fallo');
+      return [];
+    }
+  }
+
+  Future<ConfigDescuentoMayoristaEntity?> obtenerConfigDescuentoPorId(
+      int id) async {
+    try {
+      final isar = await db;
+      return await isar.configDescuentoMayoristaEntitys.get(id);
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerConfigDescuentoPorId_fallo',
+          extras: {'id': id});
+      return null;
+    }
+  }
+
+  Future<bool> eliminarConfigDescuento(int id) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn(() async {
+        return await isar.configDescuentoMayoristaEntitys.delete(id);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'eliminarConfigDescuento_fallo',
+          extras: {'id': id});
+      return false;
+    }
+  }
+
+  Future<List<ConfigDescuentoMayoristaEntity>>
+      obtenerConfigDescuentosPendientesSync() async {
+    try {
+      final isar = await db;
+      return await isar.configDescuentoMayoristaEntitys
+          .filter()
+          .syncStatusEqualTo('pending')
+          .or()
+          .syncStatusEqualTo('failed')
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerConfigDescuentosPendientesSync_fallo');
+      return [];
+    }
+  }
+
+  Future<void> actualizarSyncStatusConfigDescuento(
+      int id, String nuevoEstado) async {
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        final config = await isar.configDescuentoMayoristaEntitys.get(id);
+        if (config != null) {
+          config.syncStatus = nuevoEstado;
+          config.updatedAt = DateTime.now();
+          await isar.configDescuentoMayoristaEntitys.put(config);
+        }
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'actualizarSyncStatusConfigDescuento_fallo',
+          extras: {'id': id, 'nuevoEstado': nuevoEstado});
+      rethrow;
+    }
+  }
+
   // ==================== LOTES ====================
 
   Future<void> guardarLote(LoteEntity lote) async {
@@ -2747,6 +3110,15 @@ Future<void> initForTesting(String directoryPath) async {
           extras: {'productoId': productoId});
       return 0.0;
     }
+  }
+
+  Future<List<LoteEntity>> obtenerLotesPorProducto(int productoId) async {
+    if (productoId <= 0) return [];
+    final isar = await db;
+    return await isar.loteEntitys
+        .filter()
+        .productoIdEqualTo(productoId)
+        .findAll();
   }
 
   Future<List<LoteEntity>> obtenerLotesActivos(int productoId,
@@ -3226,6 +3598,103 @@ Future<void> initForTesting(String directoryPath) async {
     }
   }
 
+    // ==================== AUTORIZACIONES DE DESCUENTO ====================
+
+  Future<List<AutorizacionDescuentoEntity>> obtenerAutorizacionesPorVenta(
+      int ventaIdFk) async {
+    try {
+      final isar = await db;
+      return await isar.autorizacionDescuentoEntitys
+          .filter()
+          .ventaIdFkEqualTo(ventaIdFk)
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerAutorizacionesPorVenta_fallo',
+          extras: {'ventaIdFk': ventaIdFk});
+      return [];
+    }
+  }
+
+
+ Future<int> guardarAutorizacionDescuento(
+    AutorizacionDescuentoEntity entidad,
+  ) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn<int>(() async {
+        return await isar.autorizacionDescuentoEntitys.put(entidad);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'guardarAutorizacionDescuento_fallo',
+          extras: {
+            'descuentoSolicitado': entidad.descuentoSolicitado,
+            'solicitadoPorNombre': entidad.solicitadoPorNombre,
+          });
+      rethrow;
+    }
+  }
+  
+  Future<List<AutorizacionDescuentoEntity>>
+      obtenerAutorizacionesPendientesSync() async {
+    try {
+      final isar = await db;
+      return await isar.autorizacionDescuentoEntitys
+          .filter()
+          .syncStatusEqualTo('pending')
+          .or()
+          .syncStatusEqualTo('failed')
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerAutorizacionesPendientesSync_fallo');
+      return [];
+    }
+  }
+
+  Future<void> actualizarSyncStatusAutorizacion(
+      int id, String nuevoEstado) async {
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        final autz = await isar.autorizacionDescuentoEntitys.get(id);
+        if (autz != null) {
+          autz.syncStatus = nuevoEstado;
+          await isar.autorizacionDescuentoEntitys.put(autz);
+        }
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'actualizarSyncStatusAutorizacion_fallo',
+          extras: {'id': id, 'nuevoEstado': nuevoEstado});
+      rethrow;
+    }
+  }
+
+  /// Para reportes de auditoría: autorizaciones en un rango de fechas.
+  Future<List<AutorizacionDescuentoEntity>> obtenerAutorizacionesPorPeriodo(
+    DateTime inicio,
+    DateTime fin,
+  ) async {
+    try {
+      final isar = await db;
+      final lista = await isar.autorizacionDescuentoEntitys
+          .filter()
+          .fechaBetween(inicio, fin, includeLower: true, includeUpper: true)
+          .findAll();
+      lista.sort((a, b) => b.fecha.compareTo(a.fecha));
+      return lista;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerAutorizacionesPorPeriodo_fallo');
+      return [];
+    }
+  }
+
   Future<List<MovimientoLoteEntity>> obtenerMovimientosPorLote(
       int loteId) async {
     try {
@@ -3455,8 +3924,8 @@ Future<void> initForTesting(String directoryPath) async {
       final usuarios = await isar.usuarioEntitys.where().findAll();
       int migrados = 0;
       for (final u in usuarios) {
-        if (u.pin != null && u.pin!.isNotEmpty && !PinHasher.isHashed(u.pin!)) {
-          u.pin = PinHasher.hashWithNewSalt(u.pin!);
+        if (u.pin.isNotEmpty && !PinHasher.isHashed(u.pin)) {
+          u.pin = PinHasher.hashWithNewSalt(u.pin);
           await isar.writeTxn(() async {
             await isar.usuarioEntitys.put(u);
           });

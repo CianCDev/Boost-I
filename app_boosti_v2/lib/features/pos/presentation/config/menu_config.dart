@@ -17,6 +17,7 @@ import '../screens/proveedores/proveedores_screen.dart';
 import '../screens/sales_history_screen.dart';
 import '../screens/telegram/telegram_config_screen.dart';
 import '../screens/user_settings_screen.dart';
+import '../screens/wholesale/wholesale_screen.dart';
 import '../widgets/gestion_personal_dialog.dart';
 import '../widgets/menu/diagnostico_lote_dialog.dart';
 import '../widgets/monitor_empleado_widget.dart';
@@ -91,6 +92,7 @@ class MenuBuilder {
       'diagnostico' => Permissions.canManageLotes(role),
       'perfil' => true,
       'sync' => !Permissions.isEmployeesOnlyRole(role),
+      'ventas_mayor' => Permissions.canAccessWholesale(role),
       _ => true,
     };
   }
@@ -104,10 +106,26 @@ class MenuBuilder {
     required int ventasPendientesSync,
   }) {
     return [
+      // ─────────────────────────────────────────────────────────────
+      // OPERACIÓN
+      // ─────────────────────────────────────────────────────────────
       MenuSection(
         title: 'OPERACIÓN',
         color: const Color(0xFF3B82F6),
         options: [
+          MenuOption(
+            id: 'ventas_mayor',
+            icon: Icons.warehouse_rounded,
+            title: 'Ventas al Mayor',
+            subtitle: 'Ventas B2B con descuentos',
+            color: const Color(0xFF8B5CF6),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const WholesaleScreen(),
+              ),
+            ),
+          ),
           MenuOption(
             id: 'caja',
             icon: Icons.point_of_sale_rounded,
@@ -143,6 +161,10 @@ class MenuBuilder {
           ),
         ],
       ),
+
+      // ─────────────────────────────────────────────────────────────
+      // INVENTARIO
+      // ─────────────────────────────────────────────────────────────
       MenuSection(
         title: 'INVENTARIO',
         color: const Color(0xFF8B5CF6),
@@ -184,6 +206,10 @@ class MenuBuilder {
           ),
         ],
       ),
+
+      // ─────────────────────────────────────────────────────────────
+      // ANÁLISIS
+      // ─────────────────────────────────────────────────────────────
       MenuSection(
         title: 'ANÁLISIS',
         color: const Color(0xFF06B6D4),
@@ -212,6 +238,10 @@ class MenuBuilder {
           ),
         ],
       ),
+
+      // ─────────────────────────────────────────────────────────────
+      // PERSONAL
+      // ─────────────────────────────────────────────────────────────
       MenuSection(
         title: 'PERSONAL',
         color: const Color(0xFF10B981),
@@ -251,6 +281,10 @@ class MenuBuilder {
           ),
         ],
       ),
+
+      // ─────────────────────────────────────────────────────────────
+      // CONFIGURACIÓN
+      // ─────────────────────────────────────────────────────────────
       MenuSection(
         title: 'CONFIGURACIÓN',
         color: const Color(0xFF64748B),
@@ -334,6 +368,10 @@ class MenuBuilder {
           ),
         ],
       ),
+
+      // ─────────────────────────────────────────────────────────────
+      // MI CUENTA
+      // ─────────────────────────────────────────────────────────────
       MenuSection(
         title: 'MI CUENTA',
         color: const Color(0xFF8B5CF6),

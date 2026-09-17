@@ -9,7 +9,6 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dar
 import '../../providers/pedidos_provider.dart';
 import '../../providers/locales_provider.dart';
 import '../../providers/local_actual_provider.dart';
-import '../../utils/responsive_helper.dart';
 import '../../widgets/appbar.dart';
 import '../../../data/Local/entities/local_entity.dart';
 import '../../widgets/pedidos/pedido_filtro.dart';

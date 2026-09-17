@@ -840,7 +840,7 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
         SizedBox(
           width: 100,
           child: DropdownButtonFormField<TipoDocumento>(
-            value: _tipoDoc,
+            initialValue: _tipoDoc,
             decoration: _inputDecoration('Tipo', null, colorScheme),
             items: TipoDocumento.paraUsuarios
                 .map((t) => DropdownMenuItem(
@@ -949,7 +949,7 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
     };
 
     return DropdownButtonFormField<String>(
-      value: _tipoContrato,
+      initialValue: _tipoContrato,
       decoration: _inputDecoration(
         'Tipo de contrato',
         Icons.description_outlined,
@@ -1002,7 +1002,7 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
 
   Widget _dropdownSupervisor(ColorScheme colorScheme) {
     return DropdownButtonFormField<int?>(
-      value: _supervisorId,
+      initialValue: _supervisorId,
       decoration: _inputDecoration(
         'Supervisor directo',
         Icons.supervisor_account_outlined,
@@ -1049,7 +1049,7 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
               SizedBox(
                 width: 100,
                 child: DropdownButtonFormField<String>(
-                  value: _monedaSalario,
+                  initialValue: _monedaSalario,
                   decoration: _inputDecoration('Moneda', null, colorScheme),
                   items: const [
                     DropdownMenuItem(value: 'USD', child: Text('USD')),
@@ -1064,7 +1064,7 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
           ),
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
-            value: _frecuenciaPago,
+            initialValue: _frecuenciaPago,
             decoration: _inputDecoration(
               'Frecuencia de pago',
               Icons.repeat_rounded,
@@ -1126,7 +1126,7 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           DropdownButtonFormField<int?>(
-            value: _horarioId,
+            initialValue: _horarioId,
             decoration: _inputDecoration(
               'Horario asignado',
               Icons.schedule_rounded,

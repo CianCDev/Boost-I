@@ -19,15 +19,14 @@ import '../helpers/test_helpers.dart';
 // ════════════════════════════════════════════════════════════════
 
 class FakeUsuariosNotifier extends UsuariosNotifier {
-  FakeUsuariosNotifier(Ref ref, UsuarioEntity? initial) : super(ref) {
+  FakeUsuariosNotifier(super.ref, UsuarioEntity? initial){
     state = initial;
   }
 }
 
 /// Notifier fake de clientes.
 class FakeClientesNotifier extends ClientesNotifier {
-  FakeClientesNotifier(Ref ref, {List<ClienteEntity> initial = const []})
-      : super(ref) {
+  FakeClientesNotifier(super.ref, {List<ClienteEntity> initial = const []}){
     state = initial;
   }
 
