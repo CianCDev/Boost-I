@@ -5,13 +5,17 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:isar/isar.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/config/supabase_config.dart';
 import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/usuario_entity.dart';
 import '../../domain/permissions/roles.dart';
 import '../providers/tenant_provider.dart';
 import '../providers/usuario_provider.dart';
+// ✅ Import ya presente
 import 'configuracion_empresa_screen.dart';
 import 'empleados/employees_screen.dart';
 import 'login_screen.dart';
@@ -39,22 +43,30 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   // ════════════════════════════════════════════════════════════════
 
   Future<void> _inicializar() async {
-    // 1. Permisos (solo mobile — desktop no los necesita)
+    // 1. Permisos
     if (_esMobile) {
       await _pedirPermisos();
     }
 
-    // 2. Diagnóstico en debug
+    // 2. ✅ LIMPIEZA de usuarios duplicados
+    await _limpiezaOneShot();
+
+    // 3. 🔧 TEMPORAL: reparación one-shot de productos mayoristas
+    // ⚠️ ELIMINAR después de verificar que funciona
+
+
+    // 4. Diagnóstico (ya con datos limpios)
     if (kDebugMode) {
       await _diagnosticarUsuarios();
     }
 
-    // 3. Pausa breve para branding
+    // 5. Pausa breve para branding
     if (mounted) {
       setState(() => _mensajeCarga = 'Iniciando...');
     }
     await Future.delayed(const Duration(milliseconds: 400));
 
+    // 6. Decidir navegación
     if (!mounted) return;
     await _decidirNavegacion();
   }
@@ -85,6 +97,122 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   // ════════════════════════════════════════════════════════════════
+  // LIMPIEZA ONE-SHOT de usuarios duplicados
+  // ════════════════════════════════════════════════════════════════
+
+  Future<void> _limpiezaOneShot() async {
+    const flagKey = 'cleanup_duplicates_v2';
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(flagKey) == true) return;
+
+    try {
+      final isar = IsarService();
+      final db = await isar.db;
+
+      // ── 1. Eliminar "yan camacaro" si aún existe ──
+      final todos = await db.usuarioEntitys.where().findAll();
+      final aEliminar = todos
+          .where((u) => u.nombre.trim().toLowerCase() == 'yan camacaro')
+          .toList();
+
+      for (final u in aEliminar) {
+        await db.writeTxn(() async {
+          await db.usuarioEntitys.delete(u.id);
+        });
+        debugPrint('🧹 Eliminado duplicado: "${u.nombre}" (ID: ${u.id})');
+      }
+
+      // ── 2. Refetch DESPUÉS de borrar ──
+      final restantes = await db.usuarioEntitys.where().findAll();
+
+      // ── 3. Limpiar UUIDs duplicados SOLO entre vivos ──
+      final porUuid = <String, List<UsuarioEntity>>{};
+      for (final u in restantes) {
+        final id = u.supabaseId;
+        if (id == null || id.isEmpty) continue;
+        porUuid.putIfAbsent(id, () => []).add(u);
+      }
+
+      for (final entry in porUuid.entries) {
+        final lista = entry.value;
+        if (lista.length <= 1) continue;
+        lista.sort((a, b) => a.id.compareTo(b.id));
+        final conservar = lista.first;
+        for (final u in lista.skip(1)) {
+          await db.writeTxn(() async {
+            u.supabaseId = null;
+            u.sincronizado = false;
+            await db.usuarioEntitys.put(u);
+          });
+          debugPrint('🧹 UUID duplicado limpiado en "${u.nombre}" '
+              '(conservado en "${conservar.nombre}")');
+        }
+      }
+
+      // ── 4. Restaurar el UUID de ian si quedó en null ──
+      final ian = restantes.firstWhere(
+        (u) => u.nombre.trim().toLowerCase() == 'ian',
+        orElse: () => UsuarioEntity(),
+      );
+
+      if (ian.id != 0 &&
+          (ian.supabaseId == null || ian.supabaseId!.isEmpty)) {
+        const ianUuid = '51123f01-0acf-49fb-9762-ff60a99ec685';
+        await db.writeTxn(() async {
+          ian.supabaseId = ianUuid;
+          ian.sincronizado = false;
+          await db.usuarioEntitys.put(ian);
+        });
+        debugPrint('✅ UUID de "ian" restaurado: $ianUuid');
+      }
+
+      await prefs.setBool(flagKey, true);
+      debugPrint('✅ Limpieza one-shot v2 completada');
+    } catch (e) {
+      debugPrint('⚠️ Error en limpieza v2: $e');
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // 🔧 REPARACIÓN ONE-SHOT de productos (temporal)
+  // ════════════════════════════════════════════════════════════════
+
+  /// Fuerza reset de productos locales y re-descarga desde Supabase.
+  /// Corre UNA SOLA VEZ por dispositivo (flag en SharedPreferences).
+  ///
+  /// ⚠️ ELIMINAR ESTE MÉTODO Y SU LLAMADA CUANDO SE CONFIRME.
+ /* Future<void> _repararProductosMayoristas() async {
+    const flagKey = 'repair_productos_mayoristas_v1';
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(flagKey) == true) {
+      debugPrint('ℹ️ [REPARACIÓN] Ya se ejecutó antes. Saltando.');
+      return;
+    }
+
+    debugPrint('🔧 [REPARACIÓN] Iniciando reparación de productos...');
+
+    try {
+      // Esperar a que haya sesión Supabase activa
+      final supabase = Supabase.instance.client;
+      if (supabase.auth.currentSession == null) {
+        debugPrint('⚠️ [REPARACIÓN] Sin sesión Supabase. Omitiendo.');
+        return;
+      }
+
+      // Ejecutar reparación
+      await SyncService().resetProductosDesdeSupabase();
+
+      // Marcar como hecho
+      await prefs.setBool(flagKey, true);
+      debugPrint('✅ [REPARACIÓN] Flag guardado. No volverá a correr.');
+    } catch (e, stack) {
+      debugPrint('⚠️ [REPARACIÓN] Error: $e');
+      debugPrint('⚠️ [REPARACIÓN] Stack: $stack');
+      // No marcamos el flag → reintentará en el próximo arranque
+    }
+  }*/
+
+  // ════════════════════════════════════════════════════════════════
   // DIAGNÓSTICO (solo debug)
   // ════════════════════════════════════════════════════════════════
 
@@ -102,7 +230,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       }
 
       final adminValido = usuarios.any(
-        (u) => u.rol == 'admin' && u.activo && u.pin.length == 4,
+        (u) => u.rol == 'admin' && u.activo && u.pin.isNotEmpty,
       );
       debugPrint('🔍 Admin válido: ${adminValido ? "✅" : "❌"}');
     } catch (e) {
@@ -114,13 +242,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   // NAVEGACIÓN
   // ════════════════════════════════════════════════════════════════
 
-  /// Prioridad:
-  ///   1. Sin config Supabase → ConfiguracionEmpresaScreen (defensivo)
-  ///   2. Con sesión RRHH → EmployeesScreen
-  ///   3. Con sesión otros → MainPosScreen
-  ///   4. Sin tenant configurado → WelcomeScreen (forzar setup)
-  ///   5. Sin sesión + hay usuarios → LoginScreen
-  ///   6. Sin sesión + sin usuarios → WelcomeScreen (primer uso)
   Future<void> _decidirNavegacion() async {
     // ── 1. Verificación defensiva de config ──
     if (!SupabaseConfig.estaConfigurado) {
@@ -149,7 +270,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
 
     // ── 3. ¿El dispositivo ya está configurado con tenant? ──
-    // ✅ CRÍTICO: sin tenant, la app no puede sincronizar con Supabase.
     final tenantState = ref.read(tenantActualProvider);
     final tieneTenant = tenantState.tieneTenant;
 
@@ -176,7 +296,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       }
     } catch (e) {
       debugPrint('❌ Error verificando usuarios: $e');
-      // Fallback seguro: al Login (que maneja bien el caso vacío)
       _goTo(const LoginScreen());
     }
   }

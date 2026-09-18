@@ -23,6 +23,7 @@ class _SeleccionarDepartamentoDialogState
     final departamentosAsync = ref.watch(todosDepartamentosProvider);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    // ignore: unused_local_variable
     final isDark = theme.brightness == Brightness.dark;
 
     return GlassDialog(
@@ -93,6 +94,7 @@ class _SeleccionarDepartamentoDialogState
                           ref
                               .read(guardarDepartamentoProvider(d).future)
                               .then((_) {
+                            // ignore: use_build_context_synchronously
                             if (mounted) Navigator.pop(context, d);
                           });
                         },

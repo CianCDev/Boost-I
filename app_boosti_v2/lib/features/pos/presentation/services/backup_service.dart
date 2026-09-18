@@ -21,6 +21,7 @@ class BackupService {
   static void register() {
     Workmanager().initialize(
       callbackDispatcher,
+      // ignore: deprecated_member_use
       isInDebugMode: kDebugMode,
     );
     Workmanager().registerPeriodicTask(

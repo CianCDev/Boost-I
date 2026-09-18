@@ -104,6 +104,7 @@ class _EstadoChipState extends State<EstadoChip> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // ignore: unused_local_variable
     final colorScheme = theme.colorScheme;
     final isMobile = ResponsiveHelper.isMobile(context);
     final color = _color();

@@ -140,7 +140,7 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
 
     final monto = double.tryParse(_montoController.text.replaceAll(',', '.'));
     if (monto == null || monto <= 0) {
-      _snack('Ingresa un monto válido');
+      _snack('Ingresa un monto válido', esError: true);
       return;
     }
 
@@ -182,6 +182,25 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
       _limpiarFormulario();
       _metodoPrincipalSeleccionado = null;
     });
+
+    // ✅ FIX: Feedback al agregar pago
+    final totalPagado = _totalPagadoUsd;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${_labelMetodo(metodo)} agregado · '
+          'Pagado: \$${totalPagado.toStringAsFixed(2)} '
+          'de \$${widget.totalUsd.toStringAsFixed(2)}',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: const Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
   }
 
   void _eliminarPago(int index) {
@@ -251,12 +270,11 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
     if (_metodoPrincipalSeleccionado != null &&
         _montoController.text.trim().isNotEmpty) {
       _agregarPago();
-      // Después de un frame, verificar
       await Future.delayed(const Duration(milliseconds: 100));
     }
 
     if (_pagos.isEmpty) {
-      _snack('Agrega al menos un pago');
+      _snack('Agrega al menos un pago', esError: true);
       return;
     }
 
@@ -264,12 +282,13 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
       _snack(
         'Falta cubrir el mínimo requerido '
         '(\$${_minimoRequeridoUsd.toStringAsFixed(2)})',
+        esError: true,
       );
       return;
     }
 
     if (!_pagoCompleto) {
-      _snack('El pago no cubre el total de la venta');
+      _snack('El pago no cubre el total de la venta', esError: true);
       return;
     }
 
@@ -285,11 +304,12 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
     Navigator.of(context).pop(result);
   }
 
-  void _snack(String msg) {
+  void _snack(String msg, {bool esError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: Theme.of(context).colorScheme.error,
+        backgroundColor:
+            esError ? Theme.of(context).colorScheme.error : null,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -330,14 +350,11 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Header ──
             _buildHeader(isDark, cs),
             Divider(
               height: 1,
               color: cs.outlineVariant.withValues(alpha: 0.3),
             ),
-
-            // ── Total banner ──
             _buildTotalBanner(isDark, cs),
 
             // ── Contenido scrollable ──
@@ -347,13 +364,14 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Toggle multipago
                     _buildToggle(isDark, cs),
                     const SizedBox(height: 16),
 
-                    // Métodos principales
+                    // ✅ FIX #1: mostrar métodos si:
+                    //    - No hay método seleccionado actualmente
+                    //    - Y (modo multipago activo O aún no hay pagos)
                     if (_metodoPrincipalSeleccionado == null &&
-                        _pagos.isEmpty) ...[
+                        (_esMultipago || _pagos.isEmpty)) ...[
                       _buildMetodosPrincipales(isDark, cs),
                     ],
 
@@ -363,7 +381,7 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
                       const SizedBox(height: 16),
                     ],
 
-                    // Formulario de método seleccionado
+                    // Formulario del método seleccionado
                     if (_metodoPrincipalSeleccionado != null) ...[
                       _buildFormularioMetodo(isDark, cs),
                     ],
@@ -378,7 +396,6 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
               ),
             ),
 
-            // ── Footer ──
             _buildFooter(isDark, cs),
           ],
         ),
@@ -439,7 +456,7 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
     );
   }
 
-  // ──────────────── Banner de total ────────────────
+  // ──────────────── Banner total ────────────────
 
   Widget _buildTotalBanner(bool isDark, ColorScheme cs) {
     return Container(
@@ -639,7 +656,6 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
           cs: cs,
         ),
         const SizedBox(height: 12),
-        // Botón ver todos
         SizedBox(
           height: 46,
           child: OutlinedButton.icon(
@@ -754,7 +770,11 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
           ),
           child: Row(
             children: [
-              Icon(_iconoMetodo(metodo), size: 20, color: const Color(0xFF10B981)),
+              Icon(
+                _iconoMetodo(metodo),
+                size: 20,
+                color: const Color(0xFF10B981),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -785,7 +805,9 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
         _buildTextField(
           controller: _montoController,
           label: usaBs ? 'Monto (Bs)' : 'Monto (USD/USDT)',
-          icon: usaBs ? Icons.payments_outlined : Icons.attach_money_rounded,
+          icon: usaBs
+              ? Icons.payments_outlined
+              : Icons.attach_money_rounded,
           keyboard: const TextInputType.numberWithOptions(decimal: true),
           formatters: [
             FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
@@ -807,7 +829,9 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
         ],
 
         // Campos específicos por método
-        if (metodo == 'punto' || metodo == 'pago_movil' || metodo == 'transferencia_bs') ...[
+        if (metodo == 'punto' ||
+            metodo == 'pago_movil' ||
+            metodo == 'transferencia_bs') ...[
           const SizedBox(height: 12),
           _buildTextField(
             controller: _referenciaController,
@@ -852,7 +876,8 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
           ),
         ],
 
-        if (metodo == 'binance_pay' || metodo == 'transferencia_usdt') ...[
+        if (metodo == 'binance_pay' ||
+            metodo == 'transferencia_usdt') ...[
           const SizedBox(height: 12),
           _buildTextField(
             controller: _walletController,
@@ -872,14 +897,16 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
         ],
 
         const SizedBox(height: 16),
+
+        // ✅ Bonus: texto dinámico del botón
         SizedBox(
           height: 46,
           child: ElevatedButton.icon(
             onPressed: _agregarPago,
             icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text(
-              'Agregar pago',
-              style: TextStyle(fontWeight: FontWeight.w800),
+            label: Text(
+              _pagos.isEmpty ? 'Agregar pago' : 'Agregar otro pago',
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF10B981),
@@ -1032,7 +1059,8 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
                 const SizedBox(height: 2),
                 Text(
                   usaBs
-                      ? 'Bs. ${pago.monto.toStringAsFixed(2)} (≈\$${pago.montoUsdEquivalente.toStringAsFixed(2)})'
+                      ? 'Bs. ${pago.monto.toStringAsFixed(2)} '
+                          '(≈\$${pago.montoUsdEquivalente.toStringAsFixed(2)})'
                       : '${pago.moneda} ${pago.monto.toStringAsFixed(2)}',
                   style: TextStyle(
                     fontSize: 11,
@@ -1076,7 +1104,8 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
       color = const Color(0xFFF59E0B);
       icon = Icons.warning_amber_rounded;
       titulo = 'Mínimo cubierto';
-      mensaje = 'Faltante para el total: \$${_faltanteUsd.toStringAsFixed(2)}';
+      mensaje =
+          'Faltante para el total: \$${_faltanteUsd.toStringAsFixed(2)}';
     } else {
       color = const Color(0xFFEF4444);
       icon = Icons.error_rounded;
@@ -1120,7 +1149,6 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
               ],
             ),
           ),
-          // Contador pagado
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -1149,7 +1177,8 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
   // ──────────────── Footer ────────────────
 
   Widget _buildFooter(bool isDark, ColorScheme cs) {
-    final puedeConfirmar = _pagos.isNotEmpty && _cumpleMinimo && _pagoCompleto;
+    final puedeConfirmar =
+        _pagos.isNotEmpty && _cumpleMinimo && _pagoCompleto;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),

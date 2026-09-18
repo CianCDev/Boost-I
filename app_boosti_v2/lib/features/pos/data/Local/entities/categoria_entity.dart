@@ -1,4 +1,3 @@
-// lib/features/pos/data/Local/entities/categoria_entity.dart
 import 'package:isar/isar.dart';
 
 part 'categoria_entity.g.dart';
@@ -33,24 +32,34 @@ class CategoriaEntity {
       supabaseId: supabaseId,
       nombre: json['nombre']?.toString() ?? '',
       descripcion: json['descripcion']?.toString(),
-      activo: json['activo'] ?? true,
+      activo: json['activo'] as bool? ?? true,
+      // ✅ Columna real en Supabase: 'created_at' (NO 'creado_en')
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'].toString())
+          ? DateTime.tryParse(json['created_at'].toString())
           : null,
       updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'].toString())
+          ? DateTime.tryParse(json['updated_at'].toString())
           : null,
       syncStatus: 'synced',
     );
   }
 
+  /// Mapea la entidad al esquema REAL de Supabase.
+  ///
+  /// ⚠️ NO enviamos:
+  ///   - `created_at`  → tiene `default now()` en la DB.
+  ///   - `tenant_id`   → tiene `default current_tenant_id()` en la DB.
+  ///
+  /// Enviar `created_at` manualmente hace que los UPDATE fallen
+  /// (intenta sobreescribir un campo de auditoría) y puede causar
+  /// conflictos con el trigger `audit_categorias`.
   Map<String, dynamic> toSupabaseJson() {
     return {
       if (supabaseId != null) 'id': supabaseId,
       'nombre': nombre,
-      if (descripcion != null) 'descripcion': descripcion,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
+      'descripcion': descripcion,
+      'activo': activo,
+      if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
     };
   }
 }

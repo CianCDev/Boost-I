@@ -1,4 +1,6 @@
 // lib/features/pos/presentation/widgets/locales/seleccionar_empleados_dialog.dart
+// ignore_for_file: unused_local_variable
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
@@ -212,6 +214,7 @@ class _EmpleadoTile extends StatefulWidget {
 }
 
 class _EmpleadoTileState extends State<_EmpleadoTile> {
+  // ignore: unused_field
   bool _hovered = false;
 
   @override

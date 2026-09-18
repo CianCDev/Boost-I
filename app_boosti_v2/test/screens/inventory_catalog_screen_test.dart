@@ -1,5 +1,7 @@
 // test/screens/inventory_catalog_screen_test.dart
 
+// ignore_for_file: unused_element
+
 import 'package:app_boosti_v2/features/pos/presentation/screens/inventory_catalog_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Estado de catalog falso para los tests.
+// ignore: unused_element
 class _FakeCatalogState {
   // Ajusta según tu clase CatalogState real
 }
@@ -16,6 +19,7 @@ class _FakeCatalogNotifier extends StateNotifier<dynamic> {
   _FakeCatalogNotifier() : super(null);
 
   @override
+  // ignore: override_on_non_overriding_member
   void setBusqueda(String query) {}
 }
 

@@ -36,6 +36,7 @@ class _LotesGroupCardState extends ConsumerState<LotesGroupCard> {
   static const _colorActivo = Color(0xFF10B981);
   static const _colorDanger = Color(0xFFEF4444);
   static const _colorVencido = Color(0xFF8B5CF6);
+  // ignore: unused_field
   static const _colorPrimary = Color(0xFF8B5CF6);
 
   @override

@@ -46,7 +46,8 @@ class _RestScreenState extends ConsumerState<RestScreen>
       TweenSequenceItem(tween: Tween(begin: 12, end: -12), weight: 1),
       TweenSequenceItem(tween: Tween(begin: -12, end: 12), weight: 1),
       TweenSequenceItem(tween: Tween(begin: 12, end: 0), weight: 1),
-    ]).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeInOut));
+    ]).animate(
+        CurvedAnimation(parent: _shakeController, curve: Curves.easeInOut));
   }
 
   @override
@@ -79,6 +80,10 @@ class _RestScreenState extends ConsumerState<RestScreen>
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // DESBLOQUEO CON PIN (usa validarLogin → soporta hash)
+  // ═══════════════════════════════════════════════════════════════
+
   Future<void> _tryUnlock() async {
     if (_enteredPin.length != 4 || _cargando || _isLockedOut) return;
 
@@ -92,15 +97,25 @@ class _RestScreenState extends ConsumerState<RestScreen>
       final usuarioLogueado = authState.currentUser;
 
       if (usuarioLogueado == null) {
-        if (mounted) _triggerError('No hay usuario activo. Vuelva a iniciar sesión.');
+        if (mounted) {
+          _triggerError('No hay usuario activo. Vuelva a iniciar sesión.');
+        }
         setState(() => _cargando = false);
         return;
       }
 
-      if (usuarioLogueado.pin == _enteredPin) {
+      // ✅ FIX: usar validarLogin (maneja hash + plano legacy)
+      final usuarioValido = await _isarService.validarLogin(
+        usuarioLogueado.nombre,
+        _enteredPin,
+      );
+
+      if (usuarioValido != null) {
         // Actualizar estado local y en Supabase
-        await _isarService.actualizarEstadoUsuario(usuarioLogueado.id, 'activo');
-        await _syncService.actualizarEstadoUsuarioEnSupabase(usuarioLogueado.id, 'activo');
+        await _isarService.actualizarEstadoUsuario(
+            usuarioLogueado.id, 'activo');
+        await _syncService.actualizarEstadoUsuarioEnSupabase(
+            usuarioLogueado.id, 'activo');
 
         await _isarService.guardarLog(
           LogEntity()
@@ -115,18 +130,23 @@ class _RestScreenState extends ConsumerState<RestScreen>
         if (mounted) {
           _enteredPin = '';
           await ref.read(lockProvider.notifier).unlock();
-          // Volver a la pantalla anterior
           Navigator.pop(context);
         }
       } else {
         if (mounted) _triggerError('PIN incorrecto. Intente de nuevo.');
       }
     } catch (e) {
-      if (mounted) _triggerError('Error de verificación. Revise el sistema.');
+      if (mounted) {
+        _triggerError('Error de verificación. Revise el sistema.');
+      }
     } finally {
       if (mounted) setState(() => _cargando = false);
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // TECLADO
+  // ═══════════════════════════════════════════════════════════════
 
   void _onDigitPressed(String digit) {
     if (_enteredPin.length < 4 && !_isLockedOut && !_cargando) {
@@ -153,7 +173,8 @@ class _RestScreenState extends ConsumerState<RestScreen>
         _onBackspacePressed();
         return KeyEventResult.handled;
       }
-      if (event.character != null && RegExp(r'^[0-9]$').hasMatch(event.character!)) {
+      if (event.character != null &&
+          RegExp(r'^[0-9]$').hasMatch(event.character!)) {
         _onDigitPressed(event.character!);
         return KeyEventResult.handled;
       }
@@ -180,7 +201,8 @@ class _RestScreenState extends ConsumerState<RestScreen>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
+                      colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.8),
                       colorScheme.primaryContainer,
                     ],
                   )
@@ -195,7 +217,8 @@ class _RestScreenState extends ConsumerState<RestScreen>
           ),
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
               child: AnimatedBuilder(
                 animation: _shakeAnimation,
                 builder: (context, child) {
@@ -215,7 +238,8 @@ class _RestScreenState extends ConsumerState<RestScreen>
                         : null,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.25),
+                        color: Colors.black
+                            .withValues(alpha: isDark ? 0.4 : 0.25),
                         blurRadius: 40,
                         offset: const Offset(0, 20),
                       ),
@@ -230,7 +254,8 @@ class _RestScreenState extends ConsumerState<RestScreen>
                           color: colorScheme.primary.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(Icons.coffee_rounded, size: 48, color: colorScheme.primary),
+                        child: Icon(Icons.coffee_rounded,
+                            size: 48, color: colorScheme.primary),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -249,14 +274,18 @@ class _RestScreenState extends ConsumerState<RestScreen>
                             : 'Esta estación se encuentra pausada.\nIngrese su PIN para continuar.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: _isLockedOut ? colorScheme.error : colorScheme.onSurfaceVariant,
+                          color: _isLockedOut
+                              ? colorScheme.error
+                              : colorScheme.onSurfaceVariant,
                           fontSize: 14,
-                          fontWeight: _isLockedOut ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: _isLockedOut
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
                       const SizedBox(height: 32),
 
-                      // Indicadores de PIN
+                      // ── Puntos del PIN ──
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(4, (index) {
@@ -268,12 +297,16 @@ class _RestScreenState extends ConsumerState<RestScreen>
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: isFilled
-                                  ? (_errorMessage.isNotEmpty ? colorScheme.error : colorScheme.primary)
+                                  ? (_errorMessage.isNotEmpty
+                                      ? colorScheme.error
+                                      : colorScheme.primary)
                                   : Colors.transparent,
                               border: Border.all(
                                 color: _errorMessage.isNotEmpty
                                     ? colorScheme.error
-                                    : (isFilled ? colorScheme.primary : colorScheme.outline),
+                                    : (isFilled
+                                        ? colorScheme.primary
+                                        : colorScheme.outline),
                                 width: 2,
                               ),
                             ),
@@ -285,17 +318,19 @@ class _RestScreenState extends ConsumerState<RestScreen>
                         const SizedBox(height: 12),
                         Text(
                           _errorMessage,
-                          style: TextStyle(color: colorScheme.error, fontSize: 13),
+                          style: TextStyle(
+                              color: colorScheme.error, fontSize: 13),
                         ),
                       ],
 
                       const SizedBox(height: 32),
 
-                      // Teclado numérico
+                      // ── Numpad ──
                       GridView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 3,
                           childAspectRatio: 1.3,
                           crossAxisSpacing: 12,
@@ -322,7 +357,8 @@ class _RestScreenState extends ConsumerState<RestScreen>
 
                       if (_cargando) ...[
                         const SizedBox(height: 20),
-                        CircularProgressIndicator(color: colorScheme.primary),
+                        CircularProgressIndicator(
+                            color: colorScheme.primary),
                       ]
                     ],
                   ),
@@ -362,8 +398,10 @@ class _NumpadButton extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+            color:
+                colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
           ),
           child: Center(
             child: icon != null

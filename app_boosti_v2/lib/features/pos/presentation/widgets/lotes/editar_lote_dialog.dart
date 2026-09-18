@@ -27,6 +27,7 @@ class _EditarLoteDialogState extends ConsumerState<EditarLoteDialog> {
 
   static const _colorPrimary = Color(0xFF8B5CF6);
   static const _colorSuccess = Color(0xFF10B981);
+  // ignore: unused_field
   static const _colorDanger = Color(0xFFEF4444);
 
   @override

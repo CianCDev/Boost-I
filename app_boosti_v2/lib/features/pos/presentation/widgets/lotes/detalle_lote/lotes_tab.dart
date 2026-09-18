@@ -86,6 +86,7 @@ class _LotesTabState extends ConsumerState<LotesTab> {
   }
 
   Widget _buildLoteCard(BuildContext context, LoteEntity lote, bool isDark) {
+    // ignore: unused_local_variable
     final colorScheme = Theme.of(context).colorScheme;
     final estadoColor = _getEstadoColor(lote.estado);
 

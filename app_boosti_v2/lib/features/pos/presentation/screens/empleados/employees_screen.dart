@@ -1079,7 +1079,7 @@ class _EmployeeDetailDialogState extends State<_EmployeeDetailDialog> {
             const SizedBox(height: 20),
 
             _InfoRow(label: 'Rol', value: _u.rol),
-            _InfoRow(label: 'Caja asignada', value: _u.cajaAsignada ?? '—'),
+            _InfoRow(label: 'Caja asignada', value: _u.cajaAsignada),
             _InfoRow(label: 'Departamento', value: _u.departamento ?? '—'),
             _InfoRow(label: 'PIN', value: _u.pin),
             _InfoRow(

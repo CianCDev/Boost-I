@@ -285,7 +285,7 @@ void main() {
     final cliente = ClienteEntity()
       ..id = 1
       ..nombre = 'Juan Pérez'
-      ..documento = 'V-12345678'
+      ..documento = 12345678
       ..cantidadCompras = 0
       ..totalCompras = 0.0
       ..activo = true

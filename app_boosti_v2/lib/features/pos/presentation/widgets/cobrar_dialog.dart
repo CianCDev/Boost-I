@@ -932,6 +932,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
       transitionBuilder: (child, anim) => FadeTransition(
         opacity: anim,
         child: SizeTransition(
+          // ignore: deprecated_member_use
           axisAlignment: -1,
           sizeFactor: anim,
           child: child,
@@ -1354,14 +1355,15 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     final clientes = ref.watch(clientesProvider);
     final query = _clienteSearchController.text.trim().toLowerCase();
     final matches = query.isEmpty
-        ? <ClienteEntity>[]
-        : clientes
-            .where((c) =>
-                c.nombre.toLowerCase().contains(query) ||
-                (c.documento ?? '').toLowerCase().contains(query) ||
-                (c.telefono ?? '').toLowerCase().contains(query))
-            .take(8)
-            .toList();
+      ? <ClienteEntity>[]
+      : clientes
+          .where((c) =>
+              c.nombre.toLowerCase().contains(query) ||
+              c.documentoFormateado.toLowerCase().contains(query) ||
+              (c.rif ?? '').toLowerCase().contains(query) ||
+              (c.telefono ?? '').toLowerCase().contains(query))
+          .take(8)
+          .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1512,7 +1514,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      cliente.documento ?? 'Sin documento',
+                      cliente.documentoDisplay,   // ← "V-12345678" o "Sin documento"
                       style: TextStyle(
                         fontSize: 11,
                         color: colorScheme.onSurfaceVariant,

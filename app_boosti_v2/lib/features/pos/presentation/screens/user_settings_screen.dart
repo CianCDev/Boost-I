@@ -34,9 +34,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
   bool _guardandoNombre = false;
   late AnimationController _themeAnimationController;
 
-  /// Usuario activo: primero del provider, fallback al parámetro legacy.
-  UsuarioEntity? get _user =>
-      ref.read(usuarioActualProvider) ?? widget.usuarioLogueado;
 
   @override
   void initState() {

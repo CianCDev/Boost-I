@@ -36,6 +36,10 @@ class _SaveCartDialogState extends ConsumerState<SaveCartDialog> {
   static const _colorPrimary = Color(0xFF8B5CF6);
   static const _colorDanger = Color(0xFFEF4444);
   static const _colorSuccess = Color(0xFF10B981);
+  static const _colorMayorista = Color(0xFF10B981);
+
+  /// Máximo de resultados visibles en el dropdown.
+  static const _maxResultados = 6;
 
   final _nombreController = TextEditingController();
   final _clienteSearchController = TextEditingController();
@@ -60,6 +64,10 @@ class _SaveCartDialogState extends ConsumerState<SaveCartDialog> {
     _clienteFocus.dispose();
     super.dispose();
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // BUILD
+  // ══════════════════════════════════════════════════════════════
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +122,7 @@ class _SaveCartDialogState extends ConsumerState<SaveCartDialog> {
             ),
             const SizedBox(height: 14),
 
-            // ── Sugerencias (tienda / mercado) ──
+            // ── Sugerencias rápidas ──
             Text(
               'Sugerencias rápidas',
               style: TextStyle(
@@ -217,31 +225,26 @@ class _SaveCartDialogState extends ConsumerState<SaveCartDialog> {
   // ══════════════════════════════════════════════════════════════
 
   Widget _buildClienteSection(ColorScheme colorScheme, bool isDark) {
-    // Si ya hay cliente seleccionado → mostrar card
+    // ── Si ya hay cliente seleccionado → mostrar card ──
     if (_clienteSeleccionado != null) {
       return _buildClienteCard(_clienteSeleccionado!, colorScheme);
     }
 
-    // Si no → buscador + dropdown con coincidencias
+    // ── Si no → buscador + resultados ──
     final clientes = ref.watch(clientesProvider);
-    final q = _clienteSearchController.text.trim().toLowerCase();
-    final matches = q.isEmpty
-        ? const <ClienteEntity>[]
-        : clientes
-            .where((c) =>
-                c.nombre.toLowerCase().contains(q) ||
-                (c.documento ?? '').toLowerCase().contains(q) ||
-                (c.telefono ?? '').toLowerCase().contains(q))
-            .take(5)
-            .toList();
+    final matches = _filtrarClientes(clientes);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Header sección
         Row(
           children: [
-            Icon(Icons.person_outline_rounded,
-                size: 14, color: colorScheme.onSurfaceVariant),
+            Icon(
+              Icons.person_outline_rounded,
+              size: 14,
+              color: colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: 6),
             Text(
               'CLIENTE (OPCIONAL)',
@@ -255,15 +258,35 @@ class _SaveCartDialogState extends ConsumerState<SaveCartDialog> {
           ],
         ),
         const SizedBox(height: 8),
+
+        // Buscador
         TextField(
           controller: _clienteSearchController,
           focusNode: _clienteFocus,
           onChanged: (_) => setState(() {}),
           style: TextStyle(color: colorScheme.onSurface),
           decoration: InputDecoration(
-            hintText: 'Buscar por nombre, cédula o teléfono',
-            prefixIcon: Icon(Icons.search_rounded,
-                color: colorScheme.onSurfaceVariant),
+            hintText: 'Buscar por nombre, documento, RIF o teléfono',
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            // ✅ Botón limpiar
+            suffixIcon: _clienteSearchController.text.isNotEmpty
+                ? IconButton(
+                    tooltip: 'Limpiar búsqueda',
+                    onPressed: () {
+                      _clienteSearchController.clear();
+                      setState(() {});
+                      _clienteFocus.requestFocus();
+                    },
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                : null,
             filled: true,
             fillColor: isDark
                 ? Colors.white.withValues(alpha: 0.04)
@@ -279,75 +302,221 @@ class _SaveCartDialogState extends ConsumerState<SaveCartDialog> {
             ),
           ),
         ),
-        if (matches.isNotEmpty) ...[
+
+        // ── Resultados ──
+        if (_clienteSearchController.text.trim().isNotEmpty) ...[
           const SizedBox(height: 6),
-          Container(
-            constraints: const BoxConstraints(maxHeight: 170),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.black.withValues(alpha: 0.25) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.4),
-              ),
-            ),
-            child: ListView.separated(
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              itemCount: matches.length,
-              separatorBuilder: (_, __) => Divider(
-                height: 1,
-                color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-              ),
-              itemBuilder: (context, i) {
-                final c = matches[i];
-                return Material(
-                  color: Colors.transparent,
-                  child: ListTile(
-                    dense: true,
-                    leading: CircleAvatar(
-                      radius: 14,
-                      backgroundColor:
-                          _colorPrimary.withValues(alpha: 0.15),
-                      child: Icon(
-                        c.frecuente
-                            ? Icons.star_rounded
-                            : Icons.person_outline_rounded,
-                        size: 14,
-                        color: _colorPrimary,
-                      ),
-                    ),
-                    title: Text(
-                      c.nombre,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12.5,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      '${c.documento ?? "Sin documento"}'
-                      '${c.telefono != null ? " · ${c.telefono}" : ""}',
-                      style: const TextStyle(fontSize: 11),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onTap: () => setState(() {
-                      _clienteSeleccionado = c;
-                      _clienteSearchController.clear();
-                      _clienteFocus.unfocus();
-                    }),
-                  ),
-                );
-              },
-            ),
-          ),
+          if (matches.isEmpty)
+            _buildEmptyResults(colorScheme, isDark)
+          else
+            _buildMatchesList(matches, colorScheme, isDark),
         ],
       ],
     );
   }
 
+  // ──────────────── Filtro de clientes ────────────────
+
+  /// Filtra la lista completa según la query actual.
+  ///
+  /// Optimización: normaliza la query una sola vez y reutiliza.
+  List<ClienteEntity> _filtrarClientes(List<ClienteEntity> todos) {
+    final q = _clienteSearchController.text.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+
+    return todos
+        .where((c) {
+          final nombre = c.nombre.toLowerCase();
+          final doc = c.documentoFormateado.toLowerCase();
+          final rif = (c.rif ?? '').toLowerCase();
+          final razonSocial = (c.razonSocial ?? '').toLowerCase();
+          final telefono = (c.telefono ?? '').toLowerCase();
+
+          return nombre.contains(q) ||
+              doc.contains(q) ||
+              rif.contains(q) ||
+              razonSocial.contains(q) ||
+              telefono.contains(q);
+        })
+        .take(_maxResultados)
+        .toList();
+  }
+
+  // ──────────────── Lista de resultados ────────────────
+
+  Widget _buildMatchesList(
+    List<ClienteEntity> matches,
+    ColorScheme colorScheme,
+    bool isDark,
+  ) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 220),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.black.withValues(alpha: 0.25) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
+      ),
+      child: ListView.separated(
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
+        itemCount: matches.length,
+        separatorBuilder: (_, __) => Divider(
+          height: 1,
+          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+        ),
+        itemBuilder: (context, i) =>
+            _buildClienteTile(matches[i], colorScheme),
+      ),
+    );
+  }
+
+  Widget _buildClienteTile(ClienteEntity c, ColorScheme colorScheme) {
+    final esMayorista = c.esMayorista;
+    final tieneRif = (c.rif ?? '').trim().isNotEmpty;
+
+    // Subtítulo: documento · teléfono (o razón social si existe)
+    final partes = <String>[];
+    if (c.documentoFormateado.isNotEmpty) {
+      partes.add(c.documentoFormateado);
+    }
+    if (esMayorista && (c.razonSocial ?? '').isNotEmpty) {
+      partes.add(c.razonSocial!);
+    } else if ((c.telefono ?? '').isNotEmpty) {
+      partes.add(c.telefono!);
+    }
+    final subtitulo = partes.isEmpty ? 'Sin datos' : partes.join(' · ');
+
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        dense: true,
+        leading: CircleAvatar(
+          radius: 14,
+          backgroundColor: esMayorista
+              ? _colorMayorista.withValues(alpha: 0.15)
+              : _colorPrimary.withValues(alpha: 0.15),
+          child: Icon(
+            c.frecuente
+                ? Icons.star_rounded
+                : (esMayorista
+                    ? Icons.store_rounded
+                    : Icons.person_outline_rounded),
+            size: 14,
+            color: esMayorista ? _colorMayorista : _colorPrimary,
+          ),
+        ),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                c.nombre,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (esMayorista) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 5,
+                  vertical: 1,
+                ),
+                decoration: BoxDecoration(
+                  color: _colorMayorista.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: const Text(
+                  'MAYORISTA',
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    color: _colorMayorista,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ],
+            if (esMayorista && !tieneRif) ...[
+              const SizedBox(width: 4),
+              const Tooltip(
+                message: 'Sin RIF — no podrá usarse en venta al mayor',
+                child: Icon(
+                  Icons.warning_amber_rounded,
+                  size: 12,
+                  color: Color(0xFFF59E0B),
+                ),
+              ),
+            ],
+          ],
+        ),
+        subtitle: Text(
+          subtitulo,
+          style: const TextStyle(fontSize: 11),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        onTap: () => setState(() {
+          _clienteSeleccionado = c;
+          _clienteSearchController.clear();
+          _clienteFocus.unfocus();
+        }),
+      ),
+    );
+  }
+
+  // ──────────────── Sin resultados ────────────────
+
+  Widget _buildEmptyResults(ColorScheme colorScheme, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.search_off_rounded,
+            size: 32,
+            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Sin resultados',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Prueba con otro nombre, documento o teléfono.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────── Card cliente seleccionado ────────────────
+
   Widget _buildClienteCard(ClienteEntity c, ColorScheme colorScheme) {
+    final esMayorista = c.esMayorista;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -358,61 +527,194 @@ class _SaveCartDialogState extends ConsumerState<SaveCartDialog> {
           width: 1.3,
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: _colorPrimary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              c.frecuente ? Icons.star_rounded : Icons.person_rounded,
-              color: _colorPrimary,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  c.nombre,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: colorScheme.onSurface,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _colorPrimary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                if (c.documento != null && c.documento!.isNotEmpty)
-                  Text(
-                    c.documento!,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: IconButton(
-              onPressed: () =>
-                  setState(() => _clienteSeleccionado = null),
-              icon: Icon(
-                Icons.close_rounded,
-                size: 18,
-                color: colorScheme.error,
+                child: Icon(
+                  c.frecuente
+                      ? Icons.star_rounded
+                      : (esMayorista
+                          ? Icons.store_rounded
+                          : Icons.person_rounded),
+                  color: _colorPrimary,
+                  size: 18,
+                ),
               ),
-              tooltip: 'Quitar cliente',
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            c.nombre,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: colorScheme.onSurface,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (esMayorista) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  _colorMayorista.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: const Text(
+                              'MAYORISTA',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w800,
+                                color: _colorMayorista,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    // Línea de datos: doc · rif · teléfono
+                    _buildClienteDetailLine(c, colorScheme),
+                  ],
+                ),
+              ),
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: IconButton(
+                  onPressed: () =>
+                      setState(() => _clienteSeleccionado = null),
+                  icon: Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: colorScheme.error,
+                  ),
+                  tooltip: 'Quitar cliente',
+                ),
+              ),
+            ],
           ),
+          // Razón social (si aplica)
+          if (esMayorista &&
+              (c.razonSocial ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(left: 46),
+              child: Text(
+                c.razonSocial!,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildClienteDetailLine(ClienteEntity c, ColorScheme colorScheme) {
+    final items = <Widget>[];
+
+    if (c.documentoFormateado.isNotEmpty) {
+      items.add(_detailItem(
+        Icons.badge_outlined,
+        c.documentoFormateado,
+        colorScheme,
+      ));
+    }
+    if ((c.rif ?? '').trim().isNotEmpty) {
+      items.add(_detailItem(
+        Icons.receipt_outlined,
+        c.rif!,
+        colorScheme,
+      ));
+    }
+    if ((c.telefono ?? '').trim().isNotEmpty) {
+      items.add(_detailItem(
+        Icons.phone_outlined,
+        c.telefono!,
+        colorScheme,
+      ));
+    }
+
+    if (items.isEmpty) {
+      return Text(
+        'Sin datos adicionales',
+        style: TextStyle(
+          fontSize: 11,
+          color: colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
+
+    // Separar por " · "
+    final List<Widget> row = [];
+    for (var i = 0; i < items.length; i++) {
+      row.add(items[i]);
+      if (i < items.length - 1) {
+        row.add(Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Text(
+            '·',
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ));
+      }
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: row,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _detailItem(IconData icon, String text, ColorScheme cs) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: cs.onSurfaceVariant),
+        const SizedBox(width: 3),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 11,
+            color: cs.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 
@@ -435,7 +737,6 @@ class _SaveCartDialogState extends ConsumerState<SaveCartDialog> {
             nombre: _nombreController.text.trim().isEmpty
                 ? 'Carrito sin nombre'
                 : _nombreController.text.trim(),
-            // ✅ Usa el cliente seleccionado en el diálogo
             cliente: _clienteSeleccionado,
           );
 

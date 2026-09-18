@@ -39,7 +39,7 @@ class _ClientesScreenState extends ConsumerState<ClientesScreen> {
         ? clientesLocales
         : clientesLocales.where((c) {
             final nombre = c.nombre.toLowerCase();
-            final documento = c.documento?.toLowerCase() ?? '';
+            final documento = c.documentoFormateado.toLowerCase();
             final query = _searchQuery.toLowerCase();
             return nombre.contains(query) || documento.contains(query);
           }).toList();

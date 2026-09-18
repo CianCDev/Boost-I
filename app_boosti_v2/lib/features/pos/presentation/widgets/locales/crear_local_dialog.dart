@@ -31,6 +31,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
   bool _isSaving = false;
 
   static const _colorPrimary = Color(0xFF8B5CF6);
+  // ignore: unused_field
   static const _colorSuccess = Color(0xFF10B981);
 
   @override

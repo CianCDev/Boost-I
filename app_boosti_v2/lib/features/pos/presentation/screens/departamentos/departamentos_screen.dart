@@ -33,6 +33,7 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
   int? _localFiltroId;
 
   static const _colorPrimary = Color(0xFF8B5CF6);
+  // ignore: unused_field
   static const _colorSuccess = Color(0xFF10B981);
   static const _colorDanger = Color(0xFFEF4444);
 

@@ -27,6 +27,7 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
   static const _colorSuccess = Color(0xFF10B981);
   static const _colorInfo = Color(0xFF3B82F6);
   static const _colorWarning = Color(0xFFF59E0B);
+  // ignore: unused_field
   static const _colorDanger = Color(0xFFEF4444);
 
   final List<String> _meses = const [

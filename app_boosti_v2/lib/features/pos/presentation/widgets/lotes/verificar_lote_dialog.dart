@@ -32,6 +32,7 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
   static const _colorPrimary = Color(0xFF8B5CF6);
   static const _colorSuccess = Color(0xFF10B981);
   static const _colorWarning = Color(0xFFF59E0B);
+  // ignore: unused_field
   static const _colorDanger = Color(0xFFEF4444);
 
   @override
@@ -97,6 +98,7 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
 
       if (alias == null) {
         final crearAlias = await showDialog<bool>(
+          // ignore: use_build_context_synchronously
           context: context,
           builder: (ctx) => AlertDialog(
             shape: RoundedRectangleBorder(

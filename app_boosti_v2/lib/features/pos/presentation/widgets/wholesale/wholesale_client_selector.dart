@@ -15,9 +15,12 @@ import '../clientes/cliente_form_dialog.dart';
 /// Diálogo de selección/creación de cliente para ventas al mayor.
 ///
 /// Flujo:
-///   1. Busca por nombre, RIF o teléfono (debounced)
-///   2. Muestra resultados con badge si el cliente es válido para mayor
-///   3. Permite crear un cliente nuevo sin salir
+///   1. Al abrir, carga los 20 clientes más recientes.
+///   2. Chips para filtrar por "Todos" / "Frecuentes".
+///   3. Busca por nombre, RIF, razón social, documento o teléfono (debounced).
+///   4. Permite crear un cliente nuevo sin salir.
+///
+/// Regla de negocio: el cliente debe tener **RIF** para ser aceptado.
 class WholesaleClientSelectorDialog extends ConsumerStatefulWidget {
   const WholesaleClientSelectorDialog({super.key});
 
@@ -43,13 +46,16 @@ class _WholesaleClientSelectorDialogState
   Timer? _debounce;
   bool _buscando = false;
   List<ClienteEntity> _resultados = [];
-  String _ultimaQuery = '';
+  bool _soloFrecuentes = false;
+
+  // ──────────────── Lifecycle ────────────────
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _searchFocus.requestFocus();
+      _buscar(''); // ✅ FIX: cargar al abrir
     });
   }
 
@@ -61,6 +67,8 @@ class _WholesaleClientSelectorDialogState
     super.dispose();
   }
 
+  // ──────────────── Búsqueda ────────────────
+
   void _onSearchChanged(String query) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
@@ -70,8 +78,6 @@ class _WholesaleClientSelectorDialogState
 
   Future<void> _buscar(String query) async {
     final q = query.trim();
-    if (q == _ultimaQuery && _resultados.isNotEmpty) return;
-    _ultimaQuery = q;
 
     setState(() => _buscando = true);
 
@@ -80,21 +86,18 @@ class _WholesaleClientSelectorDialogState
       List<ClienteEntity> resultados;
 
       if (q.isEmpty) {
-        // Sin query: mostrar los más recientes
-        final todos = await isar.obtenerClientes(soloActivos: true);
+        // Sin query: últimos 20 según filtro
+        final todos = await isar.obtenerClientes(
+          soloActivos: true,
+          soloFrecuentes: _soloFrecuentes,
+        );
         resultados = todos.take(20).toList();
       } else {
-        resultados = await isar.buscarClientes(q);
-        // Si no hay nada, intentar por RIF
-        if (resultados.isEmpty) {
-          final db = await isar.db;
-          final todos = await db.clienteEntitys.where().findAll();
-          final lower = q.toLowerCase();
-          resultados = todos
-              .where((c) => (c.rif ?? '').toLowerCase().contains(lower))
-              .take(20)
-              .toList();
-        }
+        resultados = await isar.buscarClientes(
+          q,
+          soloFrecuentes: _soloFrecuentes,
+        );
+        resultados = resultados.take(20).toList();
       }
 
       if (mounted) {
@@ -114,6 +117,11 @@ class _WholesaleClientSelectorDialogState
     }
   }
 
+  void _toggleFrecuentes(bool valor) {
+    setState(() => _soloFrecuentes = valor);
+    _buscar(_searchController.text);
+  }
+
   // ──────────────── Crear cliente rápido ────────────────
 
   Future<void> _crearClienteRapido() async {
@@ -128,7 +136,6 @@ class _WholesaleClientSelectorDialogState
   // ──────────────── Seleccionar cliente ────────────────
 
   void _seleccionar(ClienteEntity cliente) {
-    // Validar RIF antes de aceptar
     final rif = (cliente.rif ?? '').trim();
     if (rif.isEmpty) {
       _mostrarDialogoSinRif(cliente);
@@ -207,18 +214,31 @@ class _WholesaleClientSelectorDialogState
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildHeader(isDark, cs),
+
+            // ── Buscador ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: _buildSearchBar(isDark, cs),
             ),
+
+            // ── Chips de filtro ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: _buildFiltroChips(isDark, cs),
+            ),
+
+            // ── Botón crear ──
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               child: _buildCrearButton(isDark),
             ),
+
             Divider(
               height: 1,
               color: cs.outlineVariant.withValues(alpha: 0.3),
             ),
+
+            // ── Lista de resultados ──
             Flexible(
               child: _buildResultados(isDark, cs),
             ),
@@ -293,7 +313,7 @@ class _WholesaleClientSelectorDialogState
         color: cs.onSurface,
       ),
       decoration: InputDecoration(
-        hintText: 'Buscar por nombre, RIF o teléfono…',
+        hintText: 'Buscar por nombre, RIF, documento o teléfono…',
         hintStyle: TextStyle(
           fontSize: 13,
           color: cs.onSurfaceVariant.withValues(alpha: 0.7),
@@ -329,6 +349,79 @@ class _WholesaleClientSelectorDialogState
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: cs.primary, width: 1.5),
+        ),
+      ),
+    );
+  }
+
+  // ──────────────── Chips de filtro ────────────────
+
+  Widget _buildFiltroChips(bool isDark, ColorScheme cs) {
+    return Row(
+      children: [
+        _buildFiltroChip(
+          label: 'Todos',
+          icon: Icons.people_outline_rounded,
+          selected: !_soloFrecuentes,
+          onTap: () => _toggleFrecuentes(false),
+        ),
+        const SizedBox(width: 8),
+        _buildFiltroChip(
+          label: 'Frecuentes',
+          icon: Icons.star_rounded,
+          selected: _soloFrecuentes,
+          onTap: () => _toggleFrecuentes(true),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFiltroChip({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final color = const Color(0xFF3B82F6);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? color.withValues(alpha: 0.15)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected
+                  ? color.withValues(alpha: 0.6)
+                  : Colors.grey.withValues(alpha: 0.25),
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: selected ? color : Colors.grey,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? color : null,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -390,7 +483,9 @@ class _WholesaleClientSelectorDialogState
             const SizedBox(height: 12),
             Text(
               _searchController.text.isEmpty
-                  ? 'Escribe para buscar un cliente'
+                  ? (_soloFrecuentes
+                      ? 'No hay clientes frecuentes'
+                      : 'No hay clientes registrados')
                   : 'Sin resultados para "${_searchController.text}"',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -398,6 +493,17 @@ class _WholesaleClientSelectorDialogState
                 color: cs.onSurfaceVariant,
               ),
             ),
+            if (_searchController.text.isEmpty) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _crearClienteRapido,
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
+                label: const Text('Crear cliente nuevo'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF10B981),
+                ),
+              ),
+            ],
           ],
         ),
       );
@@ -440,6 +546,14 @@ class _ClienteTile extends StatelessWidget {
 
     final tieneRif = (cliente.rif ?? '').trim().isNotEmpty;
     final esMayorista = cliente.esMayorista;
+    final docDisplay = cliente.documentoFormateado;
+
+    // ── Subtítulo: compone doc · RIF · teléfono ──
+    final partes = <String>[];
+    if (docDisplay.isNotEmpty) partes.add(docDisplay);
+    if (tieneRif) partes.add(cliente.rif!);
+    if ((cliente.telefono ?? '').isNotEmpty) partes.add(cliente.telefono!);
+    final subtitulo = partes.isEmpty ? 'Sin datos' : partes.join(' · ');
 
     return Material(
       color: Colors.transparent,
@@ -454,12 +568,15 @@ class _ClienteTile extends StatelessWidget {
                 : Colors.black.withValues(alpha: 0.02),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: cs.outlineVariant.withValues(alpha: 0.3),
+              color: tieneRif
+                  ? cs.outlineVariant.withValues(alpha: 0.3)
+                  : const Color(0xFFF59E0B).withValues(alpha: 0.4),
+              width: tieneRif ? 1 : 1.3,
             ),
           ),
           child: Row(
             children: [
-              // Avatar
+              // ── Avatar con iniciales ──
               Container(
                 width: 42,
                 height: 42,
@@ -483,11 +600,12 @@ class _ClienteTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
 
-              // Info
+              // ── Info ──
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Nombre + badges
                     Row(
                       children: [
                         Flexible(
@@ -504,47 +622,27 @@ class _ClienteTile extends StatelessWidget {
                         ),
                         if (esMayorista) ...[
                           const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF8B5CF6)
-                                  .withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'MAYORISTA',
-                              style: TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF8B5CF6),
-                                letterSpacing: 0.4,
-                              ),
-                            ),
+                          _badge(
+                            'MAYORISTA',
+                            const Color(0xFF8B5CF6),
+                          ),
+                        ],
+                        if (cliente.frecuente) ...[
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 14,
+                            color: Color(0xFFF59E0B),
                           ),
                         ],
                       ],
                     ),
                     const SizedBox(height: 3),
+
+                    // Subtítulo con doc · rif · tel
                     Row(
                       children: [
-                        if (tieneRif) ...[
-                          Icon(
-                            Icons.badge_rounded,
-                            size: 11,
-                            color: cs.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            cliente.rif!,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                        ] else ...[
+                        if (!tieneRif) ...[
                           const Icon(
                             Icons.warning_amber_rounded,
                             size: 11,
@@ -559,30 +657,41 @@ class _ClienteTile extends StatelessWidget {
                               color: Color(0xFFF59E0B),
                             ),
                           ),
+                          const SizedBox(width: 8),
                         ],
-                        if ((cliente.telefono ?? '').isNotEmpty) ...[
-                          const SizedBox(width: 10),
-                          Icon(
-                            Icons.phone_rounded,
-                            size: 11,
-                            color: cs.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            cliente.telefono!,
+                        Flexible(
+                          child: Text(
+                            subtitulo,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 11,
                               color: cs.onSurfaceVariant,
                             ),
                           ),
-                        ],
+                        ),
                       ],
                     ),
+
+                    // Razón social (si existe)
+                    if (esMayorista &&
+                        (cliente.razonSocial ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        cliente.razonSocial!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontStyle: FontStyle.italic,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
 
-              // Flecha
               Icon(
                 Icons.chevron_right_rounded,
                 size: 20,
@@ -590,6 +699,25 @@ class _ClienteTile extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _badge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 8,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.4,
         ),
       ),
     );

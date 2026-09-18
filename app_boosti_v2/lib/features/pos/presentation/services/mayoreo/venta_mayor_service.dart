@@ -232,7 +232,7 @@ class VentaMayorService {
         );
 
         debugPrint(
-            '📦 ${item.producto.nombre}: ${movsCreados} movimientos de lote');
+            '📦 ${item.producto.nombre}: $movsCreados movimientos de lote');
 
         lotesAfectados[item.lineId] = plan;
 
@@ -304,7 +304,7 @@ class VentaMayorService {
         // Cliente
         ..clienteId = cliente.id
         ..clienteNombre = cliente.nombre
-        ..clienteDocumento = cliente.documento
+        ..clienteDocumento = cliente.documentoFormateado
         ..clienteRif = cliente.rif
         ..clienteRazonSocial = cliente.razonSocial;
 

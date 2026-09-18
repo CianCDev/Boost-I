@@ -56,6 +56,7 @@ class _AsignarCodigoLoteDialogState
   static const _colorPrimary = Color(0xFF8B5CF6);
   static const _colorSuccess = Color(0xFF10B981);
   static const _colorWarning = Color(0xFFF59E0B);
+  // ignore: unused_field
   static const _colorDanger = Color(0xFFEF4444);
   static const _colorInfo = Color(0xFF3B82F6);
 

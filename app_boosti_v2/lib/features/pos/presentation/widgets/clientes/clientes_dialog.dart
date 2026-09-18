@@ -60,7 +60,7 @@ class _ClientesDialogState extends ConsumerState<ClientesDialog>
       final q = _searchQuery.toLowerCase();
       return base.where((c) {
         final nombre = c.nombre.toLowerCase();
-        final doc = c.documento?.toLowerCase() ?? '';
+       final doc = c.documentoFormateado.toLowerCase();
         return nombre.contains(q) || doc.contains(q);
       }).toList();
     }

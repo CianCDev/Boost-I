@@ -137,8 +137,8 @@ class _ClienteCardState extends State<ClienteCard> {
                             if (widget.cliente.telefono != null &&
                                 widget.cliente.documento != null)
                               const SizedBox(width: 12),
-                            if (widget.cliente.documento != null &&
-                                widget.cliente.documento!.isNotEmpty)
+                           if (widget.cliente.documentoFormateado.isNotEmpty)
+                           Text(widget.cliente.documentoDisplay),
                               _buildInfoRow(
                                   Icons.badge_rounded,
                                   'CI/RIF: ${widget.cliente.documento}',

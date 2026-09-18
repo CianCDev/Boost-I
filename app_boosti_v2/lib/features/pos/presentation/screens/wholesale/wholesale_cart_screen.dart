@@ -46,6 +46,7 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
     return Scaffold(
       backgroundColor: cs.surfaceContainerLow,
       appBar: CustomAppBar(
+        
         title: 'Carrito al Mayor',
         showBackButton: true,
         actions: [

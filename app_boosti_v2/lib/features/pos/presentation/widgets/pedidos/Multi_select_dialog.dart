@@ -182,6 +182,7 @@ class _ProductoTile extends StatefulWidget {
 }
 
 class _ProductoTileState extends State<_ProductoTile> {
+  // ignore: unused_field
   bool _hovered = false;
 
   @override

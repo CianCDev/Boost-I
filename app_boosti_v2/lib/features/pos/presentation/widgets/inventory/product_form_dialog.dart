@@ -82,6 +82,21 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   bool _subiendoImagen = false;
   bool _guardando = false;
 
+  // ── Venta al mayor (NUEVO) ──
+  bool _permiteVentaMayor = false;
+  final TextEditingController _precioMayorController =
+      TextEditingController();
+  final TextEditingController _cantidadMinimaMayorController =
+      TextEditingController();
+  final TextEditingController _precioMedioMayorController =
+      TextEditingController();
+  final TextEditingController _cantidadMinimaMedioMayorController =
+      TextEditingController();
+  final TextEditingController _unidadesPorBultoController =
+      TextEditingController(text: '1');
+  final TextEditingController _costoUnitarioController =
+      TextEditingController();
+
   ProveedorEntity? _proveedorSeleccionado;
   bool _cargandoProveedores = false;
   List<ProveedorEntity> _proveedores = [];
@@ -96,6 +111,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   static const _colorSuccess = Color(0xFF10B981);
   static const _colorDanger = Color(0xFFEF4444);
   static const _colorInfo = Color(0xFF3B82F6);
+  static const _colorMayor = Color(0xFF8B5CF6);
 
   @override
   void initState() {
@@ -121,6 +137,20 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     _activo = p?.activo ?? true;
     _imagenUrlPreview = p?.imagenUrl ?? '';
 
+    // ── Venta al mayor: cargar valores al editar ──
+    _permiteVentaMayor = p?.permiteVentaMayor ?? false;
+    _precioMayorController.text = p?.precioMayor?.toString() ?? '';
+    _cantidadMinimaMayorController.text =
+        p?.cantidadMinimaMayor?.toString() ?? '';
+    _precioMedioMayorController.text =
+        p?.precioMedioMayor?.toString() ?? '';
+    _cantidadMinimaMedioMayorController.text =
+        p?.cantidadMinimaMedioMayor?.toString() ?? '';
+    _unidadesPorBultoController.text =
+        (p?.unidadesPorBulto ?? 1).toString();
+    _costoUnitarioController.text =
+        p?.costoUnitarioPromedio?.toString() ?? '';
+
     _cargarProveedores();
     _cargarMarcas();
     _recuperarBorrador();
@@ -139,7 +169,27 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     _proveedorTelController.dispose();
     _proveedorBusquedaController.dispose();
     _marcaBusquedaController.dispose();
+    // ── Venta al mayor ──
+    _precioMayorController.dispose();
+    _cantidadMinimaMayorController.dispose();
+    _precioMedioMayorController.dispose();
+    _cantidadMinimaMedioMayorController.dispose();
+    _unidadesPorBultoController.dispose();
+    _costoUnitarioController.dispose();
     super.dispose();
+  }
+
+  // ==================== HELPERS DE PARSEO ====================
+  double? _parseDouble(String text) {
+    final t = text.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t.replaceAll(',', '.'));
+  }
+
+  int? _parseInt(String text) {
+    final t = text.trim();
+    if (t.isEmpty) return null;
+    return int.tryParse(t);
   }
 
   // ==================== BORRADOR ====================
@@ -159,6 +209,15 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       'proveedorTel': _proveedorTelController.text,
       'imagenUrl': _imagenUrlPreview,
       'marcaSupabaseId': _marcaSeleccionada?.supabaseId,
+      // Mayor
+      'permiteVentaMayor': _permiteVentaMayor,
+      'precioMayor': _precioMayorController.text,
+      'cantidadMinimaMayor': _cantidadMinimaMayorController.text,
+      'precioMedioMayor': _precioMedioMayorController.text,
+      'cantidadMinimaMedioMayor':
+          _cantidadMinimaMedioMayorController.text,
+      'unidadesPorBulto': _unidadesPorBultoController.text,
+      'costoUnitario': _costoUnitarioController.text,
     };
     await prefs.setString(_DRAFT_KEY, draft.toString());
   }
@@ -482,18 +541,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   }
 
   // ==================== SUBIR IMAGEN ====================
-  /// Sube una imagen al bucket `productos` con path multi-tenant.
-  ///
-  /// Path: `{tenant_id}/productos/{codigo}_{timestamp}.{ext}`
-  ///
-  /// El primer folder DEBE ser el tenant_id para que la policy
-  /// `storage_tenant_all` lo permita (valida que foldername[1] sea
-  /// igual a current_tenant_id()).
-  ///
-  /// Retorna la URL pública o null si falla.
   Future<String?> _uploadImage(File image, String codigo) async {
     try {
-      // ✅ Obtener tenant_id (del JWT o del provider)
       final tenantId = getTenantIdFromJWT();
       if (tenantId == null || tenantId.isEmpty) {
         debugPrint(
@@ -511,7 +560,6 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
           .from('productos')
           .upload(fileName, image);
 
-      // Bucket público: getPublicUrl funciona directamente
       final publicUrl = Supabase.instance.client.storage
           .from('productos')
           .getPublicUrl(fileName);
@@ -534,6 +582,30 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
         esError: true,
       );
       return;
+    }
+
+    // Validación extra: si permite venta al mayor, debe tener precio mayor
+    if (_permiteVentaMayor) {
+      final precioMayor = _parseDouble(_precioMayorController.text);
+      final cantidadMin = _parseInt(_cantidadMinimaMayorController.text);
+      if (precioMayor == null || precioMayor <= 0) {
+        _mostrarDialogoSimple(
+          titulo: 'Falta precio mayor',
+          mensaje:
+              'Habilitaste venta al mayor pero no ingresaste un precio mayor válido.',
+          esError: true,
+        );
+        return;
+      }
+      if (cantidadMin == null || cantidadMin <= 0) {
+        _mostrarDialogoSimple(
+          titulo: 'Falta cantidad mínima',
+          mensaje:
+              'Debes indicar la cantidad mínima para aplicar el precio mayor.',
+          esError: true,
+        );
+        return;
+      }
     }
 
     setState(() => _guardando = true);
@@ -592,6 +664,30 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       producto.proveedorEmail = _proveedorSeleccionado?.email ?? '';
       producto.proveedorDireccion = _proveedorSeleccionado?.direccion ?? '';
       producto.updatedAt = DateTime.now();
+
+      // ── Venta al mayor ──
+      producto.permiteVentaMayor = _permiteVentaMayor;
+      if (_permiteVentaMayor) {
+        producto.precioMayor = _parseDouble(_precioMayorController.text);
+        producto.cantidadMinimaMayor =
+            _parseInt(_cantidadMinimaMayorController.text);
+        producto.precioMedioMayor =
+            _parseDouble(_precioMedioMayorController.text);
+        producto.cantidadMinimaMedioMayor =
+            _parseInt(_cantidadMinimaMedioMayorController.text);
+        producto.unidadesPorBulto =
+            _parseInt(_unidadesPorBultoController.text) ?? 1;
+        producto.costoUnitarioPromedio =
+            _parseDouble(_costoUnitarioController.text);
+      } else {
+        // Limpiar si se desactiva
+        producto.precioMayor = null;
+        producto.cantidadMinimaMayor = null;
+        producto.precioMedioMayor = null;
+        producto.cantidadMinimaMedioMayor = null;
+        producto.unidadesPorBulto = 1;
+        producto.costoUnitarioPromedio = null;
+      }
 
       await widget.onGuardar(producto);
 
@@ -892,6 +988,199 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
           _buildImageSection(colorScheme, isMobile),
           const SizedBox(height: 16),
           _buildPrecioStock(colorScheme, isMobile),
+          const SizedBox(height: 20),
+          _buildVentaMayorSection(colorScheme),
+        ],
+      ),
+    );
+  }
+
+  // ==================== SECCIÓN VENTA AL MAYOR ====================
+  Widget _buildVentaMayorSection(ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _colorMayor.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: _colorMayor.withValues(alpha: 0.3),
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Toggle principal
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _colorMayor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.warehouse_rounded,
+                  size: 18,
+                  color: _colorMayor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Venta al mayor',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: _colorMayor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Habilita precios B2B para este producto',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _permiteVentaMayor,
+                onChanged: (v) =>
+                    setState(() => _permiteVentaMayor = v),
+                activeThumbColor: _colorMayor,
+              ),
+            ],
+          ),
+
+          // Campos condicionales
+          if (_permiteVentaMayor) ...[
+            const SizedBox(height: 16),
+            Divider(
+              color: _colorMayor.withValues(alpha: 0.2),
+            ),
+            const SizedBox(height: 8),
+
+            // ── Precio Mayor + Cantidad mínima ──
+            Row(
+              children: [
+                Expanded(
+                  child: _campo(
+                    _precioMayorController,
+                    'Precio Mayor (\$) *',
+                    Icons.workspace_premium_rounded,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    helper: 'Precio por unidad al mayor',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _campo(
+                    _cantidadMinimaMayorController,
+                    'Cant. mínima *',
+                    Icons.numbers_rounded,
+                    keyboardType: TextInputType.number,
+                    helper: 'Ej: 6 unidades',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── Precio Medio Mayor + Cantidad mínima medio ──
+            Row(
+              children: [
+                Expanded(
+                  child: _campo(
+                    _precioMedioMayorController,
+                    'Precio Medio Mayor (\$)',
+                    Icons.trending_up_rounded,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    helper: 'Opcional',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _campo(
+                    _cantidadMinimaMedioMayorController,
+                    'Cant. mínima medio',
+                    Icons.numbers_rounded,
+                    keyboardType: TextInputType.number,
+                    helper: 'Opcional',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── Bultos + Costo ──
+            Row(
+              children: [
+                Expanded(
+                  child: _campo(
+                    _unidadesPorBultoController,
+                    'Unidades por bulto',
+                    Icons.inventory_2_rounded,
+                    keyboardType: TextInputType.number,
+                    helper: 'Ej: 12',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _campo(
+                    _costoUnitarioController,
+                    'Costo promedio (\$)',
+                    Icons.attach_money_rounded,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    helper: 'Para alertas de margen',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // ── Info adicional ──
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _colorMayor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    size: 14,
+                    color: _colorMayor,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Los niveles de precio se aplican según la cantidad '
+                      'que el cliente compre. Si no configuras alguno, '
+                      'se usará el precio de detal.',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: colorScheme.onSurfaceVariant,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1787,6 +2076,58 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
         if (val == null || val < 0) return 'Stock mínimo inválido';
         return null;
       },
+    );
+  }
+
+  // ==================== CAMPO GENÉRICO (para venta al mayor) ====================
+  Widget _campo(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    TextInputType? keyboardType,
+    String? helper,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: TextStyle(color: colorScheme.onSurface, fontSize: 14),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(
+          color: colorScheme.onSurfaceVariant,
+          fontSize: 13,
+        ),
+        helperText: helper,
+        helperStyle: TextStyle(
+          color: colorScheme.onSurfaceVariant,
+          fontSize: 10,
+        ),
+        prefixIcon: Icon(icon, color: _colorMayor, size: 18),
+        filled: true,
+        fillColor: isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : const Color(0xFFF9FAFB),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+            width: 1,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _colorMayor, width: 2),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+      ),
     );
   }
 

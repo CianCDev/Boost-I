@@ -89,6 +89,7 @@ class _DiagnosticoLotesDialogState
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
+        // ignore: unused_local_variable
         final colorScheme = Theme.of(dialogContext).colorScheme;
         return AlertDialog(
           shape:

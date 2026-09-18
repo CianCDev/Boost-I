@@ -1,6 +1,7 @@
 // lib/features/pos/presentation/screens/wholesale/wholesale_screen.dart
 // ignore_for_file: use_build_context_synchronously
 
+import 'package:app_boosti_v2/features/pos/presentation/screens/wholesale/wholesale_history_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,6 +38,10 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
     super.dispose();
   }
 
+  // ════════════════════════════════════════════════════════════════
+  // BUILD
+  // ════════════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -68,6 +73,19 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
         title: 'Ventas al Mayor',
         showBackButton: true,
         actions: [
+          IconButton(
+            tooltip: 'Historial de ventas',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const WholesaleHistoryScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.history_rounded, size: 22),
+            color: Colors.white,
+          ),
           _buildCartButton(context),
           const SizedBox(width: 4),
         ],
@@ -124,7 +142,9 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
     );
   }
 
-  // ──────────────── Botón de carrito ────────────────
+  // ════════════════════════════════════════════════════════════════
+  // CARRITO
+  // ════════════════════════════════════════════════════════════════
 
   Widget _buildCartButton(BuildContext context) {
     final cartState = ref.watch(wholesaleCartProvider);
@@ -173,7 +193,9 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
     );
   }
 
-  // ──────────────── Filtros ────────────────
+  // ════════════════════════════════════════════════════════════════
+  // FILTROS
+  // ════════════════════════════════════════════════════════════════
 
   Widget _buildFiltros(List<String> categorias) {
     final filterState = ref.watch(wholesaleFilterProvider);
@@ -183,12 +205,12 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // ── Chips horizontal scroll ──
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
           child: Row(
             children: [
-              // Filtro "Todas"
               FiltroChip(
                 label: 'Todas',
                 icon: Icons.apps_rounded,
@@ -198,8 +220,6 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
                 onTap: () => notifier.setCategoria(null),
               ),
               const SizedBox(width: 8),
-
-              // Filtros por categoría
               for (final cat in categorias) ...[
                 FiltroChip(
                   label: cat,
@@ -211,16 +231,12 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
                 ),
                 const SizedBox(width: 8),
               ],
-
-              // Separador visual
               Container(
                 width: 1,
                 height: 24,
                 color: Colors.grey.withValues(alpha: 0.3),
               ),
               const SizedBox(width: 8),
-
-              // Filtros de stock
               for (final f in WholesaleStockFilter.values) ...[
                 FiltroChip(
                   label: f.label,
@@ -235,9 +251,10 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
             ],
           ),
         ),
+
         const SizedBox(height: 10),
 
-        // Toggle grid/lista + contador
+        // ── Contador + toggle grid/lista ──
         Row(
           children: [
             Expanded(
@@ -299,7 +316,9 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
     }
   }
 
-  // ──────────────── Contenido ────────────────
+  // ════════════════════════════════════════════════════════════════
+  // CONTENIDO (con animación Grid ↔ Lista)
+  // ════════════════════════════════════════════════════════════════
 
   Widget _buildContenido({
     required List<ProductoEntity> productosFiltrados,
@@ -308,27 +327,84 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
     required bool isMobile,
     required bool isTablet,
   }) {
+    // ── Empty state ──
     if (productosFiltrados.isEmpty) {
       return _buildEmptyState(hayProductosBase: productosBase.isNotEmpty);
     }
 
-    if (filterState.esGrid) {
-      return _buildGrid(productosFiltrados, isMobile, isTablet);
-    }
-
-    return _buildLista(productosFiltrados);
+    // ── ✅ AnimatedSwitcher con KeyedSubtree para detectar cambio ──
+    //    Duración: 280ms — suave pero responsivo.
+    //    LayoutBuilder obliga a que el switcher conozca las constraints.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 280),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          layoutBuilder: (currentChild, previousChildren) {
+            return Stack(
+              children: [
+                ...previousChildren,
+                if (currentChild != null) currentChild,
+              ],
+            );
+          },
+          transitionBuilder: (child, animation) {
+            // Fade + Scale suave (de 0.96 → 1.0)
+            return FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.96, end: 1.0).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                ),
+                child: child,
+              ),
+            );
+          },
+          child: filterState.esGrid
+              ? KeyedSubtree(
+                  key: const ValueKey('wholesale_grid'),
+                  child: _buildGrid(
+                    productosFiltrados,
+                    isMobile,
+                    isTablet,
+                  ),
+                )
+              : KeyedSubtree(
+                  key: const ValueKey('wholesale_list'),
+                  child: _buildLista(productosFiltrados),
+                ),
+        );
+      },
+    );
   }
+
+  // ════════════════════════════════════════════════════════════════
+  // GRID
+  // ════════════════════════════════════════════════════════════════
 
   Widget _buildGrid(
     List<ProductoEntity> productos,
     bool isMobile,
     bool isTablet,
   ) {
+    // ── Columnas según breakpoint ──
     final crossAxisCount = isMobile
         ? 2
         : isTablet
             ? 3
             : 4;
+
+    // ── Aspect ratio más ALTO (cards más verticales) porque la card
+    //    ahora tiene imagen grande + nombre 2 líneas + precio + stock.
+    final childAspectRatio = isMobile
+        ? 0.62
+        : isTablet
+            ? 0.72
+            : 0.78;
 
     return GridView.builder(
       padding: EdgeInsets.fromLTRB(
@@ -337,11 +413,12 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
         isMobile ? 12 : 20,
         20,
       ),
+      physics: const BouncingScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: isMobile ? 0.85 : 0.95,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
+        childAspectRatio: childAspectRatio,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
       itemCount: productos.length,
       itemBuilder: (context, i) {
@@ -349,32 +426,38 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
         return WholesaleProductCard(
           producto: p,
           index: i,
+          variant: WholesaleCardVariant.grid,
           onTap: () => _agregarProducto(context, p),
         );
       },
     );
   }
 
+  // ════════════════════════════════════════════════════════════════
+  // LISTA (sin SizedBox fijo → sin overflow)
+  // ════════════════════════════════════════════════════════════════
+
   Widget _buildLista(List<ProductoEntity> productos) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+      physics: const BouncingScrollPhysics(),
       itemCount: productos.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, i) {
         final p = productos[i];
-        return SizedBox(
-          height: 96,
-          child: WholesaleProductCard(
-            producto: p,
-            index: i,
-            onTap: () => _agregarProducto(context, p),
-          ),
+        return WholesaleProductCard(
+          producto: p,
+          index: i,
+          variant: WholesaleCardVariant.list,
+          onTap: () => _agregarProducto(context, p),
         );
       },
     );
   }
 
-  // ──────────────── Empty state ────────────────
+  // ════════════════════════════════════════════════════════════════
+  // EMPTY STATE
+  // ════════════════════════════════════════════════════════════════
 
   Widget _buildEmptyState({required bool hayProductosBase}) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -428,7 +511,9 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
     );
   }
 
-  // ──────────────── Acceso denegado ────────────────
+  // ════════════════════════════════════════════════════════════════
+  // ACCESO DENEGADO
+  // ════════════════════════════════════════════════════════════════
 
   Widget _buildAccesoDenegado(ColorScheme colorScheme) {
     return Scaffold(
@@ -470,7 +555,9 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
     );
   }
 
-  // ──────────────── Acción: agregar producto ────────────────
+  // ════════════════════════════════════════════════════════════════
+  // AGREGAR PRODUCTO
+  // ════════════════════════════════════════════════════════════════
 
   Future<void> _agregarProducto(
     BuildContext context,

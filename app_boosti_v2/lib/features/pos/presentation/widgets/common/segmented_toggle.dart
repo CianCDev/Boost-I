@@ -33,6 +33,7 @@ class SegmentedToggle<T> extends StatelessWidget {
   
 
         final hPad = useCompact ? 16.0 : 18.0;
+        // ignore: unused_local_variable
         final vPad = useCompact ? 12.0 : 10.0;
         final iconSize = useCompact ? 20.0 : 16.0;
         return Align(

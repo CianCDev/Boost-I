@@ -169,7 +169,7 @@ class CartSessionsNotifier extends StateNotifier<CartSessionsState> {
         ..clienteIsarId = cliente?.id
         ..clienteSupabaseId = cliente?.supabaseId
         ..clienteNombre = nombreCliente
-        ..clienteDocumento = cliente?.documento
+        ..clienteDocumento = cliente?.documentoFormateado
         ..notas = notas
         ..configIvaPais = cartState.configIva.codigoPais
         ..configIvaPorcentaje = cartState.configIva.porcentajeIva

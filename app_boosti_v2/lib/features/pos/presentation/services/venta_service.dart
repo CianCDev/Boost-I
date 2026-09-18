@@ -10,7 +10,6 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/cliente_entity.da
 import 'package:app_boosti_v2/features/pos/presentation/controllers/cart_controller.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/esc_pos_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/ticket_service.dart';
-import 'package:app_boosti_v2/features/pos/presentation/services/ticket_generator.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/productos_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
 import 'package:uuid/uuid.dart';
@@ -111,11 +110,13 @@ class VentaService {
         ..tieneDescuentoEspecial = resultadoDescuentos.tieneDescuento
         ..montoDescuentoTotal = resultadoDescuentos.montoDescuentoTotal;
 
-      // Vinculación con cliente (requiere campos en VentaEntity)
+      // Vinculación con cliente
       if (cliente != null) {
         nuevaVenta.clienteId = cliente.id;
         nuevaVenta.clienteNombre = cliente.nombre;
-        nuevaVenta.clienteDocumento = cliente.documento;
+        nuevaVenta.clienteDocumento = cliente.documentoFormateado;
+        nuevaVenta.clienteRif = cliente.rif;
+        nuevaVenta.clienteRazonSocial = cliente.razonSocial;
       }
 
       // ============================================================
@@ -137,6 +138,13 @@ class VentaService {
             ..localSupabaseId = cliente.localSupabaseId
             ..nombre = cliente.nombre
             ..documento = cliente.documento
+            ..tipoDocumento = cliente.tipoDocumento
+            ..rif = cliente.rif
+            ..razonSocial = cliente.razonSocial
+            ..esMayorista = cliente.esMayorista
+            ..limiteCredito = cliente.limiteCredito
+            ..diasCredito = cliente.diasCredito
+            ..descuentoPreferencial = cliente.descuentoPreferencial
             ..telefono = cliente.telefono
             ..email = cliente.email
             ..direccion = cliente.direccion
@@ -178,8 +186,24 @@ class VentaService {
             precio: detalle.precioUnidad,
             cantidad: detalle.cantidad,
             esPesado: false,
+            // Extras por si algún ítem de detal tiene tier aplicado
+            tipoPrecio: detalle.tipoPrecio,
+            descuentoPorcentaje: detalle.descuentoPorcentajeLinea,
+            precioDetalOriginal: detalle.precioDetalOriginal,
+            unidadEmpaque: detalle.unidadEmpaque,
+            autorizadoPorLinea: detalle.autorizadoPorLinea,
           );
         }).toList();
+
+        // ✅ NUEVO: ticket cliente como objeto (firma nueva de la API)
+        final ticketCliente = cliente != null
+            ? TicketCliente(
+                nombre: cliente.nombre,
+                rif: cliente.rif,
+                documento: cliente.documentoFormateado,
+                razonSocial: cliente.razonSocial,
+              )
+            : null;
 
         final selectedPrinter = _ref.read(printerProvider);
         await TicketService.imprimirTicketVenta(
@@ -194,11 +218,16 @@ class VentaService {
           cambio: cambio,
           fechaVenta: DateTime.now(),
           impresoraSeleccionada: selectedPrinter?.device,
-          clienteNombre: cliente?.nombre,
-          clienteDocumento: cliente?.documento,
+          // ✅ Objeto cliente (reemplaza los params sueltos viejos)
+          cliente: ticketCliente,
+          // Extras de contexto
+          tipoVenta: 'detal',
+          tasaBcv: tasaActual,
+          montoDescuentoTotal: resultadoDescuentos.montoDescuentoTotal,
+          vendedor: usuarioLogueado?.nombre,
         );
-      } catch (_) {
-        debugPrint('⚠️ Error silencioso al intentar imprimir el ticket');
+      } catch (e) {
+        debugPrint('⚠️ Error al intentar imprimir el ticket: $e');
       }
 
       if (context.mounted) {

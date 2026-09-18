@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+// ignore: unnecessary_import
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import '../../../presentation/utils/pin_hasher.dart';
 
@@ -341,6 +342,47 @@ Future<void> initForTesting(String directoryPath) async {
     skipDemoInit: true,
   );
 }
+
+/// Obtiene los usuarios que fueron modificados localmente (ej. cambio de PIN) 
+  /// y están pendientes de subir a Supabase.
+  Future<List<UsuarioEntity>> obtenerUsuariosNoSincronizados() async {
+    final isar = await db; // Usa la variable de tu instancia de Isar
+    return await isar.usuarioEntitys // Revisa si tu autogenerado lo llama usuarioEntitys o usuarios
+        .filter()
+        .sincronizadoEqualTo(false)
+        .findAll();
+  }
+
+
+  /// Valida el PIN ingresado contra los usuarios locales activos.
+  /// Maneja tanto PINs hasheados como PINs en texto plano (migración en caliente).
+  Future<UsuarioEntity?> validarPin(String pinIngresado) async {
+    final isar = await db; // Usa la variable que te da la instancia de Isar
+    
+    // Traemos a los usuarios activos. Revisa si tu colección se llama 
+    // usuarioEntitys o usuarios según lo haya generado Isar.
+    final usuarios = await isar.usuarioEntitys
+        .filter()
+        .activoEqualTo(true)
+        .findAll();
+
+    for (final usuario in usuarios) {
+      // 1. Verificamos si el PIN coincide usando el Hasher
+      if (PinHasher.verify(pinIngresado, usuario.pin)) {
+        return usuario;
+      }
+      
+      // 2. Soporte para migración: Si el PIN guardado aún está en texto plano
+      if (!PinHasher.isHashed(usuario.pin) && usuario.pin == pinIngresado) {
+        // Opcional: Aquí podrías hashear el PIN y guardarlo para futuras veces,
+        // pero por ahora solo permitimos el acceso.
+        return usuario;
+      }
+    }
+
+    // Retorna null si el PIN no coincide con ningún usuario
+    return null;
+  }
 
   // ==================== USUARIOS ====================
 
@@ -1536,21 +1578,23 @@ Future<void> initForTesting(String directoryPath) async {
     }
   }
 
-  Future<List<ClienteEntity>> obtenerClientes(
-      {bool soloActivos = true, bool soloFrecuentes = false}) async {
-    try {
-      final isar = await db;
-      return await isar.clienteEntitys
-          .filter()
-          .optional(soloActivos, (q) => q.activoEqualTo(true))
-          .optional(soloFrecuentes, (q) => q.frecuenteEqualTo(true))
-          .sortByFechaRegistroDesc()
-          .findAll();
-    } catch (e, stack) {
-      ErrorService.captureError(e, stack: stack, hint: 'obtenerClientes_fallo');
-      return [];
-    }
+  Future<List<ClienteEntity>> obtenerClientes({
+  bool soloActivos = true,
+  bool soloFrecuentes = false,
+}) async {
+  try {
+    final isar = await db;
+    return await isar.clienteEntitys
+        .filter()
+        .optional(soloActivos, (q) => q.activoEqualTo(true))
+        .optional(soloFrecuentes, (q) => q.frecuenteEqualTo(true))
+        .sortByFechaRegistroDesc()
+        .findAll();
+  } catch (e, stack) {
+    ErrorService.captureError(e, stack: stack, hint: 'obtenerClientes_fallo');
+    return [];
   }
+}
 
   Future<ClienteEntity?> obtenerClientePorId(int id) async {
     try {
@@ -1580,29 +1624,79 @@ Future<void> initForTesting(String directoryPath) async {
     }
   }
 
-  Future<List<ClienteEntity>> buscarClientes(String query,
-      {bool soloFrecuentes = false}) async {
-    try {
-      final isar = await db;
-      if (query.trim().isEmpty) return [];
-      final q = query.trim().toLowerCase();
-      var filter = isar.clienteEntitys
-          .filter()
-          .nombreContains(q, caseSensitive: false)
-          .or()
-          .documentoContains(q, caseSensitive: false)
-          .or()
-          .telefonoContains(q, caseSensitive: false);
-      if (soloFrecuentes) {
-        filter = filter.and().frecuenteEqualTo(true);
-      }
-      return await filter.findAll();
-    } catch (e, stack) {
-      ErrorService.captureError(e,
-          stack: stack, hint: 'buscarClientes_fallo', extras: {'query': query});
-      return [];
+/// Busca clientes por nombre, teléfono, email, RIF, razón social
+/// o documento (numérico).
+///
+/// ⚠️ `documento` cambió a `int?`. El filtro numérico se hace en Dart
+/// sobre los resultados del filtro textual, para no perder performance
+/// con un index extra.
+Future<List<ClienteEntity>> buscarClientes(
+  String query, {
+  bool soloFrecuentes = false,
+}) async {
+  try {
+    final isar = await db;
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return [];
+
+    // Intentar parsear como número (para búsqueda por documento)
+    final qInt = int.tryParse(q);
+
+    // 1️⃣ Filtro textual en Isar (nombre, teléfono, email)
+    var filter = isar.clienteEntitys
+        .filter()
+        .nombreContains(q, caseSensitive: false)
+        .or()
+        .telefonoContains(q, caseSensitive: false)
+        .or()
+        .emailContains(q, caseSensitive: false);
+
+    if (soloFrecuentes) {
+      filter = filter.and().frecuenteEqualTo(true);
     }
+
+    final porTexto = await filter.findAll();
+
+    // 2️⃣ Filtro adicional en Dart para RIF, razón social y documento int
+    //    (Isar no soporta `contains` sobre campos que no están indexados
+    //    con esa estrategia; para listas cortas es aceptable)
+    final todos = await isar.clienteEntitys
+        .filter()
+        .optional(soloFrecuentes, (f) => f.frecuenteEqualTo(true))
+        .findAll();
+
+    final porCamposExtra = todos.where((c) {
+      final rif = (c.rif ?? '').toLowerCase();
+      final razon = (c.razonSocial ?? '').toLowerCase();
+      final docStr = c.documento?.toString() ?? '';
+
+      final matchRif = rif.contains(q);
+      final matchRazon = razon.contains(q);
+      final matchDoc = qInt != null && c.documento == qInt;
+      final matchDocStr = qInt == null && docStr.contains(q);
+
+      return matchRif || matchRazon || matchDoc || matchDocStr;
+    }).toList();
+
+    // 3️⃣ Merge sin duplicados (por id)
+    final vistos = <int>{};
+    final resultado = <ClienteEntity>[];
+
+    for (final c in [...porTexto, ...porCamposExtra]) {
+      if (vistos.add(c.id)) {
+        resultado.add(c);
+      }
+    }
+
+    return resultado;
+  } catch (e, stack) {
+    ErrorService.captureError(e,
+        stack: stack,
+        hint: 'buscarClientes_fallo',
+        extras: {'query': query, 'soloFrecuentes': soloFrecuentes});
+    return [];
   }
+}
 
   Future<bool> eliminarCliente(int id) async {
     try {
@@ -2532,6 +2626,7 @@ Future<void> initForTesting(String directoryPath) async {
     }
   }
 
+
   // ==================== DEPARTAMENTOS ====================
 
   Future<int> guardarDepartamento(DepartamentoEntity departamento) async {
@@ -2979,7 +3074,7 @@ Future<void> initForTesting(String directoryPath) async {
       final isar = await db;
       return await isar.writeTxn<int>(() async {
         config.updatedAt = DateTime.now();
-        config.createdAt ??= DateTime.now();
+        config.createdAt;
         return await isar.configDescuentoMayoristaEntitys.put(config);
       });
     } catch (e, stack) {
@@ -3637,7 +3732,7 @@ Future<void> initForTesting(String directoryPath) async {
       rethrow;
     }
   }
-  
+
   Future<List<AutorizacionDescuentoEntity>>
       obtenerAutorizacionesPendientesSync() async {
     try {

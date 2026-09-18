@@ -1,4 +1,6 @@
 // lib/features/pos/presentation/screens/lotes/lotes_detalle_screen.dart
+// ignore_for_file: unused_field
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
@@ -52,6 +54,7 @@ class _LotesDetalleScreenState extends ConsumerState<LotesDetalleScreen>
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isPendiente = widget.lote.estado == 'pendiente';
+    // ignore: unused_local_variable
     final estadoColor = _getEstadoColor(widget.lote.estado);
     final usuario = ref.watch(usuarioActualProvider);
     final esAdmin = usuario?.rol == 'admin';

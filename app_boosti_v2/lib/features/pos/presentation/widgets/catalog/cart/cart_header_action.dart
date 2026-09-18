@@ -43,6 +43,7 @@ class _CartHeaderActionState extends State<CartHeaderAction> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    // ignore: unused_local_variable
     final isDark = theme.brightness == Brightness.dark;
     final disabled = widget.onPressed == null;
 

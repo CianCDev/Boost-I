@@ -1,12 +1,14 @@
+// lib/features/pos/presentation/services/printer_service.dart
 import 'package:esc_pos_utils_lts/esc_pos_utils_lts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:esc_pos_printer_lts/esc_pos_printer_lts.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import '../../domain/models/printer_models.dart';
+
+import '../../data/Local/entities/local_entity.dart';
 import '../../domain/enums/printer_error.dart';
+import '../../domain/models/printer_models.dart';
 import 'label_generator.dart';
 import 'ticket_generator.dart';
-import '../../data/Local/entities/local_entity.dart';
 
 class PrinterService {
   // =========================================================
@@ -26,6 +28,17 @@ class PrinterService {
     int maxRetries = 2,
     bool esCierre = false,
     Map<String, double>? totalesPorMetodo,
+
+    // ── Extras Venta al Mayor (opcionales) ──
+    TicketCliente? cliente,
+    List<TicketPago>? pagos,
+    String tipoVenta = 'detal',
+    String? tipoDocumento,
+    double tasaBcv = 0.0,
+    double montoDescuentoTotal = 0.0,
+    bool requiereAutorizacion = false,
+    String? autorizadoPorNombre,
+    String? vendedor,
   }) async {
     int attempts = 0;
     PrintResult? lastResult;
@@ -47,6 +60,15 @@ class PrinterService {
           local: local,
           esCierre: esCierre,
           totalesPorMetodo: totalesPorMetodo,
+          cliente: cliente,
+          pagos: pagos,
+          tipoVenta: tipoVenta,
+          tipoDocumento: tipoDocumento,
+          tasaBcv: tasaBcv,
+          montoDescuentoTotal: montoDescuentoTotal,
+          requiereAutorizacion: requiereAutorizacion,
+          autorizadoPorNombre: autorizadoPorNombre,
+          vendedor: vendedor,
         );
 
         const PaperSize paper = PaperSize.mm80;
@@ -81,7 +103,8 @@ class PrinterService {
       }
     }
 
-    return lastResult ?? PrintResult.failure(PrinterError.unknown, 'Falló la impresión');
+    return lastResult ??
+        PrintResult.failure(PrinterError.unknown, 'Falló la impresión');
   }
 
   // =========================================================
@@ -101,6 +124,17 @@ class PrinterService {
     int maxRetries = 2,
     bool esCierre = false,
     Map<String, double>? totalesPorMetodo,
+
+    // ── Extras Venta al Mayor (opcionales) ──
+    TicketCliente? cliente,
+    List<TicketPago>? pagos,
+    String tipoVenta = 'detal',
+    String? tipoDocumento,
+    double tasaBcv = 0.0,
+    double montoDescuentoTotal = 0.0,
+    bool requiereAutorizacion = false,
+    String? autorizadoPorNombre,
+    String? vendedor,
   }) async {
     int attempts = 0;
     PrintResult? lastResult;
@@ -122,6 +156,15 @@ class PrinterService {
           local: local,
           esCierre: esCierre,
           totalesPorMetodo: totalesPorMetodo,
+          cliente: cliente,
+          pagos: pagos,
+          tipoVenta: tipoVenta,
+          tipoDocumento: tipoDocumento,
+          tasaBcv: tasaBcv,
+          montoDescuentoTotal: montoDescuentoTotal,
+          requiereAutorizacion: requiereAutorizacion,
+          autorizadoPorNombre: autorizadoPorNombre,
+          vendedor: vendedor,
         );
 
         final device = BluetoothDevice.fromId(printer.address);
@@ -164,7 +207,8 @@ class PrinterService {
       }
     }
 
-    return lastResult ?? PrintResult.failure(PrinterError.unknown, 'Falló la impresión');
+    return lastResult ??
+        PrintResult.failure(PrinterError.unknown, 'Falló la impresión');
   }
 
   // =========================================================
@@ -183,6 +227,17 @@ class PrinterService {
     LocalEntity? local,
     bool esCierre = false,
     Map<String, double>? totalesPorMetodo,
+
+    // ── Extras Venta al Mayor (opcionales) ──
+    TicketCliente? cliente,
+    List<TicketPago>? pagos,
+    String tipoVenta = 'detal',
+    String? tipoDocumento,
+    double tasaBcv = 0.0,
+    double montoDescuentoTotal = 0.0,
+    bool requiereAutorizacion = false,
+    String? autorizadoPorNombre,
+    String? vendedor,
   }) async {
     _log('📨 Iniciando impresión de ticket en ${printer.type.name}');
 
@@ -201,6 +256,15 @@ class PrinterService {
           local: local,
           esCierre: esCierre,
           totalesPorMetodo: totalesPorMetodo,
+          cliente: cliente,
+          pagos: pagos,
+          tipoVenta: tipoVenta,
+          tipoDocumento: tipoDocumento,
+          tasaBcv: tasaBcv,
+          montoDescuentoTotal: montoDescuentoTotal,
+          requiereAutorizacion: requiereAutorizacion,
+          autorizadoPorNombre: autorizadoPorNombre,
+          vendedor: vendedor,
         );
       case PrinterType.network:
         return await printViaNetwork(
@@ -216,6 +280,15 @@ class PrinterService {
           local: local,
           esCierre: esCierre,
           totalesPorMetodo: totalesPorMetodo,
+          cliente: cliente,
+          pagos: pagos,
+          tipoVenta: tipoVenta,
+          tipoDocumento: tipoDocumento,
+          tasaBcv: tasaBcv,
+          montoDescuentoTotal: montoDescuentoTotal,
+          requiereAutorizacion: requiereAutorizacion,
+          autorizadoPorNombre: autorizadoPorNombre,
+          vendedor: vendedor,
         );
     }
   }
@@ -247,106 +320,104 @@ class PrinterService {
     );
   }
 
-    // =========================================================
-// 🆕 IMPRESIÓN DE ETIQUETAS
-// =========================================================
-Future<PrintResult> printLabel({
-  required PrinterDevice printer,
-  required List<LabelItem> labels,
-  int maxRetries = 2,
-}) async {
-  _log('🏷️ Iniciando impresión de ${labels.length} etiqueta(s)');
+  // =========================================================
+  // IMPRESIÓN DE ETIQUETAS (sin cambios)
+  // =========================================================
+  Future<PrintResult> printLabel({
+    required PrinterDevice printer,
+    required List<LabelItem> labels,
+    int maxRetries = 2,
+  }) async {
+    _log('🏷️ Iniciando impresión de ${labels.length} etiqueta(s)');
 
-  // Generar bytes para todas las etiquetas
-  List<int> allBytes = [];
-  for (final label in labels) {
-    final bytes = await LabelGenerator.generateLabelBytes(item: label);
-    allBytes.addAll(bytes);
-  }
+    List<int> allBytes = [];
+    for (final label in labels) {
+      final bytes = await LabelGenerator.generateLabelBytes(item: label);
+      allBytes.addAll(bytes);
+    }
 
-  int attempts = 0;
-  PrintResult? lastResult;
+    int attempts = 0;
+    PrintResult? lastResult;
 
-  while (attempts < maxRetries) {
-    attempts++;
-    _log('🔄 Intento $attempts de $maxRetries para imprimir etiquetas');
+    while (attempts < maxRetries) {
+      attempts++;
+      _log('🔄 Intento $attempts de $maxRetries para imprimir etiquetas');
 
-    try {
-      if (printer.type == PrinterType.network) {
-        // Impresión por red
-        const PaperSize paper = PaperSize.mm58; // 58mm para etiquetas
-        final profile = await CapabilityProfile.load();
-        final networkPrinter = NetworkPrinter(paper, profile);
+      try {
+        if (printer.type == PrinterType.network) {
+          const PaperSize paper = PaperSize.mm58;
+          final profile = await CapabilityProfile.load();
+          final networkPrinter = NetworkPrinter(paper, profile);
 
-        final connectResult = await networkPrinter.connect(
-          printer.address,
-          port: printer.port ?? 9100,
-        );
-        if (connectResult != PosPrintResult.success) {
-          _log('❌ Error de conexión: ${connectResult.msg}');
-          lastResult = PrintResult.failure(
-            PrinterError.notConnected,
-            'Error de conexión: ${connectResult.msg}',
+          final connectResult = await networkPrinter.connect(
+            printer.address,
+            port: printer.port ?? 9100,
           );
-          continue;
-        }
-
-        networkPrinter.rawBytes(allBytes);
-        networkPrinter.disconnect();
-
-        _log('✅ Etiquetas impresas por red en intento $attempts');
-        return PrintResult.success();
-      } else if (printer.type == PrinterType.bluetooth) {
-        // Impresión por Bluetooth
-        final device = BluetoothDevice.fromId(printer.address);
-        await device.connect();
-
-        final services = await device.discoverServices();
-        BluetoothCharacteristic? characteristic;
-        for (final service in services) {
-          for (final char in service.characteristics) {
-            final uuid = char.uuid.toString().toLowerCase();
-            if (uuid.contains('ffe1') || uuid.contains('abf1')) {
-              characteristic = char;
-              break;
-            }
+          if (connectResult != PosPrintResult.success) {
+            _log('❌ Error de conexión: ${connectResult.msg}');
+            lastResult = PrintResult.failure(
+              PrinterError.notConnected,
+              'Error de conexión: ${connectResult.msg}',
+            );
+            continue;
           }
-          if (characteristic != null) break;
-        }
 
-        if (characteristic == null) {
-          _log('❌ Característica no encontrada');
+          networkPrinter.rawBytes(allBytes);
+          networkPrinter.disconnect();
+
+          _log('✅ Etiquetas impresas por red en intento $attempts');
+          return PrintResult.success();
+        } else if (printer.type == PrinterType.bluetooth) {
+          final device = BluetoothDevice.fromId(printer.address);
+          await device.connect();
+
+          final services = await device.discoverServices();
+          BluetoothCharacteristic? characteristic;
+          for (final service in services) {
+            for (final char in service.characteristics) {
+              final uuid = char.uuid.toString().toLowerCase();
+              if (uuid.contains('ffe1') || uuid.contains('abf1')) {
+                characteristic = char;
+                break;
+              }
+            }
+            if (characteristic != null) break;
+          }
+
+          if (characteristic == null) {
+            _log('❌ Característica no encontrada');
+            await device.disconnect();
+            lastResult = PrintResult.failure(
+              PrinterError.unknown,
+              'Característica de impresión no encontrada',
+            );
+            continue;
+          }
+
+          await characteristic.write(allBytes, withoutResponse: true);
           await device.disconnect();
-          lastResult = PrintResult.failure(
-            PrinterError.unknown,
-            'Característica de impresión no encontrada',
-          );
-          continue;
+
+          _log('✅ Etiquetas impresas por Bluetooth en intento $attempts');
+          return PrintResult.success();
+        } else {
+          throw Exception('Tipo de impresora no soportado para etiquetas');
         }
+      } catch (e) {
+        _log('❌ Error en intento $attempts: $e');
+        lastResult = PrintResult.failure(PrinterError.unknown, e.toString());
 
-        await characteristic.write(allBytes, withoutResponse: true);
-        await device.disconnect();
-
-        _log('✅ Etiquetas impresas por Bluetooth en intento $attempts');
-        return PrintResult.success();
-      } else {
-        throw Exception('Tipo de impresora no soportado para etiquetas');
-      }
-    } catch (e) {
-      _log('❌ Error en intento $attempts: $e');
-      lastResult = PrintResult.failure(PrinterError.unknown, e.toString());
-
-      if (attempts < maxRetries) {
-        await Future.delayed(const Duration(milliseconds: 500));
+        if (attempts < maxRetries) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
       }
     }
+
+    return lastResult ??
+        PrintResult.failure(PrinterError.unknown, 'Falló la impresión de etiquetas');
   }
 
-  return lastResult ?? PrintResult.failure(PrinterError.unknown, 'Falló la impresión de etiquetas');
-}
-
   // =========================================================
-  // ESCANEO BLUETOOTH
+  // ESCANEO BLUETOOTH (sin cambios)
   // =========================================================
   Future<List<PrinterDevice>> scanBluetoothPrinters({
     Duration timeout = const Duration(seconds: 10),

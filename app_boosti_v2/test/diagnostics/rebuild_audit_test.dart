@@ -6,7 +6,6 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.da
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/screens/inventory_catalog_screen.dart';
 import 'package:app_boosti_v2/features/pos/presentation/screens/inventory_screen.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

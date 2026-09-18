@@ -56,25 +56,32 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
   }
 
   /// 🔥 Comparación mejorada (todos los campos relevantes)
-  bool _listasSonIguales(List<ProductoEntity> a, List<ProductoEntity> b) {
-    if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
-      // Comparar campos que afectan la UI
-      if (a[i].id != b[i].id) return false;
-      if (a[i].stock != b[i].stock) return false;
-      if (a[i].precioUnidad != b[i].precioUnidad) return false;
-      if (a[i].nombre != b[i].nombre) return false;
-      if (a[i].imagenUrl != b[i].imagenUrl) return false;
-      if (a[i].stockMinimo != b[i].stockMinimo) return false;
-      if (a[i].categoria != b[i].categoria) return false;
-      if (a[i].esPesado != b[i].esPesado) return false;
-      if (a[i].proveedorNombre != b[i].proveedorNombre) return false;
-      if (a[i].proveedorTelefono != b[i].proveedorTelefono) return false;
-      // Comparar supabaseId (aunque no afecta la UI, pero evita falsos cambios)
-      if (a[i].supabaseId != b[i].supabaseId) return false;
-    }
-    return true;
+ bool _listasSonIguales(List<ProductoEntity> a, List<ProductoEntity> b) {
+  if (a.length != b.length) return false;
+  for (int i = 0; i < a.length; i++) {
+    if (a[i].id != b[i].id) return false;
+    if (a[i].stock != b[i].stock) return false;
+    if (a[i].precioUnidad != b[i].precioUnidad) return false;
+    if (a[i].nombre != b[i].nombre) return false;
+    if (a[i].imagenUrl != b[i].imagenUrl) return false;
+    if (a[i].stockMinimo != b[i].stockMinimo) return false;
+    if (a[i].categoria != b[i].categoria) return false;
+    if (a[i].esPesado != b[i].esPesado) return false;
+    if (a[i].proveedorNombre != b[i].proveedorNombre) return false;
+    if (a[i].proveedorTelefono != b[i].proveedorTelefono) return false;
+    if (a[i].supabaseId != b[i].supabaseId) return false;
+    // ✅ NUEVO: Ventas al mayor
+    if (a[i].permiteVentaMayor != b[i].permiteVentaMayor) return false;
+    if (a[i].precioMayor != b[i].precioMayor) return false;
+    if (a[i].cantidadMinimaMayor != b[i].cantidadMinimaMayor) return false;
+    if (a[i].precioMedioMayor != b[i].precioMedioMayor) return false;
+    if (a[i].cantidadMinimaMedioMayor !=
+        b[i].cantidadMinimaMedioMayor) return false;
+    if (a[i].unidadesPorBulto != b[i].unidadesPorBulto) return false;
+    if (a[i].costoUnitarioPromedio != b[i].costoUnitarioPromedio) return false;
   }
+  return true;
+}
 
   Future<void> recargarDesdeSupabase() async {
     debugPrint('🔄 [ProductosNotifier] Recargando desde Supabase...');

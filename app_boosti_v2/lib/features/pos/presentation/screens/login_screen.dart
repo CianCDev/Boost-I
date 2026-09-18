@@ -17,6 +17,7 @@ import '../services/error_service.dart';
 import '../utils/responsive_helper.dart';
 import 'empleados/employees_screen.dart';
 import 'main_pos_screen.dart';
+// ignore: unused_import
 import 'inventory_catalog_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {

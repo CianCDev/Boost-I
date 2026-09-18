@@ -266,6 +266,7 @@ void initState() {
                     opacity: anim,
                     child: SizeTransition(
                       sizeFactor: anim,
+                      // ignore: deprecated_member_use
                       axisAlignment: -1,
                       child: child,
                     ),

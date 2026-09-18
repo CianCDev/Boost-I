@@ -69,102 +69,134 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(errorMessage: message);
   }
 
-  Future<bool> loginWithPin(
-      UsuarioEntity usuarioSeleccionado, String pin) async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+ Future<bool> loginWithPin(
+    UsuarioEntity usuarioSeleccionado, String pin) async {
+  state = state.copyWith(isLoading: true, errorMessage: null);
 
-    try {
-      // 1️⃣ Validar localmente (primero, siempre)
-      final usuarioValido = await _isarService.validarLogin(
-        usuarioSeleccionado.nombre,
-        pin,
-      );
+  try {
+    // 1️⃣ Validar localmente (primero, siempre)
+    final usuarioValido = await _isarService.validarLogin(
+      usuarioSeleccionado.nombre,
+      pin,
+    );
 
-      if (usuarioValido == null) {
-        state = state.copyWith(
-          isLoading: false,
-          errorMessage: 'PIN incorrecto. Inténtalo de nuevo.',
-        );
-        return false;
-      }
-      // 2️⃣ Login local exitoso. NO se hace login en Supabase aquí.
-      //
-      // El JWT con tenant_id se obtiene en loginWithEmail (admin configura
-      // el dispositivo). El login por PIN es para uso diario offline.
-      //
-      // Si se intentara signInWithPassword con el PIN hasheado, fallaría
-      // siempre con invalid_credentials (ya que el PIN real no está en Supabase).
-      // 3️⃣ Actualizar estado local y en Supabase (device_id, estado)
-      await _isarService.guardarLog(
-        LogEntity()
-          ..accion = 'INICIO_SESION'
-          ..usuarioNombre = usuarioValido.nombre
-          ..usuarioRol = usuarioValido.rol
-          ..detalles = 'Inicio de sesión exitoso'
-          ..fecha = DateTime.now()
-          ..sincronizado = false,
-      );
-
-      // Actualizar estado a activo en Supabase
-      final successNube = await _syncService.actualizarEstadoUsuarioEnSupabase(
-        usuarioValido.id,
-        'activo',
-      );
-      if (successNube) {
-        debugPrint(
-            '✅ Estado actualizado en Supabase a activo para ${usuarioValido.nombre}');
-      } else {
-        debugPrint('⚠️ No se pudo actualizar estado en Supabase (continuamos)');
-      }
-
-      // Actualizar localmente
-      await _isarService.actualizarEstadoUsuario(usuarioValido.id, 'activo');
-      debugPrint(
-          '✅ Estado local actualizado a activo para ${usuarioValido.nombre}');
-
-      // Guardar device_id (si tiene supabaseUid)
-      final deviceId = await DeviceInfoService().getDeviceId();
-      if (usuarioValido.supabaseUid != null &&
-          usuarioValido.supabaseUid!.isNotEmpty) {
-        await Supabase.instance.client.from('usuarios').update(
-            {'device_id': deviceId}).eq('id', usuarioValido.supabaseUid!);
-      }
-
+    if (usuarioValido == null) {
       state = state.copyWith(
         isLoading: false,
-        currentUser: usuarioValido,
-        errorMessage: null,
-      );
-      _ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
-
-      // ✅ REGISTRAR USUARIO EN EL MONITOREO
-      ErrorService.setUser(
-        usuarioValido.id.toString(),
-        usuarioValido.email,
-        usuarioValido.nombre,
-      );
-
-      // Cargar lista de usuarios para el diálogo de cambio
-      await loadUsuarios();
-      return true;
-    } catch (e, stack) {
-      // ✅ REPORTAR ERROR
-      ErrorService.captureError(
-        e,
-        stack: stack,
-        hint: 'loginWithPin_fallo',
-        extras: {
-          'usuario': usuarioSeleccionado.nombre,
-          'pinLength': pin.length,
-        },
-      );
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: 'Error al iniciar sesión: $e',
+        errorMessage: 'PIN incorrecto. Inténtalo de nuevo.',
       );
       return false;
     }
+
+    // 2️⃣ Intentar login silencioso en Supabase para obtener JWT y activar el Tenant
+    if (usuarioValido.email != null &&
+        usuarioValido.email!.isNotEmpty &&
+        usuarioValido.password != null &&
+        usuarioValido.password!.isNotEmpty) {
+      try {
+        final response =
+            await Supabase.instance.client.auth.signInWithPassword(
+          email: usuarioValido.email!,
+          password: usuarioValido.password!,
+        );
+
+        if (response.session != null) {
+          final tenantId =
+              JwtService.extraerTenantId(response.session!.accessToken);
+          final rolJwt =
+              JwtService.extraerRol(response.session!.accessToken);
+
+          if (tenantId != null && tenantId.isNotEmpty) {
+            await _ref.read(tenantActualProvider.notifier).setTenant(
+                  tenantId,
+                  rol: rolJwt,
+                );
+            debugPrint(
+                '✅ Sesión Supabase + tenant activado silenciosamente: $tenantId');
+          }
+        }
+      } catch (e) {
+        debugPrint(
+            '⚠️ Login silencioso en Supabase omitido (modo offline o sin conexión): $e');
+        // Continuar localmente sin bloquear el login con PIN
+      }
+    }
+
+    // 3️⃣ Actualizar estado local y en Supabase (device_id, estado)
+    await _isarService.guardarLog(
+      LogEntity()
+        ..accion = 'INICIO_SESION'
+        ..usuarioNombre = usuarioValido.nombre
+        ..usuarioRol = usuarioValido.rol
+        ..detalles = 'Inicio de sesión exitoso'
+        ..fecha = DateTime.now()
+        ..sincronizado = false,
+    );
+
+    // Actualizar estado a activo en Supabase
+    final successNube = await _syncService.actualizarEstadoUsuarioEnSupabase(
+      usuarioValido.id,
+      'activo',
+    );
+    if (successNube) {
+      debugPrint(
+          '✅ Estado actualizado en Supabase a activo para ${usuarioValido.nombre}');
+    } else {
+      debugPrint('⚠️ No se pudo actualizar estado en Supabase (continuamos)');
+    }
+
+    // Actualizar localmente
+    await _isarService.actualizarEstadoUsuario(usuarioValido.id, 'activo');
+    debugPrint(
+        '✅ Estado local actualizado a activo para ${usuarioValido.nombre}');
+
+    // Guardar device_id (si tiene supabaseUid)
+    final deviceId = await DeviceInfoService().getDeviceId();
+    if (usuarioValido.supabaseUid != null &&
+        usuarioValido.supabaseUid!.isNotEmpty) {
+      try {
+        await Supabase.instance.client.from('usuarios').update(
+            {'device_id': deviceId}).eq('id', usuarioValido.supabaseUid!);
+      } catch (e) {
+        debugPrint('⚠️ No se pudo actualizar device_id en Supabase: $e');
+      }
+    }
+
+    state = state.copyWith(
+      isLoading: false,
+      currentUser: usuarioValido,
+      errorMessage: null,
+    );
+    _ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
+
+    // ✅ REGISTRAR USUARIO EN EL MONITOREO
+    ErrorService.setUser(
+      usuarioValido.id.toString(),
+      usuarioValido.email,
+      usuarioValido.nombre,
+    );
+
+    // Cargar lista de usuarios para el diálogo de cambio
+    await loadUsuarios();
+    return true;
+  } catch (e, stack) {
+    // ✅ REPORTAR ERROR
+    ErrorService.captureError(
+      e,
+      stack: stack,
+      hint: 'loginWithPin_fallo',
+      extras: {
+        'usuario': usuarioSeleccionado.nombre,
+        'pinLength': pin.length,
+      },
+    );
+    state = state.copyWith(
+      isLoading: false,
+      errorMessage: 'Error al iniciar sesión: $e',
+    );
+    return false;
   }
+}
 
   Future<bool> loginWithEmail(String email, String password) async {
     state = state.copyWith(isLoading: true, errorMessage: null);

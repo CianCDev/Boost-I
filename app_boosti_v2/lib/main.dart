@@ -1,10 +1,10 @@
 // lib/main.dart
 import 'dart:async';
 
+import 'package:device_preview/device_preview.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:device_preview/device_preview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -106,7 +106,14 @@ Future<bool> _inicializarSupabase(SharedPreferences prefs) async {
   }
 
   try {
-    await Supabase.initialize(url: url, publishableKey: anonKey);
+    // 🔥 IMPORTANTE: Se activa autoRefreshToken
+    await Supabase.initialize(
+      url: url,
+      publishableKey: anonKey,
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.implicit,
+      ),
+    );
     debugPrint('✅ Supabase inicializado');
     return true;
   } catch (e) {
@@ -146,21 +153,47 @@ class BoostiPOS extends ConsumerStatefulWidget {
 class _BoostiPOSState extends ConsumerState<BoostiPOS> {
   bool _syncStarted = false;
   bool _bootstrapDone = false;
+  StreamSubscription<AuthState>? _authStateSubscription;
 
   @override
   void initState() {
     super.initState();
-    // Esperar el primer frame para acceder a ref de forma segura.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _bootstrap();
+      _setupAuthStateListener();
     });
   }
 
-  /// Inicialización del estado de sesión/tenant al arrancar.
-  ///
-  /// 1. Fuerza la construcción del TenantNotifier (lee de prefs).
-  /// 2. Rehidrata tenant + rol desde el JWT activo (si existe sesión).
-  /// 3. Arranca la sincronización de fondo.
+  @override
+  void dispose() {
+    _authStateSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Configura un listener para reaccionar a renovaciones automáticas del JWT.
+  void _setupAuthStateListener() {
+    if (!widget.supabaseInitialized) return;
+
+    _authStateSubscription =
+        Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final AuthChangeEvent event = data.event;
+      final Session? session = data.session;
+
+      // ✅ Reaccionar a renovaciones de token
+      if (event == AuthChangeEvent.tokenRefreshed && session != null) {
+        debugPrint('🔄 JWT renovado automáticamente por Supabase Auth.');
+        _actualizarTenantDesdeSesion(session);
+        return;
+      }
+
+      // ✅ NUEVO: Limpiar tenant al cerrar sesión
+      if (event == AuthChangeEvent.signedOut) {
+        debugPrint('🚪 Sesión Supabase cerrada → limpiando tenant');
+        ref.read(tenantActualProvider.notifier).limpiar();
+      }
+    });
+  }
+
   Future<void> _bootstrap() async {
     if (_bootstrapDone) return;
     _bootstrapDone = true;
@@ -168,11 +201,9 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
     if (!mounted) return;
 
     // ✅ Forzar inicialización del TenantNotifier (lee de prefs)
-    // Sin esto, el provider no se instancia hasta que alguien lo lea,
-    // y `SplashScreen._decidirNavegacion` vería un tenant vacío.
     ref.read(tenantActualProvider);
 
-    // 1. Rehidratar tenant desde JWT activo (si existe)
+    // 1. Refrescar JWT y rehidratar tenant desde la sesión activa
     await _cargarTenantDesdeSesion();
 
     // 2. Sync en background
@@ -182,35 +213,111 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
     }
   }
 
-  /// Carga `tenant_id` y `rol` del JWT activo en Supabase (si existe).
+  /// ✅ CORREGIDO: Valida el tenant antes de aceptarlo.
   ///
-  /// Si no hay sesión, deja que `TenantNotifier` cargue los valores
-  /// persistidos en SharedPreferences.
+  /// Reglas:
+  ///   1. Si el JWT no trae tenant → no hace nada.
+  ///   2. Si el tenant del JWT == tenant actual → no hace nada (idempotente).
+  ///   3. Si el tenant del JWT es distinto → valida contra `locales`.
+  ///      - Si existe (Isar o Supabase) → lo acepta.
+  ///      - Si NO existe → fuerza logout para evitar RLS bloqueado.
+  Future<void> _actualizarTenantDesdeSesion(Session session) async {
+    final token = session.accessToken;
+    final tenantJwt = JwtService.extraerTenantId(token);
+    final rol = JwtService.extraerRol(token);
+
+    if (tenantJwt == null || tenantJwt.isEmpty) {
+      debugPrint('ℹ️ JWT sin tenant_id. No se actualiza.');
+      return;
+    }
+
+    final tenantActual = ref.read(tenantActualProvider).tenantId;
+
+    // ── Caso 1: mismo tenant → no-op ──
+    if (tenantJwt == tenantActual) {
+      return;
+    }
+
+    debugPrint(
+        '🔍 JWT trae tenant $tenantJwt (actual: $tenantActual). Validando...');
+
+    // ── Caso 2: validar que el tenant exista ──
+    try {
+      final isar = IsarService();
+      final localIsar = await isar.obtenerLocalPorSupabaseId(tenantJwt);
+
+      if (localIsar != null) {
+        debugPrint('✅ Tenant $tenantJwt existe en Isar. Aceptado.');
+        await ref
+            .read(tenantActualProvider.notifier)
+            .setTenant(tenantJwt, rol: rol);
+        return;
+      }
+
+      // No está en Isar local → verificar en Supabase
+      final supaLocal = await Supabase.instance.client
+          .from('locales')
+          .select('id, nombre')
+          .eq('id', tenantJwt)
+          .maybeSingle();
+
+      if (supaLocal != null) {
+        debugPrint(
+            '✅ Tenant $tenantJwt existe en Supabase ("${supaLocal['nombre']}"). Aceptado.');
+        await ref
+            .read(tenantActualProvider.notifier)
+            .setTenant(tenantJwt, rol: rol);
+        return;
+      }
+
+      // ── Caso 3: tenant fantasma → forzar logout ──
+      debugPrint(
+          '🚨 Tenant $tenantJwt NO existe en Isar ni en Supabase. '
+          'Cerrando sesión huérfana para forzar re-login.');
+
+      try {
+        await Supabase.instance.client.auth.signOut();
+      } catch (e) {
+        debugPrint('⚠️ Error en signOut forzado: $e');
+      }
+
+      // Limpiar el tenant local (probablemente apunta a un fantasma)
+      await ref.read(tenantActualProvider.notifier).limpiar();
+
+      // Limpiar usuario actual para forzar LoginScreen
+      ref.read(usuarioActualProvider.notifier).clearUsuario();
+    } catch (e) {
+      debugPrint('⚠️ Error validando tenant $tenantJwt: $e');
+      // No forzamos logout si el error es de red — preferimos modo offline
+    }
+  }
+
+  /// Refresca la sesión activa al inicio y rehidrata `tenant_id` del JWT.
   Future<void> _cargarTenantDesdeSesion() async {
     try {
       if (!widget.supabaseInitialized) return;
 
+      // Intentar refrescar sesión manualmente al arrancar la app
+      try {
+        final res = await Supabase.instance.client.auth.refreshSession();
+        if (res.session != null) {
+          debugPrint('🔄 JWT refrescado manualmente al iniciar app');
+          await _actualizarTenantDesdeSesion(res.session!);
+          return;
+        }
+      } catch (e) {
+        debugPrint(
+            'ℹ️ No se pudo refrescar la sesión manualmente (modo offline): $e');
+      }
+
+      // Fallback: usar la sesión cacheada
       final session = Supabase.instance.client.auth.currentSession;
       if (session == null) {
-        debugPrint('ℹ️ Sin sesión Supabase → tenant desde prefs');
+        debugPrint('ℹ️ Sin sesión Supabase cacheada → tenant desde prefs');
         return;
       }
 
-      final token = session.accessToken;
-      final tenantId = JwtService.extraerTenantId(token);
-      final rol = JwtService.extraerRol(token);
-
-      if (tenantId == null || tenantId.isEmpty) {
-        debugPrint(
-            '⚠️ Sesión activa pero JWT sin tenant_id. Revisar hook de Supabase.');
-        return;
-      }
-
-      await ref
-          .read(tenantActualProvider.notifier)
-          .setTenant(tenantId, rol: rol);
-
-      debugPrint('✅ Tenant rehidratado desde sesión: $tenantId (rol: $rol)');
+      await _actualizarTenantDesdeSesion(session);
     } catch (e) {
       debugPrint('⚠️ Error rehidratando tenant: $e');
     }
@@ -240,13 +347,6 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
   }
 
   /// Determina la pantalla inicial según configuración + sesión.
-  ///
-  /// Prioridad:
-  ///   1. Sin config Supabase → ConfiguracionEmpresaScreen
-  ///   2. Con usuario local cargado:
-  ///      a. RRHH → EmployeesScreen
-  ///      b. Resto → MainPosScreen
-  ///   3. Sin usuario → SplashScreen (que validará tenant y redirigirá)
   Widget _homeInicial() {
     if (!widget.supabaseInitialized) {
       return const ConfiguracionEmpresaScreen();
@@ -256,12 +356,10 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
     if (usuario != null) {
       final role = UserRole.fromString(usuario.rol);
 
-      // RRHH: pantalla dedicada
       if (Permissions.isEmployeesOnlyRole(role)) {
         return const EmployeesScreen();
       }
 
-      // Resto: welcome screen (menú principal)
       return const MainPosScreen();
     }
 

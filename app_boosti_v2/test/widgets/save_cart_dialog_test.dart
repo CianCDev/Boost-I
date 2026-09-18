@@ -282,7 +282,7 @@ void main() {
       final cliente = ClienteEntity()
         ..id = 7
         ..nombre = 'Juan Pérez'
-        ..documento = 'V-12345678';
+        ..documento = 12345678;
 
       final fake = await pumpDialog(tester, cliente: cliente);
 

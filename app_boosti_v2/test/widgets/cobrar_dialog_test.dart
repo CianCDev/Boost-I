@@ -8,7 +8,6 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/clientes/clien
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/cobrar_dialog.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -69,7 +68,7 @@ void main() {
     return ClienteEntity()
       ..id = id
       ..nombre = nombre
-      ..documento = documento;
+      ..documento = documento as int?;
   }
 
   /// Abre el CobrarDialog con overrides de dependencias.
