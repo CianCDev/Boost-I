@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict PtSVoWCAUAXJJUShER2jsWWEe1xuaeicv5mqxz6CLLPr3JPFsSsoqYaLBQueZkS
+\restrict wVPHaBD7Rq7nRoQXezFTM5K6rN2Cy20kcz4w2Wt9XbJCfyj9zeodRpAD7qB1SYD
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 18.6
@@ -64,6 +64,16 @@ CREATE TYPE public.metodo_pago AS ENUM (
     'tarjeta',
     'transferencia',
     'credito'
+);
+
+
+--
+-- Name: tipo_documento_enum; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.tipo_documento_enum AS ENUM (
+    'V',
+    'E'
 );
 
 
@@ -204,17 +214,78 @@ END $$;
 
 
 --
+-- Name: crear_nuevo_local_para_usuario(text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.crear_nuevo_local_para_usuario(p_nombre text, p_direccion text DEFAULT NULL::text, p_telefono text DEFAULT NULL::text, p_email text DEFAULT NULL::text, p_rif text DEFAULT NULL::text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+DECLARE
+  v_nuevo_tenant_id uuid;
+  v_usuario_id uuid := auth.uid();
+BEGIN
+  IF v_usuario_id IS NULL THEN
+    RAISE EXCEPTION 'No hay usuario autenticado.';
+  END IF;
+
+  IF p_nombre IS NULL OR length(trim(p_nombre)) = 0 THEN
+    RAISE EXCEPTION 'El nombre del local es obligatorio.';
+  END IF;
+
+  INSERT INTO public.locales (id, nombre, direccion, telefono, email, rif)
+  VALUES (
+    gen_random_uuid(),
+    trim(p_nombre),
+    NULLIF(trim(p_direccion), ''),
+    NULLIF(trim(p_telefono), ''),
+    NULLIF(trim(p_email), ''),
+    NULLIF(trim(p_rif), '')
+  )
+  RETURNING id INTO v_nuevo_tenant_id;
+
+  INSERT INTO public.usuarios_locales (usuario_id, tenant_id, rol, es_default, activo)
+  VALUES (v_usuario_id, v_nuevo_tenant_id, 'admin', false, true);
+
+  RETURN v_nuevo_tenant_id;
+END;
+$$;
+
+
+--
 -- Name: current_tenant_id(); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.current_tenant_id() RETURNS uuid
     LANGUAGE sql STABLE
     AS $$
-  SELECT NULLIF(
-    current_setting('request.jwt.claims', true)::jsonb->>'tenant_id',
-    ''
-  )::uuid;
+  SELECT COALESCE(
+    (auth.jwt() ->> 'tenant_id')::uuid,
+    (auth.jwt() -> 'user_metadata' ->> 'tenant_id')::uuid
+  );
 $$;
+
+
+--
+-- Name: current_user_tenant_id(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.current_user_tenant_id() RETURNS uuid
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT tenant_id
+  FROM public.usuarios
+  WHERE id = auth.uid()
+  LIMIT 1;
+$$;
+
+
+--
+-- Name: FUNCTION current_user_tenant_id(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.current_user_tenant_id() IS 'Retorna el tenant_id del usuario autenticado (auth.uid()). Base para todas las RLS policies del sistema.';
 
 
 --
@@ -226,65 +297,89 @@ CREATE FUNCTION public.custom_access_token_hook(event jsonb) RETURNS jsonb
     AS $$
 DECLARE
   claims jsonb;
-  v_user_id uuid;
   v_tenant_id uuid;
-  v_rol text;
-  v_local_solicitado uuid;
+  v_user_id uuid;
 BEGIN
+  -- user_id del evento
   v_user_id := (event->>'user_id')::uuid;
   claims := event->'claims';
 
-  -- ¿El cliente pidió un local específico? (cuando el usuario cambia de local)
-  v_local_solicitado := NULLIF(claims->>'active_tenant_id', '')::uuid;
+  -- Buscar tenant_id en public.usuarios
+  SELECT tenant_id INTO v_tenant_id
+  FROM public.usuarios
+  WHERE id = v_user_id
+  LIMIT 1;
 
-  IF v_local_solicitado IS NOT NULL THEN
-    -- Verificar que el usuario tenga acceso a ese local
-    SELECT rol INTO v_rol
-    FROM public.usuarios_locales
-    WHERE usuario_id = v_user_id
-      AND tenant_id = v_local_solicitado
-      AND activo = true;
-
-    IF v_rol IS NOT NULL THEN
-      v_tenant_id := v_local_solicitado;
-    END IF;
-  END IF;
-
-  -- Fallback: usar el local por defecto
+  -- Si no lo encuentra, intentar con user_metadata
   IF v_tenant_id IS NULL THEN
-    SELECT tenant_id, rol
-      INTO v_tenant_id, v_rol
-    FROM public.usuarios_locales
-    WHERE usuario_id = v_user_id
-      AND es_default = true
-      AND activo = true
-    LIMIT 1;
+    v_tenant_id := (event->'claims'->'user_metadata'->>'tenant_id')::uuid;
   END IF;
 
-  -- Si aún no hay tenant, usar el primero activo (por si el default está mal)
-  IF v_tenant_id IS NULL THEN
-    SELECT tenant_id, rol
-      INTO v_tenant_id, v_rol
-    FROM public.usuarios_locales
-    WHERE usuario_id = v_user_id
-      AND activo = true
-    ORDER BY created_at
-    LIMIT 1;
-  END IF;
-
-  -- Inyectar claims
+  -- Inyectar tenant_id en el claim raíz
   IF v_tenant_id IS NOT NULL THEN
-    claims := jsonb_set(claims, '{tenant_id}', to_jsonb(v_tenant_id::text));
+    claims := jsonb_set(claims, '{tenant_id}', to_jsonb(v_tenant_id));
   END IF;
-  IF v_rol IS NOT NULL THEN
-    claims := jsonb_set(claims, '{user_rol}', to_jsonb(v_rol));
-  END IF;
-
-  -- Limpiar el flag temporal active_tenant_id para no ensuciar el JWT
-  claims := claims - 'active_tenant_id';
 
   RETURN jsonb_set(event, '{claims}', claims);
-END $$;
+END;
+$$;
+
+
+--
+-- Name: decrypt_telegram_token(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.decrypt_telegram_token(p_encrypted text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault', 'extensions', 'pg_temp'
+    AS $$
+DECLARE
+  v_key text;
+BEGIN
+  IF p_encrypted IS NULL OR p_encrypted = '' THEN RETURN NULL; END IF;
+  v_key := public.get_telegram_key();
+  IF v_key IS NULL THEN RAISE EXCEPTION 'Clave no disponible en Vault'; END IF;
+  BEGIN
+    RETURN extensions.pgp_sym_decrypt(decode(p_encrypted, 'base64'), v_key);
+  EXCEPTION WHEN OTHERS THEN
+    RETURN NULL;
+  END;
+END;
+$$;
+
+
+--
+-- Name: encrypt_telegram_token(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.encrypt_telegram_token(p_plain text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault', 'extensions', 'pg_temp'
+    AS $$
+DECLARE
+  v_key text;
+BEGIN
+  IF p_plain IS NULL OR p_plain = '' THEN RETURN NULL; END IF;
+  v_key := public.get_telegram_key();
+  IF v_key IS NULL THEN RAISE EXCEPTION 'Clave no disponible en Vault'; END IF;
+  RETURN encode(extensions.pgp_sym_encrypt(p_plain, v_key), 'base64');
+END;
+$$;
+
+
+--
+-- Name: get_telegram_key(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.get_telegram_key() RETURNS text
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public', 'vault', 'extensions', 'pg_temp'
+    AS $$
+  SELECT decrypted_secret
+  FROM vault.decrypted_secrets
+  WHERE name = 'telegram_token_key'
+  LIMIT 1;
+$$;
 
 
 --
@@ -295,19 +390,82 @@ CREATE FUNCTION public.handle_new_user() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
+DECLARE
+  v_tenant_id uuid;
+  v_rol       text;
+  v_nombre    text;
+  v_pin       text;
+  v_id_isar   bigint;
 BEGIN
-  INSERT INTO public.usuarios (id, nombre, rol, pin, email, estado, tenant_id)
-  VALUES (
-    NEW.id,
-    NEW.raw_user_meta_data->>'nombre',
-    NEW.raw_user_meta_data->>'rol',
-    NEW.raw_user_meta_data->>'pin',
-    NEW.email,
-    'inactivo',
-    (NEW.raw_user_meta_data->>'tenant_id')::uuid
-  );
+  -- ✅ Valores con fallback seguro para evitar NULLs
+  v_tenant_id := NULLIF(NEW.raw_user_meta_data->>'tenant_id', '')::uuid;
+  v_rol       := COALESCE(NULLIF(NEW.raw_user_meta_data->>'rol', ''), 'cajero');
+  v_nombre    := COALESCE(
+                   NULLIF(NEW.raw_user_meta_data->>'nombre', ''),
+                   split_part(NEW.email, '@', 1)
+                 );
+  v_pin       := COALESCE(NULLIF(NEW.raw_user_meta_data->>'pin', ''), '1234');
+  v_id_isar   := nextval('public.usuarios_id_isar_seq');
+
+  IF v_tenant_id IS NULL THEN
+    RAISE NOTICE 'Usuario % sin tenant_id → perfil NO creado', NEW.id;
+    RETURN NEW;
+  END IF;
+
+  -- ✅ Bloque 1: insertar perfil con try/except aislado
+  BEGIN
+    INSERT INTO public.usuarios (
+      id, nombre, rol, pin, email, estado, tenant_id, id_isar
+    )
+    VALUES (
+      NEW.id, v_nombre, v_rol, v_pin, NEW.email,
+      'inactivo', v_tenant_id, v_id_isar
+    )
+    ON CONFLICT (id) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING '⚠️ handle_new_user: fallo INSERT public.usuarios para % → %',
+      NEW.id, SQLERRM;
+  END;
+
+  -- ✅ Bloque 2: insertar relación local (aislado, no rompe auth si falla)
+  BEGIN
+    INSERT INTO public.usuarios_locales (
+      usuario_id, tenant_id, rol, es_default, activo
+    )
+    VALUES (NEW.id, v_tenant_id, v_rol, true, true)
+    ON CONFLICT (usuario_id, tenant_id) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING '⚠️ handle_new_user: fallo INSERT usuarios_locales para % → %',
+      NEW.id, SQLERRM;
+  END;
+
   RETURN NEW;
-END $$;
+END;
+$$;
+
+
+--
+-- Name: has_any_role(text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.has_any_role(roles text[]) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.usuarios
+    WHERE id = auth.uid()
+      AND rol = ANY(roles)
+  );
+$$;
+
+
+--
+-- Name: FUNCTION has_any_role(roles text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.has_any_role(roles text[]) IS 'Retorna true si el usuario autenticado tiene alguno de los roles del array. Uso: has_any_role(ARRAY[''admin'', ''supervisor''])';
 
 
 --
@@ -324,6 +482,108 @@ CREATE FUNCTION public.is_tenant_admin() RETURNS boolean
       AND tenant_id = public.current_tenant_id()
       AND LOWER(rol) = 'admin'
   );
+$$;
+
+
+--
+-- Name: mis_locales(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.mis_locales() RETURNS TABLE(tenant_id uuid, nombre text, direccion text, rol text, es_default boolean)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT 
+    ul.tenant_id,
+    l.nombre,
+    l.direccion,
+    ul.rol,
+    ul.es_default
+  FROM usuarios_locales ul
+  JOIN locales l ON l.id = ul.tenant_id
+  WHERE ul.usuario_id = auth.uid()
+    AND ul.activo = true
+  ORDER BY ul.es_default DESC, l.nombre ASC;
+$$;
+
+
+--
+-- Name: set_active_tenant(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_active_tenant(p_tenant_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_user_id uuid := auth.uid();
+  v_access boolean;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'No autenticado';
+  END IF;
+
+  -- Verificar que el usuario tiene acceso al tenant objetivo
+  SELECT EXISTS (
+    SELECT 1 FROM usuarios_locales
+    WHERE usuario_id = v_user_id
+      AND tenant_id = p_tenant_id
+      AND activo = true
+  ) INTO v_access;
+
+  IF NOT v_access THEN
+    RAISE EXCEPTION 'No tienes acceso a este local';
+  END IF;
+
+  -- Quitar es_default de todos
+  UPDATE usuarios_locales
+  SET es_default = false
+  WHERE usuario_id = v_user_id AND es_default = true;
+
+  -- Poner es_default en el nuevo
+  UPDATE usuarios_locales
+  SET es_default = true
+  WHERE usuario_id = v_user_id AND tenant_id = p_tenant_id;
+
+  RETURN true;
+END;
+$$;
+
+
+--
+-- Name: telegram_config_encrypt_token(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.telegram_config_encrypt_token() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault', 'extensions', 'pg_temp'
+    AS $_$
+BEGIN
+  IF NEW.bot_token IS NOT NULL
+     AND NEW.bot_token <> ''
+     AND NEW.bot_token ~ '^[0-9]{6,12}:[A-Za-z0-9_-]{30,}$' THEN
+    NEW.bot_token := public.encrypt_telegram_token(NEW.bot_token);
+  END IF;
+  RETURN NEW;
+END;
+$_$;
+
+
+--
+-- Name: telegram_config_sync_status(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.telegram_config_sync_status() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.sincronizado = true AND (NEW.sync_status IS NULL OR NEW.sync_status = 'pending') THEN
+    NEW.sync_status := 'synced';
+  ELSIF NEW.sincronizado = false AND (NEW.sync_status IS NULL OR NEW.sync_status = 'synced') THEN
+    NEW.sync_status := 'pending';
+  END IF;
+  RETURN NEW;
+END;
 $$;
 
 
@@ -382,6 +642,33 @@ ALTER SEQUENCE public.audit_log_id_seq OWNED BY public.audit_log.id;
 
 
 --
+-- Name: autorizaciones_descuento; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.autorizaciones_descuento (
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
+    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
+    id_isar bigint,
+    venta_id uuid,
+    producto_id_isar bigint,
+    producto_nombre text,
+    es_global boolean DEFAULT false NOT NULL,
+    descuento_solicitado numeric(5,2) NOT NULL,
+    tope_rol_solicitante numeric(5,2) NOT NULL,
+    solicitado_por_id bigint,
+    solicitado_por_nombre text NOT NULL,
+    solicitado_por_rol text NOT NULL,
+    autorizado_por_id bigint,
+    autorizado_por_nombre text,
+    autorizado_por_rol text,
+    aprobado boolean NOT NULL,
+    motivo_rechazo text,
+    fecha timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: cajas; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -402,8 +689,10 @@ CREATE TABLE public.categorias (
     id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     nombre character varying(100) NOT NULL,
     descripcion text,
-    creado_en timestamp with time zone DEFAULT now(),
-    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL
+    created_at timestamp with time zone DEFAULT now(),
+    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    updated_at timestamp with time zone
 );
 
 
@@ -430,7 +719,14 @@ CREATE TABLE public.clientes (
     notas text,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL
+    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
+    razon_social text,
+    rif text,
+    es_mayorista boolean DEFAULT false NOT NULL,
+    limite_credito numeric,
+    dias_credito integer,
+    descuento_preferencial numeric,
+    tipo_documento text
 );
 
 
@@ -450,6 +746,58 @@ CREATE TABLE public.codigos_barras_alias (
     sincronizado boolean DEFAULT false,
     fecha_sincronizacion timestamp without time zone,
     tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL
+);
+
+
+--
+-- Name: config_descuentos_mayoristas; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.config_descuentos_mayoristas (
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
+    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
+    id_isar bigint,
+    nombre text NOT NULL,
+    categoria_id_isar bigint,
+    categoria_supabase_id uuid,
+    cantidad_minima integer NOT NULL,
+    cantidad_maxima integer,
+    descuento_porcentaje numeric(5,2) NOT NULL,
+    requiere_autorizacion boolean DEFAULT false NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: cotizaciones_mayor; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cotizaciones_mayor (
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
+    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
+    id_isar bigint,
+    numero text NOT NULL,
+    cliente_id uuid,
+    cliente_rif text,
+    cliente_razon_social text,
+    items_json jsonb DEFAULT '[]'::jsonb NOT NULL,
+    subtotal numeric(12,2) DEFAULT 0 NOT NULL,
+    descuento_global numeric(12,2) DEFAULT 0 NOT NULL,
+    impuesto numeric(12,2) DEFAULT 0 NOT NULL,
+    total numeric(12,2) DEFAULT 0 NOT NULL,
+    total_bolivares numeric(14,2),
+    tasa_bcv numeric(12,4),
+    estado text DEFAULT 'borrador'::text NOT NULL,
+    fecha_emision timestamp with time zone DEFAULT now() NOT NULL,
+    fecha_vencimiento timestamp with time zone,
+    observaciones text,
+    usuario_id bigint,
+    usuario_nombre text,
+    venta_convertida_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -487,7 +835,17 @@ CREATE TABLE public.detalle_ventas (
     precio_original numeric,
     es_descuento_especial boolean DEFAULT false,
     producto_id bigint,
-    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL
+    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
+    precio_detal_original numeric,
+    precio_mayor_aplicado numeric,
+    tipo_precio text,
+    descuento_porcentaje_linea numeric DEFAULT 0 NOT NULL,
+    unidad_empaque text DEFAULT 'unidad'::text NOT NULL,
+    unidades_por_empaque integer DEFAULT 1 NOT NULL,
+    autorizado_por_linea text,
+    costo_unitario_snapshot numeric,
+    lote_id_isar bigint,
+    sync_status text DEFAULT 'synced'::text
 );
 
 
@@ -682,6 +1040,59 @@ CREATE TABLE public.pagos (
 
 
 --
+-- Name: pagos_venta; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.pagos_venta (
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
+    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
+    venta_id uuid NOT NULL,
+    id_isar bigint,
+    metodo text NOT NULL,
+    monto numeric(12,2) NOT NULL,
+    moneda text NOT NULL,
+    monto_usd_equivalente numeric(12,2) NOT NULL,
+    tasa_bcv numeric(12,4),
+    referencia text,
+    ultimos_digitos text,
+    wallet_destino text,
+    hash_transaccion text,
+    banco_emisor text,
+    titular text,
+    fecha timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: pagos_ventas; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.pagos_ventas (
+    id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
+    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
+    venta_id uuid NOT NULL,
+    id_isar integer,
+    metodo text NOT NULL,
+    monto numeric DEFAULT 0 NOT NULL,
+    moneda text DEFAULT 'USD'::text NOT NULL,
+    monto_usd_equivalente numeric DEFAULT 0 NOT NULL,
+    tasa_bcv numeric,
+    referencia text,
+    ultimos_digitos text,
+    wallet_destino text,
+    hash_transaccion text,
+    banco_emisor text,
+    titular text,
+    fecha timestamp with time zone DEFAULT now() NOT NULL,
+    sync_status text DEFAULT 'synced'::text,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+--
 -- Name: pedidos; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -745,7 +1156,14 @@ CREATE TABLE public.productos (
     proveedor_id uuid,
     uuid uuid NOT NULL,
     activo boolean DEFAULT true,
-    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL
+    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
+    permite_venta_mayor boolean DEFAULT false NOT NULL,
+    precio_mayor numeric,
+    cantidad_minima_mayor integer,
+    precio_medio_mayor numeric,
+    cantidad_minima_medio_mayor integer,
+    unidades_por_bulto integer DEFAULT 1 NOT NULL,
+    costo_unitario_promedio numeric
 );
 
 
@@ -812,8 +1230,8 @@ CREATE TABLE public.recepciones (
 
 CREATE TABLE public.telegram_config (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    bot_token text NOT NULL,
-    chat_id text NOT NULL,
+    bot_token text,
+    chat_id text,
     enabled boolean DEFAULT true,
     usuarios_autorizados_ids integer[],
     roles_autorizados text[],
@@ -830,8 +1248,48 @@ CREATE TABLE public.telegram_config (
     fecha_sincronizacion timestamp with time zone,
     sync_status text DEFAULT 'pending'::text,
     usuario_id integer,
-    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL
+    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
+    CONSTRAINT telegram_config_chat_id_format CHECK (((chat_id IS NULL) OR (chat_id ~ '^-?[0-9]{5,20}$'::text) OR (chat_id ~ '^@[A-Za-z][A-Za-z0-9_]{4,31}$'::text))),
+    CONSTRAINT telegram_config_comandos_validos CHECK (((comandos_permitidos IS NULL) OR (jsonb_typeof(comandos_permitidos) = 'array'::text)))
 );
+
+ALTER TABLE ONLY public.telegram_config FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: telegram_config_safe; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.telegram_config_safe WITH (security_invoker='true') AS
+ SELECT id,
+    id_isar,
+    usuario_id,
+    tenant_id,
+    chat_id,
+    nombre_chat,
+    enabled,
+    notificar_stock_bajo,
+    notificar_ventas,
+    notificar_pedidos,
+    comandos_permitidos,
+    sincronizado,
+    fecha_sincronizacion,
+    sync_status,
+    created_at,
+    updated_at,
+    COALESCE(updated_at, created_at) AS ultima_actualizacion,
+        CASE
+            WHEN (bot_token IS NULL) THEN NULL::text
+            ELSE substr(md5(bot_token), 1, 8)
+        END AS bot_token_fingerprint
+   FROM public.telegram_config;
+
+
+--
+-- Name: VIEW telegram_config_safe; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON VIEW public.telegram_config_safe IS 'Vista sin bot_token. Incluye fingerprint (md5 corto) para auditar rotaciones.';
 
 
 --
@@ -876,10 +1334,29 @@ CREATE TABLE public.usuarios (
     departamento text,
     "ultimaActualizacion" date,
     updated_at timestamp with time zone DEFAULT now(),
-    tenant_id uuid NOT NULL
+    tenant_id uuid NOT NULL,
+    tipo_documento public.tipo_documento_enum,
+    numero_documento character varying(20),
+    telefono character varying(20),
+    direccion text,
+    foto_url text,
+    supervisor_id uuid,
+    CONSTRAINT usuarios_numero_documento_format CHECK (((numero_documento IS NULL) OR ((numero_documento)::text ~ '^[0-9]{1,15}$'::text)))
 );
 
 ALTER TABLE ONLY public.usuarios REPLICA IDENTITY FULL;
+
+
+--
+-- Name: usuarios_id_isar_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.usuarios_id_isar_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
 
 --
@@ -929,7 +1406,20 @@ CREATE TABLE public.ventas (
     sync_status text,
     tiene_descuento_especial boolean DEFAULT false,
     monto_descuento_total numeric(12,2) DEFAULT 0.00,
-    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL
+    tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
+    tipo_venta text DEFAULT 'detal'::text NOT NULL,
+    tipo_documento text,
+    requiere_autorizacion boolean DEFAULT false NOT NULL,
+    autorizado_por_nombre text,
+    autorizado_por_rol text,
+    fecha_autorizacion timestamp with time zone,
+    monto_descuento_porcentaje numeric DEFAULT 0 NOT NULL,
+    tipo_pago text DEFAULT 'contado'::text NOT NULL,
+    es_multipago boolean DEFAULT false NOT NULL,
+    cliente_rif text,
+    cliente_razon_social text,
+    cliente_nombre text,
+    cliente_documento text
 );
 
 
@@ -989,6 +1479,14 @@ ALTER TABLE ONLY public.audit_log
 
 
 --
+-- Name: autorizaciones_descuento autorizaciones_descuento_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_descuento
+    ADD CONSTRAINT autorizaciones_descuento_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: cajas cajas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1034,6 +1532,30 @@ ALTER TABLE ONLY public.codigos_barras_alias
 
 ALTER TABLE ONLY public.codigos_barras_alias
     ADD CONSTRAINT codigos_barras_alias_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: config_descuentos_mayoristas config_descuentos_mayoristas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.config_descuentos_mayoristas
+    ADD CONSTRAINT config_descuentos_mayoristas_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cotizaciones_mayor cotizaciones_mayor_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cotizaciones_mayor
+    ADD CONSTRAINT cotizaciones_mayor_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: cotizaciones_mayor cotizaciones_numero_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cotizaciones_mayor
+    ADD CONSTRAINT cotizaciones_numero_unique UNIQUE (tenant_id, numero);
 
 
 --
@@ -1141,6 +1663,22 @@ ALTER TABLE ONLY public.pagos
 
 
 --
+-- Name: pagos_venta pagos_venta_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pagos_venta
+    ADD CONSTRAINT pagos_venta_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: pagos_ventas pagos_ventas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pagos_ventas
+    ADD CONSTRAINT pagos_ventas_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: pedidos pedidos_id_tenant_uk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1221,11 +1759,11 @@ ALTER TABLE ONLY public.telegram_config
 
 
 --
--- Name: telegram_config telegram_config_usuario_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: telegram_config telegram_config_tenant_usuario_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.telegram_config
-    ADD CONSTRAINT telegram_config_usuario_unique UNIQUE (usuario_id);
+    ADD CONSTRAINT telegram_config_tenant_usuario_unique UNIQUE (tenant_id, usuario_id);
 
 
 --
@@ -1314,6 +1852,55 @@ CREATE INDEX idx_audit_usuario ON public.audit_log USING btree (usuario_id, crea
 
 
 --
+-- Name: idx_autorizaciones_id_isar; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_autorizaciones_id_isar ON public.autorizaciones_descuento USING btree (id_isar);
+
+
+--
+-- Name: idx_autorizaciones_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_autorizaciones_tenant ON public.autorizaciones_descuento USING btree (tenant_id);
+
+
+--
+-- Name: idx_autorizaciones_venta_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_autorizaciones_venta_id ON public.autorizaciones_descuento USING btree (venta_id);
+
+
+--
+-- Name: idx_autz_fecha; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_autz_fecha ON public.autorizaciones_descuento USING btree (tenant_id, fecha DESC);
+
+
+--
+-- Name: idx_autz_id_isar; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_autz_id_isar ON public.autorizaciones_descuento USING btree (id_isar);
+
+
+--
+-- Name: idx_autz_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_autz_tenant ON public.autorizaciones_descuento USING btree (tenant_id);
+
+
+--
+-- Name: idx_autz_venta; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_autz_venta ON public.autorizaciones_descuento USING btree (venta_id);
+
+
+--
 -- Name: idx_cajas_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1335,6 +1922,27 @@ CREATE INDEX idx_clientes_documento ON public.clientes USING btree (documento);
 
 
 --
+-- Name: idx_clientes_es_mayorista; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_clientes_es_mayorista ON public.clientes USING btree (es_mayorista);
+
+
+--
+-- Name: idx_clientes_mayorista; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_clientes_mayorista ON public.clientes USING btree (tenant_id) WHERE (es_mayorista = true);
+
+
+--
+-- Name: idx_clientes_rif; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_clientes_rif ON public.clientes USING btree (tenant_id, rif) WHERE (rif IS NOT NULL);
+
+
+--
 -- Name: idx_clientes_telefono; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1346,6 +1954,13 @@ CREATE INDEX idx_clientes_telefono ON public.clientes USING btree (telefono);
 --
 
 CREATE INDEX idx_clientes_tenant ON public.clientes USING btree (tenant_id);
+
+
+--
+-- Name: idx_clientes_tipo_doc; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_clientes_tipo_doc ON public.clientes USING btree (tipo_documento);
 
 
 --
@@ -1367,6 +1982,48 @@ CREATE INDEX idx_codigos_barras_alias_producto ON public.codigos_barras_alias US
 --
 
 CREATE INDEX idx_codigos_barras_alias_tenant ON public.codigos_barras_alias USING btree (tenant_id);
+
+
+--
+-- Name: idx_config_descuentos_activo; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_config_descuentos_activo ON public.config_descuentos_mayoristas USING btree (tenant_id) WHERE (activo = true);
+
+
+--
+-- Name: idx_config_descuentos_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_config_descuentos_tenant ON public.config_descuentos_mayoristas USING btree (tenant_id);
+
+
+--
+-- Name: idx_cotizaciones_cliente; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cotizaciones_cliente ON public.cotizaciones_mayor USING btree (cliente_id);
+
+
+--
+-- Name: idx_cotizaciones_estado; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cotizaciones_estado ON public.cotizaciones_mayor USING btree (tenant_id, estado);
+
+
+--
+-- Name: idx_cotizaciones_id_isar; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cotizaciones_id_isar ON public.cotizaciones_mayor USING btree (id_isar);
+
+
+--
+-- Name: idx_cotizaciones_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_cotizaciones_tenant ON public.cotizaciones_mayor USING btree (tenant_id);
 
 
 --
@@ -1503,6 +2160,48 @@ CREATE INDEX idx_pagos_tenant ON public.pagos USING btree (tenant_id);
 
 
 --
+-- Name: idx_pagos_venta_id_isar; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_pagos_venta_id_isar ON public.pagos_venta USING btree (id_isar);
+
+
+--
+-- Name: idx_pagos_venta_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_pagos_venta_tenant ON public.pagos_venta USING btree (tenant_id);
+
+
+--
+-- Name: idx_pagos_venta_venta; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_pagos_venta_venta ON public.pagos_venta USING btree (venta_id);
+
+
+--
+-- Name: idx_pagos_ventas_id_isar; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_pagos_ventas_id_isar ON public.pagos_ventas USING btree (id_isar);
+
+
+--
+-- Name: idx_pagos_ventas_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_pagos_ventas_tenant ON public.pagos_ventas USING btree (tenant_id);
+
+
+--
+-- Name: idx_pagos_ventas_venta_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_pagos_ventas_venta_id ON public.pagos_ventas USING btree (venta_id);
+
+
+--
 -- Name: idx_pedidos_estado; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1552,6 +2251,13 @@ CREATE INDEX idx_productos_marca_supabase_id ON public.productos USING btree (ma
 
 
 --
+-- Name: idx_productos_permite_mayor; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_productos_permite_mayor ON public.productos USING btree (tenant_id) WHERE (permite_venta_mayor = true);
+
+
+--
 -- Name: idx_productos_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1580,6 +2286,13 @@ CREATE INDEX idx_recepciones_tenant ON public.recepciones USING btree (tenant_id
 
 
 --
+-- Name: idx_telegram_config_chat_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_telegram_config_chat_id ON public.telegram_config USING btree (chat_id) WHERE (chat_id IS NOT NULL);
+
+
+--
 -- Name: idx_telegram_config_enabled; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1598,6 +2311,13 @@ CREATE INDEX idx_telegram_config_id_isar ON public.telegram_config USING btree (
 --
 
 CREATE INDEX idx_telegram_config_tenant ON public.telegram_config USING btree (tenant_id);
+
+
+--
+-- Name: idx_telegram_config_tenant_enabled; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_telegram_config_tenant_enabled ON public.telegram_config USING btree (tenant_id, enabled) WHERE (enabled = true);
 
 
 --
@@ -1636,6 +2356,13 @@ CREATE INDEX idx_turnos_tenant ON public.turnos USING btree (tenant_id);
 
 
 --
+-- Name: idx_usuarios_documento_global; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_usuarios_documento_global ON public.usuarios USING btree (tipo_documento, numero_documento) WHERE ((tipo_documento IS NOT NULL) AND (numero_documento IS NOT NULL));
+
+
+--
 -- Name: idx_usuarios_id_isar; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1664,6 +2391,34 @@ CREATE INDEX idx_usuarios_locales_usuario ON public.usuarios_locales USING btree
 
 
 --
+-- Name: idx_usuarios_rol; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_usuarios_rol ON public.usuarios USING btree (rol);
+
+
+--
+-- Name: idx_usuarios_supervisor; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_usuarios_supervisor ON public.usuarios USING btree (supervisor_id);
+
+
+--
+-- Name: idx_usuarios_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_usuarios_tenant ON public.usuarios USING btree (tenant_id);
+
+
+--
+-- Name: idx_ventas_cliente; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ventas_cliente ON public.ventas USING btree (cliente_id) WHERE (cliente_id IS NOT NULL);
+
+
+--
 -- Name: idx_ventas_cliente_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1682,6 +2437,13 @@ CREATE INDEX idx_ventas_empleado_id ON public.ventas USING btree (empleado_id);
 --
 
 CREATE INDEX idx_ventas_tenant ON public.ventas USING btree (tenant_id);
+
+
+--
+-- Name: idx_ventas_tipo_venta; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ventas_tipo_venta ON public.ventas USING btree (tenant_id, tipo_venta);
 
 
 --
@@ -1755,6 +2517,13 @@ CREATE TRIGGER audit_proveedores AFTER INSERT OR DELETE OR UPDATE ON public.prov
 
 
 --
+-- Name: telegram_config audit_telegram_config; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER audit_telegram_config AFTER INSERT OR DELETE OR UPDATE ON public.telegram_config FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
+
+
+--
 -- Name: turnos audit_turnos; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -1773,6 +2542,20 @@ CREATE TRIGGER audit_usuarios AFTER INSERT OR DELETE OR UPDATE ON public.usuario
 --
 
 CREATE TRIGGER audit_ventas AFTER INSERT OR DELETE OR UPDATE ON public.ventas FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
+
+
+--
+-- Name: telegram_config telegram_config_encrypt_trg; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER telegram_config_encrypt_trg BEFORE INSERT OR UPDATE ON public.telegram_config FOR EACH ROW EXECUTE FUNCTION public.telegram_config_encrypt_token();
+
+
+--
+-- Name: telegram_config telegram_config_sync_status_trg; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER telegram_config_sync_status_trg BEFORE INSERT OR UPDATE ON public.telegram_config FOR EACH ROW EXECUTE FUNCTION public.telegram_config_sync_status();
 
 
 --
@@ -1804,6 +2587,13 @@ CREATE TRIGGER update_productos_updated_at BEFORE UPDATE ON public.productos FOR
 
 
 --
+-- Name: telegram_config update_telegram_config_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER update_telegram_config_updated_at BEFORE UPDATE ON public.telegram_config FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+
+--
 -- Name: usuarios update_usuarios_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -1824,6 +2614,22 @@ ALTER TABLE ONLY public.audit_log
 
 ALTER TABLE ONLY public.audit_log
     ADD CONSTRAINT audit_log_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id);
+
+
+--
+-- Name: autorizaciones_descuento autorizaciones_descuento_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_descuento
+    ADD CONSTRAINT autorizaciones_descuento_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
+
+
+--
+-- Name: autorizaciones_descuento autorizaciones_descuento_venta_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.autorizaciones_descuento
+    ADD CONSTRAINT autorizaciones_descuento_venta_id_fkey FOREIGN KEY (venta_id) REFERENCES public.ventas(id) ON DELETE CASCADE;
 
 
 --
@@ -1864,6 +2670,38 @@ ALTER TABLE ONLY public.codigos_barras_alias
 
 ALTER TABLE ONLY public.codigos_barras_alias
     ADD CONSTRAINT codigos_barras_alias_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
+
+
+--
+-- Name: config_descuentos_mayoristas config_descuentos_mayoristas_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.config_descuentos_mayoristas
+    ADD CONSTRAINT config_descuentos_mayoristas_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cotizaciones_mayor cotizaciones_mayor_cliente_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cotizaciones_mayor
+    ADD CONSTRAINT cotizaciones_mayor_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id) ON DELETE SET NULL;
+
+
+--
+-- Name: cotizaciones_mayor cotizaciones_mayor_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cotizaciones_mayor
+    ADD CONSTRAINT cotizaciones_mayor_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
+
+
+--
+-- Name: cotizaciones_mayor cotizaciones_mayor_venta_convertida_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cotizaciones_mayor
+    ADD CONSTRAINT cotizaciones_mayor_venta_convertida_id_fkey FOREIGN KEY (venta_convertida_id) REFERENCES public.ventas(id) ON DELETE SET NULL;
 
 
 --
@@ -2035,6 +2873,30 @@ ALTER TABLE ONLY public.pagos
 
 
 --
+-- Name: pagos_venta pagos_venta_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pagos_venta
+    ADD CONSTRAINT pagos_venta_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
+
+
+--
+-- Name: pagos_venta pagos_venta_venta_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pagos_venta
+    ADD CONSTRAINT pagos_venta_venta_id_fkey FOREIGN KEY (venta_id) REFERENCES public.ventas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: pagos_ventas pagos_ventas_venta_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pagos_ventas
+    ADD CONSTRAINT pagos_ventas_venta_id_fkey FOREIGN KEY (venta_id) REFERENCES public.ventas(id) ON DELETE CASCADE;
+
+
+--
 -- Name: pedidos pedidos_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2139,6 +3001,14 @@ ALTER TABLE ONLY public.usuarios_locales
 
 
 --
+-- Name: usuarios usuarios_supervisor_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.usuarios
+    ADD CONSTRAINT usuarios_supervisor_fk FOREIGN KEY (supervisor_id) REFERENCES public.usuarios(id) ON DELETE SET NULL;
+
+
+--
 -- Name: usuarios usuarios_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2160,6 +3030,13 @@ ALTER TABLE ONLY public.ventas
 
 ALTER TABLE ONLY public.ventas
     ADD CONSTRAINT ventas_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
+
+
+--
+-- Name: usuarios_locales Permitir lectura a auth_admin para hook; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Permitir lectura a auth_admin para hook" ON public.usuarios_locales FOR SELECT TO supabase_auth_admin USING (true);
 
 
 --
@@ -2190,6 +3067,26 @@ CREATE POLICY audit_tenant_read ON public.audit_log FOR SELECT TO authenticated 
 
 
 --
+-- Name: usuarios auth_admin_read_usuarios; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY auth_admin_read_usuarios ON public.usuarios FOR SELECT TO supabase_auth_admin USING (true);
+
+
+--
+-- Name: autorizaciones_descuento; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.autorizaciones_descuento ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: autorizaciones_descuento autorizaciones_descuento_tenant_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY autorizaciones_descuento_tenant_all ON public.autorizaciones_descuento USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
+
+
+--
 -- Name: cajas; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -2212,6 +3109,18 @@ ALTER TABLE public.clientes ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.codigos_barras_alias ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: config_descuentos_mayoristas; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.config_descuentos_mayoristas ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: cotizaciones_mayor; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.cotizaciones_mayor ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: departamentos; Type: ROW SECURITY; Schema: public; Owner: -
@@ -2253,7 +3162,9 @@ ALTER TABLE public.locales ENABLE ROW LEVEL SECURITY;
 -- Name: locales locales_tenant_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY locales_tenant_select ON public.locales FOR SELECT TO authenticated USING ((id = public.current_tenant_id()));
+CREATE POLICY locales_tenant_select ON public.locales FOR SELECT TO authenticated USING (((id = public.current_tenant_id()) OR (EXISTS ( SELECT 1
+   FROM public.usuarios_locales ul
+  WHERE ((ul.usuario_id = auth.uid()) AND (ul.tenant_id = locales.id) AND (ul.activo = true))))));
 
 
 --
@@ -2288,6 +3199,25 @@ ALTER TABLE public.movimientos_inventarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pagos ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: pagos_venta; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.pagos_venta ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: pagos_ventas; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.pagos_ventas ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: pagos_ventas pagos_ventas_tenant_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY pagos_ventas_tenant_all ON public.pagos_ventas USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
+
+
+--
 -- Name: pedidos; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -2318,6 +3248,43 @@ ALTER TABLE public.recepciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.telegram_config ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: telegram_config telegram_config_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY telegram_config_delete ON public.telegram_config FOR DELETE TO authenticated USING (((tenant_id = public.current_user_tenant_id()) AND public.has_any_role(ARRAY['admin'::text])));
+
+
+--
+-- Name: telegram_config telegram_config_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY telegram_config_insert ON public.telegram_config FOR INSERT TO authenticated WITH CHECK (((tenant_id = public.current_user_tenant_id()) AND public.has_any_role(ARRAY['admin'::text, 'supervisor'::text])));
+
+
+--
+-- Name: telegram_config telegram_config_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY telegram_config_select ON public.telegram_config FOR SELECT TO authenticated USING (((tenant_id = public.current_user_tenant_id()) AND (public.has_any_role(ARRAY['admin'::text, 'supervisor'::text, 'auditor'::text, 'dev'::text]) OR (EXISTS ( SELECT 1
+   FROM public.usuarios u
+  WHERE ((u.id = auth.uid()) AND (u.id_isar IS NOT NULL) AND (u.id_isar = telegram_config.usuario_id)))))));
+
+
+--
+-- Name: telegram_config telegram_config_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY telegram_config_update ON public.telegram_config FOR UPDATE TO authenticated USING (((tenant_id = public.current_user_tenant_id()) AND public.has_any_role(ARRAY['admin'::text, 'supervisor'::text]))) WITH CHECK (((tenant_id = public.current_user_tenant_id()) AND public.has_any_role(ARRAY['admin'::text, 'supervisor'::text])));
+
+
+--
+-- Name: autorizaciones_descuento tenant_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON public.autorizaciones_descuento TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
+
+
+--
 -- Name: cajas tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -2343,6 +3310,20 @@ CREATE POLICY tenant_isolation ON public.clientes TO authenticated USING ((tenan
 --
 
 CREATE POLICY tenant_isolation ON public.codigos_barras_alias TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
+
+
+--
+-- Name: config_descuentos_mayoristas tenant_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON public.config_descuentos_mayoristas TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
+
+
+--
+-- Name: cotizaciones_mayor tenant_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON public.cotizaciones_mayor TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
 --
@@ -2409,6 +3390,13 @@ CREATE POLICY tenant_isolation ON public.pagos TO authenticated USING ((tenant_i
 
 
 --
+-- Name: pagos_venta tenant_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY tenant_isolation ON public.pagos_venta TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
+
+
+--
 -- Name: pedidos tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -2440,7 +3428,7 @@ CREATE POLICY tenant_isolation ON public.recepciones TO authenticated USING ((te
 -- Name: telegram_config tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY tenant_isolation ON public.telegram_config TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
+CREATE POLICY tenant_isolation ON public.telegram_config AS RESTRICTIVE TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
 --
@@ -2493,28 +3481,35 @@ CREATE POLICY usuarios_locales_self ON public.usuarios_locales FOR SELECT TO aut
 -- Name: usuarios usuarios_self_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY usuarios_self_select ON public.usuarios FOR SELECT TO authenticated USING ((id = auth.uid()));
+CREATE POLICY usuarios_self_select ON public.usuarios FOR SELECT USING ((id = auth.uid()));
+
+
+--
+-- Name: usuarios usuarios_tenant_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY usuarios_tenant_delete ON public.usuarios FOR DELETE USING ((tenant_id = public.current_tenant_id()));
 
 
 --
 -- Name: usuarios usuarios_tenant_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY usuarios_tenant_insert ON public.usuarios FOR INSERT TO authenticated WITH CHECK ((tenant_id = public.current_tenant_id()));
+CREATE POLICY usuarios_tenant_insert ON public.usuarios FOR INSERT WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
 --
 -- Name: usuarios usuarios_tenant_select; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY usuarios_tenant_select ON public.usuarios FOR SELECT TO authenticated USING ((tenant_id = public.current_tenant_id()));
+CREATE POLICY usuarios_tenant_select ON public.usuarios FOR SELECT USING ((tenant_id = public.current_tenant_id()));
 
 
 --
 -- Name: usuarios usuarios_tenant_update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY usuarios_tenant_update ON public.usuarios FOR UPDATE TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
+CREATE POLICY usuarios_tenant_update ON public.usuarios FOR UPDATE USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
 --
@@ -2527,5 +3522,5 @@ ALTER TABLE public.ventas ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict PtSVoWCAUAXJJUShER2jsWWEe1xuaeicv5mqxz6CLLPr3JPFsSsoqYaLBQueZkS
+\unrestrict wVPHaBD7Rq7nRoQXezFTM5K6rN2Cy20kcz4w2Wt9XbJCfyj9zeodRpAD7qB1SYD
 
