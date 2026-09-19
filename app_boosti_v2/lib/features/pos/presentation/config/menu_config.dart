@@ -22,6 +22,8 @@ import '../widgets/gestion_personal_dialog.dart';
 import '../widgets/menu/diagnostico_lote_dialog.dart';
 import '../widgets/monitor_empleado_widget.dart';
 import '../widgets/printer_selection_widget.dart';
+import '../screens/inventory_screen.dart';
+
 
 // ═══════════════════════════════════════════════════════════════════════
 // MODELOS DE MENÚ
@@ -169,6 +171,20 @@ class MenuBuilder {
         title: 'INVENTARIO',
         color: const Color(0xFF8B5CF6),
         options: [
+
+          MenuOption(
+            id: 'inventario',
+            icon: Icons.inventory_rounded,
+            title: 'Productos',
+            subtitle: 'Catálogo, precios y stock',
+            color: const Color(0xFF14B8A6),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const InventoryScreen(),
+              ),
+            ),
+          ),
           MenuOption(
             id: 'lotes',
             icon: Icons.inventory_2_outlined,

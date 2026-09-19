@@ -32,48 +32,78 @@ const ProveedorEntitySchema = CollectionSchema(
       name: r'direccion',
       type: IsarType.string,
     ),
-    r'email': PropertySchema(
+    r'documento': PropertySchema(
       id: 3,
+      name: r'documento',
+      type: IsarType.long,
+    ),
+    r'documentoFormateado': PropertySchema(
+      id: 4,
+      name: r'documentoFormateado',
+      type: IsarType.string,
+    ),
+    r'email': PropertySchema(
+      id: 5,
       name: r'email',
       type: IsarType.string,
     ),
     r'empresa': PropertySchema(
-      id: 4,
+      id: 6,
       name: r'empresa',
       type: IsarType.string,
     ),
     r'fechaSincronizacion': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'fechaSincronizacion',
       type: IsarType.dateTime,
     ),
+    r'identificacionDisplay': PropertySchema(
+      id: 8,
+      name: r'identificacionDisplay',
+      type: IsarType.string,
+    ),
     r'nombre': PropertySchema(
-      id: 6,
+      id: 9,
       name: r'nombre',
       type: IsarType.string,
     ),
     r'rif': PropertySchema(
-      id: 7,
+      id: 10,
       name: r'rif',
       type: IsarType.string,
     ),
     r'sincronizado': PropertySchema(
-      id: 8,
+      id: 11,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'supabaseId': PropertySchema(
-      id: 9,
+      id: 12,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'telefono': PropertySchema(
-      id: 10,
+      id: 13,
       name: r'telefono',
       type: IsarType.string,
     ),
+    r'tieneIdentificacion': PropertySchema(
+      id: 14,
+      name: r'tieneIdentificacion',
+      type: IsarType.bool,
+    ),
+    r'tipoDocumento': PropertySchema(
+      id: 15,
+      name: r'tipoDocumento',
+      type: IsarType.string,
+    ),
+    r'tipoDocumentoLabel': PropertySchema(
+      id: 16,
+      name: r'tipoDocumentoLabel',
+      type: IsarType.string,
+    ),
     r'updatedAt': PropertySchema(
-      id: 11,
+      id: 17,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -110,6 +140,7 @@ int _proveedorEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  bytesCount += 3 + object.documentoFormateado.length * 3;
   {
     final value = object.email;
     if (value != null) {
@@ -122,6 +153,7 @@ int _proveedorEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  bytesCount += 3 + object.identificacionDisplay.length * 3;
   bytesCount += 3 + object.nombre.length * 3;
   {
     final value = object.rif;
@@ -141,6 +173,13 @@ int _proveedorEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final value = object.tipoDocumento;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  bytesCount += 3 + object.tipoDocumentoLabel.length * 3;
   return bytesCount;
 }
 
@@ -153,15 +192,21 @@ void _proveedorEntitySerialize(
   writer.writeBool(offsets[0], object.activo);
   writer.writeString(offsets[1], object.cedula);
   writer.writeString(offsets[2], object.direccion);
-  writer.writeString(offsets[3], object.email);
-  writer.writeString(offsets[4], object.empresa);
-  writer.writeDateTime(offsets[5], object.fechaSincronizacion);
-  writer.writeString(offsets[6], object.nombre);
-  writer.writeString(offsets[7], object.rif);
-  writer.writeBool(offsets[8], object.sincronizado);
-  writer.writeString(offsets[9], object.supabaseId);
-  writer.writeString(offsets[10], object.telefono);
-  writer.writeDateTime(offsets[11], object.updatedAt);
+  writer.writeLong(offsets[3], object.documento);
+  writer.writeString(offsets[4], object.documentoFormateado);
+  writer.writeString(offsets[5], object.email);
+  writer.writeString(offsets[6], object.empresa);
+  writer.writeDateTime(offsets[7], object.fechaSincronizacion);
+  writer.writeString(offsets[8], object.identificacionDisplay);
+  writer.writeString(offsets[9], object.nombre);
+  writer.writeString(offsets[10], object.rif);
+  writer.writeBool(offsets[11], object.sincronizado);
+  writer.writeString(offsets[12], object.supabaseId);
+  writer.writeString(offsets[13], object.telefono);
+  writer.writeBool(offsets[14], object.tieneIdentificacion);
+  writer.writeString(offsets[15], object.tipoDocumento);
+  writer.writeString(offsets[16], object.tipoDocumentoLabel);
+  writer.writeDateTime(offsets[17], object.updatedAt);
 }
 
 ProveedorEntity _proveedorEntityDeserialize(
@@ -174,16 +219,18 @@ ProveedorEntity _proveedorEntityDeserialize(
   object.activo = reader.readBool(offsets[0]);
   object.cedula = reader.readStringOrNull(offsets[1]);
   object.direccion = reader.readStringOrNull(offsets[2]);
-  object.email = reader.readStringOrNull(offsets[3]);
-  object.empresa = reader.readStringOrNull(offsets[4]);
-  object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[5]);
+  object.documento = reader.readLongOrNull(offsets[3]);
+  object.email = reader.readStringOrNull(offsets[5]);
+  object.empresa = reader.readStringOrNull(offsets[6]);
+  object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[7]);
   object.id = id;
-  object.nombre = reader.readString(offsets[6]);
-  object.rif = reader.readStringOrNull(offsets[7]);
-  object.sincronizado = reader.readBool(offsets[8]);
-  object.supabaseId = reader.readStringOrNull(offsets[9]);
-  object.telefono = reader.readStringOrNull(offsets[10]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[11]);
+  object.nombre = reader.readString(offsets[9]);
+  object.rif = reader.readStringOrNull(offsets[10]);
+  object.sincronizado = reader.readBool(offsets[11]);
+  object.supabaseId = reader.readStringOrNull(offsets[12]);
+  object.telefono = reader.readStringOrNull(offsets[13]);
+  object.tipoDocumento = reader.readStringOrNull(offsets[15]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[17]);
   return object;
 }
 
@@ -201,22 +248,34 @@ P _proveedorEntityDeserializeProp<P>(
     case 2:
       return (reader.readStringOrNull(offset)) as P;
     case 3:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 4:
-      return (reader.readStringOrNull(offset)) as P;
-    case 5:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 6:
       return (reader.readString(offset)) as P;
+    case 5:
+      return (reader.readStringOrNull(offset)) as P;
+    case 6:
+      return (reader.readStringOrNull(offset)) as P;
     case 7:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 8:
-      return (reader.readBool(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 9:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 10:
       return (reader.readStringOrNull(offset)) as P;
     case 11:
+      return (reader.readBool(offset)) as P;
+    case 12:
+      return (reader.readStringOrNull(offset)) as P;
+    case 13:
+      return (reader.readStringOrNull(offset)) as P;
+    case 14:
+      return (reader.readBool(offset)) as P;
+    case 15:
+      return (reader.readStringOrNull(offset)) as P;
+    case 16:
+      return (reader.readString(offset)) as P;
+    case 17:
       return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -631,6 +690,216 @@ extension ProveedorEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'direccion',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'documento',
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'documento',
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoEqualTo(int? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'documento',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoGreaterThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'documento',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoLessThan(
+    int? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'documento',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoBetween(
+    int? lower,
+    int? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'documento',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoFormateadoEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'documentoFormateado',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoFormateadoGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'documentoFormateado',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoFormateadoLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'documentoFormateado',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoFormateadoBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'documentoFormateado',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoFormateadoStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'documentoFormateado',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoFormateadoEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'documentoFormateado',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoFormateadoContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'documentoFormateado',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoFormateadoMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'documentoFormateado',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoFormateadoIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'documentoFormateado',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      documentoFormateadoIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'documentoFormateado',
         value: '',
       ));
     });
@@ -1070,6 +1339,143 @@ extension ProveedorEntityQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      identificacionDisplayEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'identificacionDisplay',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      identificacionDisplayGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'identificacionDisplay',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      identificacionDisplayLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'identificacionDisplay',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      identificacionDisplayBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'identificacionDisplay',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      identificacionDisplayStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'identificacionDisplay',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      identificacionDisplayEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'identificacionDisplay',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      identificacionDisplayContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'identificacionDisplay',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      identificacionDisplayMatches(String pattern,
+          {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'identificacionDisplay',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      identificacionDisplayIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'identificacionDisplay',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      identificacionDisplayIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'identificacionDisplay',
+        value: '',
       ));
     });
   }
@@ -1683,6 +2089,306 @@ extension ProveedorEntityQueryFilter
   }
 
   QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tieneIdentificacionEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tieneIdentificacion',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'tipoDocumento',
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'tipoDocumento',
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'tipoDocumento',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'tipoDocumento',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'tipoDocumento',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tipoDocumento',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'tipoDocumento',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoLabelEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tipoDocumentoLabel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoLabelGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'tipoDocumentoLabel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoLabelLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'tipoDocumentoLabel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoLabelBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'tipoDocumentoLabel',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoLabelStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'tipoDocumentoLabel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoLabelEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'tipoDocumentoLabel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoLabelContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'tipoDocumentoLabel',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoLabelMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'tipoDocumentoLabel',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoLabelIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'tipoDocumentoLabel',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
+      tipoDocumentoLabelIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'tipoDocumentoLabel',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterFilterCondition>
       updatedAtIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -1805,6 +2511,34 @@ extension ProveedorEntityQuerySortBy
     });
   }
 
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByDocumento() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'documento', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByDocumentoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'documento', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByDocumentoFormateado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'documentoFormateado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByDocumentoFormateadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'documentoFormateado', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy> sortByEmail() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'email', Sort.asc);
@@ -1842,6 +2576,20 @@ extension ProveedorEntityQuerySortBy
       sortByFechaSincronizacionDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'fechaSincronizacion', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByIdentificacionDisplay() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'identificacionDisplay', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByIdentificacionDisplayDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'identificacionDisplay', Sort.desc);
     });
   }
 
@@ -1913,6 +2661,48 @@ extension ProveedorEntityQuerySortBy
   }
 
   QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByTieneIdentificacion() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tieneIdentificacion', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByTieneIdentificacionDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tieneIdentificacion', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByTipoDocumento() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumento', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByTipoDocumentoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumento', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByTipoDocumentoLabel() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumentoLabel', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      sortByTipoDocumentoLabelDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumentoLabel', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
       sortByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -1969,6 +2759,34 @@ extension ProveedorEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByDocumento() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'documento', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByDocumentoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'documento', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByDocumentoFormateado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'documentoFormateado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByDocumentoFormateadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'documentoFormateado', Sort.desc);
+    });
+  }
+
   QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy> thenByEmail() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'email', Sort.asc);
@@ -2018,6 +2836,20 @@ extension ProveedorEntityQuerySortThenBy
   QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy> thenByIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByIdentificacionDisplay() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'identificacionDisplay', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByIdentificacionDisplayDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'identificacionDisplay', Sort.desc);
     });
   }
 
@@ -2089,6 +2921,48 @@ extension ProveedorEntityQuerySortThenBy
   }
 
   QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByTieneIdentificacion() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tieneIdentificacion', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByTieneIdentificacionDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tieneIdentificacion', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByTipoDocumento() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumento', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByTipoDocumentoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumento', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByTipoDocumentoLabel() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumentoLabel', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
+      thenByTipoDocumentoLabelDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'tipoDocumentoLabel', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QAfterSortBy>
       thenByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -2125,6 +2999,21 @@ extension ProveedorEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QDistinct>
+      distinctByDocumento() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'documento');
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QDistinct>
+      distinctByDocumentoFormateado({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'documentoFormateado',
+          caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<ProveedorEntity, ProveedorEntity, QDistinct> distinctByEmail(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -2143,6 +3032,14 @@ extension ProveedorEntityQueryWhereDistinct
       distinctByFechaSincronizacion() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'fechaSincronizacion');
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QDistinct>
+      distinctByIdentificacionDisplay({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'identificacionDisplay',
+          caseSensitive: caseSensitive);
     });
   }
 
@@ -2182,6 +3079,29 @@ extension ProveedorEntityQueryWhereDistinct
   }
 
   QueryBuilder<ProveedorEntity, ProveedorEntity, QDistinct>
+      distinctByTieneIdentificacion() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'tieneIdentificacion');
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QDistinct>
+      distinctByTipoDocumento({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'tipoDocumento',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QDistinct>
+      distinctByTipoDocumentoLabel({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'tipoDocumentoLabel',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, ProveedorEntity, QDistinct>
       distinctByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'updatedAt');
@@ -2215,6 +3135,19 @@ extension ProveedorEntityQueryProperty
     });
   }
 
+  QueryBuilder<ProveedorEntity, int?, QQueryOperations> documentoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'documento');
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, String, QQueryOperations>
+      documentoFormateadoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'documentoFormateado');
+    });
+  }
+
   QueryBuilder<ProveedorEntity, String?, QQueryOperations> emailProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'email');
@@ -2231,6 +3164,13 @@ extension ProveedorEntityQueryProperty
       fechaSincronizacionProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'fechaSincronizacion');
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, String, QQueryOperations>
+      identificacionDisplayProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'identificacionDisplay');
     });
   }
 
@@ -2262,6 +3202,27 @@ extension ProveedorEntityQueryProperty
   QueryBuilder<ProveedorEntity, String?, QQueryOperations> telefonoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'telefono');
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, bool, QQueryOperations>
+      tieneIdentificacionProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'tieneIdentificacion');
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, String?, QQueryOperations>
+      tipoDocumentoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'tipoDocumento');
+    });
+  }
+
+  QueryBuilder<ProveedorEntity, String, QQueryOperations>
+      tipoDocumentoLabelProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'tipoDocumentoLabel');
     });
   }
 

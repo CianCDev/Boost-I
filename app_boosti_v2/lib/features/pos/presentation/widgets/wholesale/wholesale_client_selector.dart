@@ -5,7 +5,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
 
 import '../../../data/Local/entities/cliente_entity.dart';
 import '../../../data/Local/entities/isar_service.dart';

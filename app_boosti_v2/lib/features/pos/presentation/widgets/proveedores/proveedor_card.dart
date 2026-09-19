@@ -25,52 +25,79 @@ class ProveedorCard extends StatelessWidget {
   static const _colorInactivo = Color(0xFFEF4444);
   static const _colorEdit = Color(0xFF8B5CF6);
   static const _colorWarning = Color(0xFFF59E0B);
+  static const _colorAccent = Color(0xFF8B5CF6);
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final activo = proveedor.activo;
     final estadoColor = activo ? _colorActivo : _colorInactivo;
+
+    final mostrarEmpresa = proveedor.empresa != null &&
+        proveedor.empresa!.isNotEmpty &&
+        proveedor.empresa!.toLowerCase() !=
+            proveedor.nombre.toLowerCase();
+
+    final tieneDoc = proveedor.documentoFormateado.isNotEmpty;
+    final tieneTel = proveedor.telefono?.isNotEmpty ?? false;
+    final tieneEmail = proveedor.email?.isNotEmpty ?? false;
+    final tieneAlgunDato = tieneDoc || tieneTel || tieneEmail;
 
     return GlassCard(
       onTap: onTap,
       showStatusBar: true,
       statusColor: estadoColor,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ===== TÍTULO + BADGE =====
+          // ═══ HEADER: avatar + nombre + empresa + badge ═══
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              _buildAvatar(),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       proveedor.nombre,
                       style: TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                         fontSize: 17,
                         color: colorScheme.onSurface,
-                        letterSpacing: -0.2,
+                        letterSpacing: -0.3,
+                        height: 1.15,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (proveedor.empresa != null &&
-                        proveedor.empresa!.isNotEmpty &&
-                        proveedor.empresa != proveedor.nombre) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        proveedor.empresa!,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    if (mostrarEmpresa) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.storefront_rounded,
+                            size: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              proveedor.empresa!,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: colorScheme.onSurfaceVariant,
+                                height: 1.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ],
@@ -85,24 +112,44 @@ class ProveedorCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 8),
+          // ═══ INFO PILLS ═══
+          if (tieneAlgunDato) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (tieneDoc)
+                  _infoPill(
+                    context,
+                    icon: _iconoDocumento(proveedor.tipoDocumento),
+                    text: proveedor.documentoFormateado,
+                    colorScheme: colorScheme,
+                    isDark: isDark,
+                    color: _colorAccent,
+                    highlight: true,
+                  ),
+                if (tieneTel)
+                  _infoPill(
+                    context,
+                    icon: Icons.phone_rounded,
+                    text: proveedor.telefono!,
+                    colorScheme: colorScheme,
+                    isDark: isDark,
+                  ),
+                if (tieneEmail)
+                  _infoPill(
+                    context,
+                    icon: Icons.email_rounded,
+                    text: proveedor.email!,
+                    colorScheme: colorScheme,
+                    isDark: isDark,
+                  ),
+              ],
+            ),
+          ],
 
-          // ===== INFO SECUNDARIA =====
-          Wrap(
-            spacing: 14,
-            runSpacing: 4,
-            children: [
-              if (proveedor.telefono?.isNotEmpty ?? false)
-                _infoItem(Icons.phone_rounded, proveedor.telefono!, colorScheme),
-              if (proveedor.cedula?.isNotEmpty ?? false)
-                _infoItem(Icons.badge_rounded, 'RIF: ${proveedor.cedula}',
-                    colorScheme),
-              if (proveedor.email?.isNotEmpty ?? false)
-                _infoItem(Icons.email_rounded, proveedor.email!, colorScheme),
-            ],
-          ),
-
-          // ===== BOTONES =====
+          // ═══ ACCIONES ═══
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -134,20 +181,137 @@ class ProveedorCard extends StatelessWidget {
     );
   }
 
-  Widget _infoItem(IconData icon, String text, ColorScheme colorScheme) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 13, color: colorScheme.onSurfaceVariant),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(
-            fontSize: 12,
-            color: colorScheme.onSurfaceVariant,
+  // ═══════════════════════════════════════════════════════════════
+  // AVATAR
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _buildAvatar() {
+    final inicial = proveedor.nombre.isNotEmpty
+        ? proveedor.nombre[0].toUpperCase()
+        : '?';
+    final activo = proveedor.activo;
+
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: activo
+              ? const [_colorAccent, Color(0xFF6D28D9)]
+              : [
+                  _colorAccent.withValues(alpha: 0.5),
+                  const Color(0xFF6D28D9).withValues(alpha: 0.5),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: _colorAccent.withValues(alpha: activo ? 0.3 : 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          inicial,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: -0.5,
+            height: 1.0,
           ),
         ),
-      ],
+      ),
     );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // INFO PILL — chip con icono + texto (anti-overflow en mobile)
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _infoPill(
+    BuildContext context, {
+    required IconData icon,
+    required String text,
+    required ColorScheme colorScheme,
+    required bool isDark,
+    Color? color,
+    bool highlight = false,
+  }) {
+    final effectiveColor = color ?? colorScheme.onSurfaceVariant;
+
+    final bgColor = highlight
+        ? effectiveColor.withValues(alpha: isDark ? 0.14 : 0.08)
+        : (isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.black.withValues(alpha: 0.035));
+
+    final borderColor = highlight
+        ? effectiveColor.withValues(alpha: 0.3)
+        : colorScheme.outlineVariant.withValues(alpha: 0.3);
+
+    final textColor = highlight
+        ? effectiveColor
+        : colorScheme.onSurfaceVariant;
+
+    return ConstrainedBox(
+      // ✅ Techo de ancho para no desbordar en mobile con emails/RIFs largos.
+      constraints: const BoxConstraints(maxWidth: 220),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: borderColor, width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: effectiveColor),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight:
+                      highlight ? FontWeight.w700 : FontWeight.w500,
+                  color: textColor,
+                  letterSpacing: highlight ? -0.1 : 0,
+                  height: 1.2,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // HELPERS
+  // ═══════════════════════════════════════════════════════════════
+
+  IconData _iconoDocumento(String? tipo) {
+    switch (tipo) {
+      case 'J':
+        return Icons.storefront_rounded;
+      case 'G':
+        return Icons.account_balance_rounded;
+      case 'P':
+        return Icons.flight_takeoff_rounded;
+      case 'C':
+        return Icons.groups_rounded;
+      case 'V':
+      case 'E':
+      default:
+        return Icons.badge_rounded;
+    }
   }
 }

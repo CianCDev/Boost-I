@@ -26,9 +26,8 @@ class ProveedoresScreen extends ConsumerStatefulWidget {
 
 class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
   String _queryBusqueda = '';
-  bool _mostrarInactivos = false;
-  int? _productoFiltroId;
-  List<ProductoEntity> _productos = [];
+  FiltroProveedores _filtro = FiltroProveedores.activos;
+  String? _categoriaFiltro; // ← ✅ CAMBIO: de int? a String?
   bool _isSyncing = false;
   Timer? _debounce;
 
@@ -38,28 +37,16 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
   static const _colorWarning = Color(0xFFF59E0B);
 
   @override
-  void initState() {
-    super.initState();
-    _cargarProductos();
-  }
-
-  @override
   void dispose() {
     _debounce?.cancel();
     super.dispose();
   }
 
-  Future<void> _cargarProductos() async {
-    final isar = ref.read(isarServiceProvider);
-    final productos = await isar.obtenerProductos();
-    if (mounted) setState(() => _productos = productos);
-  }
-
   void _invalidarLista() {
     ref.invalidate(proveedoresConFiltroProvider((
       query: _queryBusqueda,
-      mostrarInactivos: _mostrarInactivos,
-      productoId: _productoFiltroId,
+      filtro: _filtro,
+      categoria: _categoriaFiltro,
     )));
   }
 
@@ -73,8 +60,9 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
       final sync = SyncService();
       await sync.sincronizarProveedoresPendientes();
       await sync.descargarProveedoresDesdeSupabase();
+      // ✅ Refresca categorías por si entraron nuevos productos
+      ref.invalidate(categoriasDisponiblesProvider);
       _invalidarLista();
-      await _cargarProductos();
       if (mounted) _snack('Proveedores sincronizados', _colorSuccess);
     } catch (e) {
       if (mounted) _snack('Error al sincronizar: $e', _colorDanger);
@@ -191,6 +179,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
           await SyncService()
               .eliminarProveedorEnSupabase(proveedor.supabaseId!);
         }
+        ref.invalidate(categoriasDisponiblesProvider);
         _invalidarLista();
         if (mounted) {
           _snack('Proveedor eliminado. Productos desvinculados.',
@@ -265,6 +254,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
           await SyncService()
               .eliminarProveedorEnSupabase(proveedor.supabaseId!);
         }
+        ref.invalidate(categoriasDisponiblesProvider);
         _invalidarLista();
         if (mounted) {
           _snack(
@@ -288,6 +278,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
         if (proveedor.supabaseId?.isNotEmpty ?? false) {
           await sync.eliminarProveedorEnSupabase(proveedor.supabaseId!);
         }
+        ref.invalidate(categoriasDisponiblesProvider);
         _invalidarLista();
         if (mounted) _snack('Proveedor eliminado correctamente', _colorSuccess);
       } else {
@@ -313,9 +304,11 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
 
     final proveedoresAsync = ref.watch(proveedoresConFiltroProvider((
       query: _queryBusqueda,
-      mostrarInactivos: _mostrarInactivos,
-      productoId: _productoFiltroId,
+      filtro: _filtro,
+      categoria: _categoriaFiltro,
     )));
+
+    final categoriasAsync = ref.watch(categoriasDisponiblesProvider);
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -347,8 +340,8 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
             cursor: SystemMouseCursors.click,
             child: IconButton(
               onPressed: () {
+                ref.invalidate(categoriasDisponiblesProvider);
                 _invalidarLista();
-                _cargarProductos();
               },
               icon: const Icon(Icons.refresh_rounded, color: Colors.white),
               tooltip: 'Recargar lista',
@@ -364,7 +357,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
             children: [
               // ===== SEARCH =====
               GlassSearchBar(
-                hint: 'Buscar por nombre o empresa...',
+                hint: 'Buscar por nombre, empresa o RIF...',
                 onChanged: (value) {
                   if (_debounce?.isActive ?? false) _debounce!.cancel();
                   _debounce = Timer(const Duration(milliseconds: 400), () {
@@ -375,7 +368,11 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
               const SizedBox(height: 12),
 
               // ===== FILTROS =====
-              _buildFiltros(colorScheme, isDark),
+              _buildFiltros(
+                colorScheme,
+                isDark,
+                categoriasAsync,
+              ),
               const SizedBox(height: 12),
 
               // ===== LISTA =====
@@ -409,7 +406,11 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
   // ============================================================
   // FILTROS
   // ============================================================
-  Widget _buildFiltros(ColorScheme colorScheme, bool isDark) {
+  Widget _buildFiltros(
+    ColorScheme colorScheme,
+    bool isDark,
+    AsyncValue<List<String>> categoriasAsync,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -424,99 +425,202 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
       ),
       child: Column(
         children: [
-          SegmentedToggle<bool>(
-            selected: _mostrarInactivos,
+          SegmentedToggle<FiltroProveedores>(
+            selected: _filtro,
             onChanged: (value) {
-              setState(() => _mostrarInactivos = value);
+              setState(() => _filtro = value);
               _invalidarLista();
             },
             items: const [
               SegmentedToggleItem(
-                value: false,
+                value: FiltroProveedores.activos,
                 label: 'Activos',
                 icon: Icons.check_circle_rounded,
               ),
               SegmentedToggleItem(
-                value: true,
+                value: FiltroProveedores.inactivos,
                 label: 'Inactivos',
                 icon: Icons.cancel_rounded,
+              ),
+              SegmentedToggleItem(
+                value: FiltroProveedores.todos,
+                label: 'Todos',
+                icon: Icons.list_alt_rounded,
               ),
             ],
           ),
           const SizedBox(height: 10),
-          DropdownButtonFormField<int?>(
-            initialValue: _productoFiltroId,
-            hint: Text(
-              'Filtrar por producto',
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
+
+          // ✅ CAMBIO: dropdown de categorías (antes de productos)
+          categoriasAsync.when(
+            data: (categorias) => _buildCategoriaDropdown(
+              categorias,
+              colorScheme,
+              isDark,
             ),
-            isExpanded: true,
-            decoration: InputDecoration(
-              prefixIcon: Icon(Icons.inventory_2_rounded,
-                  size: 20, color: colorScheme.onSurfaceVariant),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _colorPrimary, width: 2),
-              ),
-              filled: true,
-              fillColor: isDark
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : Colors.black.withValues(alpha: 0.02),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+            loading: () => _buildCategoriaDropdownSkeleton(
+              colorScheme,
+              isDark,
             ),
-            items: [
-              DropdownMenuItem<int?>(
-                value: null,
-                child: Text(
-                  'Todos los productos',
-                  style: TextStyle(color: colorScheme.onSurface),
-                ),
-              ),
-              ..._productos.map((p) => DropdownMenuItem<int?>(
-                    value: p.id,
-                    child: Text(
-                      p.nombre,
-                      style: TextStyle(color: colorScheme.onSurface),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  )),
-            ],
-            onChanged: (value) {
-              setState(() => _productoFiltroId = value);
-              _invalidarLista();
-            },
-            icon: Icon(Icons.arrow_drop_down,
-                color: colorScheme.onSurfaceVariant),
-            dropdownColor: colorScheme.surface,
+            error: (_, __) => _buildCategoriaDropdownSkeleton(
+              colorScheme,
+              isDark,
+            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildCategoriaDropdown(
+    List<String> categorias,
+    ColorScheme colorScheme,
+    bool isDark,
+  ) {
+    return DropdownButtonFormField<String?>(
+      initialValue: _categoriaFiltro,
+      hint: Text(
+        categorias.isEmpty
+            ? 'Sin categorías disponibles'
+            : 'Filtrar por categoría',
+        style: TextStyle(color: colorScheme.onSurfaceVariant),
+      ),
+      isExpanded: true,
+      decoration: _dropdownDecoration(colorScheme, isDark),
+      items: [
+        DropdownMenuItem<String?>(
+          value: null,
+          child: Row(
+            children: [
+              Icon(
+                Icons.category_outlined,
+                size: 18,
+                color: colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Todas las categorías',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+            ],
+          ),
+        ),
+        ...categorias.map((cat) => DropdownMenuItem<String?>(
+              value: cat,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.local_offer_outlined,
+                    size: 16,
+                    color: _colorPrimary,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      cat,
+                      style: TextStyle(color: colorScheme.onSurface),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                ],
+              ),
+            )),
+      ],
+      onChanged: (value) {
+        setState(() => _categoriaFiltro = value);
+        _invalidarLista();
+      },
+      icon: Icon(
+        Icons.arrow_drop_down,
+        color: colorScheme.onSurfaceVariant,
+      ),
+      dropdownColor: colorScheme.surface,
+    );
+  }
+
+  Widget _buildCategoriaDropdownSkeleton(
+    ColorScheme colorScheme,
+    bool isDark,
+  ) {
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.black.withValues(alpha: 0.02),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 12),
+          Icon(
+            Icons.category_outlined,
+            size: 18,
+            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Cargando categorías...',
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _dropdownDecoration(
+    ColorScheme colorScheme,
+    bool isDark,
+  ) {
+    return InputDecoration(
+      prefixIcon: Icon(
+        Icons.category_rounded,
+        size: 20,
+        color: colorScheme.onSurfaceVariant,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _colorPrimary, width: 2),
+      ),
+      filled: true,
+      fillColor: isDark
+          ? Colors.white.withValues(alpha: 0.05)
+          : Colors.black.withValues(alpha: 0.02),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+    );
+  }
+
   // ============================================================
   // LISTA
   // ============================================================
-  Widget _buildLista(List<ProveedorEntity> proveedores, ColorScheme colorScheme) {
+  Widget _buildLista(
+      List<ProveedorEntity> proveedores, ColorScheme colorScheme) {
     if (proveedores.isEmpty) return _buildEmpty(colorScheme);
 
     return RefreshIndicator(
       onRefresh: () async {
+        ref.invalidate(categoriasDisponiblesProvider);
         _invalidarLista();
-        await _cargarProductos();
       },
       child: AnimationLimiter(
         child: ListView.builder(
@@ -551,6 +655,10 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
   // ESTADOS VACÍO / ERROR
   // ============================================================
   Widget _buildEmpty(ColorScheme colorScheme) {
+    final hayFiltro = _categoriaFiltro != null ||
+        _queryBusqueda.isNotEmpty ||
+        _filtro != FiltroProveedores.activos;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -562,14 +670,16 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              Icons.business_center_rounded,
+              hayFiltro
+                  ? Icons.filter_alt_off_rounded
+                  : Icons.business_center_rounded,
               size: 48,
               color: _colorPrimary.withValues(alpha: 0.6),
             ),
           ),
           const SizedBox(height: 16),
           Text(
-            'No hay proveedores',
+            hayFiltro ? 'Sin resultados' : 'No hay proveedores',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -577,32 +687,63 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            'Crea tu primer proveedor para empezar',
-            style: TextStyle(
-              fontSize: 13,
-              color: colorScheme.onSurfaceVariant,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              hayFiltro
+                  ? 'Prueba quitando algunos filtros para ver más resultados'
+                  : 'Crea tu primer proveedor para empezar',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           const SizedBox(height: 20),
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: ElevatedButton.icon(
-              onPressed: _navegarACrear,
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Crear proveedor'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _colorPrimary,
-                foregroundColor: Colors.white,
+          if (hayFiltro)
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _categoriaFiltro = null;
+                  _queryBusqueda = '';
+                  _filtro = FiltroProveedores.activos;
+                });
+                _invalidarLista();
+              },
+              icon: const Icon(Icons.clear_rounded, size: 18),
+              label: const Text('Limpiar filtros'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _colorPrimary,
+                side: BorderSide(
+                  color: _colorPrimary.withValues(alpha: 0.4),
+                ),
                 padding: const EdgeInsets.symmetric(
                     horizontal: 20, vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                elevation: 0,
+              ),
+            )
+          else
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: ElevatedButton.icon(
+                onPressed: _navegarACrear,
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Crear proveedor'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _colorPrimary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -645,8 +786,8 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
       builder: (_) => const CrearProveedorDialog(),
     );
     if (mounted) {
+      ref.invalidate(categoriasDisponiblesProvider);
       _invalidarLista();
-      await _cargarProductos();
     }
   }
 
@@ -656,8 +797,8 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
       builder: (_) => CrearProveedorDialog(proveedor: proveedor),
     );
     if (mounted) {
+      ref.invalidate(categoriasDisponiblesProvider);
       _invalidarLista();
-      await _cargarProductos();
     }
   }
 
@@ -666,7 +807,10 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
       context: context,
       builder: (_) => DetalleProveedorDialog(proveedor: proveedor),
     );
-    if (mounted) _invalidarLista();
+    if (mounted) {
+      ref.invalidate(categoriasDisponiblesProvider);
+      _invalidarLista();
+    }
   }
 
   Future<void> _toggleActivo(ProveedorEntity proveedor) async {
@@ -676,21 +820,16 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
             .read(proveedoresProvider.notifier)
             .desactivarProveedor(proveedor.id);
       } else {
-        final actualizado = ProveedorEntity()
-          ..id = proveedor.id
-          ..nombre = proveedor.nombre
-          ..cedula = proveedor.cedula
-          ..telefono = proveedor.telefono
-          ..empresa = proveedor.empresa
-          ..direccion = proveedor.direccion
-          ..activo = true
-          ..supabaseId = proveedor.supabaseId
-          ..sincronizado = false
-          ..fechaSincronizacion = proveedor.fechaSincronizacion
-          ..email = proveedor.email;
+        // ✅ FIX: mutamos el objeto existente en vez de reconstruirlo.
+        //    Antes se perdían tipoDocumento, documento, rif y updatedAt
+        //    al reactivar un proveedor.
+        proveedor.activo = true;
+        proveedor.sincronizado = false;
+        proveedor.updatedAt = DateTime.now();
+
         await ref
             .read(proveedoresProvider.notifier)
-            .guardarProveedor(actualizado);
+            .guardarProveedor(proveedor);
         await _sincronizarProveedores();
       }
       _invalidarLista();

@@ -1,11 +1,13 @@
 // lib/features/pos/presentation/widgets/proveedores/crear_proveedor_dialog.dart
-import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/proveedores_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.dart';
 import '../common/glass_dialog.dart';
 import '../common/dialog_header.dart';
+import '../common/active_toggle.dart';
+import '../common/persona_form_template.dart';
 
 class CrearProveedorDialog extends ConsumerStatefulWidget {
   final ProveedorEntity? proveedor;
@@ -19,72 +21,110 @@ class CrearProveedorDialog extends ConsumerStatefulWidget {
 
 class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
   final _formKey = GlobalKey<FormState>();
+
+  // ── Controllers ──
   late TextEditingController _nombreController;
-  late TextEditingController _cedulaController;
+  late TextEditingController _documentoController;
+  late TextEditingController _rifController;
+  late TextEditingController _empresaController;
   late TextEditingController _telefonoController;
-  late TextEditingController _direccionController;
   late TextEditingController _emailController;
+  late TextEditingController _direccionController;
+
+  // ── Estado ──
+  String? _tipoDocumento;
   bool _activo = true;
   bool _isSaving = false;
 
   static const _colorPrimary = Color(0xFF8B5CF6);
   static const _colorSuccess = Color(0xFF10B981);
 
+  // ═══════════════════════════════════════════════════════════════
+  // LIFECYCLE
+  // ═══════════════════════════════════════════════════════════════
+
   @override
   void initState() {
     super.initState();
     final p = widget.proveedor;
+
     _nombreController = TextEditingController(text: p?.nombre ?? '');
-    _cedulaController = TextEditingController(text: p?.cedula ?? '');
+    _documentoController =
+        TextEditingController(text: p?.documento?.toString() ?? '');
+    _rifController = TextEditingController(text: p?.rif ?? '');
+    _empresaController = TextEditingController(text: p?.empresa ?? '');
     _telefonoController = TextEditingController(text: p?.telefono ?? '');
-    _direccionController = TextEditingController(text: p?.direccion ?? '');
     _emailController = TextEditingController(text: p?.email ?? '');
+    _direccionController = TextEditingController(text: p?.direccion ?? '');
+
+    _tipoDocumento = p?.tipoDocumento;
     _activo = p?.activo ?? true;
   }
 
   @override
   void dispose() {
     _nombreController.dispose();
-    _cedulaController.dispose();
+    _documentoController.dispose();
+    _rifController.dispose();
+    _empresaController.dispose();
     _telefonoController.dispose();
-    _direccionController.dispose();
     _emailController.dispose();
+    _direccionController.dispose();
     super.dispose();
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // GUARDAR
+  // ═══════════════════════════════════════════════════════════════
 
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
 
+    final isEdit = widget.proveedor != null;
     final nombre = _nombreController.text.trim();
+    final empresa = _empresaController.text.trim();
+    final rif = _rifController.text.trim();
+    final telefono = _telefonoController.text.trim();
     final email = _emailController.text.trim();
     final direccion = _direccionController.text.trim();
 
     final proveedor = ProveedorEntity()
       ..nombre = nombre
-      ..cedula = _cedulaController.text.trim().isNotEmpty
-          ? _cedulaController.text.trim()
-          : null
-      ..telefono = _telefonoController.text.trim().isNotEmpty
-          ? _telefonoController.text.trim()
-          : null
-      ..direccion = direccion.isNotEmpty ? direccion : null
-      ..email = email.isNotEmpty ? email : null
-      ..empresa = nombre
+      // ── Identificación (NUEVO) ──
+      ..tipoDocumento = _tipoDocumento
+      ..documento = int.tryParse(_documentoController.text.trim())
+      ..rif = rif.isEmpty ? null : rif.toUpperCase()
+      // ── Empresa (ahora explícita, no auto-asignada) ──
+      ..empresa = empresa.isEmpty ? null : empresa
+      // ── Contacto ──
+      ..telefono = telefono.isEmpty ? null : telefono
+      ..email = email.isEmpty ? null : email
+      ..direccion = direccion.isEmpty ? null : direccion
+      // ── Estado ──
       ..activo = _activo
+      // ── Sync ──
       ..supabaseId = widget.proveedor?.supabaseId
       ..sincronizado = false
-      ..fechaSincronizacion = null;
+      ..fechaSincronizacion = null
+      // ── Legacy: preservar `cedula` en edición, null en creación ──
+      ..cedula = isEdit ? widget.proveedor!.cedula : null;
 
-    if (widget.proveedor != null) {
+    if (isEdit) {
       proveedor.id = widget.proveedor!.id;
     }
 
     try {
       await ref.read(proveedoresProvider.notifier).guardarProveedor(proveedor);
-      final syncService = SyncService();
-      await syncService.sincronizarProveedoresPendientes();
+
+      // Intento de sync (no bloquea si falla)
+      try {
+        final syncService = SyncService();
+        await syncService.sincronizarProveedoresPendientes();
+      } catch (_) {
+        // El sync silencioso se ignora: el proveedor ya quedó local
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -99,9 +139,9 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  widget.proveedor == null
-                      ? 'Proveedor creado y sincronizado'
-                      : 'Proveedor actualizado y sincronizado',
+                  isEdit
+                      ? 'Proveedor actualizado'
+                      : 'Proveedor creado',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
@@ -124,10 +164,13 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // BUILD
+  // ═══════════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
     final esEdicion = widget.proveedor != null;
-    final colorScheme = Theme.of(context).colorScheme;
 
     return GlassDialog(
       maxWidth: 560,
@@ -140,6 +183,7 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // ── Header ──
               DialogHeader(
                 icon: esEdicion
                     ? Icons.edit_rounded
@@ -151,248 +195,113 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
               ),
               const SizedBox(height: 24),
 
-              _field(
-                controller: _nombreController,
-                label: 'Nombre de la empresa *',
-                icon: Icons.business_center_rounded,
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Requerido' : null,
-              ),
-              const SizedBox(height: 14),
-
-              _field(
-                controller: _cedulaController,
-                label: 'RIF / Cédula',
+              // ── Sección: Identificación ──
+              FormSection(
+                title: 'Identificación',
                 icon: Icons.badge_rounded,
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return null;
-                  if (v.trim().length < 6) return 'Mínimo 6 caracteres';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 14),
-
-              _field(
-                controller: _telefonoController,
-                label: 'Teléfono',
-                icon: Icons.phone_rounded,
-                keyboardType: TextInputType.phone,
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return null;
-                  final digits = v.replaceAll(RegExp(r'\D'), '');
-                  if (digits.length < 7) return 'Mínimo 7 dígitos';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 14),
-
-              _field(
-                controller: _emailController,
-                label: 'Correo electrónico',
-                icon: Icons.email_rounded,
-                keyboardType: TextInputType.emailAddress,
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return null;
-                  final re = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
-                  return re.hasMatch(v.trim()) ? null : 'Correo inválido';
-                },
-              ),
-              const SizedBox(height: 14),
-
-              _field(
-                controller: _direccionController,
-                label: 'Dirección',
-                icon: Icons.location_on_rounded,
-                maxLines: 2,
-              ),
-              const SizedBox(height: 20),
-
-              // ===== TOGGLE ACTIVO =====
-              _ActivoToggle(
-                value: _activo,
-                onChanged: (v) => setState(() => _activo = v),
-              ),
-              const SizedBox(height: 24),
-
-              // ===== BOTONES =====
-              Row(
+                accentColor: _colorPrimary,
                 children: [
-                  Expanded(
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: TextButton(
-                        onPressed: _isSaving
-                            ? null
-                            : () => Navigator.pop(context),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: Text(
-                          'Cancelar',
-                          style: TextStyle(
-                            color: colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ),
+                  PersonaTextField(
+                    controller: _nombreController,
+                    label: 'Nombre de la empresa *',
+                    icon: Icons.business_center_rounded,
+                    accentColor: _colorPrimary,
+                    textCapitalization: TextCapitalization.words,
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Requerido' : null,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: MouseRegion(
-                      cursor: _isSaving
-                          ? SystemMouseCursors.forbidden
-                          : SystemMouseCursors.click,
-                      child: ElevatedButton(
-                        onPressed: _isSaving ? null : _guardar,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _colorPrimary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.4,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                esEdicion
-                                    ? 'Guardar Cambios'
-                                    : 'Crear Proveedor',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
-                              ),
-                      ),
-                    ),
+                  const SizedBox(height: 14),
+                  DocumentoIdentidadField(
+                    tipoDocumento: _tipoDocumento,
+                    onTipoDocumentoChanged: (v) =>
+                        setState(() => _tipoDocumento = v),
+                    numeroController: _documentoController,
+                    accentColor: _colorPrimary,
+                  ),
+                  const SizedBox(height: 14),
+                  RifField(
+                    controller: _rifController,
+                    accentColor: _colorPrimary,
                   ),
                 ],
               ),
+              const SizedBox(height: 22),
+
+              // ── Sección: Contacto y empresa ──
+              FormSection(
+                title: 'Contacto y empresa',
+                icon: Icons.contact_mail_rounded,
+                accentColor: _colorPrimary,
+                children: [
+                  PersonaTextField(
+                    controller: _empresaController,
+                    label: 'Razón social / Empresa',
+                    icon: Icons.storefront_rounded,
+                    accentColor: _colorPrimary,
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                  const SizedBox(height: 14),
+                  PersonaTextField(
+                    controller: _telefonoController,
+                    label: 'Teléfono',
+                    icon: Icons.phone_rounded,
+                    accentColor: _colorPrimary,
+                    keyboardType: TextInputType.phone,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return null;
+                      final digits = v.replaceAll(RegExp(r'\D'), '');
+                      if (digits.length < 7) return 'Mínimo 7 dígitos';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  PersonaTextField(
+                    controller: _emailController,
+                    label: 'Correo electrónico',
+                    icon: Icons.email_rounded,
+                    accentColor: _colorPrimary,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return null;
+                      final re = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+                      return re.hasMatch(v.trim()) ? null : 'Correo inválido';
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  PersonaTextField(
+                    controller: _direccionController,
+                    label: 'Dirección',
+                    icon: Icons.location_on_rounded,
+                    accentColor: _colorPrimary,
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+
+              // ── Sección: Estado ──
+              ActiveToggle(
+                value: _activo,
+                onChanged: (v) => setState(() => _activo = v),
+                activeLabel: 'Proveedor Activo',
+                inactiveLabel: 'Proveedor Inactivo',
+                activeSubtitle: 'Disponible para crear pedidos',
+                inactiveSubtitle: 'Oculto de la selección de pedidos',
+                activeColor: _colorSuccess,
+              ),
+              const SizedBox(height: 24),
+
+              // ── Acciones ──
+              FormActions(
+                isSaving: _isSaving,
+                confirmLabel:
+                    esEdicion ? 'Guardar Cambios' : 'Crear Proveedor',
+                accentColor: _colorPrimary,
+                onCancel: () => Navigator.pop(context),
+                onConfirm: _guardar,
+              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _field({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType? keyboardType,
-    String? Function(String?)? validator,
-    int maxLines = 1,
-  }) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final colorScheme = theme.colorScheme;
-
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      validator: validator,
-      maxLines: maxLines,
-      style: TextStyle(color: colorScheme.onSurface),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-        prefixIcon: Icon(icon, color: _colorPrimary),
-        filled: true,
-        fillColor: isDark
-            ? Colors.white.withValues(alpha: 0.04)
-            : const Color(0xFFF9FAFB),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-            width: 1,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: _colorPrimary, width: 2),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      ),
-    );
-  }
-}
-
-/// Toggle reutilizable de activo/inactivo para diálogos.
-class _ActivoToggle extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _ActivoToggle({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    const color = Color(0xFF10B981);
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        decoration: BoxDecoration(
-          color: value
-              ? color.withValues(alpha: 0.1)
-              : (isDark
-                  ? Colors.white.withValues(alpha: 0.04)
-                  : const Color(0xFFF9FAFB)),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: value
-                ? color.withValues(alpha: 0.3)
-                : colorScheme.outlineVariant.withValues(alpha: 0.5),
-          ),
-        ),
-        child: SwitchListTile(
-          title: Text(
-            value ? 'Proveedor Activo' : 'Proveedor Inactivo',
-            style: TextStyle(
-              color: value
-                  ? (isDark
-                      ? const Color(0xFF34D399)
-                      : const Color(0xFF059669))
-                  : colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          subtitle: Text(
-            value
-                ? 'Disponible para crear pedidos'
-                : 'Oculto de la selección de pedidos',
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          value: value,
-          onChanged: onChanged,
-          activeThumbColor: color,
-          contentPadding: EdgeInsets.zero,
-          dense: true,
         ),
       ),
     );

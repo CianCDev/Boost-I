@@ -1,4 +1,7 @@
 // lib/features/pos/presentation/screens/main_pos_screen.dart
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -112,58 +115,71 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
     final role = UserRole.fromString(usuario.rol);
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
-    final colorScheme = Theme.of(context).colorScheme;
+    final roleColor = _roleColor(role);
 
     return Scaffold(
-      backgroundColor: colorScheme.surfaceContainerLow,
+      // ✅ backgroundColor lo aporta el Stack del fondo (base gradient)
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
       appBar: _buildAppBar(context),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 14 : 24,
-            vertical: isMobile ? 16 : 22,
+      body: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // ── Fondo con blobs animados + gradiente base ──
+          Positioned.fill(
+            child: _WelcomeBackground(seed: roleColor),
           ),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1100),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _AnimatedEntry(
-                    index: 0,
-                    child: _WelcomeHeader(usuario: usuario, role: role),
-                  ),
-                  const SizedBox(height: 20),
-                  _AnimatedEntry(
-                    index: 1,
-                    child: _RoleGuideCard(role: role),
-                  ),
-                  const SizedBox(height: 28),
-                  _AnimatedEntry(
-                    index: 2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildSectionTitle(
-                          'ACCESOS RÁPIDOS',
-                          _roleColor(role),
+
+          // ── Contenido scrolleable encima del fondo ──
+          SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 14 : 24,
+                vertical: isMobile ? 16 : 22,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1100),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _AnimatedEntry(
+                        index: 0,
+                        child: _WelcomeHeader(usuario: usuario, role: role),
+                      ),
+                      const SizedBox(height: 20),
+                      _AnimatedEntry(
+                        index: 1,
+                        child: _RoleGuideCard(role: role),
+                      ),
+                      const SizedBox(height: 28),
+                      _AnimatedEntry(
+                        index: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildSectionTitle(
+                              'ACCESOS RÁPIDOS',
+                              roleColor,
+                            ),
+                            const SizedBox(height: 12),
+                            _QuickAccessGrid(
+                              role: role,
+                              isMobile: isMobile,
+                              isTablet: isTablet,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 12),
-                        _QuickAccessGrid(
-                          role: role,
-                          isMobile: isMobile,
-                          isTablet: isTablet,
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 40),
+                    ],
                   ),
-                  const SizedBox(height: 40),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -248,6 +264,198 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
         ),
         const SizedBox(width: 10),
       ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FONDO — BLOBS ANIMADOS (aurora suave, visible en claro y oscuro)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _WelcomeBackground extends StatefulWidget {
+  /// Color semilla (normalmente el color del rol del usuario).
+  final Color seed;
+
+  const _WelcomeBackground({required this.seed});
+
+  @override
+  State<_WelcomeBackground> createState() => _WelcomeBackgroundState();
+}
+
+class _WelcomeBackgroundState extends State<_WelcomeBackground>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      // 35s → movimientos muy lentos, sensación "aurora".
+      duration: const Duration(seconds: 35),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = widget.seed;
+
+    // Paleta derivada del color del rol → cada rol tiene su "ambiente".
+    final c1 = base;                                              // rol
+    final c2 = Color.lerp(base, const Color(0xFF8B5CF6), 0.55)!;  // violeta
+    final c3 = Color.lerp(base, const Color(0xFF06B6D4), 0.60)!;  // cyan
+    final c4 = Color.lerp(base, const Color(0xFFEC4899), 0.45)!;  // rosa
+    final c5 = Color.lerp(base, const Color(0xFFF59E0B), 0.50)!;  // ámbar
+
+    // ✅ Alphas recalibrados:
+    //    - claro: 0.35/0.28/0.18 → los blobs SÍ se ven sobre blanco
+    //    - oscuro: 0.24/0.18/0.12 → ambiente sin ser agresivo
+    final alphaStrong = isDark ? 0.24 : 0.35;
+    final alphaSoft = isDark ? 0.18 : 0.28;
+    final alphaFaint = isDark ? 0.12 : 0.18;
+
+    return RepaintBoundary(
+      child: IgnorePointer(
+        child: ClipRect(
+          child: Stack(
+            children: [
+              // ── Capa base: gradiente diagonal muy sutil (rompe el blanco plano) ──
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: isDark
+                          ? const [
+                              Color(0xFF0F172A),
+                              Color(0xFF0B1220),
+                            ]
+                          : const [
+                              Color(0xFFF7F9FF),
+                              Color(0xFFEFF3FB),
+                            ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Blobs animados ──
+              AnimatedBuilder(
+                animation: _c,
+                builder: (context, _) {
+                  final t = _c.value * 2 * math.pi;
+
+                  return Stack(
+                    children: [
+                      // 1 · arriba-izquierda (el más fuerte, marca el tono)
+                      Positioned(
+                        top: -120 + 35 * math.sin(t),
+                        left: -90 + 60 * math.cos(t * 0.9),
+                        child: _Blob(
+                          size: 420,
+                          color: c1.withValues(alpha: alphaStrong),
+                          blur: 90,
+                        ),
+                      ),
+
+                      // 2 · arriba-derecha
+                      Positioned(
+                        top: -80 + 45 * math.cos(t * 0.8),
+                        right: -120 + 65 * math.sin(t * 1.1),
+                        child: _Blob(
+                          size: 480,
+                          color: c2.withValues(alpha: alphaSoft),
+                          blur: 100,
+                        ),
+                      ),
+
+                      // 3 · abajo-centro
+                      Positioned(
+                        bottom: -160 + 45 * math.sin(t * 1.3),
+                        left: 120 + 90 * math.cos(t * 0.7),
+                        child: _Blob(
+                          size: 400,
+                          color: c3.withValues(alpha: alphaSoft),
+                          blur: 90,
+                        ),
+                      ),
+
+                      // 4 · medio-derecha
+                      Positioned(
+                        top: 240 + 55 * math.sin(t * 0.6),
+                        right: -140 + 45 * math.cos(t * 1.2),
+                        child: _Blob(
+                          size: 340,
+                          color: c4.withValues(alpha: alphaFaint),
+                          blur: 80,
+                        ),
+                      ),
+
+                      // 5 · medio-izquierda (rellena el vacío central al hacer scroll)
+                      Positioned(
+                        top: 520 + 40 * math.cos(t * 0.9),
+                        left: -160 + 70 * math.sin(t * 0.8),
+                        child: _Blob(
+                          size: 320,
+                          color: c5.withValues(alpha: alphaFaint),
+                          blur: 80,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Blob individual: círculo con gradiente radial suave + blur.
+///
+/// `RepaintBoundary` cachea el resultado del blur → al mover el blob
+/// solo se recompone la capa, no se recalcula el filtro. Rendimiento ✅.
+class _Blob extends StatelessWidget {
+  final double size;
+  final Color color;
+  final double blur;
+
+  const _Blob({
+    required this.size,
+    required this.color,
+    this.blur = 60,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: ImageFiltered(
+        imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                color,
+                color.withValues(alpha: 0),
+              ],
+              stops: const [0.0, 1.0],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -564,7 +772,7 @@ class _WelcomeHeader extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// GUÍA RÁPIDA POR ROL (sin glass — sólida, rápida)
+// GUÍA RÁPIDA POR ROL (mini-cards con hover, estilo PosMenuCard)
 // ═══════════════════════════════════════════════════════════════════════
 
 class _RoleGuideCard extends StatelessWidget {
@@ -584,14 +792,14 @@ class _RoleGuideCard extends StatelessWidget {
       padding: EdgeInsets.all(isMobile ? 16 : 20),
       decoration: BoxDecoration(
         color: isDark ? colorScheme.surfaceContainerHigh : Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: colorScheme.outlineVariant.withValues(alpha: 0.4),
         ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
-            blurRadius: 10,
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -599,21 +807,29 @@ class _RoleGuideCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Header con icono degradado ──
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(9),
+                padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: roleColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      roleColor.withValues(alpha: 0.25),
+                      roleColor.withValues(alpha: 0.12),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  Icons.lightbulb_outline_rounded,
+                  Icons.lightbulb_rounded,
                   color: roleColor,
-                  size: 20,
+                  size: 24,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -621,18 +837,21 @@ class _RoleGuideCard extends StatelessWidget {
                     Text(
                       '¿Cómo empezar?',
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: isMobile ? 18 : 20,
                         fontWeight: FontWeight.w800,
                         color: colorScheme.onSurface,
-                        letterSpacing: -0.2,
+                        letterSpacing: -0.4,
+                        height: 1.15,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
-                      'Guía para ${role.label.toLowerCase()}',
+                      'Guía para ${role.label.toLowerCase()} · ${steps.length} pasos',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: colorScheme.onSurfaceVariant,
+                        letterSpacing: -0.1,
+                        height: 1.3,
                       ),
                     ),
                   ],
@@ -640,9 +859,11 @@ class _RoleGuideCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
+
+          // ── Pasos como mini-cards ──
           ...steps.asMap().entries.map((entry) {
-            return _GuideStepRow(
+            return _GuideStepCard(
               number: entry.key + 1,
               step: entry.value,
               color: roleColor,
@@ -655,13 +876,13 @@ class _RoleGuideCard extends StatelessWidget {
   }
 }
 
-class _GuideStepRow extends StatelessWidget {
+class _GuideStepCard extends StatefulWidget {
   final int number;
   final _GuideStep step;
   final Color color;
   final bool isLast;
 
-  const _GuideStepRow({
+  const _GuideStepCard({
     required this.number,
     required this.step,
     required this.color,
@@ -669,83 +890,135 @@ class _GuideStepRow extends StatelessWidget {
   });
 
   @override
+  State<_GuideStepCard> createState() => _GuideStepCardState();
+}
+
+class _GuideStepCardState extends State<_GuideStepCard> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMobile = ResponsiveHelper.isMobile(context);
 
     return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
+      padding: EdgeInsets.only(bottom: widget.isLast ? 0 : 10),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.basic,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: _hovered
+                ? widget.color.withValues(alpha: isDark ? 0.10 : 0.05)
+                : (isDark
+                    ? colorScheme.surfaceContainer.withValues(alpha: 0.45)
+                    : colorScheme.surfaceContainerLowest
+                        .withValues(alpha: 0.7)),
+            borderRadius: BorderRadius.circular(14),
+            // ✅ Ancho FIJO (1.0) para no romper el layout en hover
+            border: Border.all(
+              color: _hovered
+                  ? widget.color.withValues(alpha: 0.45)
+                  : colorScheme.outlineVariant.withValues(alpha: 0.25),
+              width: 1.0,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 26,
-                height: 26,
+              // ── Número circular (se rellena y hace glow en hover) ──
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeOut,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: _hovered
+                      ? widget.color
+                      : widget.color.withValues(alpha: 0.14),
                   shape: BoxShape.circle,
+                  boxShadow: _hovered
+                      ? [
+                          BoxShadow(
+                            color: widget.color.withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
                 ),
                 child: Center(
                   child: Text(
-                    '$number',
+                    '${widget.number}',
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: color,
+                      color: _hovered ? Colors.white : widget.color,
+                      letterSpacing: -0.3,
                     ),
                   ),
                 ),
               ),
-              if (!isLast)
-                Container(
-                  width: 1.5,
-                  height: 22,
-                  margin: const EdgeInsets.symmetric(vertical: 3),
-                  color: color.withValues(alpha: 0.2),
+              const SizedBox(width: 12),
+
+              // ── Caja del icono (estilo PosMenuCard) ──
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(11),
                 ),
+                child: Icon(
+                  widget.step.icon,
+                  size: 20,
+                  color: widget.color,
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // ── Título + descripción ──
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.step.title,
+                      style: TextStyle(
+                        fontSize: isMobile ? 14.5 : 15,
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface,
+                        letterSpacing: -0.2,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (widget.step.description != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        widget.step.description!,
+                        style: TextStyle(
+                          fontSize: isMobile ? 12.5 : 13,
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.35,
+                          letterSpacing: -0.05,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ],
           ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(step.icon, size: 14, color: color),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    step.title,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  if (step.description != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      step.description!,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: colorScheme.onSurfaceVariant,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -811,119 +1084,6 @@ class _QuickAccessGrid extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _QuickAccessCard extends StatefulWidget {
-  final _QuickAccessItem item;
-
-  const _QuickAccessCard({required this.item});
-
-  @override
-  State<_QuickAccessCard> createState() => _QuickAccessCardState();
-}
-
-class _QuickAccessCardState extends State<_QuickAccessCard> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isMobile = ResponsiveHelper.isMobile(context);
-    final item = widget.item;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => item.screenBuilder()),
-        ),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.all(isMobile ? 14 : 16),
-          decoration: BoxDecoration(
-            color: isDark
-                ? colorScheme.surfaceContainerHigh
-                    .withValues(alpha: _hovered ? 0.9 : 0.7)
-                : Colors.white.withValues(alpha: _hovered ? 1.0 : 0.9),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _hovered
-                  ? item.color.withValues(alpha: 0.5)
-                  : colorScheme.outlineVariant.withValues(alpha: 0.3),
-              width: _hovered ? 1.5 : 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: isDark ? 0.2 : (_hovered ? 0.08 : 0.04),
-                ),
-                blurRadius: _hovered ? 14 : 8,
-                offset: Offset(0, _hovered ? 5 : 3),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: item.color
-                      .withValues(alpha: _hovered ? 0.20 : 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  item.icon,
-                  size: isMobile ? 22 : 24,
-                  color: item.color,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      item.title,
-                      style: TextStyle(
-                        fontSize: isMobile ? 14 : 15,
-                        fontWeight: FontWeight.w700,
-                        color: colorScheme.onSurface,
-                        letterSpacing: -0.2,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      item.subtitle,
-                      style: TextStyle(
-                        fontSize: isMobile ? 11 : 12,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 13,
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

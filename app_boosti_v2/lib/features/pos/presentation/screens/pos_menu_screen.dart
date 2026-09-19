@@ -827,6 +827,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   ) {
     if (options.isEmpty) return const SizedBox.shrink();
 
+    // ── Opción única: card horizontal ancha ──
     if (options.length == 1) {
       final singleOpt = options.first;
       return PosMenuCard(
@@ -835,19 +836,29 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         icon: singleOpt.icon,
         color: singleOpt.color,
         onTap: singleOpt.onTap,
+        compactMode: isMobile,
       );
     }
 
-    final crossAxisCount = isMobile ? 1 : (isTablet ? 2 : 3);
+    // ── Grid responsive ──
+    //   mobile: 2 columnas → cards cuadradas, sin subtitle
+    //   tablet: 2 columnas
+    //   desktop: 3 columnas
+    final crossAxisCount = isMobile ? 2 : (isTablet ? 2 : 3);
+
+    // ✅ Altura FIJA por breakpoint:
+    //   - mobile (2 cols, compacto sin subtitle): ~135px
+    //   - tablet/desktop (horizontal): ~105px
+    final double itemHeight = isMobile ? 135 : 105;
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: isMobile ? 3.2 : 2.5,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        mainAxisExtent: itemHeight,
+        crossAxisSpacing: isMobile ? 10 : 12,
+        mainAxisSpacing: isMobile ? 10 : 12,
       ),
       itemCount: options.length,
       itemBuilder: (_, i) {
@@ -858,6 +869,8 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           icon: opt.icon,
           color: opt.color,
           onTap: opt.onTap,
+          // ✅ En mobile no mostramos subtitle (cards limpias)
+          compactMode: isMobile,
         );
       },
     );

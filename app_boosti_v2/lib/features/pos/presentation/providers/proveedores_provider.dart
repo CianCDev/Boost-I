@@ -7,7 +7,8 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart
 
 final isarServiceProvider = Provider<IsarService>((ref) => IsarService());
 
-final proveedoresProvider = StateNotifierProvider<ProveedoresNotifier, List<ProveedorEntity>>((ref) {
+final proveedoresProvider =
+    StateNotifierProvider<ProveedoresNotifier, List<ProveedorEntity>>((ref) {
   return ProveedoresNotifier(ref);
 });
 
@@ -42,24 +43,37 @@ final proveedorPorIdProvider = Provider.family<ProveedorEntity?, int>((ref, id) 
   return todos.firstWhereOrNull((p) => p.id == id);
 });
 
-// ✅ NUEVO: Para usar en diálogos que necesitan AsyncValue
-final proveedorPorIdAsyncProvider = FutureProvider.family<ProveedorEntity?, int>((ref, id) async {
+// ✅ Para usar en diálogos que necesitan AsyncValue
+final proveedorPorIdAsyncProvider =
+    FutureProvider.family<ProveedorEntity?, int>((ref, id) async {
   final isar = ref.read(isarServiceProvider);
   return await isar.obtenerProveedorPorId(id);
 });
 
-final proveedoresConFiltroProvider = FutureProvider.family<List<ProveedorEntity>, ({
-  String query,
-  bool mostrarInactivos,
-  int? productoId,
-})>((ref, params) async {
+// ═══════════════════════════════════════════════════════════════════════
+// FILTRO
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Enum explícito con 3 estados. Antes era `bool mostrarInactivos`.
+enum FiltroProveedores { activos, inactivos, todos }
+
+final proveedoresConFiltroProvider = FutureProvider.family<
+    List<ProveedorEntity>,
+    ({
+      String query,
+      FiltroProveedores filtro,
+      String? categoria, // ← ✅ CAMBIO: de int? productoId a String? categoria
+    })>((ref, params) async {
   final todos = ref.watch(proveedoresProvider);
 
   var resultado = todos.where((p) {
-    if (params.mostrarInactivos) {
-      return true;
-    } else {
-      return p.activo;
+    switch (params.filtro) {
+      case FiltroProveedores.activos:
+        return p.activo;
+      case FiltroProveedores.inactivos:
+        return !p.activo;
+      case FiltroProveedores.todos:
+        return true;
     }
   }).toList();
 
@@ -68,24 +82,50 @@ final proveedoresConFiltroProvider = FutureProvider.family<List<ProveedorEntity>
     resultado = resultado.where((p) {
       final coincideNombre = p.nombre.toLowerCase().contains(q);
       final coincideEmpresa = (p.empresa ?? '').toLowerCase().contains(q);
-      return coincideNombre || coincideEmpresa;
+      final coincideRif = (p.rif ?? '').toLowerCase().contains(q);
+      return coincideNombre || coincideEmpresa || coincideRif;
     }).toList();
   }
 
-  if (params.productoId != null) {
+  // ✅ NUEVO: filtro por categoría. Devuelve proveedores que tengan
+  //    al menos un producto de esa categoría.
+  if (params.categoria != null && params.categoria!.isNotEmpty) {
     final isar = ref.read(isarServiceProvider);
     final productos = await isar.obtenerProductos();
-    final proveedoresIdsConProducto = productos
-        .where((p) => p.id == params.productoId && p.proveedorId != null)
+    final proveedoresIdsConCategoria = productos
+        .where(
+          (p) =>
+              p.categoria == params.categoria && p.proveedorId != null,
+        )
         .map((p) => p.proveedorId!)
         .toSet();
-    resultado = resultado.where((p) => proveedoresIdsConProducto.contains(p.id)).toList();
+    resultado = resultado
+        .where((p) => proveedoresIdsConCategoria.contains(p.id))
+        .toList();
   }
 
   return resultado;
 });
 
-final productosPorProveedorProvider = FutureProvider.family<List<ProductoEntity>, int>((ref, proveedorId) async {
+final productosPorProveedorProvider =
+    FutureProvider.family<List<ProductoEntity>, int>((ref, proveedorId) async {
   final isar = ref.watch(isarServiceProvider);
   return await isar.obtenerProductosPorProveedor(proveedorId);
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// CATEGORÍAS DISPONIBLES
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Devuelve las categorías únicas presentes en los productos, ordenadas
+/// alfabéticamente. Se usa en el dropdown de filtros de la pantalla.
+final categoriasDisponiblesProvider = FutureProvider<List<String>>((ref) async {
+  final isar = ref.watch(isarServiceProvider);
+  final productos = await isar.obtenerProductos();
+  final set = <String>{};
+  for (final p in productos) {
+    if (p.categoria.isNotEmpty) set.add(p.categoria);
+  }
+  final lista = set.toList()..sort();
+  return lista;
 });
