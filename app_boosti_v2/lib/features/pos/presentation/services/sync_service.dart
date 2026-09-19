@@ -239,180 +239,167 @@ class SyncService {
   // USUARIOS
   // ============================================================
 
-  Future<void> sincronizarUsuariosASupabase() async {
-    // ✅ Sin sesión activa no hay tenant_id → RLS bloqueará
-    if (!_tieneSesionSupabase()) {
-      debugPrint(
-          '⚠️ [SyncService] Sin sesión activa. sincronizarUsuariosASupabase omitido.');
+ Future<void> sincronizarUsuariosASupabase() async {
+  if (!_tieneSesionSupabase()) {
+    debugPrint(
+        '⚠️ [SyncService] Sin sesión activa. sincronizarUsuariosASupabase omitido.');
+    return;
+  }
+
+  try {
+    final usuarios = await _isarService.obtenerUsuarios();
+    if (usuarios.isEmpty) {
+      debugPrint('ℹ️ No hay usuarios locales para sincronizar');
       return;
     }
 
-    try {
-      final usuarios = await _isarService.obtenerUsuarios();
-      if (usuarios.isEmpty) {
-        debugPrint('ℹ️ No hay usuarios locales para sincronizar');
-        return;
-      }
+    debugPrint('🔄 Sincronizando ${usuarios.length} usuarios con Supabase...');
 
-      debugPrint(
-          '🔄 Sincronizando ${usuarios.length} usuarios con Supabase...');
-      int sincronizados = 0;
-      int recuperados = 0;
+    int sincronizados = 0;
+    int recuperados = 0;
+    int omitidos = 0;
+    int errores = 0;
 
-      // ✅ Obtener el usuario actual para saltarlo (evita error 42501
-      // cuando el usuario opera en un tenant distinto a su "home tenant")
-      final currentUserId = _supabase.auth.currentUser?.id;
+    final currentUserId = _supabase.auth.currentUser?.id;
 
-      for (var usuario in usuarios) {
-        try {
-          // ============================================================
-          // CASO 1: Ya tiene supabaseId → actualizar
-          // ============================================================
-          if (usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
-            final esUsuarioActual = usuario.supabaseId == currentUserId;
+    for (var usuario in usuarios) {
+      try {
+        // ══════════════════════════════════════════════════════════
+        // CASO 1: Ya tiene supabaseId → actualizar
+        // ══════════════════════════════════════════════════════════
+        if (usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
+          final esUsuarioActual = usuario.supabaseId == currentUserId;
 
-            final existing = await _supabase
-                .from('usuarios')
-                .select('id, pin')
-                .eq('id', usuario.supabaseId!)
-                .maybeSingle();
+          final existing = await _supabase
+              .from('usuarios')
+              .select('id, pin, updated_at, nombre')
+              .eq('id', usuario.supabaseId!)
+              .maybeSingle();
 
-            // ═══════════════════════════════════════════════════════════
-            // ✅ FIX: UUID fantasma → intentar recuperar por email
-            //    Antes hacíamos `continue` y el usuario quedaba huérfano
-            //    para siempre. Ahora intentamos rescatar por email y, si
-            //    no existe en ningún lado, limpiamos el UUID local para
-            //    que en el próximo ciclo entre al CASO 2 y se cree.
-            // ═══════════════════════════════════════════════════════════
-            if (existing == null) {
-              debugPrint(
-                  '⚠️ Usuario "${usuario.nombre}" tiene supabaseId fantasma (${usuario.supabaseId}). Recuperando...');
+          // ── UUID fantasma → recovery por email ──
+          if (existing == null) {
+            debugPrint(
+                '⚠️ Usuario "${usuario.nombre}" con supabaseId fantasma. Recuperando...');
 
-              // 1️⃣ Intentar recuperar UUID real por email
-              if (usuario.email != null && usuario.email!.isNotEmpty) {
-                try {
-                  final byEmail = await _supabase
-                      .from('usuarios')
-                      .select('id, pin, nombre')
-                      .eq('email', usuario.email!)
-                      .maybeSingle();
+            if (usuario.email != null && usuario.email!.isNotEmpty) {
+              try {
+                final byEmail = await _supabase
+                    .from('usuarios')
+                    .select('id, pin, nombre')
+                    .eq('email', usuario.email!)
+                    .maybeSingle();
 
-                  if (byEmail != null) {
-                    final realUuid = byEmail['id'] as String;
-                    final nombreNube = byEmail['nombre'] as String? ?? '';
+                if (byEmail != null) {
+                  final realUuid = byEmail['id'] as String;
+                  final nombreNube = (byEmail['nombre'] as String? ?? '').trim();
 
-                    // ✅ Validar que el UUID no esté en uso por OTRO usuario local
-                    final yaEnUso = await _isarService
-                        .obtenerUsuarioPorSupabaseId(realUuid);
-                    final colisionaConOtro =
-                        yaEnUso != null && yaEnUso.id != usuario.id;
+                  final yaEnUso = await _isarService
+                      .obtenerUsuarioPorSupabaseId(realUuid);
+                  final colisionaConOtro =
+                      yaEnUso != null && yaEnUso.id != usuario.id;
+                  final nombreCoincide =
+                      nombreNube.toLowerCase() ==
+                          usuario.nombre.trim().toLowerCase();
 
-                    // ✅ Validar que el nombre coincida (case-insensitive)
-                    final nombreCoincide = nombreNube.trim().toLowerCase() ==
-                        usuario.nombre.trim().toLowerCase();
-
-                    if (colisionaConOtro || !nombreCoincide) {
-                      debugPrint(
-                          '⚠️ COLISIÓN para "${usuario.nombre}": el email "${usuario.email}" '
-                          'pertenece a otro usuario (nube: "$nombreNube", UUID: $realUuid). '
-                          'Se omite la asignación.');
-                      continue;
-                    }
-
-                    usuario.supabaseId = realUuid;
-                    await _isarService.guardarUsuario(usuario);
+                  if (colisionaConOtro || !nombreCoincide) {
                     debugPrint(
-                        '✅ UUID real recuperado para "${usuario.nombre}": $realUuid');
-
-                    try {
-                      await _supabase.from('usuarios').update({
-                        'estado': usuario.estado,
-                        'device_id': usuario.deviceId ?? '',
-                      }).eq('id', realUuid);
-                    } catch (e) {
-                      debugPrint('⚠️ No se pudo refrescar estado: $e');
-                    }
-                    recuperados++;
-                    sincronizados++;
+                        '⚠️ COLISIÓN para "${usuario.nombre}". Se omite.');
+                    omitidos++;
                     continue;
                   }
-                } catch (e) {
-                  debugPrint('⚠️ Error buscando por email: $e');
+
+                  usuario.supabaseId = realUuid;
+                  await _isarService.guardarUsuario(usuario);
+
+                  try {
+                    await _supabase.from('usuarios').update({
+                      'estado': usuario.estado,
+                      'device_id': usuario.deviceId ?? '',
+                    }).eq('id', realUuid);
+                  } catch (_) {}
+
+                  recuperados++;
+                  sincronizados++;
+                  continue;
                 }
-              }
-
-              // 2️⃣ No existe en ningún lado → limpiar UUID fantasma local
-              debugPrint(
-                  '🗑️ UUID fantasma eliminado localmente para "${usuario.nombre}". Se creará en el próximo sync.');
-              usuario.supabaseId = null;
-              await _isarService.guardarUsuario(usuario);
-              continue;
-            }
-
-            // ── Resolver tenant ──
-            String? tenantUuid;
-            if (usuario.localId != null && usuario.localId! > 0) {
-              tenantUuid = await _obtenerSupabaseIdLocal(usuario.localId!);
-            }
-            if (tenantUuid == null || tenantUuid.isEmpty) {
-              final localActivo = await _isarService.obtenerLocalActivo();
-              if (localActivo != null) {
-                tenantUuid = localActivo.supabaseId;
-                if (tenantUuid == null || tenantUuid.isEmpty) {
-                  tenantUuid = await _obtenerSupabaseIdLocal(localActivo.id);
-                }
-                if (tenantUuid != null && tenantUuid.isNotEmpty) {
-                  usuario.localId = localActivo.id;
-                }
-              }
-            }
-
-            if (tenantUuid == null || tenantUuid.isEmpty) {
-              debugPrint(
-                  '⚠️ Usuario "${usuario.nombre}" sin local asignado. No se puede sincronizar (tenant_id es NOT NULL).');
-              continue;
-            }
-
-            // ── Preparar payload ──
-            final Map<String, dynamic> payload = {
-              'nombre': usuario.nombre,
-              'rol': usuario.rol,
-              'email': usuario.email ?? '',
-              'device_id': usuario.deviceId ?? '',
-              'estado': usuario.estado,
-              'caja_asignada': usuario.cajaAsignada,
-              'departamento': usuario.departamento,
-              'tenant_id': tenantUuid,
-              'updated_at': DateTime.now().toIso8601String(),
-            };
-
-            // ✅ Sincronizar PIN solo si difiere del que hay en Supabase.
-            final pinLocal = usuario.pin;
-            final pinNube = existing['pin'] as String?;
-            if (pinLocal.isNotEmpty && pinLocal != pinNube) {
-              payload['pin'] = pinLocal;
-              debugPrint(
-                  '📤 Actualizando PIN de "${usuario.nombre}" en Supabase');
-            }
-
-            // ── Skip del usuario actual ──
-            if (esUsuarioActual) {
-              debugPrint(
-                  'ℹ️ Saltando campos bloqueados por RLS para el usuario actual "${usuario.nombre}"');
-
-              try {
-                await _supabase.from('usuarios').update({
-                  'device_id': usuario.deviceId ?? '',
-                  'estado': usuario.estado,
-                }).eq('id', usuario.supabaseId!);
               } catch (e) {
-                debugPrint(
-                    '⚠️ No se pudo actualizar device_id del usuario actual: $e');
+                debugPrint('⚠️ Error buscando por email: $e');
               }
-              continue;
             }
 
-            // ── Update normal ──
+            // Limpiar UUID fantasma
+            usuario.supabaseId = null;
+            await _isarService.guardarUsuario(usuario);
+            omitidos++;
+            continue;
+          }
+
+          // ── Guard: last-write-wins por updated_at ──
+          //    Si el registro local NO fue tocado después del último
+          //    cambio remoto, no lo sobreescribimos.
+          final remoteUpdatedAt = existing['updated_at'] != null
+              ? DateTime.tryParse(existing['updated_at'].toString())
+              : null;
+          final localUpdatedAt = usuario.updatedAt;
+
+          if (!esUsuarioActual &&
+              remoteUpdatedAt != null &&
+              localUpdatedAt != null &&
+              localUpdatedAt.isBefore(remoteUpdatedAt) &&
+              usuario.sincronizado) {
+            debugPrint(
+                'ℹ️ "${usuario.nombre}" ya está al día (nube más reciente). Skip.');
+            omitidos++;
+            continue;
+          }
+
+          // ── Resolver tenant ──
+          String? tenantUuid;
+          if (usuario.localId != null && usuario.localId! > 0) {
+            tenantUuid = await _obtenerSupabaseIdLocal(usuario.localId!);
+          }
+          if (tenantUuid == null || tenantUuid.isEmpty) {
+            final localActivo = await _isarService.obtenerLocalActivo();
+            if (localActivo != null) {
+              tenantUuid = localActivo.supabaseId;
+              if (tenantUuid == null || tenantUuid.isEmpty) {
+                tenantUuid = await _obtenerSupabaseIdLocal(localActivo.id);
+              }
+              if (tenantUuid != null && tenantUuid.isNotEmpty) {
+                usuario.localId = localActivo.id;
+              }
+            }
+          }
+
+          if (tenantUuid == null || tenantUuid.isEmpty) {
+            debugPrint(
+                '⚠️ "${usuario.nombre}" sin tenant asignado. Skip.');
+            omitidos++;
+            continue;
+          }
+
+          // ── Payload ──
+          final Map<String, dynamic> payload = {
+            'nombre': usuario.nombre,
+            'rol': usuario.rol,
+            'email': usuario.email ?? '',
+            'device_id': usuario.deviceId ?? '',
+            'estado': usuario.estado,
+            'caja_asignada': usuario.cajaAsignada,
+            'departamento': usuario.departamento,
+            'tenant_id': tenantUuid,
+            'updated_at': DateTime.now().toIso8601String(),
+          };
+
+          final pinLocal = usuario.pin;
+          final pinNube = existing['pin'] as String?;
+          if (pinLocal.isNotEmpty && pinLocal != pinNube) {
+            payload['pin'] = pinLocal;
+            debugPrint('📤 PIN actualizado para "${usuario.nombre}"');
+          }
+
+          // ── Update (con manejo de AuthApiException) ──
+          try {
             await _supabase
                 .from('usuarios')
                 .update(payload)
@@ -420,175 +407,230 @@ class SyncService {
 
             usuario.sincronizado = true;
             usuario.fechaSincronizacion = DateTime.now();
+            usuario.updatedAt = DateTime.now();
             await _isarService.guardarUsuario(usuario);
 
-            debugPrint(
-                '✅ Usuario "${usuario.nombre}" actualizado en public.usuarios');
+            debugPrint('✅ "${usuario.nombre}" actualizado en Supabase');
             sincronizados++;
-            continue;
-          }
-
-          // ============================================================
-          // CASO 2: No tiene supabaseId → recuperar o crear
-          // ============================================================
-
-          if (usuario.email == null || usuario.email!.isEmpty) {
+          } on AuthApiException catch (e) {
+            // Token expirado o sesión inválida durante el update
             debugPrint(
-                '⚠️ Usuario "${usuario.nombre}" sin email. No se sincroniza.');
-            continue;
-          }
-
-          final existingByEmail = await _supabase
-              .from('usuarios')
-              .select('id')
-              .eq('email', usuario.email!)
-              .maybeSingle();
-
-          if (existingByEmail != null) {
-            final recoveredUuid = existingByEmail['id'] as String;
-            usuario.supabaseId = recoveredUuid;
-            await _isarService.guardarUsuario(usuario);
-            debugPrint(
-                '✅ UUID recuperado para "${usuario.nombre}" desde public.usuarios: $recoveredUuid');
-            recuperados++;
-            sincronizados++;
-            continue;
-          }
-
-          // ═══════════════════════════════════════════════════════════
-          // ✅ FIX: Usuario sin password → no se puede crear en auth,
-          //    pero lo marcamos claramente para que el usuario sepa que
-          //    debe asignarle una contraseña desde el formulario.
-          // ═══════════════════════════════════════════════════════════
-          if (usuario.password == null || usuario.password!.isEmpty) {
-            debugPrint('⚠️ Usuario "${usuario.nombre}" sin password. '
-                'Omitido. Debe asignársele una contraseña desde el formulario de usuarios '
-                'para poder sincronizarlo con auth.users.');
-            continue;
-          }
-
-          try {
-            final tenantId = usuario.tenantId ?? getTenantIdFromJWT();
-            if (tenantId == null) {
+                '⚠️ Auth error al actualizar "${usuario.nombre}": ${e.message}');
+            errores++;
+          } on PostgrestException catch (e) {
+            // 42501 = RLS bloqueó. Puede ser usuario de otro tenant.
+            if (e.code == '42501') {
               debugPrint(
-                  '⚠️ Usuario "${usuario.nombre}" sin tenant_id. Saltando signUp.');
-              continue;
+                  '⚠️ RLS bloqueó update de "${usuario.nombre}". Skip.');
+              omitidos++;
+            } else {
+              debugPrint(
+                  '❌ PostgREST error para "${usuario.nombre}": ${e.message}');
+              errores++;
             }
+          }
+          continue;
+        }
 
-            final response = await _supabase.auth.signUp(
-              email: usuario.email!,
-              password: usuario.password!,
-              data: {
-                'nombre': usuario.nombre,
-                'rol': usuario.rol,
-                'pin': usuario.pin,
-                'tenant_id': tenantId,
-              },
-            );
-            if (response.user != null) {
-              usuario.supabaseId = response.user!.id;
+        // ══════════════════════════════════════════════════════════
+        // CASO 2: Sin supabaseId → recuperar o crear
+        // ══════════════════════════════════════════════════════════
+        if (usuario.email == null || usuario.email!.isEmpty) {
+          debugPrint('⚠️ "${usuario.nombre}" sin email. Skip.');
+          omitidos++;
+          continue;
+        }
+
+        final existingByEmail = await _supabase
+            .from('usuarios')
+            .select('id')
+            .eq('email', usuario.email!)
+            .maybeSingle();
+
+        if (existingByEmail != null) {
+          usuario.supabaseId = existingByEmail['id'] as String;
+          usuario.sincronizado = true;
+          usuario.fechaSincronizacion = DateTime.now();
+          await _isarService.guardarUsuario(usuario);
+          debugPrint(
+              '✅ UUID recuperado para "${usuario.nombre}": ${usuario.supabaseId}');
+          recuperados++;
+          sincronizados++;
+          continue;
+        }
+
+        if (usuario.password == null || usuario.password!.isEmpty) {
+          debugPrint(
+              '⚠️ "${usuario.nombre}" sin password. No se puede crear en Auth. Skip.');
+          omitidos++;
+          continue;
+        }
+
+        try {
+          final tenantId = usuario.tenantId ?? getTenantIdFromJWT();
+          if (tenantId == null) {
+            debugPrint('⚠️ "${usuario.nombre}" sin tenant_id. Skip.');
+            omitidos++;
+            continue;
+          }
+
+          final response = await _supabase.auth.signUp(
+            email: usuario.email!,
+            password: usuario.password!,
+            data: {
+              'nombre': usuario.nombre,
+              'rol': usuario.rol,
+              'pin': usuario.pin,
+              'tenant_id': tenantId,
+            },
+          );
+
+          if (response.user != null) {
+            usuario.supabaseId = response.user!.id;
+            usuario.sincronizado = true;
+            usuario.fechaSincronizacion = DateTime.now();
+            await _isarService.guardarUsuario(usuario);
+            debugPrint(
+                '✅ "${usuario.nombre}" creado en auth.users (${usuario.supabaseId})');
+            sincronizados++;
+          } else {
+            debugPrint(
+                '⚠️ "${usuario.nombre}" response.user = null. Skip.');
+            omitidos++;
+          }
+        } on AuthApiException catch (e) {
+          final yaExiste = e.code == 'user_already_exists' ||
+              e.statusCode == '422' ||
+              e.message.toLowerCase().contains('already registered');
+
+          if (yaExiste) {
+            await Future.delayed(const Duration(milliseconds: 500));
+            final retryLookup = await _supabase
+                .from('usuarios')
+                .select('id')
+                .eq('email', usuario.email!)
+                .maybeSingle();
+
+            if (retryLookup != null) {
+              usuario.supabaseId = retryLookup['id'] as String;
+              usuario.sincronizado = true;
+              usuario.fechaSincronizacion = DateTime.now();
               await _isarService.guardarUsuario(usuario);
               debugPrint(
-                  '✅ Usuario "${usuario.nombre}" creado en auth.users (ID: ${usuario.supabaseId})');
+                  '✅ UUID recuperado tras 422 para "${usuario.nombre}"');
+              recuperados++;
               sincronizados++;
             } else {
               debugPrint(
-                  '⚠️ Usuario "${usuario.nombre}" no se pudo crear en auth (response.user = null)');
+                  '❌ "${usuario.nombre}" existe en auth pero no en public.usuarios. '
+                  'Revisar trigger on_auth_user_created.');
+              errores++;
             }
-          } on AuthApiException catch (e) {
-            final esUserAlreadyExists = e.code == 'user_already_exists' ||
-                e.statusCode == '422' ||
-                e.message.toLowerCase().contains('already registered');
-
-            if (esUserAlreadyExists) {
-              debugPrint(
-                  '⚠️ Usuario "${usuario.nombre}" ya existe en auth. Recuperando UUID...');
-
-              await Future.delayed(const Duration(milliseconds: 500));
-
-              final retryLookup = await _supabase
-                  .from('usuarios')
-                  .select('id')
-                  .eq('email', usuario.email!)
-                  .maybeSingle();
-
-              if (retryLookup != null) {
-                final recoveredUuid = retryLookup['id'] as String;
-                usuario.supabaseId = recoveredUuid;
-                await _isarService.guardarUsuario(usuario);
-                debugPrint(
-                    '✅ UUID recuperado tras 422 para "${usuario.nombre}": $recoveredUuid');
-                recuperados++;
-                sincronizados++;
-              } else {
-                debugPrint(
-                    '❌ Usuario "${usuario.nombre}" existe en auth pero no en public.usuarios. '
-                    'Requiere intervención manual (revisar trigger on_auth_user_created).');
-              }
-            } else {
-              debugPrint(
-                  '❌ Error auth para "${usuario.nombre}": ${e.message} (code: ${e.code})');
-            }
-          } catch (e) {
-            debugPrint('❌ Error inesperado creando "${usuario.nombre}": $e');
+          } else {
+            debugPrint(
+                '❌ Auth error para "${usuario.nombre}": ${e.message} (${e.code})');
+            errores++;
           }
-        } catch (e, stack) {
-          debugPrint('⚠️ Error procesando usuario "${usuario.nombre}": $e');
-          ErrorService.captureError(e,
-              stack: stack, hint: 'sincronizarUsuario_individual_fallo');
-        }
-      }
-
-      debugPrint(
-          '✅ $sincronizados usuarios sincronizados ($recuperados UUIDs recuperados)');
-      onDataChanged?.call();
-    } catch (e, stack) {
-      debugPrint('❌ Error general sincronizando usuarios: $e');
-      ErrorService.captureError(e,
-          stack: stack, hint: 'sincronizarUsuariosASupabase_fallo');
-    }
-  }
-
-  Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
-    try {
-      // Buscar usuarios con id_isar null o 0
-      final huerfanos = await _supabase
-          .from('usuarios')
-          .select('id, nombre, email')
-          .or('id_isar.is.null,id_isar.eq.0');
-
-      if (huerfanos.isEmpty) {
-        debugPrint('✅ No hay usuarios huérfanos en Supabase');
-        return 0;
-      }
-
-      debugPrint(
-          '🧹 Encontrados ${huerfanos.length} usuarios huérfanos en Supabase:');
-
-      int eliminados = 0;
-      for (var huerfano in huerfanos) {
-        final uuid = huerfano['id'] as String?;
-        final nombre = huerfano['nombre'] ?? 'sin nombre';
-        if (uuid == null) continue;
-
-        try {
-          await _supabase.from('usuarios').delete().eq('id', uuid);
-          eliminados++;
-          debugPrint('🗑️ Huérfano eliminado: "$nombre" (id: $uuid)');
         } catch (e) {
-          debugPrint('⚠️ No se pudo eliminar huérfano "$nombre": $e');
+          debugPrint('❌ Error inesperado creando "${usuario.nombre}": $e');
+          errores++;
         }
+      } catch (e, stack) {
+        debugPrint('⚠️ Error procesando "${usuario.nombre}": $e');
+        errores++;
+        ErrorService.captureError(e,
+            stack: stack, hint: 'sincronizarUsuario_individual_fallo');
       }
+    }
 
-      debugPrint('✅ $eliminados usuarios huérfanos limpiados');
-      return eliminados;
-    } catch (e, stack) {
-      debugPrint('❌ Error limpiando huérfanos: $e');
-      ErrorService.captureError(e,
-          stack: stack, hint: 'limpiarUsuariosHuerfanosEnSupabase_fallo');
+    debugPrint(
+        '✅ Usuarios: $sincronizados sync · $recuperados UUIDs · $omitidos omitidos · $errores errores');
+    onDataChanged?.call();
+  } catch (e, stack) {
+    debugPrint('❌ Error general sincronizando usuarios: $e');
+    ErrorService.captureError(e,
+        stack: stack, hint: 'sincronizarUsuariosASupabase_fallo');
+  }
+}
+
+  /// Limpia SOLO los huérfanos verdaderos de `public.usuarios`:
+///   - Sin `id_isar` (o id_isar = 0)
+///   - NO es el usuario autenticado actual
+///   - NO tiene contraparte válida en auth.users
+///
+/// Antes se borraba cualquier row con id_isar null, lo cual podía
+/// eliminar usuarios creados desde el Supabase Dashboard (que aún no
+/// se han vinculado a un Isar local).
+Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
+  try {
+    final currentUuid = _supabase.auth.currentUser?.id;
+
+    final huerfanos = await _supabase
+        .from('usuarios')
+        .select('id, nombre, email')
+        .or('id_isar.is.null,id_isar.eq.0');
+
+    if (huerfanos.isEmpty) {
+      debugPrint('✅ No hay usuarios huérfanos en Supabase');
       return 0;
     }
+
+    debugPrint(
+        '🧹 Analizando ${huerfanos.length} candidatos a huérfanos...');
+
+    int eliminados = 0;
+    int conservados = 0;
+
+    for (final huerfano in huerfanos) {
+      final uuid = huerfano['id'] as String?;
+      final nombre = huerfano['nombre'] ?? 'sin nombre';
+
+      if (uuid == null) continue;
+
+      // ✅ Nunca borrar el usuario autenticado actual
+      if (uuid == currentUuid) {
+        debugPrint('🛡️ Conservando usuario actual: "$nombre" ($uuid)');
+        conservados++;
+        continue;
+      }
+
+      // ✅ Verificar si existe en auth.users
+      bool existeEnAuth = false;
+      try {
+        final authUser =
+            await _supabase.auth.admin.getUserById(uuid);
+        existeEnAuth = authUser.user != null;
+      } catch (_) {
+        // Si el admin API falla, asumimos que NO existe para no borrar de más
+        existeEnAuth = false;
+      }
+
+      if (existeEnAuth) {
+        debugPrint('🛡️ Conservando "$nombre" (existe en auth.users)');
+        conservados++;
+        continue;
+      }
+
+      // ✅ Es un huérfano verdadero → borrar
+      try {
+        await _supabase.from('usuarios').delete().eq('id', uuid);
+        eliminados++;
+        debugPrint('🗑️ Huérfano eliminado: "$nombre" ($uuid)');
+      } catch (e) {
+        debugPrint('⚠️ No se pudo eliminar "$nombre": $e');
+      }
+    }
+
+    debugPrint(
+        '✅ Limpieza: $eliminados eliminados · $conservados conservados');
+    return eliminados;
+  } catch (e, stack) {
+    debugPrint('❌ Error limpiando huérfanos: $e');
+    ErrorService.captureError(e,
+        stack: stack, hint: 'limpiarUsuariosHuerfanosEnSupabase_fallo');
+    return 0;
   }
+}
 
   Future<void> sincronizarUsuariosDesdeSupabase() async {
     try {
@@ -765,56 +807,115 @@ class SyncService {
       return [];
     }
   }
+Future<bool> actualizarEstadoUsuarioEnSupabase(
+  int userIdIsar,
+  String nuevoEstado, {
+  String? supabaseId,
+}) async {
+  try {
+    final payload = {
+      'estado': nuevoEstado,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
 
-  Future<bool> actualizarEstadoUsuarioEnSupabase(
-      int userId, String nuevoEstado) async {
-    try {
-      final response = await _supabase
+    final List<dynamic> response;
+
+    if (supabaseId != null && supabaseId.isNotEmpty) {
+      response = await _supabase
           .from('usuarios')
-          .update({'estado': nuevoEstado})
-          .eq('id_isar', userId)
+          .update(payload)
+          .eq('id', supabaseId)
           .select();
-      return response.isNotEmpty;
-    } catch (e, stack) {
-      debugPrint('❌ Error actualizando estado usuario: $e');
-      ErrorService.captureError(e,
-          stack: stack,
-          hint: 'actualizarEstadoUsuarioEnSupabase_fallo',
-          extras: {'userId': userId, 'nuevoEstado': nuevoEstado});
-      return false;
+    } else {
+      response = await _supabase
+          .from('usuarios')
+          .update(payload)
+          .eq('id_isar', userIdIsar)
+          .select();
     }
-  }
 
-  Future<bool> eliminarUsuarioEnSupabase(int userId) async {
-    try {
-      final response = await _supabase
+    return response.isNotEmpty;
+  } catch (e, stack) {
+    debugPrint('❌ Error actualizando estado usuario: $e');
+    ErrorService.captureError(e,
+        stack: stack,
+        hint: 'actualizarEstadoUsuarioEnSupabase_fallo',
+        extras: {'userIdIsar': userIdIsar, 'nuevoEstado': nuevoEstado});
+    return false;
+  }
+}
+
+/// Elimina un usuario en Supabase.
+///
+/// Si se pasa `supabaseId`, prioriza UUID. Si no, fallback a `id_isar`.
+Future<bool> eliminarUsuarioEnSupabase(
+  int userIdIsar, {
+  String? supabaseId,
+}) async {
+  try {
+    final List<dynamic> response;
+
+    if (supabaseId != null && supabaseId.isNotEmpty) {
+      response = await _supabase
           .from('usuarios')
           .delete()
-          .eq('id_isar', userId)
+          .eq('id', supabaseId)
           .select();
-      return response.isNotEmpty;
-    } catch (e, stack) {
-      debugPrint('❌ Error eliminando usuario en Supabase: $e');
-      ErrorService.captureError(e,
-          stack: stack,
-          hint: 'eliminarUsuarioEnSupabase_fallo',
-          extras: {'userId': userId});
-      return false;
+    } else {
+      response = await _supabase
+          .from('usuarios')
+          .delete()
+          .eq('id_isar', userIdIsar)
+          .select();
     }
+
+    return response.isNotEmpty;
+  } catch (e, stack) {
+    debugPrint('❌ Error eliminando usuario en Supabase: $e');
+    ErrorService.captureError(e,
+        stack: stack,
+        hint: 'eliminarUsuarioEnSupabase_fallo',
+        extras: {'userIdIsar': userIdIsar});
+    return false;
   }
 
-  Stream<List<UsuarioEntity>> streamUsuariosEnTiempoReal() {
-    return _supabase.from('usuarios').stream(primaryKey: ['id']).map((data) {
-      return data.map<UsuarioEntity>((row) {
-        return UsuarioEntity()
-          ..id = row['id_isar'] as int
-          ..nombre = row['nombre'] as String
-          ..rol = row['rol'] as String
-          ..estado = row['estado'] as String? ?? 'inactivo'
-          ..deviceId = row['device_id'] as String? ?? '';
-      }).toList();
-    });
+}
+/// Sube los usuarios marcados como NO sincronizados.
+///
+/// Ahora reusa el flujo completo (`sincronizarUsuariosASupabase`),
+/// en vez de solo actualizar `pin`. Así también sube nombre, rol,
+/// caja, estado, etc.
+Future<void> subirUsuariosPendientes() async {
+  if (!await _tieneSesionSupabaseValida()) {
+    debugPrint('⚠️ Sin sesión válida. subirUsuariosPendientes omitido.');
+    return;
   }
+
+  final pendientes = await _isarService.obtenerUsuariosNoSincronizados();
+  if (pendientes.isEmpty) {
+    debugPrint('ℹ️ No hay usuarios pendientes de subir');
+    return;
+  }
+
+  debugPrint('🔄 Subiendo ${pendientes.length} usuarios pendientes...');
+  await sincronizarUsuariosASupabase();
+}
+
+ Stream<List<UsuarioEntity>> streamUsuariosEnTiempoReal() {
+  return _supabase.from('usuarios').stream(primaryKey: ['id']).map((data) {
+    return data.map<UsuarioEntity>((row) {
+      return UsuarioEntity()
+        ..id = _toInt(row['id_isar']) // ✅ ya no castea directo
+        ..nombre = row['nombre'] as String? ?? ''
+        ..rol = row['rol'] as String? ?? 'cajero'
+        ..estado = row['estado'] as String? ?? 'inactivo'
+        ..deviceId = row['device_id'] as String? ?? ''
+        ..supabaseId = row['id'] as String?;
+    }).toList();
+  });
+  }
+
+  
 
   // ============================================================
   // PROVEEDORES
@@ -3921,36 +4022,6 @@ class SyncService {
     return session != null;
   }
 
-  Future<void> subirUsuariosPendientes() async {
-    if (!await _tieneSesionSupabaseValida()) return;
-
-    final usuariosPendientes =
-        await _isarService.obtenerUsuariosNoSincronizados();
-
-    for (final user in usuariosPendientes) {
-      // ✅ Sin supabaseId no podemos hacer update — lo saltamos.
-      final uuid = user.supabaseId;
-      if (uuid == null || uuid.isEmpty) {
-        debugPrint(
-            '⚠️ Usuario "${user.nombre}" sin supabaseId. No se puede subir PIN.');
-        continue;
-      }
-
-      try {
-        await Supabase.instance.client
-            .from('usuarios')
-            .update({'pin': user.pin}).eq('id', uuid);
-
-        user.sincronizado = true;
-        user.fechaSincronizacion = DateTime.now();
-        await _isarService.guardarUsuario(user);
-
-        debugPrint('✅ PIN/Usuario sincronizado diferido: ${user.email}');
-      } catch (e) {
-        debugPrint('❌ Fallo al subir cambio diferido de usuario: $e');
-      }
-    }
-  }
 
   // ============================================================
   // SINCRONIZACIÓN COMPLETA
