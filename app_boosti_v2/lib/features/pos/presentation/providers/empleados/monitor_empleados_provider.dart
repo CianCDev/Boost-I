@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/Local/entities/isar_service.dart';
+import '../../../data/Local/entities/json_utils.dart';
 import '../../../data/Local/entities/usuario_entity.dart';
 import '../../services/sync_service.dart';
 import '../isar_provider.dart';
@@ -115,7 +116,7 @@ class MonitorEmpleadosNotifier extends StateNotifier<MonitorEmpleadosState> {
 
     final Map<int, String> estadosNube = {};
     for (final row in nube) {
-      final id = row['id_isar'] as int?;
+      final id = safeInt(row['id_isar']);
       if (id != null) {
         final raw = (row['estado'] as String?)?.toLowerCase().trim();
         if (raw != null && raw.isNotEmpty) {

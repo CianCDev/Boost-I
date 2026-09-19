@@ -1,5 +1,6 @@
 // lib/features/pos/data/Local/entities/lote_entity.dart
 import 'package:isar/isar.dart';
+import 'json_utils.dart';
 
 part 'lote_entity.g.dart';
 
@@ -63,9 +64,9 @@ class LoteEntity {
     int? localIdResuelto,
   }) {
     return LoteEntity()
-      ..id = json['id_isar'] as int? ?? Isar.autoIncrement
+      ..id = safeInt(json['id_isar']) ?? Isar.autoIncrement
       ..supabaseId = json['id'] as String?
-      ..productoId = json['producto_id_fk'] as int
+      ..productoId = safeInt(json['producto_id_fk']) ?? 0
       ..localId = localIdResuelto
       ..codigoLoteProveedor = json['codigo_lote_proveedor'] as String?
       ..cantidadInicial = (json['cantidad_inicial'] as num?)?.toDouble() ?? 0.0
