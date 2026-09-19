@@ -9,6 +9,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   file_selector_windows
   isar_flutter_libs
   permission_handler_windows
+  restart_app
   sentry_flutter
   share_plus
   url_launcher_windows
