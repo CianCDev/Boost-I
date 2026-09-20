@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/json_utils.dart';
 import '../utils/responsive_helper.dart';
 import '../services/sync_service.dart';
 
@@ -10,7 +11,8 @@ class EmployeeMonitorDialog extends ConsumerStatefulWidget {
   const EmployeeMonitorDialog({super.key});
 
   @override
-  ConsumerState<EmployeeMonitorDialog> createState() => _EmployeeMonitorDialogState();
+  ConsumerState<EmployeeMonitorDialog> createState() =>
+      _EmployeeMonitorDialogState();
 }
 
 class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
@@ -73,7 +75,7 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
 
       final Map<int, String> estadosNube = {};
       for (var row in nubeUsuarios) {
-        final id = row['id_isar'] as int?;
+        final id = safeInt(row['id_isar']);
         if (id != null) {
           estadosNube[id] = (row['estado'] as String? ?? 'inactivo');
         }
@@ -86,7 +88,8 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
           // Si el estado local difiere del de la nube, actualizamos
           if (local.estado != estadoNube) {
             await _isarService.actualizarEstadoUsuario(local.id, estadoNube);
-            debugPrint('🔄 Monitor: ${local.nombre} actualizado de ${local.estado} a $estadoNube');
+            debugPrint(
+                '🔄 Monitor: ${local.nombre} actualizado de ${local.estado} a $estadoNube');
           }
         }
       }
@@ -101,7 +104,11 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
       final todos = await _isarService.obtenerUsuarios();
 
       // Extraer departamentos únicos
-      final depts = todos.map((u) => u.departamento ?? '').where((d) => d.isNotEmpty).toSet().toList();
+      final depts = todos
+          .map((u) => u.departamento ?? '')
+          .where((d) => d.isNotEmpty)
+          .toSet()
+          .toList();
       depts.sort();
 
       setState(() {
@@ -110,8 +117,11 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
           _departamentoSeleccionado = depts.first;
         }
         List<UsuarioEntity> filtrados = todos;
-        if (_departamentoSeleccionado != null && _departamentoSeleccionado!.isNotEmpty) {
-          filtrados = todos.where((u) => u.departamento == _departamentoSeleccionado).toList();
+        if (_departamentoSeleccionado != null &&
+            _departamentoSeleccionado!.isNotEmpty) {
+          filtrados = todos
+              .where((u) => u.departamento == _departamentoSeleccionado)
+              .toList();
         }
         _usuarios = filtrados;
         _isLoading = false;
@@ -131,8 +141,8 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
 
-    final double dialogWidth = isMobile 
-        ? MediaQuery.of(context).size.width * 0.92 
+    final double dialogWidth = isMobile
+        ? MediaQuery.of(context).size.width * 0.92
         : (isTablet ? 700 : 600);
     final double dialogMaxHeight = MediaQuery.of(context).size.height * 0.85;
 
@@ -140,8 +150,8 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
         side: BorderSide(
-          color: theme.brightness == Brightness.dark 
-              ? Colors.grey.shade700 
+          color: theme.brightness == Brightness.dark
+              ? Colors.grey.shade700
               : Colors.transparent,
           width: 1,
         ),
@@ -181,8 +191,8 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                   ),
                   child: Icon(
                     Icons.people_alt_rounded,
-                    color: theme.brightness == Brightness.dark 
-                        ? Colors.blue.shade300 
+                    color: theme.brightness == Brightness.dark
+                        ? Colors.blue.shade300
                         : const Color(0xFF3B82F6),
                     size: isMobile ? 20 : 24,
                   ),
@@ -199,16 +209,20 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: const Color(0xFF10B981).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF10B981), width: 1),
+                    border:
+                        Border.all(color: const Color(0xFF10B981), width: 1),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.autorenew_rounded, color: const Color(0xFF10B981), size: isMobile ? 12 : 16),
+                      Icon(Icons.autorenew_rounded,
+                          color: const Color(0xFF10B981),
+                          size: isMobile ? 12 : 16),
                       const SizedBox(width: 4),
                       Text(
                         'AUTO',
@@ -223,7 +237,8 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: Icon(Icons.close_rounded, size: 28, color: theme.textTheme.bodyLarge?.color),
+                  icon: Icon(Icons.close_rounded,
+                      size: 28, color: theme.textTheme.bodyLarge?.color),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -233,7 +248,8 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
               'Actualización automática cada 5 segundos',
               style: TextStyle(
                 fontSize: isMobile ? 12 : 14,
-                color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                color:
+                    theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
               ),
             ),
             const SizedBox(height: 16),
@@ -241,14 +257,16 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
             if (_departamentos.length > 1)
               Row(
                 children: [
-                  const Text('Departamento: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('Departamento: ',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   Expanded(
                     child: DropdownButton<String>(
                       value: _departamentoSeleccionado,
                       isExpanded: true,
                       items: [
                         const DropdownMenuItem(value: '', child: Text('Todos')),
-                        ..._departamentos.map((d) => DropdownMenuItem(value: d, child: Text(d))),
+                        ..._departamentos.map(
+                            (d) => DropdownMenuItem(value: d, child: Text(d))),
                       ],
                       onChanged: (value) {
                         setState(() {
@@ -270,17 +288,21 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                 onRefresh: _cargarUsuarios,
                 color: const Color(0xFF10B981),
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))
+                    ? const Center(
+                        child:
+                            CircularProgressIndicator(color: Color(0xFF3B82F6)))
                     : _error != null
                         ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
+                                Icon(Icons.error_outline,
+                                    size: 48, color: theme.colorScheme.error),
                                 const SizedBox(height: 12),
                                 Text(
                                   'Error al cargar empleados',
-                                  style: TextStyle(color: theme.colorScheme.error),
+                                  style:
+                                      TextStyle(color: theme.colorScheme.error),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
@@ -309,17 +331,21 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.people_outline, size: 48, color: theme.disabledColor),
+                                    Icon(Icons.people_outline,
+                                        size: 48, color: theme.disabledColor),
                                     const SizedBox(height: 12),
                                     Text(
                                       'No hay empleados registrados',
-                                      style: TextStyle(color: theme.textTheme.bodyMedium?.color),
+                                      style: TextStyle(
+                                          color: theme
+                                              .textTheme.bodyMedium?.color),
                                     ),
                                   ],
                                 ),
                               )
                             : ListView.separated(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 4),
                                 itemCount: _usuarios.length,
                                 separatorBuilder: (context, index) => Divider(
                                   color: theme.dividerColor,
@@ -328,8 +354,11 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                 itemBuilder: (context, index) {
                                   final usuario = _usuarios[index];
                                   final isActive = usuario.estado == 'activo';
-                                  final isDescanso = usuario.estado == 'descanso';
-                                  final isInactive = usuario.estado == 'inactivo' || usuario.estado == 'desconectado';
+                                  final isDescanso =
+                                      usuario.estado == 'descanso';
+                                  final isInactive =
+                                      usuario.estado == 'inactivo' ||
+                                          usuario.estado == 'desconectado';
 
                                   Color estadoColor;
                                   String estadoTexto;
@@ -344,9 +373,10 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                     estadoTexto = 'En Descanso';
                                     estadoIcon = Icons.coffee;
                                   } else {
-                                    estadoColor = theme.brightness == Brightness.dark
-                                        ? Colors.grey.shade500
-                                        : const Color(0xFF64748B);
+                                    estadoColor =
+                                        theme.brightness == Brightness.dark
+                                            ? Colors.grey.shade500
+                                            : const Color(0xFF64748B);
                                     estadoTexto = 'Inactivo';
                                     estadoIcon = Icons.power_off;
                                   }
@@ -354,10 +384,12 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                   final isAdmin = usuario.rol == 'admin';
 
                                   return ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 0, vertical: 2),
                                     leading: CircleAvatar(
                                       radius: isMobile ? 20 : 24,
-                                      backgroundColor: estadoColor.withValues(alpha: 0.15),
+                                      backgroundColor:
+                                          estadoColor.withValues(alpha: 0.15),
                                       child: Icon(
                                         estadoIcon,
                                         color: estadoColor,
@@ -372,7 +404,8 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: isMobile ? 15 : 17,
-                                              color: theme.textTheme.bodyLarge?.color,
+                                              color: theme
+                                                  .textTheme.bodyLarge?.color,
                                             ),
                                             overflow: TextOverflow.ellipsis,
                                           ),
@@ -380,11 +413,17 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                         if (isAdmin && !isMobile) ...[
                                           const SizedBox(width: 8),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
-                                              borderRadius: BorderRadius.circular(4),
-                                              border: Border.all(color: const Color(0xFF3B82F6), width: 0.5),
+                                              color: const Color(0xFF3B82F6)
+                                                  .withValues(alpha: 0.15),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                              border: Border.all(
+                                                  color:
+                                                      const Color(0xFF3B82F6),
+                                                  width: 0.5),
                                             ),
                                             child: Text(
                                               'ADMIN',
@@ -396,19 +435,25 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                             ),
                                           ),
                                         ],
-                                        if (usuario.departamento != null && usuario.departamento!.isNotEmpty && !isMobile) ...[
+                                        if (usuario.departamento != null &&
+                                            usuario.departamento!.isNotEmpty &&
+                                            !isMobile) ...[
                                           const SizedBox(width: 8),
                                           Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: Colors.grey.withValues(alpha: 0.2),
-                                              borderRadius: BorderRadius.circular(4),
+                                              color: Colors.grey
+                                                  .withValues(alpha: 0.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
                                             ),
                                             child: Text(
                                               usuario.departamento!,
                                               style: TextStyle(
                                                 fontSize: isMobile ? 10 : 12,
-                                                color: theme.textTheme.bodySmall?.color,
+                                                color: theme
+                                                    .textTheme.bodySmall?.color,
                                               ),
                                             ),
                                           ),
@@ -421,7 +466,9 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                           'Rol: ${usuario.rol.toUpperCase()}',
                                           style: TextStyle(
                                             fontSize: isMobile ? 12 : 14,
-                                            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+                                            color: theme
+                                                .textTheme.bodyMedium?.color
+                                                ?.withValues(alpha: 0.7),
                                           ),
                                         ),
                                         const SizedBox(width: 12),
@@ -431,10 +478,13 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                             vertical: isMobile ? 2 : 4,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: estadoColor.withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(12),
+                                            color: estadoColor.withValues(
+                                                alpha: 0.15),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
                                             border: Border.all(
-                                              color: estadoColor.withValues(alpha: 0.3),
+                                              color: estadoColor.withValues(
+                                                  alpha: 0.3),
                                               width: 1,
                                             ),
                                           ),
@@ -469,7 +519,8 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
                                               shape: BoxShape.circle,
                                               boxShadow: [
                                                 BoxShadow(
-                                                  color: const Color(0xFF10B981).withValues(alpha: 0.5),
+                                                  color: const Color(0xFF10B981)
+                                                      .withValues(alpha: 0.5),
                                                   blurRadius: 8,
                                                   spreadRadius: 2,
                                                 ),

@@ -1,4 +1,5 @@
 import 'package:isar/isar.dart';
+import 'json_utils.dart';
 
 // ✅ CORREGIDO: Se añadieron comillas y se arregló el typo "enitity" -> "entity"
 part 'telegram_config_entity.g.dart';
@@ -10,7 +11,7 @@ class TelegramConfigEntity {
   int usuarioId = 0;
 
   // ✅ NUEVOS
-  String? tenantId;           // UUID del local/tenant
+  String? tenantId; // UUID del local/tenant
   String syncStatus = 'pending';
 
   String botToken = '';
@@ -56,8 +57,8 @@ class TelegramConfigEntity {
 
   factory TelegramConfigEntity.fromSupabase(Map<String, dynamic> json) {
     return TelegramConfigEntity()
-      ..id = json['id_isar'] as int? ?? Isar.autoIncrement
-      ..usuarioId = json['usuario_id'] as int? ?? 0
+      ..id = safeInt(json['id_isar']) ?? Isar.autoIncrement
+      ..usuarioId = safeInt(json['usuario_id']) ?? 0
       ..supabaseId = json['id'] as String?
       ..tenantId = json['tenant_id'] as String?
       ..syncStatus = json['sync_status'] as String? ?? 'pending'

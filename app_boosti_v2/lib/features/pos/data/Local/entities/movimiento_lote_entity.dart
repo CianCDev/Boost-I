@@ -1,5 +1,6 @@
 // lib/features/pos/data/Local/entities/movimiento_lote_entity.dart
 import 'package:isar/isar.dart';
+import 'json_utils.dart';
 
 part 'movimiento_lote_entity.g.dart';
 
@@ -8,16 +9,16 @@ class MovimientoLoteEntity {
   Id id = Isar.autoIncrement;
 
   @Index()
-   int loteId = 0;
+  int loteId = 0;
 
-   String tipo = ''; // 'activacion', 'venta', 'traspaso', 'devolucion'
+  String tipo = ''; // 'activacion', 'venta', 'traspaso', 'devolucion'
 
-   double cantidad = 0.0;
+  double cantidad = 0.0;
 
   @Index()
   DateTime fecha = DateTime.now();
 
-   int usuarioId = 0;
+  int usuarioId = 0;
 
   String? observaciones;
 
@@ -42,12 +43,12 @@ class MovimientoLoteEntity {
 
   factory MovimientoLoteEntity.fromSupabase(Map<String, dynamic> json) {
     return MovimientoLoteEntity()
-      ..id = json['id_isar'] as int? ?? Isar.autoIncrement
-      ..loteId = json['lote_id'] as int
+      ..id = safeInt(json['id_isar']) ?? Isar.autoIncrement
+      ..loteId = safeInt(json['lote_id']) ?? 0
       ..tipo = json['tipo'] as String
       ..cantidad = (json['cantidad'] as num).toDouble()
       ..fecha = DateTime.parse(json['fecha'] as String)
-      ..usuarioId = json['usuario_id'] as int
+      ..usuarioId = safeInt(json['usuario_id']) ?? 0
       ..observaciones = json['observaciones'] as String?
       ..sincronizado = json['sincronizado'] as bool? ?? false
       ..fechaSincronizacion = json['fecha_sincronizacion'] != null

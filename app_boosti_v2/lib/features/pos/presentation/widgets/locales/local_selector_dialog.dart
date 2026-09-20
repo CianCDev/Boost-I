@@ -2,6 +2,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -63,25 +64,58 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
   }
 
   Future<void> _cambiarLocal(String tenantId) async {
-    // No hacer nada si ya es el activo
-    final tenantActual = ref.read(tenantActualProvider).tenantId;
-    if (tenantId == tenantActual) {
-      return;
-    }
-
-    setState(() => _cambiandoTenantId = tenantId);
+    if (mounted) Navigator.of(context).pop();
 
     final ok = await ref.read(authProvider.notifier).cambiarLocal(tenantId);
 
     if (!mounted) return;
 
     if (ok) {
-      Navigator.of(context).pop(true);
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.restart_alt_rounded, color: Color(0xFF10B981)),
+                SizedBox(width: 8),
+                Text('Local cambiado'),
+              ],
+            ),
+            content: const Text(
+              'Se cambió al nuevo local. La aplicación se reiniciará '
+              'para aplicar los cambios correctamente.\n\n'
+              'Vuelve a iniciar sesión con tu PIN.',
+              style: TextStyle(height: 1.4),
+            ),
+            actions: [
+              ElevatedButton.icon(
+                onPressed: () {
+                  SystemNavigator.pop();
+                },
+                icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                label: const Text('Reiniciar ahora'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     } else {
-      setState(() {
-        _cambiandoTenantId = null;
-        _errorMessage = 'No se pudo cambiar de local. Intenta de nuevo.';
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo cambiar de local'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -484,8 +518,10 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
     required bool esActivo,
     required bool cambiando,
   }) {
-    final deshabilitado =
-        tenantId == null || esActivo || _cambiandoTenantId != null || _creandoLocal;
+    final deshabilitado = tenantId == null ||
+        esActivo ||
+        _cambiandoTenantId != null ||
+        _creandoLocal;
 
     return Material(
       color: Colors.transparent,
@@ -514,9 +550,8 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
                 height: 24,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: esActivo
-                      ? const Color(0xFF10B981)
-                      : Colors.transparent,
+                  color:
+                      esActivo ? const Color(0xFF10B981) : Colors.transparent,
                   border: esActivo
                       ? null
                       : Border.all(

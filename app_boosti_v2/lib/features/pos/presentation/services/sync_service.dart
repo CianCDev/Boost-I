@@ -3934,8 +3934,6 @@ Future<void> subirUsuariosPendientes() async {
 
   Future<int> repararImagenesFaltantes() async {
     try {
-      debugPrint('🔍 [SyncService] Iniciando reparación de imágenes...');
-
       // ✅ Obtener tenant activo
       final tenantId = getTenantIdFromJWT();
       if (tenantId == null || tenantId.isEmpty) {

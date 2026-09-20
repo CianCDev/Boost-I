@@ -6,7 +6,7 @@ part 'detalle_pedido_entity.g.dart';
 class DetallePedidoEntity {
   Id id = Isar.autoIncrement;
 
-  int? supabaseId;
+  String? supabaseId;
 
   @Index()
   int pedidoId = 0;
