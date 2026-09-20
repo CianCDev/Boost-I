@@ -270,40 +270,47 @@ class SyncService {
         if (usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
           final esUsuarioActual = usuario.supabaseId == currentUserId;
 
-          final existing = await _supabase
-              .from('usuarios')
-              .select('id, pin, updated_at, nombre')
-              .eq('id', usuario.supabaseId!)
-              .maybeSingle();
+          Map<String, dynamic>? existing;
+          try {
+            existing = await _supabase
+                .from('usuarios')
+                .select('id, pin, updated_at, nombre, estado')
+                .eq('id', usuario.supabaseId!)
+                .maybeSingle();
+          } catch (e) {
+            debugPrint('⚠️ Error consultando usuario por ID: $e');
+          }
 
-          // ── UUID fantasma → recovery por email ──
+          // ── UUID no visible (puede ser fantasma REAL o bloqueo de RLS) ──
           if (existing == null) {
             debugPrint(
-                '⚠️ Usuario "${usuario.nombre}" con supabaseId fantasma. Recuperando...');
+                '⚠️ Usuario "${usuario.nombre}" no visible por ID '
+                '(${usuario.supabaseId}). Intentando recovery por email...');
 
             if (usuario.email != null && usuario.email!.isNotEmpty) {
               try {
                 final byEmail = await _supabase
                     .from('usuarios')
-                    .select('id, pin, nombre')
+                    .select('id, pin, nombre, updated_at')
                     .eq('email', usuario.email!)
                     .maybeSingle();
 
                 if (byEmail != null) {
                   final realUuid = byEmail['id'] as String;
-                  final nombreNube = (byEmail['nombre'] as String? ?? '').trim();
+                  final nombreNube =
+                      (byEmail['nombre'] as String? ?? '').trim();
 
                   final yaEnUso = await _isarService
                       .obtenerUsuarioPorSupabaseId(realUuid);
                   final colisionaConOtro =
                       yaEnUso != null && yaEnUso.id != usuario.id;
-                  final nombreCoincide =
-                      nombreNube.toLowerCase() ==
-                          usuario.nombre.trim().toLowerCase();
+                  final nombreCoincide = nombreNube.toLowerCase() ==
+                      usuario.nombre.trim().toLowerCase();
 
                   if (colisionaConOtro || !nombreCoincide) {
                     debugPrint(
-                        '⚠️ COLISIÓN para "${usuario.nombre}". Se omite.');
+                        '⚠️ COLISIÓN para "${usuario.nombre}": el email '
+                        '"${usuario.email}" pertenece a otro usuario. Skip.');
                     omitidos++;
                     continue;
                   }
@@ -327,30 +334,42 @@ class SyncService {
               }
             }
 
-            // Limpiar UUID fantasma
-            usuario.supabaseId = null;
-            await _isarService.guardarUsuario(usuario);
-            omitidos++;
-            continue;
+            // ══════════════════════════════════════════════════════
+            // ✅ FIX CRÍTICO: NO borrar el UUID.
+            //
+            // Antes: `usuario.supabaseId = null; ... continue;`
+            // Eso destruía la vinculación local cuando simplemente
+            // había un bloqueo temporal de RLS (sesión expirada,
+            // tenant distinto, etc.) y provocaba DUPLICADOS en
+            // auth.users en el próximo ciclo.
+            //
+            // Ahora: preservamos el UUID. El update de abajo intentará
+            // escribirlo. Si el UUID era realmente inválido, el update
+            // retornará 0 filas silenciosamente y el usuario seguirá
+            // funcionando offline conservando su identidad.
+            // ══════════════════════════════════════════════════════
+            debugPrint(
+                '🛡️ UUID de "${usuario.nombre}" preservado. Se intentará update directo.');
+            // ↓ NO hacemos continue: caemos al update normal de abajo.
           }
 
           // ── Guard: last-write-wins por updated_at ──
-          //    Si el registro local NO fue tocado después del último
-          //    cambio remoto, no lo sobreescribimos.
-          final remoteUpdatedAt = existing['updated_at'] != null
-              ? DateTime.tryParse(existing['updated_at'].toString())
-              : null;
-          final localUpdatedAt = usuario.updatedAt;
+          if (existing != null) {
+            final remoteUpdatedAt = existing['updated_at'] != null
+                ? DateTime.tryParse(existing['updated_at'].toString())
+                : null;
+            final localUpdatedAt = usuario.updatedAt;
 
-          if (!esUsuarioActual &&
-              remoteUpdatedAt != null &&
-              localUpdatedAt != null &&
-              localUpdatedAt.isBefore(remoteUpdatedAt) &&
-              usuario.sincronizado) {
-            debugPrint(
-                'ℹ️ "${usuario.nombre}" ya está al día (nube más reciente). Skip.');
-            omitidos++;
-            continue;
+            if (!esUsuarioActual &&
+                remoteUpdatedAt != null &&
+                localUpdatedAt != null &&
+                localUpdatedAt.isBefore(remoteUpdatedAt) &&
+                usuario.sincronizado) {
+              debugPrint(
+                  'ℹ️ "${usuario.nombre}" ya está al día (nube más reciente). Skip.');
+              omitidos++;
+              continue;
+            }
           }
 
           // ── Resolver tenant ──
@@ -372,33 +391,54 @@ class SyncService {
           }
 
           if (tenantUuid == null || tenantUuid.isEmpty) {
-            debugPrint(
-                '⚠️ "${usuario.nombre}" sin tenant asignado. Skip.');
+            debugPrint('⚠️ "${usuario.nombre}" sin tenant asignado. Skip.');
             omitidos++;
             continue;
           }
 
           // ── Payload ──
-          final Map<String, dynamic> payload = {
+         final Map<String, dynamic> payload = {
             'nombre': usuario.nombre,
             'rol': usuario.rol,
             'email': usuario.email ?? '',
             'device_id': usuario.deviceId ?? '',
-            'estado': usuario.estado,
             'caja_asignada': usuario.cajaAsignada,
             'departamento': usuario.departamento,
             'tenant_id': tenantUuid,
             'updated_at': DateTime.now().toIso8601String(),
           };
 
+
+          if (esUsuarioActual) {
+              // Usuario actual: siempre sube su estado real
+              payload['estado'] = usuario.estado;
+            } else if (existing != null) {
+              final estadoNube = existing['estado'] as String?;
+              if (estadoNube != usuario.estado) {
+                // Cambio real pendiente → subimos
+                payload['estado'] = usuario.estado;
+                debugPrint(
+                    '📤 Estado de "${usuario.nombre}" actualizado: '
+                    '$estadoNube → ${usuario.estado}');
+              }
+              // Si son iguales, no lo incluimos (ahorra ancho de banda)
+            } else {
+              // existing == null y NO es el usuario actual → no tocamos el estado
+              debugPrint(
+                  '🛡️ Estado de "${usuario.nombre}" NO se sube (RLS oculta el actual)');
+            }
+
+          // Solo enviamos `pin` si difiere del que hay en la nube.
+          // Si `existing` es null (RLS), enviamos el pin local para no
+          // perder el cambio pendiente.
           final pinLocal = usuario.pin;
-          final pinNube = existing['pin'] as String?;
+          final pinNube = existing != null ? existing['pin'] as String? : null;
           if (pinLocal.isNotEmpty && pinLocal != pinNube) {
             payload['pin'] = pinLocal;
             debugPrint('📤 PIN actualizado para "${usuario.nombre}"');
           }
 
-          // ── Update (con manejo de AuthApiException) ──
+          // ── Update con manejo de excepciones ──
           try {
             await _supabase
                 .from('usuarios')
@@ -413,15 +453,13 @@ class SyncService {
             debugPrint('✅ "${usuario.nombre}" actualizado en Supabase');
             sincronizados++;
           } on AuthApiException catch (e) {
-            // Token expirado o sesión inválida durante el update
             debugPrint(
                 '⚠️ Auth error al actualizar "${usuario.nombre}": ${e.message}');
             errores++;
           } on PostgrestException catch (e) {
-            // 42501 = RLS bloqueó. Puede ser usuario de otro tenant.
             if (e.code == '42501') {
               debugPrint(
-                  '⚠️ RLS bloqueó update de "${usuario.nombre}". Skip.');
+                  '⚠️ RLS bloqueó update de "${usuario.nombre}". UUID preservado.');
               omitidos++;
             } else {
               debugPrint(
@@ -494,8 +532,7 @@ class SyncService {
                 '✅ "${usuario.nombre}" creado en auth.users (${usuario.supabaseId})');
             sincronizados++;
           } else {
-            debugPrint(
-                '⚠️ "${usuario.nombre}" response.user = null. Skip.');
+            debugPrint('⚠️ "${usuario.nombre}" response.user = null. Skip.');
             omitidos++;
           }
         } on AuthApiException catch (e) {
@@ -552,7 +589,6 @@ class SyncService {
         stack: stack, hint: 'sincronizarUsuariosASupabase_fallo');
   }
 }
-
   /// Limpia SOLO los huérfanos verdaderos de `public.usuarios`:
 ///   - Sin `id_isar` (o id_isar = 0)
 ///   - NO es el usuario autenticado actual
@@ -632,166 +668,203 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
   }
 }
 
-  Future<void> sincronizarUsuariosDesdeSupabase() async {
-    try {
-      final response = await _supabase
-          .from('usuarios')
-          .select()
-          .order('nombre', ascending: true);
+ Future<void> sincronizarUsuariosDesdeSupabase() async {
+  try {
+    final response = await _supabase
+        .from('usuarios')
+        .select()
+        .order('nombre', ascending: true);
 
-      if (response.isEmpty) {
-        debugPrint('ℹ️ No hay usuarios en Supabase para descargar');
-        return;
-      }
-
-      debugPrint(
-          '🔄 Descargando ${response.length} usuarios desde Supabase...');
-
-      final locales = await _isarService.obtenerUsuarios();
-      final Map<int, UsuarioEntity> localesMap = {
-        for (var u in locales) u.id: u,
-      };
-
-      for (var data in response) {
-        final idIsar = _toInt(data['id_isar']);
-        if (idIsar == 0) {
-          debugPrint('⚠️ Usuario sin id_isar, omitiendo: ${data['nombre']}');
-          continue;
-        }
-
-        // ✅ Convertir tenant_id (UUID) → localId (Isar int) una sola vez
-        final String? tenantUuid = data['tenant_id'] as String?;
-        int? localIdResuelto;
-        if (tenantUuid != null && tenantUuid.isNotEmpty) {
-          localIdResuelto = await _obtenerIsarIdLocal(tenantUuid);
-        }
-
-        final local = localesMap[idIsar];
-
-        if (local != null) {
-          // ============================================================
-          // USUARIO EXISTENTE → actualizar campos
-          // ============================================================
-          local.supabaseId = data['id'] as String?;
-          local.email = data['email'] as String? ?? local.email;
-          local.deviceId = data['device_id'] as String? ?? local.deviceId;
-          local.cajaAsignada =
-              data['caja_asignada'] as String? ?? local.cajaAsignada;
-          local.departamento =
-              data['departamento'] as String? ?? local.departamento;
-          // ✅ Después: solo sobreescribe el PIN si el que viene de la nube NO es null
-          // y NO es igual al local. Esto evita perder el hash local si Supabase
-          // tiene un pin plano legacy (que no debería usarse).
-          final pinNube = data['pin'] as String?;
-          if (pinNube != null && pinNube.isNotEmpty && pinNube != local.pin) {
-            // Si el pin de la nube está hasheado (sha256:...) → es la fuente de
-            // verdad, lo tomamos.
-            // Si el pin de la nube es plano → también lo tomamos, pero al
-            // guardarlo localmente se va a hashear de nuevo.
-            local.pin = pinNube;
-          }
-          local.rol = data['rol'] as String? ?? local.rol;
-
-          // ✅ tenantId directo (UUID)
-          if (tenantUuid != null && tenantUuid.isNotEmpty) {
-            local.tenantId = tenantUuid;
-          }
-          // ✅ localId resuelto (int)
-          if (localIdResuelto != null) {
-            local.localId = localIdResuelto;
-          }
-
-          // ✅ Campos nuevos
-          local.inicioDescanso = data['inicio_descanso'] != null
-              ? DateTime.tryParse(data['inicio_descanso'].toString())
-              : local.inicioDescanso;
-          local.minutosDescanso =
-              _toInt(data['minutos_descanso'], local.minutosDescanso ?? 0);
-          local.ultimaActividad = data['ultima_actividad'] != null
-              ? DateTime.tryParse(data['ultima_actividad'].toString())
-              : local.ultimaActividad;
-          local.ultimaActualizacion = data['ultimaActualizacion'] != null
-              ? DateTime.tryParse(data['ultimaActualizacion'].toString())
-              : local.ultimaActualizacion;
-
-          // ✅ Estado: no forzar 'inactivo' si viene estado desde nube
-          final estadoNube = data['estado'] as String?;
-          if (estadoNube != null && estadoNube.isNotEmpty) {
-            local.estado = estadoNube;
-            local.activo =
-                estadoNube != 'inactivo' && estadoNube != 'desconectado';
-          }
-
-          // ✅ created/updated
-          final creadoRaw = data['creado_en'] ?? data['created_at'];
-          if (creadoRaw != null) {
-            local.createdAt = DateTime.tryParse(creadoRaw.toString());
-          }
-          if (data['updated_at'] != null) {
-            local.updatedAt = DateTime.tryParse(data['updated_at'].toString());
-          }
-
-          local.sincronizado = true;
-          local.fechaSincronizacion = DateTime.now();
-
-          await _isarService.guardarUsuario(local);
-        } else {
-          // ============================================================
-          // USUARIO NUEVO → crear desde Supabase
-          // ============================================================
-          final nuevoUsuario = UsuarioEntity()
-            ..id = idIsar
-            ..nombre = data['nombre'] as String? ?? ''
-            ..pin = data['pin'] as String? ?? ''
-            ..rol = data['rol'] as String? ?? 'cajero'
-            ..activo = true
-            ..estado = data['estado'] as String? ?? 'inactivo'
-            ..cajaAsignada =
-                data['caja_asignada'] as String? ?? 'Caja Principal'
-            ..email = data['email'] as String?
-            ..deviceId = data['device_id'] as String? ?? ''
-            ..departamento = data['departamento'] as String?
-            ..supabaseId = data['id'] as String?
-            ..tenantId = tenantUuid
-            ..localId = localIdResuelto
-            ..inicioDescanso = data['inicio_descanso'] != null
-                ? DateTime.tryParse(data['inicio_descanso'].toString())
-                : null
-            ..minutosDescanso = data['minutos_descanso'] == null
-                ? null
-                : _toInt(data['minutos_descanso'])
-            ..ultimaActividad = data['ultima_actividad'] != null
-                ? DateTime.tryParse(data['ultima_actividad'].toString())
-                : null
-            ..ultimaActualizacion = data['ultimaActualizacion'] != null
-                ? DateTime.tryParse(data['ultimaActualizacion'].toString())
-                : null
-            ..createdAt = (data['creado_en'] ?? data['created_at']) != null
-                ? DateTime.tryParse(
-                    (data['creado_en'] ?? data['created_at']).toString())
-                : null
-            ..updatedAt = data['updated_at'] != null
-                ? DateTime.tryParse(data['updated_at'].toString())
-                : null
-            ..sincronizado = true
-            ..fechaSincronizacion = DateTime.now();
-
-          await _isarService.guardarUsuario(nuevoUsuario);
-        }
-      }
-
-      debugPrint('✅ Usuarios sincronizados desde Supabase');
-      onDataChanged?.call();
-    } catch (e, stack) {
-      debugPrint('❌ Error descargando usuarios: $e');
-      ErrorService.captureError(
-        e,
-        stack: stack,
-        hint: 'sincronizarUsuariosDesdeSupabase_fallo',
-      );
-      rethrow;
+    if (response.isEmpty) {
+      debugPrint('ℹ️ No hay usuarios en Supabase para descargar');
+      return;
     }
+
+    debugPrint('🔄 Descargando ${response.length} usuarios desde Supabase...');
+
+    final currentUid = _supabase.auth.currentUser?.id;
+
+    final locales = await _isarService.obtenerUsuarios();
+    final Map<int, UsuarioEntity> localesMap = {
+      for (var u in locales) u.id: u,
+    };
+
+    for (var data in response) {
+      final idIsar = _toInt(data['id_isar']);
+      if (idIsar == 0) {
+        debugPrint('⚠️ Usuario sin id_isar, omitiendo: ${data['nombre']}');
+        continue;
+      }
+
+      final String? tenantUuid = data['tenant_id'] as String?;
+      int? localIdResuelto;
+      if (tenantUuid != null && tenantUuid.isNotEmpty) {
+        localIdResuelto = await _obtenerIsarIdLocal(tenantUuid);
+      }
+
+      final local = localesMap[idIsar];
+
+      if (local != null) {
+        // ============================================================
+        // USUARIO EXISTENTE → actualizar campos
+        // ============================================================
+        local.supabaseId = data['id'] as String?;
+        local.email = data['email'] as String? ?? local.email;
+        local.deviceId = data['device_id'] as String? ?? local.deviceId;
+        local.cajaAsignada =
+            data['caja_asignada'] as String? ?? local.cajaAsignada;
+        local.departamento =
+            data['departamento'] as String? ?? local.departamento;
+
+        // ── PIN protegido si hay cambios pendientes ──
+        final pinNube = data['pin'] as String?;
+        if (pinNube != null &&
+            pinNube.isNotEmpty &&
+            pinNube != local.pin) {
+          if (local.sincronizado) {
+            local.pin = pinNube;
+          } else {
+            debugPrint(
+                '🛡️ PIN local de "${local.nombre}" protegido '
+                '(pendiente de sync a la nube)');
+          }
+        }
+
+        local.rol = data['rol'] as String? ?? local.rol;
+
+        if (tenantUuid != null && tenantUuid.isNotEmpty) {
+          local.tenantId = tenantUuid;
+        }
+        if (localIdResuelto != null) {
+          local.localId = localIdResuelto;
+        }
+
+        local.inicioDescanso = data['inicio_descanso'] != null
+            ? DateTime.tryParse(data['inicio_descanso'].toString())
+            : local.inicioDescanso;
+        local.minutosDescanso =
+            _toInt(data['minutos_descanso'], local.minutosDescanso ?? 0);
+        local.ultimaActividad = data['ultima_actividad'] != null
+            ? DateTime.tryParse(data['ultima_actividad'].toString())
+            : local.ultimaActividad;
+        local.ultimaActualizacion = data['ultimaActualizacion'] != null
+            ? DateTime.tryParse(data['ultimaActualizacion'].toString())
+            : local.ultimaActualizacion;
+
+        // ── Estado ──
+        final estadoNube = data['estado'] as String?;
+        if (estadoNube != null && estadoNube.isNotEmpty) {
+          local.estado = estadoNube;
+          local.activo =
+              estadoNube != 'inactivo' && estadoNube != 'desconectado';
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 🧹 AUTO-CLEANUP: usuarios fantasma activos
+        //
+        // Si un usuario que NO es el actual sigue marcado como `activo`
+        // en la nube pero su `ultimaActividad` es vieja (> 4h), lo
+        // forzamos a inactivo. Esto limpia el residuo de crashes sin
+        // logout y evita que el monitor muestre activos a usuarios
+        // que llevan horas sin tocar la caja.
+        // ═══════════════════════════════════════════════════════════════
+        if (estadoNube == 'activo' &&
+            local.supabaseId != null &&
+            local.supabaseId != currentUid) {
+          final ultima = local.ultimaActividad ?? local.updatedAt;
+          final esViejo = ultima == null ||
+              DateTime.now().difference(ultima).inHours >= 4;
+
+          if (esViejo) {
+            try {
+              await _supabase
+                  .from('usuarios')
+                  .update({'estado': 'inactivo'})
+                  .eq('id', local.supabaseId!);
+              local.estado = 'inactivo';
+              local.activo = false;
+              local.sincronizado = false; // forzar resync
+              debugPrint(
+                  '🧹 "${local.nombre}" llevaba activo desde '
+                  '${ultima?.toIso8601String() ?? "?"} → forzado a inactivo');
+            } catch (e) {
+              debugPrint(
+                  '⚠️ No se pudo limpiar usuario fantasma "${local.nombre}": $e');
+            }
+          }
+        }
+
+        // ── created/updated ──
+        final creadoRaw = data['creado_en'] ?? data['created_at'];
+        if (creadoRaw != null) {
+          local.createdAt = DateTime.tryParse(creadoRaw.toString());
+        }
+        if (data['updated_at'] != null) {
+          local.updatedAt = DateTime.tryParse(data['updated_at'].toString());
+        }
+
+        if (local.sincronizado) {
+          local.fechaSincronizacion = DateTime.now();
+        }
+
+        await _isarService.guardarUsuario(local);
+      } else {
+        // ============================================================
+        // USUARIO NUEVO → crear desde Supabase
+        // ============================================================
+        final nuevoUsuario = UsuarioEntity()
+          ..id = idIsar
+          ..nombre = data['nombre'] as String? ?? ''
+          ..pin = data['pin'] as String? ?? ''
+          ..rol = data['rol'] as String? ?? 'cajero'
+          ..activo = true
+          ..estado = data['estado'] as String? ?? 'inactivo'
+          ..cajaAsignada =
+              data['caja_asignada'] as String? ?? 'Caja Principal'
+          ..email = data['email'] as String?
+          ..deviceId = data['device_id'] as String? ?? ''
+          ..departamento = data['departamento'] as String?
+          ..supabaseId = data['id'] as String?
+          ..tenantId = tenantUuid
+          ..localId = localIdResuelto
+          ..inicioDescanso = data['inicio_descanso'] != null
+              ? DateTime.tryParse(data['inicio_descanso'].toString())
+              : null
+          ..minutosDescanso = data['minutos_descanso'] == null
+              ? null
+              : _toInt(data['minutos_descanso'])
+          ..ultimaActividad = data['ultima_actividad'] != null
+              ? DateTime.tryParse(data['ultima_actividad'].toString())
+              : null
+          ..ultimaActualizacion = data['ultimaActualizacion'] != null
+              ? DateTime.tryParse(data['ultimaActualizacion'].toString())
+              : null
+          ..createdAt = (data['creado_en'] ?? data['created_at']) != null
+              ? DateTime.tryParse(
+                  (data['creado_en'] ?? data['created_at']).toString())
+              : null
+          ..updatedAt = data['updated_at'] != null
+              ? DateTime.tryParse(data['updated_at'].toString())
+              : null
+          ..sincronizado = true
+          ..fechaSincronizacion = DateTime.now();
+
+        await _isarService.guardarUsuario(nuevoUsuario);
+      }
+    }
+
+    debugPrint('✅ Usuarios sincronizados desde Supabase');
+    onDataChanged?.call();
+  } catch (e, stack) {
+    debugPrint('❌ Error descargando usuarios: $e');
+    ErrorService.captureError(
+      e,
+      stack: stack,
+      hint: 'sincronizarUsuariosDesdeSupabase_fallo',
+    );
+    rethrow;
   }
+}
 
   Future<List<Map<String, dynamic>>> obtenerUsuariosDesdeSupabase() async {
     try {
@@ -3283,71 +3356,78 @@ Future<void> subirUsuariosPendientes() async {
   // ============================================================
 
   Future<void> sincronizarTelegramConfigPendientes() async {
-    try {
-      final pendientes =
-          await _isarService.obtenerTelegramConfigsPendientesSync();
-      if (pendientes.isEmpty) {
-        debugPrint('ℹ️ No hay configs de Telegram pendientes');
-        return;
-      }
-
-      // Resolver el tenant una sola vez (no por cada config).
-      final localActivo = await _isarService.obtenerLocalActivo();
-      final String? tenantUuid = localActivo?.supabaseId ??
-          (localActivo != null
-              ? await _obtenerSupabaseIdLocal(localActivo.id)
-              : null);
-
-      if (tenantUuid == null) {
-        debugPrint('⚠️ No hay local activo con UUID. Abortando sync Telegram.');
-        return;
-      }
-
-      debugPrint(
-          '🔄 Sincronizando ${pendientes.length} configs de Telegram...');
-
-      for (var config in pendientes) {
-        // ✅ Persistir tenantId en el entity antes de enviar.
-        config.tenantId = tenantUuid;
-
-        final data = config.toSupabaseJson();
-        // Aseguramos tenant_id en el payload.
-        data['tenant_id'] = tenantUuid;
-        data['sync_status'] = 'synced';
-        data['sincronizado'] = true;
-
-        try {
-          final response = await _supabase
-              .from('telegram_config')
-              .upsert(data, onConflict: 'tenant_id,usuario_id')
-              .select('id')
-              .maybeSingle();
-
-          final supabaseId = response?['id'] as String?;
-          if (supabaseId != null) {
-            config.supabaseId = supabaseId;
-            config.sincronizado = true;
-            config.syncStatus = 'synced';
-            config.fechaSincronizacion = DateTime.now();
-            await _isarService.guardarTelegramConfig(config);
-            debugPrint(
-                '✅ Config Telegram (usuario ${config.usuarioId}) sincronizada: $supabaseId');
-          } else {
-            debugPrint(
-                '⚠️ No se obtuvo ID de Supabase para usuario ${config.usuarioId}');
-          }
-        } catch (e) {
-          config.syncStatus = 'failed';
-          await _isarService.guardarTelegramConfig(config);
-          debugPrint('❌ Error sync config (usuario ${config.usuarioId}): $e');
-        }
-      }
-    } catch (e, stack) {
-      debugPrint('❌ Error general en sincronizarTelegramConfigPendientes: $e');
-      ErrorService.captureError(e,
-          stack: stack, hint: 'sincronizarTelegramConfigPendientes_fallo');
+  try {
+    final pendientes =
+        await _isarService.obtenerTelegramConfigsPendientesSync();
+    if (pendientes.isEmpty) {
+      debugPrint('ℹ️ No hay configs de Telegram pendientes');
+      return;
     }
+
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ✅ FIX 42501: usar el MISMO tenant_id que lee la RLS.
+    //
+    // La política `tenant_isolation` compara contra `current_tenant_id()`,
+    // que lee del JWT. Si enviamos un UUID distinto (por ejemplo, el del
+    // local guardado offline), la inserción es rechazada.
+    //
+    // `getTenantIdFromJWT()` decodifica el mismo campo del JWT, así que
+    // garantizamos que el valor coincida con lo que la política espera.
+    // ═══════════════════════════════════════════════════════════════════
+    final tenantJwt = getTenantIdFromJWT();
+    if (tenantJwt == null || tenantJwt.isEmpty) {
+      debugPrint(
+          '⚠️ JWT sin tenant_id. No se puede sincronizar Telegram '
+          '(RLS rechazará el insert).');
+      return;
+    }
+
+    debugPrint(
+        '🔄 Sincronizando ${pendientes.length} configs de Telegram '
+        '(tenant JWT: $tenantJwt)...');
+
+    for (var config in pendientes) {
+      // Persistimos el tenant JWT en el entity antes de enviar.
+      config.tenantId = tenantJwt;
+
+      final data = config.toSupabaseJson();
+      data['tenant_id'] = tenantJwt; // ← viene del JWT, no de la BD local
+      data['sync_status'] = 'synced';
+      data['sincronizado'] = true;
+
+      try {
+        final response = await _supabase
+            .from('telegram_config')
+            .upsert(data, onConflict: 'tenant_id,usuario_id')
+            .select('id')
+            .maybeSingle();
+
+        final supabaseId = response?['id'] as String?;
+        if (supabaseId != null) {
+          config.supabaseId = supabaseId;
+          config.sincronizado = true;
+          config.syncStatus = 'synced';
+          config.fechaSincronizacion = DateTime.now();
+          await _isarService.guardarTelegramConfig(config);
+          debugPrint(
+              '✅ Config Telegram (usuario ${config.usuarioId}) sincronizada: $supabaseId');
+        } else {
+          debugPrint(
+              '⚠️ No se obtuvo ID de Supabase para usuario ${config.usuarioId}');
+        }
+      } catch (e) {
+        config.syncStatus = 'failed';
+        await _isarService.guardarTelegramConfig(config);
+        debugPrint('❌ Error sync config (usuario ${config.usuarioId}): $e');
+      }
+    }
+  } catch (e, stack) {
+    debugPrint('❌ Error general en sincronizarTelegramConfigPendientes: $e');
+    ErrorService.captureError(e,
+        stack: stack, hint: 'sincronizarTelegramConfigPendientes_fallo');
   }
+}
 
   Future<void> descargarTelegramConfigDesdeSupabase() async {
     try {

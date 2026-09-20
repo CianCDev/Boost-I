@@ -36,84 +36,110 @@ class UsuariosNotifier extends StateNotifier<UsuarioEntity?> {
   }
 
   /// FIX #1: Login con PIN + Sesión Silenciosa en Supabase con validación de Tenant
-  Future<bool> loginWithPin(String pin) async {
-    final isar = IsarService();
-    
-    // 1️⃣ Validación local contra Isar
-    final usuarioValido = await isar.validarPin(pin);
-    if (usuarioValido == null) return false;
+ Future<bool> loginWithPin(String pin) async {
+  final isar = IsarService();
 
-    // Asignar al estado de Riverpod
-    state = usuarioValido;
+  // 1️⃣ Validación local contra Isar
+  final usuarioValido = await isar.validarPin(pin);
+  if (usuarioValido == null) return false;
 
-    // 2️⃣ Intentar sesión silenciosa en Supabase si hay credenciales
-    final email = usuarioValido.email;
-    final password = usuarioValido.password;
+  // Asignar al estado de Riverpod
+  state = usuarioValido;
 
-    if (email != null && email.isNotEmpty && password != null && password.isNotEmpty) {
-      try {
-        final sessionActual = Supabase.instance.client.auth.currentSession;
+  // 2️⃣ Intentar sesión silenciosa en Supabase si hay credenciales
+  final email = usuarioValido.email;
+  final password = usuarioValido.password;
 
-        // Solo autenticar si no hay sesión activa o está expirada
-        if (sessionActual == null || sessionActual.isExpired) {
-          final response = await Supabase.instance.client.auth.signInWithPassword(
-            email: email,
-            password: password,
-          );
+  if (email != null &&
+      email.isNotEmpty &&
+      password != null &&
+      password.isNotEmpty) {
+    try {
+      final sessionActual = Supabase.instance.client.auth.currentSession;
 
-          if (response.session != null) {
-            final token = response.session!.accessToken;
-            final tenantId = JwtService.extraerTenantId(token);
-            final rolJwt = JwtService.extraerRol(token);
+      // Solo autenticar si no hay sesión activa o está expirada
+      if (sessionActual == null || sessionActual.isExpired) {
+        final response =
+            await Supabase.instance.client.auth.signInWithPassword(
+          email: email,
+          password: password,
+        );
 
-            if (tenantId != null && tenantId.isNotEmpty) {
-              await _ref.read(tenantActualProvider.notifier).setTenant(
-                    tenantId,
-                    rol: rolJwt,
-                  );
-              debugPrint('✅ Sesión Supabase reestablecida. Tenant: $tenantId');
-            }
-          }
-        } else {
-          // Sesión activa: verificar que el tenant coincide
-          final tokenTenant = JwtService.extraerTenantId(sessionActual.accessToken);
-          final tenantActual = _ref.read(tenantActualProvider).tenantId;
+        if (response.session != null) {
+          final token = response.session!.accessToken;
+          final tenantId = JwtService.extraerTenantId(token);
+          final rolJwt = JwtService.extraerRol(token);
 
-          if (tokenTenant != null && tokenTenant != tenantActual) {
-            debugPrint(
-                '⚠️ Sesión actual tiene tenant $tokenTenant pero esperábamos $tenantActual. '
-                'Forzando signOut para re-login.');
-            await Supabase.instance.client.auth.signOut();
-            
-            // Opcional: Podrías forzar un nuevo signInWithPassword aquí si lo deseas
-          } else if (tokenTenant != null) {
-            // Si coincide, refrescamos el provider por si la app recién inicia
-            final rolJwt = JwtService.extraerRol(sessionActual.accessToken);
+          if (tenantId != null && tenantId.isNotEmpty) {
             await _ref.read(tenantActualProvider.notifier).setTenant(
-                  tokenTenant,
+                  tenantId,
                   rol: rolJwt,
                 );
+            debugPrint('✅ Sesión Supabase reestablecida. Tenant: $tenantId');
           }
         }
-      } catch (e) {
-        debugPrint('⚠️ Login silencioso Supabase falló (Modo Offline): $e');
-      }
-    } else {
-      // ✅ Sin credenciales: cerrar cualquier sesión huérfana
-      try {
-        final sesion = Supabase.instance.client.auth.currentSession;
-        if (sesion != null) {
-          debugPrint(
-              '🚪 Usuario sin password pero había sesión activa. Cerrando sesión huérfana.');
-          await Supabase.instance.client.auth.signOut();
-        }
-      } catch (e) {
-        debugPrint('⚠️ Error cerrando sesión huérfana: $e');
-      }
-    }
+      } else {
+        // Sesión activa: verificar que el tenant coincide
+        final tokenTenant =
+            JwtService.extraerTenantId(sessionActual.accessToken);
+        final tenantActual = _ref.read(tenantActualProvider).tenantId;
 
-    return true;
+        if (tokenTenant != null && tokenTenant != tenantActual) {
+          debugPrint(
+              '⚠️ Sesión actual tiene tenant $tokenTenant pero esperábamos $tenantActual. '
+              'Forzando signOut para re-login.');
+          await Supabase.instance.client.auth.signOut();
+        } else if (tokenTenant != null) {
+          // Si coincide, refrescamos el provider por si la app recién inicia
+          final rolJwt = JwtService.extraerRol(sessionActual.accessToken);
+          await _ref.read(tenantActualProvider.notifier).setTenant(
+                tokenTenant,
+                rol: rolJwt,
+              );
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Login silencioso Supabase falló (Modo Offline): $e');
+    }
+  } else {
+    // ✅ Sin credenciales: cerrar cualquier sesión huérfana
+    try {
+      final sesion = Supabase.instance.client.auth.currentSession;
+      if (sesion != null) {
+        debugPrint(
+            '🚪 Usuario sin password pero había sesión activa. Cerrando sesión huérfana.');
+        await Supabase.instance.client.auth.signOut();
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error cerrando sesión huérfana: $e');
+    }
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // 3️⃣ FIX: Garantizar que haya un tenant asociado al usuario local
+  // ══════════════════════════════════════════════════════════════
+  // Si el login silencioso falló (usuario sin password, RLS, offline),
+  // el `tenantActualProvider` puede estar vacío. Pero el usuario local
+  // guarda su `tenantId` desde la última vez que sincronizó. Lo usamos
+  // como fallback para no dejar la app sin tenant.
+  // ───────────────────────────────────────────────────────────────
+  if (!_ref.read(tenantActualProvider).tieneTenant) {
+    final tId = usuarioValido.tenantId;
+    if (tId != null && tId.isNotEmpty) {
+      await _ref.read(tenantActualProvider.notifier).setTenant(
+            tId,
+            rol: usuarioValido.rol,
+          );
+      debugPrint('✅ Tenant local restaurado para uso offline: $tId');
+    } else {
+      debugPrint(
+          '⚠️ Usuario "${usuarioValido.nombre}" sin tenantId local. '
+          'La app operará en modo degradado hasta el próximo login con email.');
+    }
+  }
+
+  return true;
+}
 
   /// FIX #4: Cambio de PIN resiliente (Offline-First)
   Future<({bool exito, String mensaje})> cambiarPin(String nuevoPin) async {

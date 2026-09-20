@@ -1,4 +1,5 @@
 // lib/features/pos/presentation/widgets/admin_validation_dialog.dart
+// Para debugPrint
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -81,8 +82,12 @@ class _AdminValidationDialogState extends ConsumerState<AdminValidationDialog> {
     final pin = _pinController.text.trim();
     if (pin.isEmpty) {
       setState(() => _errorMessage = 'Ingresa el PIN de autorización.');
+      _focusNode.requestFocus();
       return;
     }
+
+    // Ocultar el teclado por UX para que no interfiera con el UI de carga
+    FocusScope.of(context).unfocus();
 
     setState(() {
       _isLoading = true;
@@ -90,52 +95,62 @@ class _AdminValidationDialogState extends ConsumerState<AdminValidationDialog> {
     });
 
     try {
-      final usuarios = await IsarService().obtenerUsuarios();
-
-      // Buscamos un usuario activo cuyo PIN coincida y cuyo rol esté
-      // en la lista permitida. No exponemos qué falló (rol vs PIN)
-      // para no dar pistas a un atacante.
-      final valido = usuarios.any((u) {
-        if (!u.activo) return false;
-        final role = UserRole.fromString(u.rol);
-        if (!widget.allowedRoles.contains(role)) return false;
-        return u.pin == pin;
-      });
+      // 1. Delegar la verificación segura del PIN a IsarService
+      final usuarioAutorizador = await IsarService().validarPin(pin);
 
       if (!mounted) return;
 
-      if (valido) {
-        // Log de auditoría
-        final usuarioActual = ref.read(usuarioActualProvider);
-        await IsarService().guardarLog(
-          LogEntity()
-            ..accion = 'AUTORIZACION_ADMIN'
-            ..usuarioNombre = usuarioActual?.nombre ?? 'Desconocido'
-            ..usuarioRol = usuarioActual?.rol ?? '-'
-            ..detalles =
-                'Autorización aprobada para: ${_rolesLabel(widget.allowedRoles)}'
-            ..fecha = DateTime.now()
-            ..sincronizado = false,
-        );
+      if (usuarioAutorizador != null) {
+        final role = UserRole.fromString(usuarioAutorizador.rol);
 
-        if (!mounted) return;
-        widget.onSuccess?.call();
-        Navigator.of(context).pop(true);
-      } else {
-        setState(() {
-          _isLoading = false;
-          _errorMessage =
-              'PIN incorrecto o usuario sin permisos suficientes.';
-        });
-        _pinController.clear();
-        _focusNode.requestFocus();
+        // 2. Verificar permisos del usuario autorizador
+        if (widget.allowedRoles.contains(role)) {
+          final usuarioActual = ref.read(usuarioActualProvider);
+
+          // 3. Registrar el log de auditoría
+          await IsarService().guardarLog(
+            LogEntity()
+              ..accion = 'AUTORIZACION_ADMIN'
+              ..usuarioNombre = usuarioActual?.nombre ?? 'Desconocido'
+              ..usuarioRol = usuarioActual?.rol ?? '-'
+              ..detalles =
+                  'Autorización aprobada por ${usuarioAutorizador.nombre} (${usuarioAutorizador.rol}) para:${_rolesLabel(widget.allowedRoles)}'
+              ..fecha = DateTime.now()
+              ..sincronizado = false,
+          );
+
+          if (!mounted) return;
+          
+          _pinController.clear(); // Limpiar PIN por seguridad antes de salir
+          widget.onSuccess?.call();
+          Navigator.of(context).pop(true);
+          return;
+        }
       }
-    } catch (e) {
+
+      // 4. Si el PIN falla o el usuario no tiene permisos
+      // Retraso intencional (Rate Limiting) para mitigar fuerza bruta
+      await Future.delayed(const Duration(milliseconds: 800));
+
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Error al validar. Intenta de nuevo.';
+        _errorMessage = 'PIN incorrecto o permisos insuficientes.';
       });
+      _pinController.clear();
+      _focusNode.requestFocus();
+      
+    } catch (e) {
+      // Registrar el error real para debugging sin exponerlo al usuario
+      debugPrint('Error en AdminValidationDialog: $e');
+      
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Ocurrió un error al validar. Intenta de nuevo.';
+      });
+      _pinController.clear();
+      _focusNode.requestFocus();
     }
   }
 
@@ -148,7 +163,7 @@ class _AdminValidationDialogState extends ConsumerState<AdminValidationDialog> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = colorScheme.brightness == Brightness.dark;
     final isMobile = ResponsiveHelper.isMobile(context);
     final rolesLabel = _rolesLabel(widget.allowedRoles);
 
@@ -189,7 +204,7 @@ class _AdminValidationDialogState extends ConsumerState<AdminValidationDialog> {
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.info_outline_rounded,
                     size: 18,
                     color: _colorPrimary,
@@ -217,8 +232,9 @@ class _AdminValidationDialogState extends ConsumerState<AdminValidationDialog> {
               focusNode: _focusNode,
               obscureText: true,
               keyboardType: TextInputType.number,
-              maxLength: 6,
+              maxLength: 6, // Asegura que solo reciba hasta 6 dígitos
               autofocus: true,
+              enabled: !_isLoading, // Bloquear input mientras valida
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -237,7 +253,7 @@ class _AdminValidationDialogState extends ConsumerState<AdminValidationDialog> {
                 fillColor: isDark
                     ? Colors.white.withValues(alpha: 0.04)
                     : const Color(0xFFF9FAFB),
-                prefixIcon: Icon(
+                prefixIcon: const Icon(
                   Icons.lock_outline_rounded,
                   color: _colorPrimary,
                 ),
@@ -265,7 +281,9 @@ class _AdminValidationDialogState extends ConsumerState<AdminValidationDialog> {
                   vertical: 16,
                 ),
               ),
-              onSubmitted: (_) => _validar(),
+              onSubmitted: (_) {
+                if (!_isLoading) _validar();
+              },
             ),
             const SizedBox(height: 20),
 
@@ -277,6 +295,7 @@ class _AdminValidationDialogState extends ConsumerState<AdminValidationDialog> {
                     onPressed: _isLoading
                         ? null
                         : () {
+                            _pinController.clear();
                             widget.onCancel?.call();
                             Navigator.of(context).pop(false);
                           },

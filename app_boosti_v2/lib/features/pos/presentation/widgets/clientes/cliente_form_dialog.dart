@@ -1,13 +1,14 @@
 // lib/features/pos/presentation/widgets/clientes/cliente_form_dialog.dart
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
 
 import '../../../data/Local/entities/cliente_entity.dart';
 import '../../providers/clientes/clientes_provider.dart';
+import '../common/glass_dialog.dart';
+import '../common/dialog_header.dart';
+import '../common/active_toggle.dart';
+import '../common/persona_form_template.dart';
 
 /// Diálogo de creación / edición de cliente.
 ///
@@ -20,6 +21,9 @@ import '../../providers/clientes/clientes_provider.dart';
 ///
 /// **Validación condicional**:
 /// Si `esMayorista == true` → RIF y razón social son obligatorios.
+///
+/// **Refactor**: Usa el template `persona_form_template.dart` para
+/// mantener consistencia visual con Proveedores y Gestión de Personal.
 class ClienteFormDialog extends ConsumerStatefulWidget {
   final ClienteEntity? clienteExistente;
 
@@ -44,7 +48,7 @@ class ClienteFormDialog extends ConsumerStatefulWidget {
 class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers
+  // ── Controllers ──
   late TextEditingController _nombreController;
   late TextEditingController _documentoController;
   late TextEditingController _rifController;
@@ -54,22 +58,12 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
   late TextEditingController _direccionController;
   late TextEditingController _notasController;
 
-  // Estado
+  // ── Estado ──
   String? _tipoDocumento;
   bool _esMayorista = false;
   bool _isFrecuente = false;
   bool _isActivo = true;
   bool _isGuardando = false;
-
-  // Tipos de documento soportados (venezolanos)
-  static const _tiposDocumento = <String, String>{
-    'V': 'Venezolano',
-    'E': 'Extranjero',
-    'J': 'Jurídico (RIF)',
-    'G': 'Gubernamental',
-    'P': 'Pasaporte',
-    'C': 'Comuna',
-  };
 
   static const Color _colorCliente = Color(0xFF8B5CF6);
   static const Color _colorFrecuente = Color(0xFFF59E0B);
@@ -207,171 +201,209 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
     final isEdit = widget.clienteExistente != null;
-    final screenSize = MediaQuery.of(context).size;
-    final isMobile = screenSize.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
-    final surfaceColor = isDark
-        ? colorScheme.surface.withValues(alpha: 0.92)
-        : Colors.white.withValues(alpha: 0.92);
-
-    return Dialog(
+    return GlassDialog(
+      maxWidth: 560,
+      maxHeightFactor: 0.92,
+      accentColor: _colorCliente,
       insetPadding: EdgeInsets.symmetric(
         horizontal: isMobile ? 12 : 40,
         vertical: isMobile ? 12 : 32,
       ),
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: isMobile ? double.infinity : 560,
-          maxHeight: screenSize.height * 0.92,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              decoration: BoxDecoration(
-                color: surfaceColor,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : Colors.white.withValues(alpha: 0.5),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
-                    blurRadius: 30,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ═══ HEADER ═══
+              DialogHeader(
+                icon: isEdit
+                    ? Icons.edit_rounded
+                    : Icons.person_add_alt_1_rounded,
+                title: isEdit ? 'Editar Cliente' : 'Nuevo Cliente',
+                subtitle: isEdit
+                    ? 'Actualiza los datos del cliente'
+                    : 'Registra un nuevo cliente',
+                color: _colorCliente,
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Form(
-                  key: _formKey,
+              const SizedBox(height: 20),
+
+              // ═══ SECCIONES SCROLLABLES ═══
+              Flexible(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildHeader(colorScheme, isMobile, isEdit),
-                      const SizedBox(height: 20),
-                      Flexible(
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // ── Nombre ──
-                              _buildTextField(
-                                controller: _nombreController,
-                                label: 'Nombre completo *',
-                                icon: Icons.person_outline_rounded,
-                                validator: (v) =>
-                                    (v == null || v.trim().isEmpty)
-                                        ? 'Requerido'
-                                        : null,
-                              ),
-                              const SizedBox(height: 16),
-
-                              // ── Tipo doc + Número ──
-                              _buildDocumentoRow(),
-                              const SizedBox(height: 16),
-
-                              // ── RIF (siempre visible, obligatorio si mayorista) ──
-                              _buildRifField(),
-                              const SizedBox(height: 16),
-
-                              // ── Razón social ──
-                              _buildRazonSocialField(),
-                              const SizedBox(height: 16),
-
-                              // ── Toggle mayorista ──
-                              _buildMayoristaToggle(colorScheme),
-                              const SizedBox(height: 16),
-
-                              // ── Contacto ──
-                              _buildTextField(
-                                controller: _telefonoController,
-                                label: 'Teléfono',
-                                icon: Icons.phone_outlined,
-                                keyboardType: TextInputType.phone,
-                              ),
-                              const SizedBox(height: 16),
-                              _buildTextField(
-                                controller: _emailController,
-                                label: 'Correo electrónico',
-                                icon: Icons.email_outlined,
-                                keyboardType: TextInputType.emailAddress,
-                              ),
-                              const SizedBox(height: 16),
-                              _buildTextField(
-                                controller: _direccionController,
-                                label: 'Dirección',
-                                icon: Icons.location_on_outlined,
-                              ),
-                              const SizedBox(height: 16),
-                              _buildTextField(
-                                controller: _notasController,
-                                label: 'Notas',
-                                icon: Icons.note_outlined,
-                                maxLines: 2,
-                              ),
-                              const SizedBox(height: 16),
-
-                              // ── Frecuente ──
-                              SwitchListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(
-                                  'Cliente Frecuente',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  'Destacar en listas y reportes',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                activeThumbColor: _colorFrecuente,
-                                value: _isFrecuente,
-                                onChanged: (v) =>
-                                    setState(() => _isFrecuente = v),
-                              ),
-                              if (isEdit)
-                                SwitchListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  title: Text(
-                                    'Cliente Activo',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      color: colorScheme.onSurface,
-                                    ),
-                                  ),
-                                  activeThumbColor: const Color(0xFF10B981),
-                                  value: _isActivo,
-                                  onChanged: (v) =>
-                                      setState(() => _isActivo = v),
-                                ),
-                            ],
+                      // ─── IDENTIFICACIÓN ───
+                      FormSection(
+                        title: 'Identificación',
+                        icon: Icons.badge_rounded,
+                        accentColor: _colorCliente,
+                        children: [
+                          PersonaTextField(
+                            controller: _nombreController,
+                            label: 'Nombre completo *',
+                            icon: Icons.person_outline_rounded,
+                            accentColor: _colorCliente,
+                            textCapitalization: TextCapitalization.words,
+                            validator: (v) =>
+                                (v == null || v.trim().isEmpty)
+                                    ? 'Requerido'
+                                    : null,
                           ),
-                        ),
+                          const SizedBox(height: 14),
+                          DocumentoIdentidadField(
+                            tipoDocumento: _tipoDocumento,
+                            onTipoDocumentoChanged: (v) =>
+                                setState(() => _tipoDocumento = v),
+                            numeroController: _documentoController,
+                            accentColor: _colorCliente,
+                          ),
+                          const SizedBox(height: 14),
+                          RifField(
+                            controller: _rifController,
+                            accentColor: _colorCliente,
+                            obligatorio: _esMayorista,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 20),
-                      _buildSaveButton(isEdit),
+                      const SizedBox(height: 22),
+
+                      // ─── CONTACTO ───
+                      FormSection(
+                        title: 'Contacto',
+                        icon: Icons.contact_mail_rounded,
+                        accentColor: _colorCliente,
+                        children: [
+                          PersonaTextField(
+                            controller: _telefonoController,
+                            label: 'Teléfono',
+                            icon: Icons.phone_outlined,
+                            accentColor: _colorCliente,
+                            keyboardType: TextInputType.phone,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return null;
+                              final digits = v.replaceAll(RegExp(r'\D'), '');
+                              if (digits.length < 7) return 'Mínimo 7 dígitos';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          PersonaTextField(
+                            controller: _emailController,
+                            label: 'Correo electrónico',
+                            icon: Icons.email_outlined,
+                            accentColor: _colorCliente,
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return null;
+                              final re = RegExp(r'^[^@]+@[^@]+\.[^@]+$');
+                              return re.hasMatch(v.trim())
+                                  ? null
+                                  : 'Correo inválido';
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          PersonaTextField(
+                            controller: _direccionController,
+                            label: 'Dirección',
+                            icon: Icons.location_on_outlined,
+                            accentColor: _colorCliente,
+                            maxLines: 2,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+
+                      // ─── DATOS COMERCIALES ───
+                      FormSection(
+                        title: 'Datos comerciales',
+                        icon: Icons.storefront_rounded,
+                        accentColor: _colorMayorista,
+                        children: [
+                          PersonaTextField(
+                            controller: _razonSocialController,
+                            label: _esMayorista
+                                ? 'Razón social *'
+                                : 'Razón social (opcional)',
+                            icon: Icons.business_outlined,
+                            accentColor: _colorCliente,
+                            textCapitalization: TextCapitalization.words,
+                            validator: (v) {
+                              if (_esMayorista &&
+                                  (v == null || v.trim().isEmpty)) {
+                                return 'Razón social obligatoria para mayoristas';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          _buildMayoristaToggle(colorScheme),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+
+                      // ─── NOTAS ───
+                      FormSection(
+                        title: 'Notas',
+                        icon: Icons.note_alt_outlined,
+                        accentColor: _colorCliente,
+                        children: [
+                          PersonaTextField(
+                            controller: _notasController,
+                            label: 'Observaciones',
+                            icon: Icons.note_outlined,
+                            accentColor: _colorCliente,
+                            maxLines: 3,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+
+                      // ─── PREFERENCIAS ───
+                      ActiveToggle(
+                        value: _isFrecuente,
+                        onChanged: (v) => setState(() => _isFrecuente = v),
+                        activeLabel: 'Cliente frecuente',
+                        inactiveLabel: 'Marcar como frecuente',
+                        activeSubtitle: 'Destacado en listas y reportes',
+                        inactiveSubtitle: 'No destacado actualmente',
+                        activeColor: _colorFrecuente,
+                      ),
+                      if (isEdit) ...[
+                        const SizedBox(height: 12),
+                        ActiveToggle(
+                          value: _isActivo,
+                          onChanged: (v) => setState(() => _isActivo = v),
+                          activeLabel: 'Cliente activo',
+                          inactiveLabel: 'Cliente inactivo',
+                          activeSubtitle: 'Disponible para ventas',
+                          inactiveSubtitle: 'Oculto del catálogo',
+                          activeColor: const Color(0xFF10B981),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
-            ),
+              const SizedBox(height: 20),
+
+              // ═══ ACCIONES ═══
+              FormActions(
+                isSaving: _isGuardando,
+                confirmLabel: isEdit ? 'Guardar Cambios' : 'Crear Cliente',
+                accentColor: _colorCliente,
+                onCancel: () => Navigator.pop(context),
+                onConfirm: _guardar,
+              ),
+            ],
           ),
         ),
       ),
@@ -379,154 +411,7 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // HEADER
-  // ═══════════════════════════════════════════════════════════════
-
-  Widget _buildHeader(ColorScheme cs, bool isMobile, bool isEdit) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: _colorCliente.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.person_add_alt_1_rounded,
-            color: _colorCliente,
-            size: 24,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            isEdit ? 'Editar Cliente' : 'Nuevo Cliente',
-            style: TextStyle(
-              fontSize: isMobile ? 18 : 22,
-              fontWeight: FontWeight.bold,
-              color: cs.onSurface,
-            ),
-          ),
-        ),
-        MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: Icon(
-              Icons.close_rounded,
-              color: cs.onSurfaceVariant,
-            ),
-            tooltip: 'Cerrar',
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // DOCUMENTO: TIPO + NÚMERO
-  // ═══════════════════════════════════════════════════════════════
-
-  Widget _buildDocumentoRow() {
-    final cs = Theme.of(context).colorScheme;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Dropdown de tipo
-        SizedBox(
-          width: 110,
-          child: DropdownButtonFormField<String>(
-            initialValue: _tipoDocumento,
-            isExpanded: true,
-            decoration: _inputDecoration(
-              label: 'Tipo',
-              icon: Icons.badge_outlined,
-              cs: cs,
-            ),
-            hint: const Text('V/E/J…', style: TextStyle(fontSize: 12)),
-            items: _tiposDocumento.entries.map((e) {
-              return DropdownMenuItem<String>(
-                value: e.key,
-                child: Text(
-                  e.key,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                ),
-              );
-            }).toList(),
-            onChanged: (v) => setState(() => _tipoDocumento = v),
-          ),
-        ),
-        const SizedBox(width: 10),
-        // Número
-        Expanded(
-          child: _buildTextField(
-            controller: _documentoController,
-            label: 'Número',
-            icon: Icons.numbers_rounded,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // RIF
-  // ═══════════════════════════════════════════════════════════════
-
-  Widget _buildRifField() {
-    // Si es mayorista, el RIF es obligatorio
-    return _buildTextField(
-      controller: _rifController,
-      label: _esMayorista ? 'RIF *' : 'RIF (opcional)',
-      icon: Icons.receipt_outlined,
-      textCapitalization: TextCapitalization.characters,
-      validator: (v) {
-        final val = (v ?? '').trim();
-        if (_esMayorista && val.isEmpty) {
-          return 'RIF obligatorio para mayoristas';
-        }
-        // Formato: J-12345678-9
-        if (val.isNotEmpty) {
-          final regex = RegExp(r'^[VEJGP]-\d{6,10}(-\d)?$');
-          if (!regex.hasMatch(val.toUpperCase())) {
-            return 'Formato: J-12345678-9';
-          }
-        }
-        return null;
-      },
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // RAZÓN SOCIAL
-  // ═══════════════════════════════════════════════════════════════
-
-  Widget _buildRazonSocialField() {
-    return _buildTextField(
-      controller: _razonSocialController,
-      label: _esMayorista ? 'Razón social *' : 'Razón social (opcional)',
-      icon: Icons.business_outlined,
-      textCapitalization: TextCapitalization.words,
-      validator: (v) {
-        final val = (v ?? '').trim();
-        if (_esMayorista && val.isEmpty) {
-          return 'Razón social obligatoria para mayoristas';
-        }
-        return null;
-      },
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // TOGGLE MAYORISTA
+  // TOGGLE MAYORISTA (custom — específico del módulo Clientes)
   // ═══════════════════════════════════════════════════════════════
 
   Widget _buildMayoristaToggle(ColorScheme cs) {
@@ -576,127 +461,6 @@ class _ClienteFormDialogState extends ConsumerState<ClienteFormDialog> {
         activeThumbColor: _colorMayorista,
         value: _esMayorista,
         onChanged: (v) => setState(() => _esMayorista = v),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // BOTÓN GUARDAR
-  // ═══════════════════════════════════════════════════════════════
-
-  Widget _buildSaveButton(bool isEdit) {
-    return SizedBox(
-      height: 56,
-      child: MouseRegion(
-        cursor: _isGuardando
-            ? SystemMouseCursors.forbidden
-            : SystemMouseCursors.click,
-        child: ElevatedButton(
-          onPressed: _isGuardando ? null : _guardar,
-          style: ButtonStyle(
-            backgroundColor: const WidgetStatePropertyAll(_colorCliente),
-            foregroundColor: const WidgetStatePropertyAll(Colors.white),
-            shape: WidgetStatePropertyAll(
-              RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            elevation: const WidgetStatePropertyAll(0),
-            overlayColor: WidgetStatePropertyAll(
-              Colors.white.withValues(alpha: 0.15),
-            ),
-          ),
-          child: _isGuardando
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : Text(
-                  isEdit ? 'Guardar Cambios' : 'Crear Cliente',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-        ),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // HELPERS
-  // ═══════════════════════════════════════════════════════════════
-
-  InputDecoration _inputDecoration({
-    required String label,
-    required IconData icon,
-    required ColorScheme cs,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: cs.onSurfaceVariant),
-      prefixIcon: Icon(icon, color: cs.onSurfaceVariant),
-      filled: true,
-      fillColor: isDark
-          ? cs.surfaceContainerHighest.withValues(alpha: 0.5)
-          : cs.surfaceContainerHighest.withValues(alpha: 0.4),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: cs.outlineVariant.withValues(alpha: 0.5),
-          width: 1,
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _colorCliente, width: 1.5),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: cs.error, width: 1.5),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: cs.error, width: 1.5),
-      ),
-      contentPadding:
-          const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
-    String? Function(String?)? validator,
-    TextCapitalization textCapitalization = TextCapitalization.none,
-    int maxLines = 1,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
-      validator: validator,
-      textCapitalization: textCapitalization,
-      maxLines: maxLines,
-      style: TextStyle(color: colorScheme.onSurface),
-      decoration: _inputDecoration(
-        label: label,
-        icon: icon,
-        cs: colorScheme,
       ),
     );
   }

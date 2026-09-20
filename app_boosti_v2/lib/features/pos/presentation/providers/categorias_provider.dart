@@ -98,6 +98,34 @@ class CategoriasNotifier extends StateNotifier<List<CategoriaEntity>> {
     }
   }
 
+  Future<void> reactivarCategoria(int id) async {
+  final isar = ref.read(isarServiceProvider);
+  final categoria = await isar.obtenerCategoriaPorId(id);
+  if (categoria != null) {
+    categoria.activo = true;
+    categoria.updatedAt = DateTime.now();
+    categoria.syncStatus = 'pending';
+    await isar.guardarCategoria(categoria);
+    await _cargarCategorias();
+    await ref.read(syncServiceProvider).sincronizarCategorias();
+  }
+}
+
+Future<int> purgarCategoriasInactivas() async {
+  final isar = ref.read(isarServiceProvider);
+  final inactivas = await isar.obtenerCategorias(soloActivas: false);
+  final aBorrar = inactivas.where((c) => !c.activo).toList();
+
+  if (aBorrar.isEmpty) return 0;
+
+  for (final cat in aBorrar) {
+    await isar.eliminarCategoriaFisica(cat.id);
+  }
+
+  await _cargarCategorias();
+  return aBorrar.length;
+}
+
   Future<void> refrescar() async {
     await _cargarCategorias();
   }

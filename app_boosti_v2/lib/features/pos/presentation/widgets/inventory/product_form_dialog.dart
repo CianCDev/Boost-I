@@ -1,3 +1,4 @@
+// lib/features/pos/presentation/widgets/product/product_form_dialog.dart
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:io';
@@ -11,27 +12,25 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:collection/collection.dart';
 
-// Entidades y servicios
+// ignore: unused_import
 import '../../../data/Local/entities/categoria_entity.dart';
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../../data/Local/entities/proveedor_entity.dart';
 import '../../../data/Local/entities/usuario_entity.dart';
 import '../../../data/Local/entities/marca_entity.dart';
 import '../../../data/Local/entities/isar_service.dart';
-import '../../providers/categorias_provider.dart';
 import '../../providers/productos_provider.dart';
 import '../../services/sync_service.dart';
 import '../../utils/responsive_helper.dart';
-import '../../utils/tenant_utils.dart'; // ✅ NUEVO: getTenantIdFromJWT()
+import '../../utils/tenant_utils.dart';
+import '../common/dialog_header.dart';
+import '../common/glass_dialog.dart';
 import '../proveedores/crear_proveedor_dialog.dart';
 import '../shared/barcode_scanner_dialog.dart';
-import '../common/glass_dialog.dart';
-import '../common/dialog_header.dart';
-import '../common/active_toggle.dart';
-import '../common/glass_search_bar.dart';
+import 'product_data_tab.dart';
 import 'product_detail_dialog.dart';
+import 'product_proveedor_tab.dart';
 
-// ignore: constant_identifier_names
 const String _DRAFT_KEY = 'product_form_draft';
 
 class ProductFormDialog extends ConsumerStatefulWidget {
@@ -59,321 +58,133 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   final _formKey = GlobalKey<FormState>();
   late TabController _tabController;
 
-  final TextEditingController _codigoController = TextEditingController();
-  final TextEditingController _nombreController = TextEditingController();
-  final TextEditingController _precioController = TextEditingController();
-  final TextEditingController _stockController = TextEditingController();
-  final TextEditingController _stockMinController = TextEditingController();
-  final TextEditingController _proveedorNombreController =
-      TextEditingController();
-  final TextEditingController _proveedorTelController =
-      TextEditingController();
-  final TextEditingController _proveedorBusquedaController =
-      TextEditingController();
-  final TextEditingController _marcaBusquedaController =
-      TextEditingController();
+  // Controllers
+  final _codigoCtrl = TextEditingController();
+  final _nombreCtrl = TextEditingController();
+  final _precioCtrl = TextEditingController();
+  final _stockCtrl = TextEditingController();
+  final _stockMinCtrl = TextEditingController();
+  final _provBusqCtrl = TextEditingController();
+  final _precioMayorCtrl = TextEditingController();
+  final _cantMinMayorCtrl = TextEditingController();
+  final _precioMedioMayorCtrl = TextEditingController();
+  final _cantMinMedioMayorCtrl = TextEditingController();
+  final _unidadesBultoCtrl = TextEditingController(text: '1');
+  final _costoUnitarioCtrl = TextEditingController();
 
-  late String _categoriaSeleccionada;
-  int? _categoriaIdSeleccionada;
-  late bool _esPesado;
-  late bool _activo;
+  // State
+  int? _categoriaIdSel;
+  String _categoriaSel = 'General';
+  bool _esPesado = false;
+  bool _activo = true;
+  bool _permiteVentaMayor = false;
   String _imagenUrlPreview = '';
-  XFile? _imagenSeleccionada;
+  XFile? _imagenSel;
   bool _subiendoImagen = false;
   bool _guardando = false;
-
-  // ── Venta al mayor (NUEVO) ──
-  bool _permiteVentaMayor = false;
-  final TextEditingController _precioMayorController =
-      TextEditingController();
-  final TextEditingController _cantidadMinimaMayorController =
-      TextEditingController();
-  final TextEditingController _precioMedioMayorController =
-      TextEditingController();
-  final TextEditingController _cantidadMinimaMedioMayorController =
-      TextEditingController();
-  final TextEditingController _unidadesPorBultoController =
-      TextEditingController(text: '1');
-  final TextEditingController _costoUnitarioController =
-      TextEditingController();
-
-  ProveedorEntity? _proveedorSeleccionado;
-  bool _cargandoProveedores = false;
-  List<ProveedorEntity> _proveedores = [];
-
-  MarcaEntity? _marcaSeleccionada;
-  bool _cargandoMarcas = false;
-  List<MarcaEntity> _marcas = [];
-
   bool _generandoCodigo = false;
+
+  ProveedorEntity? _proveedorSel;
+  List<ProveedorEntity> _proveedores = [];
+  bool _cargandoProveedores = false;
+
+  MarcaEntity? _marcaSel;
 
   static const _colorPrimary = Color(0xFF8B5CF6);
   static const _colorSuccess = Color(0xFF10B981);
   static const _colorDanger = Color(0xFFEF4444);
   static const _colorInfo = Color(0xFF3B82F6);
-  static const _colorMayor = Color(0xFF8B5CF6);
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-
-    final p = widget.producto;
-    final esDuplicado = widget.esDuplicado;
-    final stockBase = esDuplicado ? 0.0 : p?.stock ?? 0.0;
-
-    _codigoController.text =
-        p?.codigoBarras ?? widget.codigoBarrasPrecargado ?? '';
-    _nombreController.text = p?.nombre ?? '';
-    _precioController.text = p?.precioUnidad.toString() ?? '';
-    _stockController.text = stockBase.toStringAsFixed(0);
-    _stockMinController.text = p?.stockMinimo.toString() ?? '5.0';
-    _proveedorNombreController.text = p?.proveedorNombre ?? '';
-    _proveedorTelController.text = p?.proveedorTelefono ?? '';
-
-    _categoriaIdSeleccionada = p?.categoriaId;
-    _categoriaSeleccionada = p?.categoria ?? 'General';
-    _esPesado = p?.esPesado ?? false;
-    _activo = p?.activo ?? true;
-    _imagenUrlPreview = p?.imagenUrl ?? '';
-
-    // ── Venta al mayor: cargar valores al editar ──
-    _permiteVentaMayor = p?.permiteVentaMayor ?? false;
-    _precioMayorController.text = p?.precioMayor?.toString() ?? '';
-    _cantidadMinimaMayorController.text =
-        p?.cantidadMinimaMayor?.toString() ?? '';
-    _precioMedioMayorController.text =
-        p?.precioMedioMayor?.toString() ?? '';
-    _cantidadMinimaMedioMayorController.text =
-        p?.cantidadMinimaMedioMayor?.toString() ?? '';
-    _unidadesPorBultoController.text =
-        (p?.unidadesPorBulto ?? 1).toString();
-    _costoUnitarioController.text =
-        p?.costoUnitarioPromedio?.toString() ?? '';
-
+    _cargarInicial();
     _cargarProveedores();
-    _cargarMarcas();
-    _recuperarBorrador();
   }
 
   @override
   void dispose() {
     _guardarBorrador();
     _tabController.dispose();
-    _codigoController.dispose();
-    _nombreController.dispose();
-    _precioController.dispose();
-    _stockController.dispose();
-    _stockMinController.dispose();
-    _proveedorNombreController.dispose();
-    _proveedorTelController.dispose();
-    _proveedorBusquedaController.dispose();
-    _marcaBusquedaController.dispose();
-    // ── Venta al mayor ──
-    _precioMayorController.dispose();
-    _cantidadMinimaMayorController.dispose();
-    _precioMedioMayorController.dispose();
-    _cantidadMinimaMedioMayorController.dispose();
-    _unidadesPorBultoController.dispose();
-    _costoUnitarioController.dispose();
+    _codigoCtrl.dispose();
+    _nombreCtrl.dispose();
+    _precioCtrl.dispose();
+    _stockCtrl.dispose();
+    _stockMinCtrl.dispose();
+    _provBusqCtrl.dispose();
+    _precioMayorCtrl.dispose();
+    _cantMinMayorCtrl.dispose();
+    _precioMedioMayorCtrl.dispose();
+    _cantMinMedioMayorCtrl.dispose();
+    _unidadesBultoCtrl.dispose();
+    _costoUnitarioCtrl.dispose();
     super.dispose();
   }
 
-  // ==================== HELPERS DE PARSEO ====================
-  double? _parseDouble(String text) {
-    final t = text.trim();
-    if (t.isEmpty) return null;
-    return double.tryParse(t.replaceAll(',', '.'));
+  void _cargarInicial() {
+    final p = widget.producto;
+    final stockBase = widget.esDuplicado ? 0.0 : p?.stock ?? 0.0;
+
+    _codigoCtrl.text = p?.codigoBarras ?? widget.codigoBarrasPrecargado ?? '';
+    _nombreCtrl.text = p?.nombre ?? '';
+    _precioCtrl.text = p?.precioUnidad.toString() ?? '';
+    _stockCtrl.text = stockBase.toStringAsFixed(0);
+    _stockMinCtrl.text = p?.stockMinimo.toString() ?? '5.0';
+
+    _categoriaIdSel = p?.categoriaId;
+    _categoriaSel = p?.categoria ?? 'General';
+    _esPesado = p?.esPesado ?? false;
+    _activo = p?.activo ?? true;
+    _imagenUrlPreview = p?.imagenUrl ?? '';
+
+    _permiteVentaMayor = p?.permiteVentaMayor ?? false;
+    _precioMayorCtrl.text = p?.precioMayor?.toString() ?? '';
+    _cantMinMayorCtrl.text = p?.cantidadMinimaMayor?.toString() ?? '';
+    _precioMedioMayorCtrl.text = p?.precioMedioMayor?.toString() ?? '';
+    _cantMinMedioMayorCtrl.text =
+        p?.cantidadMinimaMedioMayor?.toString() ?? '';
+    _unidadesBultoCtrl.text = (p?.unidadesPorBulto ?? 1).toString();
+    _costoUnitarioCtrl.text = p?.costoUnitarioPromedio?.toString() ?? '';
   }
 
-  int? _parseInt(String text) {
-    final t = text.trim();
-    if (t.isEmpty) return null;
-    return int.tryParse(t);
+  double? _parseDouble(String t) {
+    final s = t.trim();
+    if (s.isEmpty) return null;
+    return double.tryParse(s.replaceAll(',', '.'));
   }
 
-  // ==================== BORRADOR ====================
+  int? _parseInt(String t) {
+    final s = t.trim();
+    if (s.isEmpty) return null;
+    return int.tryParse(s);
+  }
+
   Future<void> _guardarBorrador() async {
     if (widget.producto != null) return;
     final prefs = await SharedPreferences.getInstance();
-    final draft = {
-      'codigo': _codigoController.text,
-      'nombre': _nombreController.text,
-      'precio': _precioController.text,
-      'stock': _stockController.text,
-      'stockMin': _stockMinController.text,
-      'categoria': _categoriaSeleccionada,
-      'esPesado': _esPesado,
-      'activo': _activo,
-      'proveedorNombre': _proveedorNombreController.text,
-      'proveedorTel': _proveedorTelController.text,
-      'imagenUrl': _imagenUrlPreview,
-      'marcaSupabaseId': _marcaSeleccionada?.supabaseId,
-      // Mayor
-      'permiteVentaMayor': _permiteVentaMayor,
-      'precioMayor': _precioMayorController.text,
-      'cantidadMinimaMayor': _cantidadMinimaMayorController.text,
-      'precioMedioMayor': _precioMedioMayorController.text,
-      'cantidadMinimaMedioMayor':
-          _cantidadMinimaMedioMayorController.text,
-      'unidadesPorBulto': _unidadesPorBultoController.text,
-      'costoUnitario': _costoUnitarioController.text,
-    };
-    await prefs.setString(_DRAFT_KEY, draft.toString());
+    await prefs.setString(_DRAFT_KEY, '{}');
   }
 
-  Future<void> _recuperarBorrador() async {
-    if (widget.producto != null) return;
-    final prefs = await SharedPreferences.getInstance();
-    final draftStr = prefs.getString(_DRAFT_KEY);
-    if (draftStr == null) return;
-  }
+  // ═══════════════════════════════════════════════════════════════
+  // PROVEEDORES
+  // ═══════════════════════════════════════════════════════════════
 
-  // ==================== CÓDIGO DE BARRAS ====================
-  Future<void> _generarCodigoBarras() async {
-    setState(() => _generandoCodigo = true);
-    try {
-      final codigo = await IsarService().generarCodigoBarrasUnico();
-      _codigoController.text = codigo;
-    } catch (e) {
-      if (mounted) {
-        _mostrarDialogoSimple(
-          titulo: 'Error',
-          mensaje: 'Error al generar código de barras: $e',
-          esError: true,
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _generandoCodigo = false);
-    }
-  }
-
-  Future<void> _escanearCodigoBarras() async {
-    final codigo = await showDialog<String>(
-      context: context,
-      barrierDismissible: true,
-      builder: (_) => const BarcodeScannerDialog(),
-    );
-
-    if (codigo == null || codigo.isEmpty) return;
-
-    final productos = ref.read(productosProvider).items;
-    final productoExistente = productos.firstWhere(
-      (p) => p.codigoBarras == codigo,
-      orElse: () => ProductoEntity(),
-    );
-
-    if (productoExistente.id != 0) {
-      final accion = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Código ya registrado'),
-          content: Text(
-            'El código "$codigo" pertenece a:\n\n'
-            '📦 ${productoExistente.nombre}\n'
-            '💰 \$${productoExistente.precioUnidad}\n\n'
-            '¿Qué deseas hacer?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'continuar'),
-              child: const Text('Crear nuevo de todos modos'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _colorPrimary,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () => Navigator.pop(context, 'editar'),
-              child: const Text('Editar existente'),
-            ),
-          ],
-        ),
-      );
-
-      if (accion == 'editar') {
-        Navigator.pop(context);
-        showDialog(
-          context: context,
-          builder: (context) => ProductDetailDialog(
-            producto: productoExistente,
-            esAdmin: widget.usuarioActual?.rol == 'admin',
-            onEditar: () {
-              Navigator.pop(context);
-              _mostrarFormularioEdicion(productoExistente);
-            },
-            onEliminar: () async {
-              Navigator.pop(context);
-            },
-          ),
-        );
-        return;
-      }
-    }
-
-    _codigoController.text = codigo;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        behavior: SnackBarBehavior.floating,
-        content: Text('Código escaneado: se ha rellenado el campo'),
-        backgroundColor: _colorSuccess,
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
-
-  void _mostrarFormularioEdicion(ProductoEntity producto) {
-    showDialog(
-      context: context,
-      builder: (context) => ProductFormDialog(
-        producto: producto,
-        usuarioActual: widget.usuarioActual,
-        onGuardar: (productoEditado) async {
-          final productosNotifier = ref.read(productosProvider.notifier);
-          await productosNotifier.guardarProducto(
-            productoEditado,
-            widget.usuarioActual!,
-            esNuevo: false,
-          );
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                behavior: SnackBarBehavior.floating,
-                content: Text('Producto actualizado correctamente'),
-                backgroundColor: _colorSuccess,
-              ),
-            );
-            Navigator.pop(context);
-          }
-        },
-      ),
-    );
-  }
-
-  // ==================== PROVEEDORES ====================
   Future<void> _cargarProveedores() async {
     setState(() => _cargandoProveedores = true);
     try {
-      final syncService = SyncService();
-      await syncService.descargarProveedoresDesdeSupabase();
-      final isar = IsarService();
-      final proveedores = await isar.obtenerProveedores(soloActivos: true);
-      debugPrint(
-          '📦 [ProductForm] Proveedores cargados: ${proveedores.length}');
+      await SyncService().descargarProveedoresDesdeSupabase();
+      final proveedores =
+          await IsarService().obtenerProveedores(soloActivos: true);
+      if (!mounted) return;
       setState(() {
         _proveedores = proveedores;
         if (widget.producto?.proveedorId != null) {
-          _proveedorSeleccionado = proveedores.firstWhereOrNull(
+          _proveedorSel = proveedores.firstWhereOrNull(
             (p) => p.id == widget.producto!.proveedorId,
           );
-          if (_proveedorSeleccionado != null) {
-            _proveedorNombreController.text = _proveedorSeleccionado!.nombre;
-            _proveedorTelController.text =
-                _proveedorSeleccionado!.telefono ?? '';
-            _proveedorBusquedaController.text =
-                _proveedorSeleccionado!.nombre;
+          if (_proveedorSel != null) {
+            _provBusqCtrl.text = _proveedorSel!.nombre;
           }
         }
       });
@@ -387,122 +198,183 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   Future<void> _crearProveedorRapido() async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => const CrearProveedorDialog(),
+      builder: (_) => const CrearProveedorDialog(),
     );
     if (result == true) {
       await _cargarProveedores();
       if (_proveedores.isNotEmpty) {
         final nuevo = _proveedores.last;
-        _proveedorSeleccionado = nuevo;
-        _proveedorNombreController.text = nuevo.nombre;
-        _proveedorTelController.text = nuevo.telefono ?? '';
-        _proveedorBusquedaController.text = nuevo.nombre;
-        setState(() {});
+        setState(() {
+          _proveedorSel = nuevo;
+          _provBusqCtrl.text = nuevo.nombre;
+        });
       }
     }
   }
 
   void _seleccionarProveedor(ProveedorEntity? proveedor) {
     setState(() {
-      _proveedorSeleccionado = proveedor;
-      if (proveedor != null) {
-        _proveedorNombreController.text = proveedor.nombre;
-        _proveedorTelController.text = proveedor.telefono ?? '';
-        _proveedorBusquedaController.text = proveedor.nombre;
-      } else {
-        _proveedorNombreController.clear();
-        _proveedorTelController.clear();
-        _proveedorBusquedaController.clear();
-      }
+      _proveedorSel = proveedor;
+      _provBusqCtrl.text = proveedor?.nombre ?? '';
     });
   }
 
   Future<void> _abrirPanelProveedores() async {
-    final proveedorSeleccionado = await showGeneralDialog<ProveedorEntity>(
+    final sel = await showGeneralDialog<ProveedorEntity>(
       context: context,
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1.0, 0.0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          )),
-          child: _ProveedoresPanelDialog(
-            proveedores: _proveedores,
-            seleccionado: _proveedorSeleccionado,
-            onSeleccionar: (p) => Navigator.pop(context, p),
-            onCrearProveedor: () async {
-              Navigator.pop(context);
-              await _crearProveedorRapido();
-              _abrirPanelProveedores();
-            },
-          ),
-        );
-      },
+      pageBuilder: (ctx, anim, sec) => SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(1, 0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+        )),
+        child: ProveedoresPanelDialog(
+          proveedores: _proveedores,
+          seleccionado: _proveedorSel,
+          onSeleccionar: (p) => Navigator.pop(ctx, p),
+          onCrearProveedor: () async {
+            Navigator.pop(ctx);
+            await _crearProveedorRapido();
+            if (mounted) _abrirPanelProveedores();
+          },
+        ),
+      ),
       transitionDuration: const Duration(milliseconds: 350),
       barrierDismissible: true,
       barrierLabel: 'Cerrar panel',
     );
-    if (proveedorSeleccionado != null) {
-      _seleccionarProveedor(proveedorSeleccionado);
-    }
+    if (sel != null) _seleccionarProveedor(sel);
   }
 
-  // ==================== MARCAS ====================
-  Future<void> _cargarMarcas() async {
-    setState(() => _cargandoMarcas = true);
+  // ═══════════════════════════════════════════════════════════════
+  // CÓDIGO DE BARRAS
+  // ═══════════════════════════════════════════════════════════════
+
+  Future<void> _generarCodigo() async {
+    setState(() => _generandoCodigo = true);
     try {
-      final isar = IsarService();
-      final marcas = await isar.obtenerMarcas(soloActivas: true);
-      setState(() {
-        _marcas = marcas;
-        if (widget.producto?.marcaSupabaseId != null) {
-          _marcaSeleccionada = marcas.firstWhereOrNull(
-            (m) => m.supabaseId == widget.producto!.marcaSupabaseId,
-          );
-          if (_marcaSeleccionada != null) {
-            _marcaBusquedaController.text = _marcaSeleccionada!.nombre;
-          }
-        }
-      });
+      final codigo = await IsarService().generarCodigoBarrasUnico();
+      _codigoCtrl.text = codigo;
     } catch (e) {
-      debugPrint('Error cargando marcas: $e');
+      if (mounted) {
+        _mostrarDialogoSimple(
+          titulo: 'Error',
+          mensaje: 'Error al generar código: $e',
+          esError: true,
+        );
+      }
     } finally {
-      if (mounted) setState(() => _cargandoMarcas = false);
+      if (mounted) setState(() => _generandoCodigo = false);
     }
   }
 
-  void _seleccionarMarca(MarcaEntity? marca) {
-    setState(() {
-      _marcaSeleccionada = marca;
-      if (marca != null) {
-        _marcaBusquedaController.text = marca.nombre;
-      } else {
-        _marcaBusquedaController.clear();
+  Future<void> _escanearCodigo() async {
+    final codigo = await showDialog<String>(
+      context: context,
+      builder: (_) => const BarcodeScannerDialog(),
+    );
+    if (codigo == null || codigo.isEmpty) return;
+
+    final productos = ref.read(productosProvider).items;
+    final existente = productos.firstWhere(
+      (p) => p.codigoBarras == codigo,
+      orElse: () => ProductoEntity(),
+    );
+
+    if (existente.id != 0) {
+      final accion = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text('Código ya registrado'),
+          content: Text(
+            'El código "$codigo" pertenece a:\n\n'
+            '📦 ${existente.nombre}\n'
+            '💰 \$${existente.precioUnidad}\n\n'
+            '¿Qué deseas hacer?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'continuar'),
+              child: const Text('Crear nuevo de todos modos'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _colorPrimary,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(ctx, 'editar'),
+              child: const Text('Editar existente'),
+            ),
+          ],
+        ),
+      );
+      if (accion == 'editar') {
+        Navigator.pop(context);
+        showDialog(
+          context: context,
+          builder: (ctx) => ProductDetailDialog(
+            producto: existente,
+            esAdmin: widget.usuarioActual?.rol == 'admin',
+            onEditar: () {
+              Navigator.pop(ctx);
+              _abrirFormEdicion(existente);
+            },
+            onEliminar: () async => Navigator.pop(ctx),
+          ),
+        );
+        return;
       }
-    });
+    }
+    _codigoCtrl.text = codigo;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text('Código escaneado'),
+        backgroundColor: _colorSuccess,
+        duration: Duration(seconds: 1),
+      ),
+    );
   }
 
-  // ==================== IMAGEN ====================
-  Future<void> _seleccionarImagen(ImageSource source) async {
+  void _abrirFormEdicion(ProductoEntity producto) {
+    showDialog(
+      context: context,
+      builder: (ctx) => ProductFormDialog(
+        producto: producto,
+        usuarioActual: widget.usuarioActual,
+        onGuardar: (edit) async {
+          await ref
+              .read(productosProvider.notifier)
+              .guardarProducto(edit, widget.usuarioActual!, esNuevo: false);
+          if (mounted) Navigator.pop(ctx);
+        },
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // IMAGEN
+  // ═══════════════════════════════════════════════════════════════
+
+  Future<void> _pickImage(ImageSource source) async {
     if (!await _checkPermission()) {
       if (mounted) {
         _mostrarDialogoSimple(
           titulo: 'Permiso denegado',
-          mensaje:
-              'Se necesita acceso a la galería/cámara para seleccionar una imagen.',
+          mensaje: 'Se necesita acceso a la galería/cámara.',
           esError: true,
         );
       }
       return;
     }
-
     setState(() => _subiendoImagen = true);
     try {
-      final picker = ImagePicker();
-      final image = await picker.pickImage(
+      final image = await ImagePicker().pickImage(
         source: source,
         maxWidth: 800,
         maxHeight: 800,
@@ -510,17 +382,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       );
       if (image != null && mounted) {
         setState(() {
-          _imagenSeleccionada = image;
+          _imagenSel = image;
           _imagenUrlPreview = image.path;
         });
-      }
-    } catch (e) {
-      if (mounted) {
-        _mostrarDialogoSimple(
-          titulo: 'Error',
-          mensaje: 'Error al seleccionar imagen: $e',
-          esError: true,
-        );
       }
     } finally {
       if (mounted) setState(() => _subiendoImagen = false);
@@ -533,75 +397,64 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     return status.isGranted;
   }
 
-  void _limpiarImagen() {
+  void _clearImagen() {
     setState(() {
-      _imagenSeleccionada = null;
+      _imagenSel = null;
       _imagenUrlPreview = '';
     });
   }
 
-  // ==================== SUBIR IMAGEN ====================
   Future<String?> _uploadImage(File image, String codigo) async {
     try {
       final tenantId = getTenantIdFromJWT();
-      if (tenantId == null || tenantId.isEmpty) {
-        debugPrint(
-            '⚠️ [_uploadImage] Sin tenant_id activo. No se puede subir imagen.');
-        return null;
-      }
+      if (tenantId == null || tenantId.isEmpty) return null;
 
       final ext = image.path.split('.').last;
       final fileName =
           '$tenantId/productos/${codigo}_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
-      debugPrint('📤 [_uploadImage] Subiendo a: $fileName');
-
       await Supabase.instance.client.storage
           .from('productos')
           .upload(fileName, image);
 
-      final publicUrl = Supabase.instance.client.storage
+      return Supabase.instance.client.storage
           .from('productos')
           .getPublicUrl(fileName);
-
-      debugPrint('✅ [_uploadImage] Imagen subida: $publicUrl');
-      return publicUrl;
-    } catch (e, stack) {
-      debugPrint('❌ [_uploadImage] Error: $e');
-      debugPrint('❌ [_uploadImage] Stack: $stack');
+    } catch (e) {
+      debugPrint('❌ [_uploadImage] $e');
       return null;
     }
   }
 
-  // ==================== GUARDAR ====================
+  // ═══════════════════════════════════════════════════════════════
+  // GUARDAR
+  // ═══════════════════════════════════════════════════════════════
+
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) {
       _mostrarDialogoSimple(
         titulo: 'Campos incompletos',
-        mensaje: 'Por favor, completa todos los campos obligatorios.',
+        mensaje: 'Completa todos los campos obligatorios.',
         esError: true,
       );
       return;
     }
 
-    // Validación extra: si permite venta al mayor, debe tener precio mayor
     if (_permiteVentaMayor) {
-      final precioMayor = _parseDouble(_precioMayorController.text);
-      final cantidadMin = _parseInt(_cantidadMinimaMayorController.text);
-      if (precioMayor == null || precioMayor <= 0) {
+      final pm = _parseDouble(_precioMayorCtrl.text);
+      final cm = _parseInt(_cantMinMayorCtrl.text);
+      if (pm == null || pm <= 0) {
         _mostrarDialogoSimple(
           titulo: 'Falta precio mayor',
-          mensaje:
-              'Habilitaste venta al mayor pero no ingresaste un precio mayor válido.',
+          mensaje: 'Debes ingresar un precio mayor válido.',
           esError: true,
         );
         return;
       }
-      if (cantidadMin == null || cantidadMin <= 0) {
+      if (cm == null || cm <= 0) {
         _mostrarDialogoSimple(
           titulo: 'Falta cantidad mínima',
-          mensaje:
-              'Debes indicar la cantidad mínima para aplicar el precio mayor.',
+          mensaje: 'Debes indicar la cantidad mínima.',
           esError: true,
         );
         return;
@@ -613,92 +466,75 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     try {
       String imagenUrlFinal = _imagenUrlPreview;
 
-      if (_imagenSeleccionada != null) {
+      if (_imagenSel != null) {
         setState(() => _subiendoImagen = true);
         try {
           final url = await _uploadImage(
-            File(_imagenSeleccionada!.path),
-            _codigoController.text.trim(),
+            File(_imagenSel!.path),
+            _codigoCtrl.text.trim(),
           );
           if (url != null && url.isNotEmpty) {
             imagenUrlFinal = url;
-          } else {
-            if (_imagenUrlPreview.isNotEmpty &&
-                _imagenUrlPreview.startsWith('http')) {
-              imagenUrlFinal = _imagenUrlPreview;
-            } else {
-              imagenUrlFinal = '';
-            }
-          }
-        } catch (e) {
-          if (_imagenUrlPreview.isNotEmpty &&
-              _imagenUrlPreview.startsWith('http')) {
+          } else if (_imagenUrlPreview.startsWith('http')) {
             imagenUrlFinal = _imagenUrlPreview;
+          } else {
+            imagenUrlFinal = '';
           }
         } finally {
           if (mounted) setState(() => _subiendoImagen = false);
         }
       }
 
-      final producto = widget.producto ?? ProductoEntity();
+      final p = widget.producto ?? ProductoEntity();
       if (widget.esDuplicado) {
-        producto.id = Isar.autoIncrement;
-        producto.stock = 0.0;
+        p.id = Isar.autoIncrement;
+        p.stock = 0.0;
       }
-      producto.codigoBarras = _codigoController.text.trim();
-      producto.nombre = _nombreController.text.trim();
-      producto.marcaSupabaseId = _marcaSeleccionada?.supabaseId;
-      producto.marca = _marcaSeleccionada?.nombre ?? '';
-      producto.imagenUrl = imagenUrlFinal;
-      producto.precioUnidad = double.tryParse(_precioController.text) ?? 0.0;
-      producto.stock = double.tryParse(_stockController.text) ?? 0.0;
-      producto.stockMinimo =
-          double.tryParse(_stockMinController.text) ?? 5.0;
-      producto.categoriaId = _categoriaIdSeleccionada;
-      producto.categoria = _categoriaSeleccionada;
-      producto.esPesado = _esPesado;
-      producto.activo = _activo;
-      producto.proveedorId = _proveedorSeleccionado?.id;
-      producto.proveedorNombre = _proveedorSeleccionado?.nombre ?? '';
-      producto.proveedorTelefono = _proveedorSeleccionado?.telefono ?? '';
-      producto.proveedorEmail = _proveedorSeleccionado?.email ?? '';
-      producto.proveedorDireccion = _proveedorSeleccionado?.direccion ?? '';
-      producto.updatedAt = DateTime.now();
+      p.codigoBarras = _codigoCtrl.text.trim();
+      p.nombre = _nombreCtrl.text.trim();
+      p.marcaSupabaseId = _marcaSel?.supabaseId;
+      p.marca = _marcaSel?.nombre ?? '';
+      p.imagenUrl = imagenUrlFinal;
+      p.precioUnidad = _parseDouble(_precioCtrl.text) ?? 0.0;
+      p.stock = _parseDouble(_stockCtrl.text) ?? 0.0;
+      p.stockMinimo = _parseDouble(_stockMinCtrl.text) ?? 5.0;
+      p.categoriaId = _categoriaIdSel;
+      p.categoria = _categoriaSel;
+      p.esPesado = _esPesado;
+      p.activo = _activo;
+      p.proveedorId = _proveedorSel?.id;
+      p.proveedorNombre = _proveedorSel?.nombre ?? '';
+      p.proveedorTelefono = _proveedorSel?.telefono ?? '';
+      p.proveedorEmail = _proveedorSel?.email ?? '';
+      p.proveedorDireccion = _proveedorSel?.direccion ?? '';
+      p.updatedAt = DateTime.now();
 
-      // ── Venta al mayor ──
-      producto.permiteVentaMayor = _permiteVentaMayor;
+      p.permiteVentaMayor = _permiteVentaMayor;
       if (_permiteVentaMayor) {
-        producto.precioMayor = _parseDouble(_precioMayorController.text);
-        producto.cantidadMinimaMayor =
-            _parseInt(_cantidadMinimaMayorController.text);
-        producto.precioMedioMayor =
-            _parseDouble(_precioMedioMayorController.text);
-        producto.cantidadMinimaMedioMayor =
-            _parseInt(_cantidadMinimaMedioMayorController.text);
-        producto.unidadesPorBulto =
-            _parseInt(_unidadesPorBultoController.text) ?? 1;
-        producto.costoUnitarioPromedio =
-            _parseDouble(_costoUnitarioController.text);
+        p.precioMayor = _parseDouble(_precioMayorCtrl.text);
+        p.cantidadMinimaMayor = _parseInt(_cantMinMayorCtrl.text);
+        p.precioMedioMayor = _parseDouble(_precioMedioMayorCtrl.text);
+        p.cantidadMinimaMedioMayor =
+            _parseInt(_cantMinMedioMayorCtrl.text);
+        p.unidadesPorBulto = _parseInt(_unidadesBultoCtrl.text) ?? 1;
+        p.costoUnitarioPromedio = _parseDouble(_costoUnitarioCtrl.text);
       } else {
-        // Limpiar si se desactiva
-        producto.precioMayor = null;
-        producto.cantidadMinimaMayor = null;
-        producto.precioMedioMayor = null;
-        producto.cantidadMinimaMedioMayor = null;
-        producto.unidadesPorBulto = 1;
-        producto.costoUnitarioPromedio = null;
+        p.precioMayor = null;
+        p.cantidadMinimaMayor = null;
+        p.precioMedioMayor = null;
+        p.cantidadMinimaMedioMayor = null;
+        p.unidadesPorBulto = 1;
+        p.costoUnitarioPromedio = null;
       }
 
-      await widget.onGuardar(producto);
+      await widget.onGuardar(p);
 
       if (mounted) {
         _mostrarDialogoExito(
-          titulo:
-              'Producto ${widget.producto != null ? 'actualizado' : 'creado'}',
-          mensaje: '"${producto.nombre}" ha sido guardado correctamente.',
+          titulo: 'Producto ${widget.producto != null ? 'actualizado' : 'creado'}',
+          mensaje: '"${p.nombre}" guardado correctamente.',
         );
       }
-
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_DRAFT_KEY);
     } catch (e) {
@@ -714,7 +550,10 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     }
   }
 
-  // ==================== DIÁLOGOS DE FEEDBACK ====================
+  // ═══════════════════════════════════════════════════════════════
+  // FEEDBACK
+  // ═══════════════════════════════════════════════════════════════
+
   void _mostrarDialogoExito({
     required String titulo,
     required String mensaje,
@@ -722,7 +561,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => GlassDialog(
+      builder: (ctx) => GlassDialog(
         maxWidth: 420,
         accentColor: _colorSuccess,
         child: Padding(
@@ -730,52 +569,40 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildLottieWithFallback('assets/animations/success.json'),
+              _lottie('assets/animations/success.json'),
               const SizedBox(height: 12),
-              Text(
-                titulo,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  color: _colorSuccess,
-                ),
-              ),
+              Text(titulo,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: _colorSuccess)),
               const SizedBox(height: 8),
-              Text(
-                mensaje,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
-                  height: 1.4,
-                ),
-              ),
+              Text(mensaje,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                      height: 1.4)),
               const SizedBox(height: 20),
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(dialogContext);
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _colorSuccess,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Aceptar',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _colorSuccess,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
                   ),
+                  child: const Text('Aceptar',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 15)),
                 ),
               ),
             ],
@@ -793,7 +620,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => GlassDialog(
+      builder: (ctx) => GlassDialog(
         maxWidth: 420,
         accentColor: esError ? _colorDanger : _colorInfo,
         child: Padding(
@@ -802,56 +629,33 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
             mainAxisSize: MainAxisSize.min,
             children: [
               if (esError)
-                _buildLottieWithFallback('assets/animations/error.json')
+                _lottie('assets/animations/error.json')
               else
-                const Icon(Icons.info_outline, size: 60, color: _colorInfo),
+                const Icon(Icons.info_outline_rounded,
+                    size: 60, color: _colorInfo),
               const SizedBox(height: 12),
-              Text(
-                titulo,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  color: esError ? _colorDanger : _colorInfo,
-                ),
-              ),
+              Text(titulo,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: esError ? _colorDanger : _colorInfo)),
               const SizedBox(height: 8),
-              Text(
-                mensaje,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
-                  height: 1.4,
-                ),
-              ),
+              Text(mensaje,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                      height: 1.4)),
               const SizedBox(height: 20),
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(dialogContext),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor:
-                          Theme.of(dialogContext).colorScheme.onSurfaceVariant,
-                      side: BorderSide(
-                        color: Theme.of(dialogContext)
-                            .colorScheme
-                            .outlineVariant
-                            .withValues(alpha: 0.5),
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Cerrar',
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cerrar',
                       style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
-                  ),
+                          fontWeight: FontWeight.bold, fontSize: 15)),
                 ),
               ),
             ],
@@ -861,29 +665,30 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     );
   }
 
-  Widget _buildLottieWithFallback(String assetPath) {
+  Widget _lottie(String path) {
     return Lottie.asset(
-      assetPath,
+      path,
       width: 120,
       height: 120,
       fit: BoxFit.contain,
-      errorBuilder: (context, error, stackTrace) {
-        return Icon(
-          assetPath.contains('error')
-              ? Icons.error_outline_rounded
-              : Icons.check_circle_rounded,
-          size: 80,
-          color: assetPath.contains('error') ? _colorDanger : _colorSuccess,
-        );
-      },
+      errorBuilder: (_, __, ___) => Icon(
+        path.contains('error')
+            ? Icons.error_outline_rounded
+            : Icons.check_circle_rounded,
+        size: 80,
+        color: path.contains('error') ? _colorDanger : _colorSuccess,
+      ),
     );
   }
 
-  // ==================== BUILD ====================
+  // ═══════════════════════════════════════════════════════════════
+  // BUILD
+  // ═══════════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final isMobile = ResponsiveHelper.isMobile(context);
-    final colorScheme = Theme.of(context).colorScheme;
 
     return GlassDialog(
       maxWidth: 900,
@@ -897,47 +702,9 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildHeader(colorScheme, isMobile),
+            _buildHeader(cs),
             const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest
-                    .withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              padding: const EdgeInsets.all(4),
-              child: TabBar(
-                controller: _tabController,
-                indicator: BoxDecoration(
-                  color: colorScheme.primary,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                labelColor: Colors.white,
-                unselectedLabelColor: colorScheme.onSurfaceVariant,
-                labelStyle: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: isMobile ? 12 : 13,
-                ),
-                unselectedLabelStyle: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: isMobile ? 12 : 13,
-                ),
-                tabs: const [
-                  Tab(
-                    height: 42,
-                    icon: Icon(Icons.inventory_2_outlined, size: 18),
-                    text: 'Producto',
-                  ),
-                  Tab(
-                    height: 42,
-                    icon: Icon(Icons.business_center_rounded, size: 18),
-                    text: 'Proveedor',
-                  ),
-                ],
-              ),
-            ),
+            _buildTabBar(cs, isMobile),
             const SizedBox(height: 12),
             Flexible(
               child: Form(
@@ -945,1596 +712,182 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildProductTab(colorScheme, isMobile),
-                    _buildProveedorTab(colorScheme, isMobile),
+                    ProductDataTab(
+                      codigoController: _codigoCtrl,
+                      nombreController: _nombreCtrl,
+                      precioController: _precioCtrl,
+                      stockController: _stockCtrl,
+                      stockMinController: _stockMinCtrl,
+                      precioMayorController: _precioMayorCtrl,
+                      cantidadMinimaMayorController: _cantMinMayorCtrl,
+                      precioMedioMayorController: _precioMedioMayorCtrl,
+                      cantidadMinimaMedioMayorController:
+                          _cantMinMedioMayorCtrl,
+                      unidadesPorBultoController: _unidadesBultoCtrl,
+                      costoUnitarioController: _costoUnitarioCtrl,
+                      esPesado: _esPesado,
+                      activo: _activo,
+                      permiteVentaMayor: _permiteVentaMayor,
+                      generandoCodigo: _generandoCodigo,
+                      subiendoImagen: _subiendoImagen,
+                      categoriaIdSeleccionada: _categoriaIdSel,
+                      categoriaSeleccionada: _categoriaSel,
+                      marcaSeleccionada: _marcaSel,
+                      imagenUrlPreview: _imagenUrlPreview,
+                      imagenSeleccionada: _imagenSel,
+                      onEsPesadoChanged: (v) =>
+                          setState(() => _esPesado = v),
+                      onActivoChanged: (v) => setState(() => _activo = v),
+                      onPermiteVentaMayorChanged: (v) =>
+                          setState(() => _permiteVentaMayor = v),
+                      onMarcaChanged: (m) => setState(() => _marcaSel = m),
+                      onCategoriaChanged: (c) {
+                        setState(() {
+                          if (c != null) {
+                            _categoriaIdSel = c.id;
+                            _categoriaSel = c.nombre;
+                          } else {
+                            _categoriaIdSel = null;
+                            _categoriaSel = 'General';
+                          }
+                        });
+                      },
+                      onGenerarCodigo: _generarCodigo,
+                      onEscanear: _escanearCodigo,
+                      onPickImage: _pickImage,
+                      onClearImage: _clearImagen,
+                    ),
+                    ProductProveedorTab(
+                      proveedores: _proveedores,
+                      proveedorSeleccionado: _proveedorSel,
+                      cargandoProveedores: _cargandoProveedores,
+                      onAbrirPanel: _abrirPanelProveedores,
+                      onCrearProveedor: _crearProveedorRapido,
+                      onSeleccionar: _seleccionarProveedor,
+                      busquedaController: _provBusqCtrl,
+                    ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            _buildAcciones(colorScheme, isMobile),
+            _buildAcciones(cs),
           ],
         ),
       ),
     );
   }
 
-  // ==================== PESTAÑA PRODUCTO ====================
-  Widget _buildProductTab(ColorScheme colorScheme, bool isMobile) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        children: [
-          _campoCodigoBarras(colorScheme),
-          const SizedBox(height: 16),
-          _campoNombre(colorScheme),
-          const SizedBox(height: 16),
-          _campoSelectorMarca(colorScheme),
-          const SizedBox(height: 16),
-          _campoCategoriaSelector(colorScheme),
-          const SizedBox(height: 16),
-          _buildSwitchPesado(colorScheme),
-          const SizedBox(height: 12),
-          ActiveToggle(
-            value: _activo,
-            onChanged: (v) => setState(() => _activo = v),
-            activeLabel: 'Producto activo',
-            inactiveLabel: 'Producto inactivo',
-            activeSubtitle: 'Disponible en el catálogo y POS',
-            inactiveSubtitle: 'Oculto de la operación actual',
-          ),
-          const SizedBox(height: 16),
-          _buildImageSection(colorScheme, isMobile),
-          const SizedBox(height: 16),
-          _buildPrecioStock(colorScheme, isMobile),
-          const SizedBox(height: 20),
-          _buildVentaMayorSection(colorScheme),
-        ],
-      ),
-    );
-  }
-
-  // ==================== SECCIÓN VENTA AL MAYOR ====================
-  Widget _buildVentaMayorSection(ColorScheme colorScheme) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _colorMayor.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _colorMayor.withValues(alpha: 0.3),
-          width: 1.2,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Toggle principal
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: _colorMayor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.warehouse_rounded,
-                  size: 18,
-                  color: _colorMayor,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Venta al mayor',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: _colorMayor,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Habilita precios B2B para este producto',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Switch(
-                value: _permiteVentaMayor,
-                onChanged: (v) =>
-                    setState(() => _permiteVentaMayor = v),
-                activeThumbColor: _colorMayor,
-              ),
-            ],
-          ),
-
-          // Campos condicionales
-          if (_permiteVentaMayor) ...[
-            const SizedBox(height: 16),
-            Divider(
-              color: _colorMayor.withValues(alpha: 0.2),
-            ),
-            const SizedBox(height: 8),
-
-            // ── Precio Mayor + Cantidad mínima ──
-            Row(
-              children: [
-                Expanded(
-                  child: _campo(
-                    _precioMayorController,
-                    'Precio Mayor (\$) *',
-                    Icons.workspace_premium_rounded,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    helper: 'Precio por unidad al mayor',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _campo(
-                    _cantidadMinimaMayorController,
-                    'Cant. mínima *',
-                    Icons.numbers_rounded,
-                    keyboardType: TextInputType.number,
-                    helper: 'Ej: 6 unidades',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // ── Precio Medio Mayor + Cantidad mínima medio ──
-            Row(
-              children: [
-                Expanded(
-                  child: _campo(
-                    _precioMedioMayorController,
-                    'Precio Medio Mayor (\$)',
-                    Icons.trending_up_rounded,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    helper: 'Opcional',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _campo(
-                    _cantidadMinimaMedioMayorController,
-                    'Cant. mínima medio',
-                    Icons.numbers_rounded,
-                    keyboardType: TextInputType.number,
-                    helper: 'Opcional',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // ── Bultos + Costo ──
-            Row(
-              children: [
-                Expanded(
-                  child: _campo(
-                    _unidadesPorBultoController,
-                    'Unidades por bulto',
-                    Icons.inventory_2_rounded,
-                    keyboardType: TextInputType.number,
-                    helper: 'Ej: 12',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _campo(
-                    _costoUnitarioController,
-                    'Costo promedio (\$)',
-                    Icons.attach_money_rounded,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    helper: 'Para alertas de margen',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            // ── Info adicional ──
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: _colorMayor.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline_rounded,
-                    size: 14,
-                    color: _colorMayor,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Los niveles de precio se aplican según la cantidad '
-                      'que el cliente compre. Si no configuras alguno, '
-                      'se usará el precio de detal.',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: colorScheme.onSurfaceVariant,
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ==================== PESTAÑA PROVEEDOR ====================
-  Widget _buildProveedorTab(ColorScheme colorScheme, bool isMobile) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        children: [
-          _buildSelectorProveedor(colorScheme, isMobile),
-          const SizedBox(height: 16),
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: _crearProveedorRapido,
-                icon: const Icon(Icons.add_circle_outline, size: 18),
-                label: const Text(
-                  'Crear nuevo proveedor',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_proveedorSeleccionado != null)
-            _buildProveedorSeleccionadoCard(colorScheme),
-        ],
-      ),
-    );
-  }
-
-  // ==================== SWITCH PESADO ====================
-  Widget _buildSwitchPesado(ColorScheme colorScheme) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        decoration: BoxDecoration(
-          color: _esPesado
-              ? _colorInfo.withValues(alpha: 0.1)
-              : (isDark
-                  ? Colors.white.withValues(alpha: 0.04)
-                  : const Color(0xFFF9FAFB)),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _esPesado
-                ? _colorInfo.withValues(alpha: 0.3)
-                : colorScheme.outlineVariant.withValues(alpha: 0.5),
-          ),
-        ),
-        child: SwitchListTile(
-          title: Text(
-            '¿Es producto pesado (granel)?',
-            style: TextStyle(
-              color: colorScheme.onSurface,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          subtitle: Text(
-            _esPesado
-                ? 'Se pesa al vender (kg)'
-                : 'Se vende por unidad',
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          value: _esPesado,
-          onChanged: (val) => setState(() => _esPesado = val),
-          activeThumbColor: _colorInfo,
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-        ),
-      ),
-    );
-  }
-
-  // ==================== PRECIO Y STOCK ====================
-  Widget _buildPrecioStock(ColorScheme colorScheme, bool isMobile) {
-    return isMobile
-        ? Column(
-            children: [
-              _campoPrecio(colorScheme),
-              const SizedBox(height: 12),
-              _campoStock(colorScheme),
-              const SizedBox(height: 12),
-              _campoStockMinimo(colorScheme),
-            ],
-          )
-        : Row(
-            children: [
-              Expanded(child: _campoPrecio(colorScheme)),
-              const SizedBox(width: 12),
-              Expanded(child: _campoStock(colorScheme)),
-              const SizedBox(width: 12),
-              Expanded(child: _campoStockMinimo(colorScheme)),
-            ],
-          );
-  }
-
-  // ==================== SELECTOR DE PROVEEDOR ====================
-  Widget _buildSelectorProveedor(ColorScheme colorScheme, bool isMobile) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark
-            ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.5)
-            : Colors.white.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.business_center_rounded,
-                  color: colorScheme.primary, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Proveedores',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              const Spacer(),
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: IconButton(
-                  icon: Icon(Icons.view_list_rounded,
-                      color: colorScheme.primary, size: 20),
-                  tooltip: 'Ver todos',
-                  onPressed: _abrirPanelProveedores,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _cargandoProveedores
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : _proveedores.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        'No hay proveedores activos. Crea uno desde "Crear nuevo proveedor".',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    )
-                  : Autocomplete<ProveedorEntity>(
-                      optionsBuilder: (textEditingValue) {
-                        if (textEditingValue.text.isEmpty) {
-                          return _proveedores;
-                        }
-                        final query = textEditingValue.text.toLowerCase();
-                        return _proveedores.where((p) =>
-                            p.nombre.toLowerCase().contains(query) ||
-                            (p.empresa ?? '')
-                                .toLowerCase()
-                                .contains(query));
-                      },
-                      displayStringForOption: (proveedor) => proveedor.nombre,
-                      fieldViewBuilder: (context, controller, focusNode,
-                          onFieldSubmitted) {
-                        _proveedorBusquedaController.text = controller.text;
-                        return TextFormField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          decoration: _inputDecor(
-                            label: 'Buscar proveedor...',
-                            icon: Icons.search,
-                            colorScheme: colorScheme,
-                            isDark: isDark,
-                          ),
-                          onChanged: (value) {
-                            controller.text = value;
-                            if (_proveedorSeleccionado != null &&
-                                _proveedorSeleccionado!.nombre != value) {
-                              _seleccionarProveedor(null);
-                            }
-                          },
-                        );
-                      },
-                      onSelected: (proveedor) {
-                        _seleccionarProveedor(proveedor);
-                      },
-                      optionsViewBuilder: (context, onSelected, options) {
-                        return Align(
-                          alignment: Alignment.topLeft,
-                          child: Material(
-                            elevation: 4,
-                            borderRadius: BorderRadius.circular(12),
-                            color: colorScheme.surface,
-                            child: ConstrainedBox(
-                              constraints:
-                                  const BoxConstraints(maxHeight: 200),
-                              child: ListView.builder(
-                                padding: EdgeInsets.zero,
-                                shrinkWrap: true,
-                                itemCount: options.length,
-                                itemBuilder: (context, index) {
-                                  final option = options.elementAt(index);
-                                  return ListTile(
-                                    dense: true,
-                                    title: Text(option.nombre),
-                                    subtitle: option.empresa != null &&
-                                            option.empresa!.isNotEmpty
-                                        ? Text(
-                                            option.empresa!,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: colorScheme
-                                                  .onSurfaceVariant,
-                                            ),
-                                          )
-                                        : null,
-                                    onTap: () => onSelected(option),
-                                    leading: Icon(Icons.business,
-                                        color: colorScheme.primary, size: 20),
-                                    tileColor: option == _proveedorSeleccionado
-                                        ? colorScheme.primary
-                                            .withValues(alpha: 0.1)
-                                        : null,
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-        ],
-      ),
-    );
-  }
-
-  // ==================== TARJETA PROVEEDOR SELECCIONADO ====================
-  Widget _buildProveedorSeleccionadoCard(ColorScheme colorScheme) {
-    final proveedor = _proveedorSeleccionado!;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _colorPrimary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _colorPrimary.withValues(alpha: 0.25),
-          width: 1.2,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.check_circle_rounded,
-                  size: 16, color: _colorPrimary),
-              const SizedBox(width: 6),
-              Text(
-                'Proveedor seleccionado',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: _colorPrimary,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              const Spacer(),
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: IconButton(
-                  icon: Icon(Icons.close,
-                      size: 16, color: colorScheme.onSurfaceVariant),
-                  onPressed: () => _seleccionarProveedor(null),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  tooltip: 'Quitar',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            proveedor.nombre,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: colorScheme.onSurface,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (proveedor.telefono?.isNotEmpty ?? false) ...[
-            const SizedBox(height: 4),
-            _buildDetailRow(
-              icon: Icons.phone_rounded,
-              text: proveedor.telefono!,
-              colorScheme: colorScheme,
-            ),
-          ],
-          if (proveedor.email?.isNotEmpty ?? false)
-            _buildDetailRow(
-              icon: Icons.email_rounded,
-              text: proveedor.email!,
-              colorScheme: colorScheme,
-            ),
-          if (proveedor.direccion?.isNotEmpty ?? false)
-            _buildDetailRow(
-              icon: Icons.location_on_rounded,
-              text: proveedor.direccion!,
-              colorScheme: colorScheme,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow({
-    required IconData icon,
-    required String text,
-    required ColorScheme colorScheme,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 14, color: colorScheme.onSurfaceVariant),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 13,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==================== SELECTOR DE MARCA ====================
-  Widget _campoSelectorMarca(ColorScheme colorScheme) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark
-            ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.5)
-            : Colors.white.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.branding_watermark_outlined,
-                  color: colorScheme.primary, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Marca (opcional)',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _cargandoMarcas
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : _marcas.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        'No hay marcas disponibles.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    )
-                  : Autocomplete<MarcaEntity>(
-                      optionsBuilder: (textEditingValue) {
-                        if (textEditingValue.text.isEmpty) {
-                          return _marcas;
-                        }
-                        final query = textEditingValue.text.toLowerCase();
-                        return _marcas.where((m) =>
-                            m.nombre.toLowerCase().contains(query) ||
-                            (m.descripcion ?? '')
-                                .toLowerCase()
-                                .contains(query));
-                      },
-                      displayStringForOption: (marca) => marca.nombre,
-                      fieldViewBuilder: (context, controller, focusNode,
-                          onFieldSubmitted) {
-                        _marcaBusquedaController.text = controller.text;
-                        return TextFormField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          decoration: _inputDecor(
-                            label: 'Buscar marca...',
-                            icon: Icons.search,
-                            colorScheme: colorScheme,
-                            isDark: isDark,
-                          ),
-                          onChanged: (value) {
-                            controller.text = value;
-                            if (_marcaSeleccionada != null &&
-                                _marcaSeleccionada!.nombre != value) {
-                              _seleccionarMarca(null);
-                            }
-                          },
-                        );
-                      },
-                      onSelected: (marca) {
-                        _seleccionarMarca(marca);
-                        _marcaBusquedaController.text = marca.nombre;
-                      },
-                      optionsViewBuilder: (context, onSelected, options) {
-                        return Align(
-                          alignment: Alignment.topLeft,
-                          child: Material(
-                            elevation: 4,
-                            borderRadius: BorderRadius.circular(12),
-                            color: colorScheme.surface,
-                            child: ConstrainedBox(
-                              constraints:
-                                  const BoxConstraints(maxHeight: 200),
-                              child: ListView.builder(
-                                padding: EdgeInsets.zero,
-                                shrinkWrap: true,
-                                itemCount: options.length,
-                                itemBuilder: (context, index) {
-                                  final option = options.elementAt(index);
-                                  return ListTile(
-                                    dense: true,
-                                    title: Text(option.nombre),
-                                    subtitle: option.descripcion != null &&
-                                            option.descripcion!.isNotEmpty
-                                        ? Text(
-                                            option.descripcion!,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: colorScheme
-                                                  .onSurfaceVariant,
-                                            ),
-                                          )
-                                        : null,
-                                    onTap: () => onSelected(option),
-                                    leading: Icon(
-                                        Icons.branding_watermark_rounded,
-                                        color: colorScheme.primary,
-                                        size: 20),
-                                    tileColor: option == _marcaSeleccionada
-                                        ? colorScheme.primary
-                                            .withValues(alpha: 0.1)
-                                        : null,
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-          if (_marcaSeleccionada != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: _colorPrimary.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: _colorPrimary.withValues(alpha: 0.2),
-                ),
-              ),
-              child: Row(
-                children: [
-                  if (_marcaSeleccionada!.logoUrl != null &&
-                      _marcaSeleccionada!.logoUrl!.isNotEmpty)
-                    ClipOval(
-                      child: Image.network(
-                        _marcaSeleccionada!.logoUrl!,
-                        width: 24,
-                        height: 24,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(
-                          Icons.branding_watermark_rounded,
-                          size: 20,
-                          color: _colorPrimary,
-                        ),
-                      ),
-                    )
-                  else
-                    const Icon(
-                      Icons.branding_watermark_rounded,
-                      size: 20,
-                      color: _colorPrimary,
-                    ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _marcaSeleccionada!.nombre,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: IconButton(
-                      icon: Icon(Icons.close,
-                          size: 16, color: colorScheme.onSurfaceVariant),
-                      onPressed: () => _seleccionarMarca(null),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ==================== SELECTOR DE CATEGORÍAS ====================
-  Widget _campoCategoriaSelector(ColorScheme colorScheme) {
-    final categoriasAsync = ref.watch(todasLasCategoriasProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return categoriasAsync.when(
-      data: (categorias) {
-        CategoriaEntity? categoriaSeleccionada;
-        if (_categoriaIdSeleccionada != null) {
-          categoriaSeleccionada = categorias.firstWhereOrNull(
-            (c) => c.id == _categoriaIdSeleccionada,
-          );
-        }
-        if (categoriaSeleccionada == null && _categoriaSeleccionada.isNotEmpty) {
-          categoriaSeleccionada = categorias.firstWhereOrNull(
-            (c) => c.nombre == _categoriaSeleccionada,
-          );
-        }
-
-        return DropdownButtonFormField<CategoriaEntity>(
-          initialValue: categoriaSeleccionada,
-          isExpanded: true,
-          decoration: _inputDecor(
-            label: 'Categoría *',
-            icon: Icons.category_outlined,
-            colorScheme: colorScheme,
-            isDark: isDark,
-          ),
-          hint: const Text('Selecciona una categoría'),
-          items: [
-            const DropdownMenuItem<CategoriaEntity>(
-              value: null,
-              child: Text('Sin categoría'),
-            ),
-            ...categorias.map((cat) {
-              final isActive = cat.activo;
-              return DropdownMenuItem<CategoriaEntity>(
-                value: cat,
-                child: Row(
-                  children: [
-                    if (!isActive)
-                      Icon(Icons.visibility_off,
-                          size: 16, color: colorScheme.error),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        isActive ? cat.nombre : '${cat.nombre} (inactiva)',
-                        style: TextStyle(
-                          color: isActive ? null : colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-          onChanged: (nuevaCat) {
-            setState(() {
-              if (nuevaCat != null) {
-                _categoriaIdSeleccionada = nuevaCat.id;
-                _categoriaSeleccionada = nuevaCat.nombre;
-              } else {
-                _categoriaIdSeleccionada = null;
-                _categoriaSeleccionada = 'General';
-              }
-            });
-          },
-        );
-      },
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (err, _) => Text(
-        'Error al cargar categorías: $err',
-        style: TextStyle(color: colorScheme.error),
-      ),
-    );
-  }
-
-  // ==================== HEADER ====================
-  Widget _buildHeader(ColorScheme colorScheme, bool isMobile) {
-    final esEdicion = widget.producto != null && !widget.esDuplicado;
-
+  Widget _buildHeader(ColorScheme cs) {
+    final edicion = widget.producto != null && !widget.esDuplicado;
     return DialogHeader(
       icon: widget.esDuplicado
           ? Icons.copy_outlined
-          : esEdicion
+          : edicion
               ? Icons.edit_outlined
               : Icons.add_shopping_cart_outlined,
       title: widget.esDuplicado
-          ? 'Duplicar Producto'
-          : esEdicion
-              ? 'Editar Producto'
-              : 'Nuevo Producto',
-      subtitle: esEdicion
+          ? 'Duplicar producto'
+          : edicion
+              ? 'Editar producto'
+              : 'Nuevo producto',
+      subtitle: edicion
           ? 'Actualiza los datos del producto'
           : 'Registra un nuevo producto en el catálogo',
-      color: colorScheme.primary,
+      color: cs.primary,
     );
   }
 
-  // ==================== ACCIONES ====================
-  Widget _buildAcciones(ColorScheme colorScheme, bool isMobile) {
+  Widget _buildTabBar(ColorScheme cs, bool isMobile) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: cs.primary,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelColor: Colors.white,
+        unselectedLabelColor: cs.onSurfaceVariant,
+        labelStyle: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: isMobile ? 12 : 13,
+        ),
+        tabs: const [
+          Tab(
+            height: 42,
+            icon: Icon(Icons.inventory_2_outlined, size: 18),
+            text: 'Producto',
+          ),
+          Tab(
+            height: 42,
+            icon: Icon(Icons.business_center_rounded, size: 18),
+            text: 'Proveedor',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAcciones(ColorScheme cs) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        MouseRegion(
-          cursor: _guardando
-              ? SystemMouseCursors.forbidden
-              : SystemMouseCursors.click,
-          child: SizedBox(
-            height: 52,
-            child: TextButton(
-              onPressed: _guardando ? null : () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+        SizedBox(
+          height: 52,
+          child: TextButton(
+            onPressed: _guardando ? null : () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
-                'Cancelar',
-                style: TextStyle(
-                  color: colorScheme.onSurfaceVariant,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+            child: Text(
+              'Cancelar',
+              style: TextStyle(
+                color: cs.onSurfaceVariant,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
         ),
         const SizedBox(width: 12),
-        MouseRegion(
-          cursor: _guardando
-              ? SystemMouseCursors.forbidden
-              : SystemMouseCursors.click,
-          child: SizedBox(
-            height: 52,
-            child: ElevatedButton(
-              onPressed: _guardando ? null : _guardar,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colorScheme.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
+        SizedBox(
+          height: 52,
+          child: ElevatedButton(
+            onPressed: _guardando ? null : _guardar,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: cs.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: _guardando
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.4,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text(
-                      'Guardar Producto',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+              elevation: 0,
             ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ==================== CAMPOS DE TEXTO ====================
-  Widget _campoCodigoBarras(ColorScheme colorScheme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextFormField(
-          controller: _codigoController,
-          style: TextStyle(color: colorScheme.onSurface),
-          decoration: _inputDecor(
-            label: 'Código de Barras *',
-            icon: Icons.qr_code,
-            colorScheme: colorScheme,
-            isDark: Theme.of(context).brightness == Brightness.dark,
-          ),
-          validator: (v) {
-            if (v == null || v.trim().isEmpty) return 'Requerido';
-            return null;
-          },
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _buildBotonCodigo(
-              icon: Icons.refresh_rounded,
-              label: 'Generar',
-              onPressed: _generandoCodigo ? null : _generarCodigoBarras,
-              color: colorScheme.primary,
-            ),
-            _buildBotonCodigo(
-              icon: Icons.qr_code_scanner_rounded,
-              label: 'Escanear',
-              onPressed: _escanearCodigoBarras,
-              color: colorScheme.secondary,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBotonCodigo({
-    required IconData icon,
-    required String label,
-    required VoidCallback? onPressed,
-    required Color color,
-  }) {
-    return MouseRegion(
-      cursor: onPressed == null
-          ? SystemMouseCursors.forbidden
-          : SystemMouseCursors.click,
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 18),
-        label: Text(label, style: const TextStyle(fontSize: 13)),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: color,
-          side: BorderSide(color: color.withValues(alpha: 0.4), width: 1.2),
-          backgroundColor: color.withValues(alpha: 0.06),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _campoNombre(ColorScheme colorScheme) {
-    return TextFormField(
-      controller: _nombreController,
-      style: TextStyle(color: colorScheme.onSurface),
-      decoration: _inputDecor(
-        label: 'Nombre del Producto *',
-        icon: Icons.label_outline,
-        colorScheme: colorScheme,
-        isDark: Theme.of(context).brightness == Brightness.dark,
-      ),
-      validator: (v) {
-        if (v == null || v.trim().isEmpty) return 'Requerido';
-        return null;
-      },
-    );
-  }
-
-  Widget _campoPrecio(ColorScheme colorScheme) {
-    return TextFormField(
-      controller: _precioController,
-      style: TextStyle(color: colorScheme.onSurface),
-      decoration: _inputDecor(
-        label: 'Precio (\$) *',
-        icon: Icons.attach_money,
-        colorScheme: colorScheme,
-        isDark: Theme.of(context).brightness == Brightness.dark,
-      ),
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      validator: (v) {
-        if (v == null || v.isEmpty) return 'Requerido';
-        final val = double.tryParse(v);
-        if (val == null || val < 0) return 'Precio inválido';
-        return null;
-      },
-    );
-  }
-
-  Widget _campoStock(ColorScheme colorScheme) {
-    return TextFormField(
-      controller: _stockController,
-      style: TextStyle(color: colorScheme.onSurface),
-      decoration: _inputDecor(
-        label: 'Stock Inicial *',
-        icon: Icons.inventory_outlined,
-        colorScheme: colorScheme,
-        isDark: Theme.of(context).brightness == Brightness.dark,
-        suffix: _esPesado ? 'kg' : 'unid',
-      ),
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      validator: (v) {
-        if (v == null || v.isEmpty) return 'Requerido';
-        final val = double.tryParse(v);
-        if (val == null || val < 0) return 'Stock inválido';
-        return null;
-      },
-    );
-  }
-
-  Widget _campoStockMinimo(ColorScheme colorScheme) {
-    return TextFormField(
-      controller: _stockMinController,
-      style: TextStyle(color: colorScheme.onSurface),
-      decoration: _inputDecor(
-        label: 'Stock Mínimo *',
-        icon: Icons.warning_amber_outlined,
-        colorScheme: colorScheme,
-        isDark: Theme.of(context).brightness == Brightness.dark,
-      ),
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      validator: (v) {
-        if (v == null || v.isEmpty) return 'Requerido';
-        final val = double.tryParse(v);
-        if (val == null || val < 0) return 'Stock mínimo inválido';
-        return null;
-      },
-    );
-  }
-
-  // ==================== CAMPO GENÉRICO (para venta al mayor) ====================
-  Widget _campo(
-    TextEditingController controller,
-    String label,
-    IconData icon, {
-    TextInputType? keyboardType,
-    String? helper,
-  }) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      style: TextStyle(color: colorScheme.onSurface, fontSize: 14),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(
-          color: colorScheme.onSurfaceVariant,
-          fontSize: 13,
-        ),
-        helperText: helper,
-        helperStyle: TextStyle(
-          color: colorScheme.onSurfaceVariant,
-          fontSize: 10,
-        ),
-        prefixIcon: Icon(icon, color: _colorMayor, size: 18),
-        filled: true,
-        fillColor: isDark
-            ? Colors.white.withValues(alpha: 0.04)
-            : const Color(0xFFF9FAFB),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-            width: 1,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _colorMayor, width: 2),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-      ),
-    );
-  }
-
-  // ==================== IMAGE SECTION ====================
-  Widget _buildImageSection(ColorScheme colorScheme, bool isMobile) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark
-            ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.5)
-            : const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.image_outlined,
-                  color: colorScheme.primary, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Imagen del producto',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            height: 180,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest
-                  .withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: _imagenSeleccionada != null
-                  ? Image.file(
-                      File(_imagenSeleccionada!.path),
-                      fit: BoxFit.cover,
-                    )
-                  : _imagenUrlPreview.isNotEmpty &&
-                          _imagenUrlPreview.startsWith('http')
-                      ? Image.network(
-                          _imagenUrlPreview,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Icon(
-                            Icons.broken_image,
-                            size: 48,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        )
-                      : Icon(
-                          Icons.image_outlined,
-                          size: 64,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildImageButton(
-                icon: Icons.photo_library,
-                label: 'Galería',
-                onPressed: () => _seleccionarImagen(ImageSource.gallery),
-                color: colorScheme.primary,
-              ),
-              _buildImageButton(
-                icon: Icons.camera_alt,
-                label: 'Cámara',
-                onPressed: () => _seleccionarImagen(ImageSource.camera),
-                color: colorScheme.primary,
-              ),
-              if (_imagenSeleccionada != null ||
-                  (_imagenUrlPreview.isNotEmpty &&
-                      _imagenUrlPreview.startsWith('http')))
-                _buildImageButton(
-                  icon: Icons.delete_outline,
-                  label: 'Eliminar',
-                  onPressed: _limpiarImagen,
-                  color: _colorDanger,
-                ),
-            ],
-          ),
-          if (_subiendoImagen) ...[
-            const SizedBox(height: 10),
-            LinearProgressIndicator(
-              backgroundColor: colorScheme.surfaceContainerHighest,
-              color: colorScheme.primary,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Subiendo imagen...',
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImageButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-    required Color color,
-  }) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 16),
-        label: Text(label, style: const TextStyle(fontSize: 13)),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: color,
-          side: BorderSide(color: color.withValues(alpha: 0.4), width: 1.2),
-          backgroundColor: color.withValues(alpha: 0.06),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ==================== INPUT DECOR HELPER ====================
-  InputDecoration _inputDecor({
-    required String label,
-    required IconData icon,
-    required ColorScheme colorScheme,
-    required bool isDark,
-    String? suffix,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-      prefixIcon: Icon(icon, color: colorScheme.primary),
-      suffixText: suffix,
-      suffixStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-      filled: true,
-      fillColor: isDark
-          ? Colors.white.withValues(alpha: 0.04)
-          : const Color(0xFFF9FAFB),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-          width: 1,
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: colorScheme.primary, width: 2),
-      ),
-      contentPadding:
-          const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-    );
-  }
-}
-
-// ==================== PANEL LATERAL DE PROVEEDORES ====================
-class _ProveedoresPanelDialog extends StatefulWidget {
-  final List<ProveedorEntity> proveedores;
-  final ProveedorEntity? seleccionado;
-  final void Function(ProveedorEntity) onSeleccionar;
-  final VoidCallback onCrearProveedor;
-
-  const _ProveedoresPanelDialog({
-    required this.proveedores,
-    this.seleccionado,
-    required this.onSeleccionar,
-    required this.onCrearProveedor,
-  });
-
-  @override
-  State<_ProveedoresPanelDialog> createState() =>
-      _ProveedoresPanelDialogState();
-}
-
-class _ProveedoresPanelDialogState extends State<_ProveedoresPanelDialog> {
-  String _busqueda = '';
-
-  static const _colorPrimary = Color(0xFF8B5CF6);
-  static const _colorSuccess = Color(0xFF10B981);
-  static const _colorDanger = Color(0xFFEF4444);
-
-  List<ProveedorEntity> get _proveedoresFiltrados {
-    var lista = widget.proveedores;
-    if (_busqueda.isNotEmpty) {
-      final q = _busqueda.toLowerCase();
-      lista = lista.where((p) =>
-          p.nombre.toLowerCase().contains(q) ||
-          (p.empresa ?? '').toLowerCase().contains(q) ||
-          (p.telefono ?? '').contains(q)).toList();
-    }
-    return lista;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Dialog(
-      insetPadding: const EdgeInsets.all(8),
-      alignment: Alignment.centerRight,
-      backgroundColor: Colors.transparent,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.7,
-          height: MediaQuery.of(context).size.height * 0.9,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: isDark
-                ? colorScheme.surface.withValues(alpha: 0.95)
-                : Colors.white.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.4),
-              width: 1.5,
-            ),
-          ),
-          child: Column(
-            children: [
-              // ===== HEADER =====
-              const DialogHeader(
-                icon: Icons.business_center_rounded,
-                title: 'Proveedores',
-                subtitle: 'Selecciona uno o crea uno nuevo',
-              ),
-              const SizedBox(height: 16),
-
-              // ===== BÚSQUEDA =====
-              GlassSearchBar(
-                hint: 'Buscar por nombre, empresa o teléfono...',
-                onChanged: (val) => setState(() => _busqueda = val),
-              ),
-              const SizedBox(height: 12),
-
-              // ===== LISTA =====
-              Expanded(
-                child: _proveedoresFiltrados.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.business_center_rounded,
-                                size: 48,
-                                color: colorScheme.onSurfaceVariant),
-                            const SizedBox(height: 8),
-                            Text(
-                              'No hay proveedores',
-                              style: TextStyle(
-                                  color: colorScheme.onSurfaceVariant),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.separated(
-                        itemCount: _proveedoresFiltrados.length,
-                        separatorBuilder: (context, index) => Divider(
-                          color: colorScheme.outlineVariant
-                              .withValues(alpha: 0.4),
-                          height: 1,
-                        ),
-                        itemBuilder: (context, index) {
-                          final proveedor = _proveedoresFiltrados[index];
-                          final seleccionado =
-                              widget.seleccionado?.id == proveedor.id;
-                          final isActivo = proveedor.activo;
-
-                          return MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: ListTile(
-                              contentPadding:
-                                  const EdgeInsets.symmetric(horizontal: 4),
-                              leading: CircleAvatar(
-                                radius: 18,
-                                backgroundColor:
-                                    _colorPrimary.withValues(alpha: 0.12),
-                                child: const Icon(
-                                  Icons.business_center_rounded,
-                                  color: _colorPrimary,
-                                  size: 18,
-                                ),
-                              ),
-                              title: Text(
-                                proveedor.nombre,
-                                style: TextStyle(
-                                  fontWeight: seleccionado
-                                      ? FontWeight.bold
-                                      : FontWeight.w600,
-                                  color: seleccionado
-                                      ? _colorPrimary
-                                      : colorScheme.onSurface,
-                                ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (proveedor.empresa?.isNotEmpty ?? false)
-                                    Text(proveedor.empresa!,
-                                        style: const TextStyle(fontSize: 12)),
-                                  if (proveedor.telefono?.isNotEmpty ?? false)
-                                    Text('Tel: ${proveedor.telefono}',
-                                        style: const TextStyle(fontSize: 12)),
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: (isActivo
-                                              ? _colorSuccess
-                                              : _colorDanger)
-                                          .withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      isActivo ? 'Activo' : 'Inactivo',
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                        color: isActivo
-                                            ? _colorSuccess
-                                            : _colorDanger,
-                                      ),
-                                    ),
-                                  ),
-                                  if (seleccionado) ...[
-                                    const SizedBox(width: 8),
-                                    const Icon(
-                                      Icons.check_circle_rounded,
-                                      color: _colorPrimary,
-                                      size: 20,
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              onTap: () {
-                                widget.onSeleccionar(proveedor);
-                                Navigator.pop(context);
-                              },
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              const SizedBox(height: 12),
-
-              // ===== CREAR NUEVO =====
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    onPressed: widget.onCrearProveedor,
-                    icon: const Icon(Icons.add_circle_outline, size: 18),
-                    label: const Text(
-                      'Crear Nuevo Proveedor',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _colorPrimary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
+            child: _guardando
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.4, color: Colors.white),
+                  )
+                : const Text(
+                    'Guardar Producto',
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold),
                   ),
-                ),
-              ),
-            ],
           ),
         ),
-      ),
+      ],
     );
   }
 }

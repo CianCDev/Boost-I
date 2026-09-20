@@ -70,7 +70,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(errorMessage: message);
   }
 
-  Future<bool> loginWithPin(
+ Future<bool> loginWithPin(
       UsuarioEntity usuarioSeleccionado, String pin) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
 
@@ -89,7 +89,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return false;
       }
 
-      // 2️⃣ Intentar login silencioso en Supabase para obtener JWT y activar el Tenant
+      // 2️⃣ Intentar login silencioso en Supabase
       if (usuarioValido.email != null &&
           usuarioValido.email!.isNotEmpty &&
           usuarioValido.password != null &&
@@ -104,25 +104,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
           if (response.session != null) {
             final tenantId =
                 JwtService.extraerTenantId(response.session!.accessToken);
-            final rolJwt = JwtService.extraerRol(response.session!.accessToken);
+            final rolJwt =
+                JwtService.extraerRol(response.session!.accessToken);
 
             if (tenantId != null && tenantId.isNotEmpty) {
               await _ref.read(tenantActualProvider.notifier).setTenant(
                     tenantId,
                     rol: rolJwt,
                   );
-              debugPrint(
-                  '✅ Sesión Supabase + tenant activado silenciosamente: $tenantId');
+              debugPrint('✅ Sesión Supabase + tenant activado: $tenantId');
             }
           }
         } catch (e) {
-          debugPrint(
-              '⚠️ Login silencioso en Supabase omitido (modo offline o sin conexión): $e');
-          // Continuar localmente sin bloquear el login con PIN
+          debugPrint('⚠️ Login silencioso en Supabase omitido: $e');
         }
       }
 
-      // 3️⃣ Actualizar estado local y en Supabase (device_id, estado)
+      // 3️⃣ Actualizar estado local y en Supabase
       await _isarService.guardarLog(
         LogEntity()
           ..accion = 'INICIO_SESION'
@@ -133,32 +131,30 @@ class AuthNotifier extends StateNotifier<AuthState> {
           ..sincronizado = false,
       );
 
-      // Actualizar estado a activo en Supabase
-      final successNube = await _syncService.actualizarEstadoUsuarioEnSupabase(
+      await _syncService.actualizarEstadoUsuarioEnSupabase(
         usuarioValido.id,
         'activo',
       );
-      if (successNube) {
-        debugPrint(
-            '✅ Estado actualizado en Supabase a activo para ${usuarioValido.nombre}');
-      } else {
-        debugPrint('⚠️ No se pudo actualizar estado en Supabase (continuamos)');
-      }
-
-      // Actualizar localmente
       await _isarService.actualizarEstadoUsuario(usuarioValido.id, 'activo');
-      debugPrint(
-          '✅ Estado local actualizado a activo para ${usuarioValido.nombre}');
 
-      // Guardar device_id (si tiene supabaseUid)
       final deviceId = await DeviceInfoService().getDeviceId();
-      if (usuarioValido.supabaseUid != null &&
-          usuarioValido.supabaseUid!.isNotEmpty) {
+      // FIX: Corregido supabaseUid por supabaseId
+      if (usuarioValido.supabaseId != null &&
+          usuarioValido.supabaseId!.isNotEmpty) {
         try {
           await Supabase.instance.client.from('usuarios').update(
-              {'device_id': deviceId}).eq('id', usuarioValido.supabaseUid!);
+              {'device_id': deviceId}).eq('id', usuarioValido.supabaseId!);
         } catch (e) {
-          debugPrint('⚠️ No se pudo actualizar device_id en Supabase: $e');
+          debugPrint('⚠️ No se pudo actualizar device_id: $e');
+        }
+      }
+
+      // FIX: Fallback del Tenant para logins por PIN (cashiers/offline)
+      if (!_ref.read(tenantActualProvider).tieneTenant) {
+        final tId = usuarioValido.tenantId;
+        if (tId != null && tId.isNotEmpty) {
+          await _ref.read(tenantActualProvider.notifier).setTenant(tId, rol: usuarioValido.rol);
+          debugPrint('✅ Tenant local restaurado para uso offline: $tId');
         }
       }
 
@@ -169,27 +165,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       _ref.read(usuarioActualProvider.notifier).setUsuario(usuarioValido);
 
-      // ✅ REGISTRAR USUARIO EN EL MONITOREO
       ErrorService.setUser(
         usuarioValido.id.toString(),
         usuarioValido.email,
         usuarioValido.nombre,
       );
 
-      // Cargar lista de usuarios para el diálogo de cambio
       await loadUsuarios();
       return true;
     } catch (e, stack) {
-      // ✅ REPORTAR ERROR
-      ErrorService.captureError(
-        e,
-        stack: stack,
-        hint: 'loginWithPin_fallo',
-        extras: {
-          'usuario': usuarioSeleccionado.nombre,
-          'pinLength': pin.length,
-        },
-      );
+      ErrorService.captureError(e, stack: stack, hint: 'loginWithPin_fallo');
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Error al iniciar sesión: $e',
@@ -245,10 +230,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
           .select()
           .eq('id', response.user!.id)
           .single();
-
       final usuario = UsuarioEntity()
         ..id = 0
-        ..supabaseUid = response.user!.id
+        ..supabaseId = response.user!.id // FIX: supabaseUid -> supabaseId
         ..nombre = data['nombre'] ?? 'Sin Nombre'
         ..rol = rolJwt ?? data['rol'] ?? 'cajero'
         ..pin = ''
@@ -593,62 +577,75 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
-    try {
-      if (state.currentUser != null) {
-        final userId = state.currentUser!.id;
-        final userName = state.currentUser!.nombre;
-        debugPrint('🚪 Cerrando sesión de $userName (ID: $userId)');
+  try {
+    if (state.currentUser != null) {
+      final userId = state.currentUser!.id;
+      final userName = state.currentUser!.nombre;
+      debugPrint('🚪 Cerrando sesión de $userName (ID: $userId)');
 
-        // 1. Actualizar estado en Supabase
-        final successNube = await _syncService
-            .actualizarEstadoUsuarioEnSupabase(userId, 'inactivo');
-        if (successNube) {
-          debugPrint(
-              '✅ Estado actualizado en Supabase a inactivo para $userName');
-        } else {
-          debugPrint('⚠️ No se pudo actualizar estado en Supabase');
-        }
-
-        // 2. Actualizar estado local
-        await _isarService.actualizarEstadoUsuario(userId, 'inactivo');
-        debugPrint('✅ Estado local actualizado a inactivo para $userName');
-
-        // 3. 🔥 FORZAR sincronización desde Supabase para actualizar el monitor
-        try {
-          await _syncService.sincronizarUsuariosDesdeSupabase();
-          debugPrint('✅ Sincronización post-logout completada');
-        } catch (e) {
-          debugPrint('⚠️ Error en sincronización post-logout: $e');
-        }
+      // 1. Actualizar estado en Supabase
+      final successNube = await _syncService
+          .actualizarEstadoUsuarioEnSupabase(userId, 'inactivo');
+      if (successNube) {
+        debugPrint(
+            '✅ Estado actualizado en Supabase a inactivo para $userName');
+      } else {
+        debugPrint('⚠️ No se pudo actualizar estado en Supabase');
       }
-      await _isarService.guardarLog(
-        LogEntity()
-          ..accion = 'CIERRE_SESION'
-          ..usuarioNombre = state.currentUser?.nombre ?? 'Desconocido'
-          ..usuarioRol = state.currentUser?.rol ?? ''
-          ..detalles = 'Cierre de sesión'
-          ..fecha = DateTime.now()
-          ..sincronizado = false,
-      );
 
-      // 4. Cerrar sesión en Supabase
-      await Supabase.instance.client.auth.signOut();
+      // 2. Actualizar estado local
+      await _isarService.actualizarEstadoUsuario(userId, 'inactivo');
+      debugPrint('✅ Estado local actualizado a inactivo para $userName');
 
-      // 5. Limpiar el tenant activo
-      await _ref.read(tenantActualProvider.notifier).limpiar();
-
-      // 6. Limpiar el estado del usuario actual
-      state = AuthState(usuarios: state.usuarios);
-      _ref.read(usuarioActualProvider.notifier).clearUsuario();
-
-      debugPrint('✅ Logout completado correctamente');
-    } catch (e, stack) {
-      debugPrint('❌ Error en logout: $e');
-      ErrorService.captureError(e, stack: stack, hint: 'logout_fallo');
-      // Aún si falla, intentamos limpiar el estado
-      await _ref.read(tenantActualProvider.notifier).limpiar();
-      state = AuthState(usuarios: state.usuarios);
-      _ref.read(usuarioActualProvider.notifier).clearUsuario();
+      // 3. Sincronización post-logout para actualizar el monitor
+      try {
+        await _syncService.sincronizarUsuariosDesdeSupabase();
+        debugPrint('✅ Sincronización post-logout completada');
+      } catch (e) {
+        debugPrint('⚠️ Error en sincronización post-logout: $e');
+      }
     }
+
+    await _isarService.guardarLog(
+      LogEntity()
+        ..accion = 'CIERRE_SESION'
+        ..usuarioNombre = state.currentUser?.nombre ?? 'Desconocido'
+        ..usuarioRol = state.currentUser?.rol ?? ''
+        ..detalles = 'Cierre de sesión'
+        ..fecha = DateTime.now()
+        ..sincronizado = false,
+    );
+
+    // 4. Cerrar sesión en Supabase
+    await Supabase.instance.client.auth.signOut();
+
+    // ══════════════════════════════════════════════════════════════
+    // 5. ⚠️ NO LIMPIAR EL TENANT
+    // ══════════════════════════════════════════════════════════════
+    // El dispositivo físico pertenece a un local concreto. Borrar el
+    // tenant aquí rompe el login posterior por PIN en modo offline
+    // (cajeros sin email/password en Supabase): sin tenant_id, RLS
+    // bloquea todo (error 42501) y la app queda inutilizable.
+    //
+    // El tenant SOLO se debe sobreescribir cuando un admin distinto
+    // hace login por email (loginWithEmail ya llama a setTenant con
+    // el nuevo UUID del JWT).
+    // ───────────────────────────────────────────────────────────────
+    // await _ref.read(tenantActualProvider.notifier).limpiar();  // ❌ NO
+
+    // 6. Limpiar el estado del usuario actual
+    state = AuthState(usuarios: state.usuarios);
+    _ref.read(usuarioActualProvider.notifier).clearUsuario();
+
+    debugPrint('✅ Logout completado correctamente '
+        '(tenant preservado para uso offline)');
+  } catch (e, stack) {
+    debugPrint('❌ Error en logout: $e');
+    ErrorService.captureError(e, stack: stack, hint: 'logout_fallo');
+
+    // Aún si falla, limpiamos el estado del usuario (pero NO el tenant)
+    state = AuthState(usuarios: state.usuarios);
+    _ref.read(usuarioActualProvider.notifier).clearUsuario();
   }
+}
 }

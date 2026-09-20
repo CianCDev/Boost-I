@@ -92,10 +92,7 @@ class IsarService {
 
   /// Inicializa la base de datos Isar con todos los esquemas.
   /// Usa el ID de empresa de SharedPreferences para aislar los datos.
-Future<Isar> _initIsar({
-  String? testDirectory,
-  bool skipDemoInit = true,
-}) async {
+Future<Isar> _initIsar({String? testDirectory}) async {
   if (_isarInstance != null && _isarInstance!.isOpen) {
     return _isarInstance!;
   }
@@ -141,8 +138,8 @@ Future<Isar> _initIsar({
         MarcaEntitySchema,
         MovimientoLoteEntitySchema,
         ClienteEntitySchema,
-        EmpleadoInfoEntitySchema,   // ✅ NUEVO
-        HorarioEntitySchema,        // ✅ NUEVO
+        EmpleadoInfoEntitySchema,
+        HorarioEntitySchema,
         NominaPagoEntitySchema,
         PagoVentaEntitySchema,
         CotizacionMayorEntitySchema,
@@ -150,7 +147,6 @@ Future<Isar> _initIsar({
         ConfigDescuentoMayoristaEntitySchema,
       ],
       directory: dbPath,
-      // ✅ Inspector deshabilitado en tests
       inspector: testDirectory == null,
     );
     debugPrint('✅ Isar abierto en: $dbPath');
@@ -205,118 +201,24 @@ Future<Isar> _initIsar({
     debugPrint('✅ Isar abierto en ruta por defecto: $fallbackPath');
   }
 
-  // ✅ Skip demo init en tests (los tests crean sus propios datos)
-  if (!skipDemoInit) {
-    try {
-      await _inicializarProductosDemo(isar);
-      await _inicializarUsuariosDemo(isar);
-      await migrarPinsAHash(isar);
-    } catch (e) {
-      debugPrint('⚠️ Error inicializando datos demo: $e');
-    }
+  // ═══════════════════════════════════════════════════════════════
+  // ✅ MIGRACIONES DE DATOS
+  //
+  // Siempre corren al abrir la BD, independiente del ambiente.
+  // Antes estaban dentro de `if (!skipDemoInit)` → nunca se
+  // ejecutaban en producción y los PINs legacy quedaban en texto
+  // plano para siempre.
+  // ═══════════════════════════════════════════════════════════════
+  try {
+    await migrarPinsAHash(isar);
+  } catch (e) {
+    debugPrint('⚠️ Error migrando PINs a hash: $e');
   }
 
   _isarInstance = isar;
   return isar;
 }
 
-  // ==================== DATOS DEMO ====================
-
-  /// Crea productos de ejemplo si la colección está vacía.
-  Future<void> _inicializarProductosDemo(Isar isar) async {
-    try {
-      final count = await isar.productoEntitys.count();
-      if (count == 0) {
-        final productosIniciales = [
-          ProductoEntity()
-            ..codigoBarras = '75010001'
-            ..nombre = 'Manzana Roja Importada'
-            ..precioUnidad = 3.50
-            ..stock = 50.0
-            ..esPesado = true
-            ..categoria = 'Frutas'
-            ..proveedorNombre = 'Frutas del Campo C.A.'
-            ..proveedorTelefono = '0412-1234567'
-            ..stockMinimo = 10.0
-            ..imagenUrl = '',
-          ProductoEntity()
-            ..codigoBarras = '75010002'
-            ..nombre = 'Arroz Premium 1kg'
-            ..precioUnidad = 1.20
-            ..stock = 100.0
-            ..esPesado = false
-            ..categoria = 'Abarrotes'
-            ..proveedorNombre = 'Distribuidora Alimentos S.A.'
-            ..proveedorTelefono = '0414-9876543'
-            ..stockMinimo = 15.0
-            ..imagenUrl = '',
-          ProductoEntity()
-            ..codigoBarras = '75010003'
-            ..nombre = 'Queso Blanco Duro'
-            ..precioUnidad = 6.80
-            ..stock = 25.0
-            ..esPesado = true
-            ..categoria = 'Lácteos'
-            ..proveedorNombre = 'Quesera La Llanerita'
-            ..proveedorTelefono = '0424-5558899'
-            ..stockMinimo = 5.0
-            ..imagenUrl = '',
-        ];
-        await isar.writeTxn(() async {
-          await isar.productoEntitys.putAll(productosIniciales);
-        });
-      }
-    } catch (e, stack) {
-      ErrorService.captureError(e,
-          stack: stack, hint: 'inicializarProductosDemo_fallo');
-    }
-  }
-
-  /// Crea usuarios de ejemplo (admin y cajero) si la colección está vacía.
-  Future<void> _inicializarUsuariosDemo(Isar isar) async {
-  try {
-    final count = await isar.usuarioEntitys.count();
-    if (count == 0) {
-      final usuariosIniciales = [
-        UsuarioEntity()
-          ..nombre = 'Administrador'
-          ..email = 'admin@default.com'
-          ..password = '123456'
-          ..pin = '1234'
-          ..rol = 'admin'
-          ..activo = true
-          ..estado = 'inactivo'
-          ..cajaAsignada = 'Caja Principal',
-        UsuarioEntity()
-          ..nombre = 'Cajero 01'
-          ..email = ''
-          ..password = ''
-          ..pin = '1111'
-          ..rol = 'cajero'
-          ..activo = true
-          ..estado = 'inactivo'
-          ..cajaAsignada = 'Caja Principal',
-        UsuarioEntity()
-          ..nombre = 'Juan Perez'
-          ..email = 'juanito@example.com'
-          ..password = ''
-          ..pin = '1010'
-          ..rol = 'cajero'
-          ..activo = true
-          ..estado = 'inactivo'
-          ..cajaAsignada = 'Caja Principal',
-      ];
-
-      await isar.writeTxn(() async {
-        await isar.usuarioEntitys.putAll(usuariosIniciales);
-      });
-      debugPrint('✅ ${usuariosIniciales.length} usuarios demo creados');
-    }
-  } catch (e, stack) {
-    ErrorService.captureError(e,
-        stack: stack, hint: 'inicializarUsuariosDemo_fallo');
-  }
-}
 
 
 /// ══════════════════════════════════════════════════════════════
@@ -333,14 +235,36 @@ static Future<void> resetForTesting() async {
   _instance._isarInstance = null;
 }
 
+@visibleForTesting
+Future<bool> forzarPinLegacyParaTest(
+  int usuarioId,
+  String pinPlano,
+) async {
+  try {
+    final isar = await db;
+    return await isar.writeTxn(() async {
+      final u = await isar.usuarioEntitys.get(usuarioId);
+      if (u == null) return false;
+      u.pin = pinPlano; // texto plano, sin hashear
+      await isar.usuarioEntitys.put(u);
+      return true;
+    });
+  } catch (e, stack) {
+    ErrorService.captureError(
+      e,
+      stack: stack,
+      hint: 'forzarPinLegacyParaTest_fallo',
+      extras: {'usuarioId': usuarioId},
+    );
+    return false;
+  }
+}
+
 /// Inicializa la BD en un directorio temporal específico.
 /// No crea datos demo para que los tests controlen los datos.
 @visibleForTesting
 Future<void> initForTesting(String directoryPath) async {
-  _isarInstance = await _initIsar(
-    testDirectory: directoryPath,
-    skipDemoInit: true,
-  );
+  _isarInstance = await _initIsar(testDirectory: directoryPath);
 }
 
 /// Obtiene los usuarios que fueron modificados localmente (ej. cambio de PIN) 
@@ -835,6 +759,21 @@ Future<void> initForTesting(String directoryPath) async {
     }
   }
 
+  Future<bool> eliminarCategoriaFisica(int id) async {
+  try {
+    final isar = await db;
+    return await isar.writeTxn(() async {
+      return await isar.categoriaEntitys.delete(id);
+    });
+  } catch (e, stack) {
+    ErrorService.captureError(e,
+        stack: stack,
+        hint: 'eliminarCategoriaFisica_fallo',
+        extras: {'id': id});
+    return false;
+  }
+}
+
   Future<List<CategoriaEntity>> obtenerCategoriasPendientesSync() async {
     try {
       final isar = await db;
@@ -849,6 +788,8 @@ Future<void> initForTesting(String directoryPath) async {
           stack: stack, hint: 'obtenerCategoriasPendientesSync_fallo');
       return [];
     }
+
+    
   }
 
   // ==================== PRODUCTOS ====================
@@ -4141,17 +4082,6 @@ Future<List<ClienteEntity>> buscarClientes(
     } catch (e, stack) {
       ErrorService.captureError(e,
           stack: stack, hint: 'resetearSupabaseIdsIncorrectos_fallo');
-      rethrow;
-    }
-  }
-
-  Future<void> inicializarUsuarioAdminPorDefecto() async {
-    try {
-      final isar = await db;
-      await _inicializarUsuariosDemo(isar);
-    } catch (e, stack) {
-      ErrorService.captureError(e,
-          stack: stack, hint: 'inicializarUsuarioAdminPorDefecto_fallo');
       rethrow;
     }
   }

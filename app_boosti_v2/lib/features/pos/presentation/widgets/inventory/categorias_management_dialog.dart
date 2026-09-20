@@ -1,7 +1,9 @@
 // lib/features/pos/presentation/widgets/inventory/categorias_management_dialog.dart
+import 'package:app_boosti_v2/features/pos/presentation/providers/themes/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../data/Local/entities/categoria_entity.dart';
 import '../../../data/Local/entities/isar_service.dart';
 import '../../providers/categorias_provider.dart';
 import '../../providers/productos_provider.dart';
@@ -39,22 +41,25 @@ class _CategoriasManagementDialogState
   final _focusNode = FocusNode();
   bool _migrando = false;
 
+  /// ✅ NUEVO: muestra las categorías inactivas en la lista.
+  bool _mostrarInactivas = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Refresca el estado al abrir el diálogo.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(categoriasNotifierProvider.notifier).refrescar();
+    });
+  }
+
   @override
   void dispose() {
     _newCategoryController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
-
-  @override
-void initState() {
-  super.initState();
-  // ✅ Asegura estado fresco cada vez que se abre el diálogo.
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (!mounted) return;
-    ref.read(categoriasNotifierProvider.notifier).refrescar();
-  });
-}
 
   // ════════════════════════════════════════════════════════════
   // ACCIONES
@@ -110,29 +115,20 @@ void initState() {
       await ref.read(productosProvider.notifier).cargarProductos();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Migración completada: $actualizados productos actualizados',
-          ),
-          backgroundColor: _colorPrimary,
-        ),
+      _snack(
+        'Migración completada: $actualizados productos actualizados',
+        _colorPrimary,
       );
     } catch (e) {
       debugPrint('❌ Error al migrar: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: _colorDanger,
-        ),
-      );
+      _snack('Error: $e', _colorDanger);
     } finally {
       if (mounted) setState(() => _migrando = false);
     }
   }
 
-  Future<void> _editarCategoria(dynamic categoria) async {
+  Future<void> _editarCategoria(CategoriaEntity categoria) async {
     final nuevoNombre = await showDialog<String>(
       context: context,
       builder: (_) => CategoriaFormDialog(
@@ -146,17 +142,18 @@ void initState() {
     }
   }
 
-  Future<void> _eliminarCategoria(dynamic categoria) async {
+  Future<void> _eliminarCategoria(CategoriaEntity categoria) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        title: const Text('Eliminar categoría'),
+        title: const Text('Desactivar categoría'),
         content: Text(
-          '¿Eliminar "${categoria.nombre}"? '
-          'Los productos asociados quedarán sin categoría.',
+          '¿Desactivar "${categoria.nombre}"? '
+          'Los productos asociados quedarán sin categoría y la categoría '
+          'se ocultará de los formularios (podrás reactivarla luego).',
         ),
         actions: [
           TextButton(
@@ -169,7 +166,7 @@ void initState() {
               backgroundColor: _colorDanger,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Eliminar'),
+            child: const Text('Desactivar'),
           ),
         ],
       ),
@@ -180,14 +177,40 @@ void initState() {
         .eliminarCategoria(categoria.id);
   }
 
+  /// ✅ NUEVO: Reactiva una categoría previamente desactivada.
+  Future<void> _reactivarCategoria(CategoriaEntity categoria) async {
+    await ref
+        .read(categoriasNotifierProvider.notifier)
+        .reactivarCategoria(categoria.id);
+
+    if (!mounted) return;
+    _snack('Categoría "${categoria.nombre}" reactivada', _colorPrimary);
+  }
+
+  void _snack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        content: Text(
+          msg,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: color,
+      ),
+    );
+  }
+
   // ════════════════════════════════════════════════════════════
   // BUILD
   // ════════════════════════════════════════════════════════════
 
   @override
   Widget build(BuildContext context) {
-    final categorias = ref.watch(categoriasNotifierProvider);
-    final colorScheme = Theme.of(context).colorScheme;
+    final todasAsync = ref.watch(todasLasCategoriasProvider);
+    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = ResponsiveHelper.isMobile(context);
 
@@ -209,39 +232,64 @@ void initState() {
             DialogHeader(
               icon: Icons.category_rounded,
               title: 'Gestionar categorías',
-              subtitle: categorias.isEmpty
-                  ? 'Crea tu primera categoría para organizar productos'
-                  : '${categorias.length} '
-                      'categoría${categorias.length == 1 ? '' : 's'} registrada'
-                      '${categorias.length == 1 ? '' : 's'}',
+              subtitle: todasAsync.maybeWhen(
+                data: (list) {
+                  final activas = list.where((c) => c.activo).length;
+                  final inactivas = list.length - activas;
+                  if (inactivas == 0) {
+                    return '$activas activa${activas == 1 ? '' : 's'}';
+                  }
+                  return '$activas activas · $inactivas inactiva'
+                      '${inactivas == 1 ? '' : 's'}';
+                },
+                orElse: () => 'Cargando...',
+              ),
               color: _colorPrimary,
             ),
             const SizedBox(height: 16),
 
-            // ═════ MÉTRICAS (solo si hay categorías) ═════
-            if (categorias.isNotEmpty) ...[
-              Row(
-                children: [
-                  MetricPedido(
-                    label: 'Total',
-                    value: categorias.length,
-                    color: _colorPrimary,
-                    icon: Icons.category_outlined,
+            // ═════ MÉTRICAS ═════
+            todasAsync.maybeWhen(
+              data: (list) {
+                if (list.isEmpty) return const SizedBox.shrink();
+                final activas = list.where((c) => c.activo).length;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    children: [
+                      MetricPedido(
+                        label: 'Total',
+                        value: list.length,
+                        color: _colorPrimary,
+                        icon: Icons.category_outlined,
+                      ),
+                      const SizedBox(width: 8),
+                      MetricPedido(
+                        label: 'Activas',
+                        value: activas,
+                        color: primaryGreen,
+                        icon: Icons.check_circle_outline_rounded,
+                      ),
+                      const SizedBox(width: 8),
+                      MetricPedido(
+                        label: 'Inactivas',
+                        value: list.length - activas,
+                        color: _colorDanger,
+                        icon: Icons.visibility_off_outlined,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  MetricPedido(
-                    label: 'Activas',
-                    value: categorias.length,
-                    color: _colorWarning,
-                    icon: Icons.check_circle_outline_rounded,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-            ],
+                );
+              },
+              orElse: () => const SizedBox.shrink(),
+            ),
 
             // ═════ INPUT + BOTÓN AGREGAR ═════
-            _buildAddCategoryRow(colorScheme, isDark, isMobile),
+            _buildAddCategoryRow(cs, isDark, isMobile),
+            const SizedBox(height: 12),
+
+            // ═════ TOGGLE MOSTRAR INACTIVAS ═════
+            _buildToggleInactivas(cs, isMobile),
             const SizedBox(height: 12),
 
             // ═════ BOTÓN MIGRAR ═════
@@ -271,30 +319,62 @@ void initState() {
                       child: child,
                     ),
                   ),
-                  child: categorias.isEmpty
-                      ? _buildEmptyState(
-                          key: const ValueKey('empty'),
-                          colorScheme: colorScheme,
-                        )
-                      : ListView.separated(
-                          key: const ValueKey('list'),
-                          shrinkWrap: true,
-                          padding: EdgeInsets.zero,
-                          itemCount: categorias.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 8),
-                          itemBuilder: (_, i) {
-                            final cat = categorias[i];
-                            return _CategoriaCard(
-                              categoria: cat,
-                              colorPrimary: _colorPrimary,
-                              colorDanger: _colorDanger,
-                              isMobile: isMobile,
-                              onEditar: () => _editarCategoria(cat),
-                              onEliminar: () => _eliminarCategoria(cat),
-                            );
-                          },
+                  child: todasAsync.when(
+                    data: (todas) {
+                      final visibles = _mostrarInactivas
+                          ? todas
+                          : todas.where((c) => c.activo).toList();
+
+                      if (visibles.isEmpty) {
+                        return _buildEmptyState(
+                          key: ValueKey(
+                            _mostrarInactivas ? 'empty-all' : 'empty-active',
+                          ),
+                          colorScheme: cs,
+                          mostrarInactivas: _mostrarInactivas,
+                          hayInactivas: todas.any((c) => !c.activo),
+                          onMostrarInactivas: () =>
+                              setState(() => _mostrarInactivas = true),
+                        );
+                      }
+
+                      return ListView.separated(
+                        key: ValueKey(
+                          _mostrarInactivas ? 'list-all' : 'list-active',
                         ),
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        itemCount: visibles.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 8),
+                        itemBuilder: (_, i) {
+                          final cat = visibles[i];
+                          return _CategoriaCard(
+                            categoria: cat,
+                            colorPrimary: _colorPrimary,
+                            colorSuccess: _colorPrimary,
+                            colorDanger: _colorDanger,
+                            isMobile: isMobile,
+                            onEditar: () => _editarCategoria(cat),
+                            onToggleEstado: cat.activo
+                                ? () => _eliminarCategoria(cat)
+                                : () => _reactivarCategoria(cat),
+                          );
+                        },
+                      );
+                    },
+                    loading: () => const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                    error: (err, _) => Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Error: $err',
+                        style: TextStyle(color: _colorDanger),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -372,13 +452,140 @@ void initState() {
   }
 
   // ════════════════════════════════════════════════════════════
+  // TOGGLE MOSTRAR INACTIVAS
+  // ════════════════════════════════════════════════════════════
+
+  Widget _buildToggleInactivas(ColorScheme cs, bool isMobile) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            _mostrarInactivas
+                ? 'Mostrando todas (activas + inactivas)'
+                : 'Mostrando solo activas',
+            style: TextStyle(
+              fontSize: isMobile ? 11.5 : 12,
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        FilterChip(
+          label: Text(
+            _mostrarInactivas ? 'Ocultar inactivas' : 'Ver inactivas',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight:
+                  _mostrarInactivas ? FontWeight.bold : FontWeight.w600,
+              color: _mostrarInactivas ? _colorPrimary : cs.onSurfaceVariant,
+            ),
+          ),
+          selected: _mostrarInactivas,
+          onSelected: (v) => setState(() => _mostrarInactivas = v),
+          selectedColor: _colorPrimary.withValues(alpha: 0.15),
+          checkmarkColor: _colorPrimary,
+          backgroundColor: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+          side: BorderSide(
+            color: _mostrarInactivas
+                ? _colorPrimary.withValues(alpha: 0.4)
+                : cs.outlineVariant.withValues(alpha: 0.4),
+          ),
+          showCheckmark: false,
+          avatar: Icon(
+            _mostrarInactivas
+                ? Icons.visibility_off_rounded
+                : Icons.visibility_rounded,
+            size: 14,
+            color: _mostrarInactivas
+                ? _colorPrimary
+                : cs.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════
   // EMPTY STATE
   // ════════════════════════════════════════════════════════════
 
   Widget _buildEmptyState({
     Key? key,
     required ColorScheme colorScheme,
+    required bool mostrarInactivas,
+    required bool hayInactivas,
+    required VoidCallback onMostrarInactivas,
   }) {
+    // Caso 1: hay categorías pero todas inactivas y no estamos mostrándolas.
+    if (!mostrarInactivas && hayInactivas) {
+      return Container(
+        key: key,
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: _colorWarning.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.visibility_off_outlined,
+                size: 40,
+                color: _colorWarning,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Todas las categorías están inactivas',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Actívalas de nuevo o crea una nueva categoría.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextButton.icon(
+              onPressed: onMostrarInactivas,
+              icon: const Icon(Icons.visibility_rounded, size: 16),
+              label: const Text('Ver inactivas'),
+              style: TextButton.styleFrom(
+                foregroundColor: _colorPrimary,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(
+                    color: _colorPrimary.withValues(alpha: 0.4),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Caso 2: no hay nada creado todavía.
     return Container(
       key: key,
       padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
@@ -434,25 +641,30 @@ void initState() {
 // ══════════════════════════════════════════════════════════════
 
 class _CategoriaCard extends StatelessWidget {
-  final dynamic categoria;
+  final CategoriaEntity categoria;
   final Color colorPrimary;
+  final Color colorSuccess;
   final Color colorDanger;
   final bool isMobile;
   final VoidCallback onEditar;
-  final VoidCallback onEliminar;
+
+  /// ✅ Cambia entre Desactivar (activa) y Reactivar (inactiva).
+  final VoidCallback onToggleEstado;
 
   const _CategoriaCard({
     required this.categoria,
     required this.colorPrimary,
+    required this.colorSuccess,
     required this.colorDanger,
     required this.isMobile,
     required this.onEditar,
-    required this.onEliminar,
+    required this.onToggleEstado,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final activa = categoria.activo;
 
     return GlassCard(
       margin: EdgeInsets.zero,
@@ -461,7 +673,7 @@ class _CategoriaCard extends StatelessWidget {
         vertical: 8,
       ),
       showStatusBar: true,
-      statusColor: colorPrimary,
+      statusColor: activa ? colorPrimary : colorDanger,
       nestedGlass: true,
       child: Row(
         children: [
@@ -469,29 +681,63 @@ class _CategoriaCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: colorPrimary.withValues(alpha: 0.12),
+              color: (activa ? colorPrimary : colorDanger)
+                  .withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
-              Icons.category_outlined,
+              activa
+                  ? Icons.category_outlined
+                  : Icons.visibility_off_outlined,
               size: isMobile ? 18 : 20,
-              color: colorPrimary,
+              color: activa ? colorPrimary : colorDanger,
             ),
           ),
           const SizedBox(width: 12),
 
-          // Nombre
+          // Nombre + badge
           Expanded(
-            child: Text(
-              categoria.nombre ?? '',
-              style: TextStyle(
-                fontSize: isMobile ? 14 : 15,
-                fontWeight: FontWeight.w700,
-                color: colorScheme.onSurface,
-                letterSpacing: -0.2,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    categoria.nombre,
+                    style: TextStyle(
+                      fontSize: isMobile ? 14 : 15,
+                      fontWeight: FontWeight.w700,
+                      color: activa
+                          ? colorScheme.onSurface
+                          : colorScheme.onSurfaceVariant,
+                      letterSpacing: -0.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (!activa) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colorDanger.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: colorDanger.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: const Text(
+                      'Inactiva',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFEF4444),
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
 
@@ -505,12 +751,14 @@ class _CategoriaCard extends StatelessWidget {
             onPressed: onEditar,
           ),
           CardActionButton(
-            icon: Icons.delete_outline_rounded,
-            color: colorDanger,
-            tooltip: 'Eliminar',
+            icon: activa
+                ? Icons.visibility_off_outlined
+                : Icons.restore_rounded,
+            color: activa ? colorDanger : colorSuccess,
+            tooltip: activa ? 'Desactivar' : 'Reactivar',
             iconSize: isMobile ? 22 : 20,
             padding: EdgeInsets.all(isMobile ? 10 : 8),
-            onPressed: onEliminar,
+            onPressed: onToggleEstado,
           ),
         ],
       ),

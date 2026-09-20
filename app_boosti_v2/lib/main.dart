@@ -125,7 +125,6 @@ Future<bool> _inicializarSupabase(SharedPreferences prefs) async {
 Future<void> _inicializarIsar() async {
   try {
     final isarService = IsarService();
-    await isarService.inicializarUsuarioAdminPorDefecto();
     await isarService.migrarStockExistenteALotes();
 
     final actualizados = await isarService.asignarSupabaseIdsAFaltantes();

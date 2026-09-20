@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../providers/marca_provider.dart';
+// ignore: library_prefixes
 import '../../providers/themes/app_colors.dart' as AppColors;
 import '../../services/mayoreo/wholesale_pricing_service.dart';
-import '../../utils/responsive_helper.dart';
 import '../common/status_badge.dart';
 
 /// Variante visual de la card.

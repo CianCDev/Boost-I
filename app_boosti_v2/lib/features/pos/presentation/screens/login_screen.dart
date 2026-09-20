@@ -1,11 +1,16 @@
 // lib/features/pos/presentation/screens/login_screen.dart
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:async';
 import 'dart:ui';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+// ✅ FIX: `hide AuthState` para evitar ambigüedad con el AuthState local
+//    de `auth_provider.dart` (gotrue también exporta un `AuthState`).
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../domain/permissions/roles.dart';
@@ -15,6 +20,7 @@ import '../providers/usuario_provider.dart';
 import '../services/sync_service.dart';
 import '../services/error_service.dart';
 import '../utils/responsive_helper.dart';
+import 'email_login_screen.dart';
 import 'empleados/employees_screen.dart';
 import 'main_pos_screen.dart';
 // ignore: unused_import
@@ -259,7 +265,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   void redirigirSegunRol(UsuarioEntity usuario) {
     final role = UserRole.fromString(usuario.rol);
 
-    // Roles restringidos (RRHH por ahora) → van directo a su pantalla.
     if (Permissions.isEmployeesOnlyRole(role)) {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const EmployeesScreen()),
@@ -267,7 +272,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       return;
     }
 
-    // ✅ Resto de roles → welcome screen (menú principal rediseñado)
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const MainPosScreen()),
     );
@@ -424,6 +428,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
+                                      // ═══════════════════════════════
+                                      // Badge de estado de nube
+                                      // ═══════════════════════════════
+                                      const _CloudStatusBanner(),
+                                      const SizedBox(height: 16),
+
                                       buildLogo(logoSize, isMobile),
                                       const SizedBox(height: 16),
                                       Center(
@@ -540,7 +550,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                         ),
                                       ),
 
-                                      // ── Hint para tablets nuevas (del compi) ──
+                                      TextButton(
+                                  onPressed: () async {
+                                    final isar = IsarService();
+                                    final usuarios = await isar.obtenerUsuarios();
+                                    if (usuarios.isEmpty) return;
+
+                                    final u = usuarios.first;
+                                    final ok = await isar.forzarPinLegacyParaTest(u.id, '1234');
+                                    debugPrint(ok
+                                        ? '🧪 PIN legacy "1234" inyectado en "${u.nombre}" (ID: ${u.id})'
+                                        : '⚠️ No se pudo inyectar');
+                                  },
+                                  child: const Text('🧪 Forzar PIN legacy'),
+                                ),
+
+                                      // ── Hint para tablets nuevas ──
                                       const SizedBox(height: 6),
                                       Center(
                                         child: Text(
@@ -681,7 +706,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   fontWeight: FontWeight.w500,
                   color: Colors.white,
                 ),
-                // ✅ Dropdown en tono azul profundo consistente con la paleta
                 dropdownColor: _bgIndigo,
                 itemHeight: 64,
                 menuMaxHeight: 350,
@@ -893,6 +917,491 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CLOUD STATUS BANNER — versión robusta
+//
+// Detecta en vivo el estado de la sesión de Supabase:
+//   · Verde   → sesión válida + token no expirado
+//   · Ámbar   → offline (sin sesión) o sesión expirada sin posibilidad
+//               de refrescar
+//
+// Acciones:
+//   · Tocarlo offline → navega a EmailLoginScreen
+//   · Tocarlo online  → bottom sheet con opción de desconectar
+//
+// Offline-first: si no hay sesión, el login por PIN sigue funcionando.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _CloudStatusBanner extends StatefulWidget {
+  const _CloudStatusBanner();
+
+  @override
+  State<_CloudStatusBanner> createState() => _CloudStatusBannerState();
+}
+
+class _CloudStatusBannerState extends State<_CloudStatusBanner> {
+   // ✅ StreamSubscription SIN genérico:
+  //    con `hide AuthState` en el import, `StreamSubscription<AuthState>`
+  //    se resuelve a tu AuthState local, pero onAuthStateChange emite
+  //    Stream<gotrue.AuthState>. Sin genérico, ambos encajan.
+  StreamSubscription? _authSub;   // ← ya NO dice <AuthState>
+  bool _conectado = false;
+  bool _cargando = true;
+  bool _procesando = false;
+  String? _emailConectado;
+  DateTime? _expiraSesion;
+  Timer? _debounce;
+
+  static const Color _verde = Color(0xFF10B981);
+  static const Color _ambar = Color(0xFFF59E0B);
+  static const Color _bgIndigo = Color(0xFF1A1A4E);
+
+  /// Debounce para evitar re-renders en ráfaga cuando el stream emite
+  /// varios eventos seguidos (p.ej. `signedIn` seguido de `tokenRefreshed`).
+
+  @override
+  void initState() {
+    super.initState();
+    _checkStatus(motivo: 'init');
+    _suscribirAuthStream();
+  }
+
+ void _suscribirAuthStream() {
+  try {
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen(
+      (event) {
+        debugPrint('☁️ Auth event: ${event.event.name}');
+        _debounce?.cancel();
+        _debounce = Timer(const Duration(milliseconds: 200), () {
+          if (mounted) _checkStatus(motivo: 'stream:${event.event.name}');
+        });
+      },
+      onError: (e) {
+        debugPrint('⚠️ auth stream error: $e');
+      },
+    );
+  } catch (e) {
+    debugPrint('⚠️ No se pudo suscribir a auth stream: $e');
+    if (mounted) {
+      setState(() {
+        _conectado = false;
+        _cargando = false;
+      });
+    }
+  }
+}
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // DETECCIÓN REAL DE SESIÓN
+  //
+  // Estrategia:
+  //   1. Leer `currentSession` del cliente Supabase.
+  //   2. Si está expirada → intentar `refreshSession()` proactivamente.
+  //   3. Si el refresh falla → tratar como offline.
+  //   4. Loguear todo con prefijo `☁️` para diagnóstico transparente.
+  // ═══════════════════════════════════════════════════════════════════
+  Future<void> _checkStatus({required String motivo}) async {
+    try {
+      final auth = Supabase.instance.client.auth;
+      Session? session = auth.currentSession;
+
+      // ── Auto-refresh proactivo si está expirada ──
+      if (session != null && session.isExpired) {
+        debugPrint('☁️ [$motivo] Sesión expirada, intentando refresh...');
+        try {
+          final refreshed = await auth.refreshSession();
+          session = refreshed.session;
+          debugPrint('☁️ [$motivo] Refresh OK');
+        } catch (e) {
+          debugPrint('☁️ [$motivo] Refresh falló: $e → tratado como offline');
+          session = null;
+        }
+      }
+
+      final activa = session != null;
+
+      if (activa) {
+        _emailConectado = session.user.email;
+        _expiraSesion = session.expiresAt != null
+            ? DateTime.fromMillisecondsSinceEpoch(
+                session.expiresAt! * 1000,
+              )
+            : null;
+
+        final uidShort = session.user.id.length >= 8
+            ? session.user.id.substring(0, 8)
+            : session.user.id;
+
+        debugPrint(
+          '☁️ [$motivo] CONECTADO · '
+          'email: ${_emailConectado ?? "?"} · '
+          'uid: $uidShort… · '
+          'expira: ${_expiraSesion?.toIso8601String() ?? "?"}',
+        );
+      } else {
+        _emailConectado = null;
+        _expiraSesion = null;
+        debugPrint('☁️ [$motivo] OFFLINE (sin sesión Supabase)');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _conectado = activa;
+        _cargando = false;
+      });
+    } catch (e) {
+      debugPrint('⚠️ [$motivo] Error chequeando sesión: $e');
+      if (!mounted) return;
+      setState(() {
+        _conectado = false;
+        _cargando = false;
+        _emailConectado = null;
+        _expiraSesion = null;
+      });
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ACCIONES
+  // ═══════════════════════════════════════════════════════════════════
+
+  Future<void> _onTap() async {
+    if (_cargando || _procesando) return;
+    if (_conectado) {
+      await _mostrarOpcionesConectado();
+    } else {
+      _irALoginSupabase();
+    }
+  }
+
+  void _irALoginSupabase() {
+    debugPrint('☁️ Navegando a EmailLoginScreen para reconexión');
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const EmailLoginScreen()),
+    );
+  }
+
+  Future<void> _mostrarOpcionesConectado() async {
+    final email = _emailConectado ?? 'Desconocido';
+    final expira = _expiraSesion;
+    final minutosRestantes = expira?.difference(DateTime.now()).inMinutes;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: _bgIndigo.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.15),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Header ──
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _verde.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.cloud_done_rounded,
+                        color: _verde,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Sesión de nube activa',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            email,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.65),
+                              fontSize: 12.5,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (minutosRestantes != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              minutosRestantes > 0
+                                  ? 'Token expira en ${minutosRestantes}min'
+                                  : 'Token a punto de expirar',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.4),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // ── Botón: cerrar sesión nube ──
+                _sheetAction(
+                  icon: Icons.logout_rounded,
+                  color: _ambar,
+                  title: 'Desconectar de la nube',
+                  subtitle:
+                      'El login local por PIN sigue funcionando. No perderás datos.',
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    await _desconectarNube();
+                  },
+                ),
+                const SizedBox(height: 10),
+
+                // ── Botón: cancelar ──
+                _sheetAction(
+                  icon: Icons.close_rounded,
+                  color: Colors.white70,
+                  title: 'Cancelar',
+                  subtitle: 'Mantener sesión activa',
+                  onTap: () => Navigator.pop(sheetContext),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _sheetAction({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: color.withValues(alpha: 0.25),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 11.5,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // DESCONEXIÓN ROBUSTA
+  //
+  // 1. `signOut()` de Supabase (limpia tokens locales + server).
+  // 2. Si falla por red → forzar limpieza local invocando `signOut` de
+  //    nuevo (Supabase limpia local en el primer intento de todos modos).
+  // 3. NUNCA toca Isar ni SharedPreferences → PIN sigue funcionando.
+  // ═══════════════════════════════════════════════════════════════════
+  Future<void> _desconectarNube() async {
+    setState(() => _procesando = true);
+    try {
+      debugPrint('☁️ Desconectando de Supabase...');
+      await Supabase.instance.client.auth.signOut();
+      debugPrint('☁️ signOut OK');
+
+      // Forzar un check inmediato para actualizar el badge sin esperar
+      // al evento del stream (que también llegará, pero por debounce).
+      await _checkStatus(motivo: 'post-signOut');
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '☁️ Desconectado de la nube. Modo offline activo.',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Color(0xFFF59E0B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      debugPrint('⚠️ Error en signOut: $e');
+      // Aunque signOut falle por red, la sesión local normalmente ya se
+      // limpió en el primer intento. Verificamos y avisamos.
+      await _checkStatus(motivo: 'post-signOut-error');
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _conectado
+                ? '⚠️ No se pudo desconectar: $e'
+                : '☁️ Sesión local limpiada (falló la notificación al servidor).',
+          ),
+          backgroundColor: _conectado ? Colors.red : const Color(0xFFF59E0B),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _procesando = false);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // BUILD
+  // ═══════════════════════════════════════════════════════════════════
+
+
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _conectado ? _verde : _ambar;
+    final icon = _conectado
+        ? Icons.cloud_done_rounded
+        : Icons.cloud_off_rounded;
+
+    // Texto dinámico: mostramos email si está conectado
+    final String label;
+    if (_conectado && _emailConectado != null) {
+      label = 'Conectado · $_emailConectado';
+    } else if (_conectado) {
+      label = 'Conectado a la nube';
+    } else {
+      label = 'Modo offline · Toca para conectar';
+    }
+
+    final bgAlpha = _conectado ? 0.12 : 0.10;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: _onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: bgAlpha),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: color.withValues(alpha: 0.35),
+              width: 1.2,
+            ),
+          ),
+          child: Row(
+            children: [
+              if (_cargando || _procesando)
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: color,
+                  ),
+                )
+              else
+                Icon(icon, color: color, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (!_cargando && !_procesando)
+                Icon(
+                  _conectado
+                      ? Icons.expand_more_rounded
+                      : Icons.arrow_forward_rounded,
+                  color: color.withValues(alpha: 0.7),
+                  size: 18,
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

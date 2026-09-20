@@ -153,7 +153,7 @@ class WholesaleSaleTile extends StatelessWidget {
                 runSpacing: 4,
                 children: [
                   _chip(
-                    '${venta.esMultipago ? 'Multipago' : venta.metodoPago}',
+                    venta.esMultipago ? 'Multipago' : venta.metodoPago,
                     color: const Color(0xFF3B82F6),
                     icon: venta.esMultipago
                         ? Icons.account_balance_wallet_rounded
