@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'package:app_boosti_v2/features/pos/presentation/providers/categorias_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
@@ -53,13 +54,23 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   UsuarioEntity? get _user =>
       ref.read(usuarioActualProvider) ?? widget.usuarioLogueado;
 
-  @override
+   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     )..forward();
+
+    // ✅ NUEVO: Escuchar cambios en categorías activas para validar
+    // que la categoría seleccionada en el filtro siga existiendo.
+    ref.listenManual(categoriasProvider, (_, next) {
+      next.whenData((cats) {
+        final nombres = cats.map((c) => c.nombre).toList();
+        ref.read(inventoryProvider.notifier)
+            .validarCategoriaSeleccionada(nombres);
+      });
+    });
 
     final codigo = widget.codigoBarrasInicial;
     if (codigo != null && codigo.isNotEmpty) {

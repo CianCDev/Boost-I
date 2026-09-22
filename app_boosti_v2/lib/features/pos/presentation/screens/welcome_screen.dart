@@ -228,7 +228,7 @@ class WelcomeScreen extends StatelessWidget {
                               height: buttonHeight,
                               isMobile: isMobile,
                               icon: Icons.pin_rounded,
-                              title: 'Ya está configurada',
+                              title: 'Entrar offline',
                               subtitle: 'Ingresar PIN de empleado',
                               onPressed: () {
                                 Navigator.of(context).pushReplacement(

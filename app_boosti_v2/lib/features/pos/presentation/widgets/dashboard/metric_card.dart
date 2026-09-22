@@ -1,3 +1,4 @@
+// lib/features/pos/presentation/widgets/dashboard/metric_card.dart
 import 'package:flutter/material.dart';
 
 /// Tarjeta de métrica con estilo glassmorphism, sparkline y badge de variación.
@@ -29,7 +30,8 @@ class MetricCard extends StatefulWidget {
   State<MetricCard> createState() => _MetricCardState();
 }
 
-class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateMixin {
+class _MetricCardState extends State<MetricCard>
+    with SingleTickerProviderStateMixin {
   bool _isHovered = false;
   double _opacity = 0.0;
   late AnimationController _controller;
@@ -64,12 +66,25 @@ class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // ✅ Colores theme-aware (antes estaban hardcoded)
+    final cardBg = isDark ? const Color(0xFF1A2235) : Colors.white;
+    final textColor = isDark ? Colors.white70 : Colors.grey.shade700;
+    final subtitleFallback = isDark ? Colors.white60 : Colors.grey.shade500;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: _isHovered ? 0.15 : 0.08)
+        : Colors.black.withValues(alpha: _isHovered ? 0.10 : 0.05);
 
     Widget? badge;
     if (widget.variacion != null) {
-      final colorBadge = widget.variacionPositiva ? Colors.green.shade400 : Colors.red.shade400;
-      final iconBadge = widget.variacionPositiva ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded;
-      final textoBadge = '${widget.variacionPositiva ? '+' : ''}${widget.variacion!.toStringAsFixed(1)}%';
+      final colorBadge =
+          widget.variacionPositiva ? Colors.green.shade400 : Colors.red.shade400;
+      final iconBadge = widget.variacionPositiva
+          ? Icons.arrow_upward_rounded
+          : Icons.arrow_downward_rounded;
+      final textoBadge =
+          '${widget.variacionPositiva ? '+' : ''}${widget.variacion!.toStringAsFixed(1)}%';
 
       badge = Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -113,7 +128,7 @@ class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateM
                 1.0,
               ),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A2235),
+            color: cardBg,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -123,16 +138,16 @@ class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateM
               ),
             ],
             border: Border.all(
-              color: Colors.white.withValues(alpha: _isHovered ? 0.15 : 0.08),
+              color: borderColor,
               width: _isHovered ? 1.5 : 1,
             ),
           ),
           child: Stack(
             children: [
-              // Sparkline
+              // ── Sparkline de fondo ──
               Positioned.fill(
                 child: Opacity(
-                  opacity: 0.15,
+                  opacity: isDark ? 0.15 : 0.10,
                   child: CustomPaint(
                     painter: SparklinePainter(
                       data: _sparklineData,
@@ -142,12 +157,16 @@ class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateM
                   ),
                 ),
               ),
+
+              // ── Badge de variación ──
               if (badge != null)
                 Positioned(
                   top: 12,
                   right: 12,
                   child: badge,
                 ),
+
+              // ── Contenido ──
               Padding(
                 padding: EdgeInsets.all(isMobile ? 12 : 16),
                 child: Column(
@@ -160,7 +179,8 @@ class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateM
                           duration: const Duration(milliseconds: 300),
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: widget.color.withValues(alpha: _isHovered ? 0.2 : 0.12),
+                            color: widget.color
+                                .withValues(alpha: _isHovered ? 0.2 : 0.12),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
@@ -176,7 +196,7 @@ class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateM
                             style: TextStyle(
                               fontSize: isMobile ? 10 : 12,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white70,
+                              color: textColor,
                               letterSpacing: 0.3,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -203,7 +223,7 @@ class _MetricCardState extends State<MetricCard> with SingleTickerProviderStateM
                         widget.subtitulo!,
                         style: TextStyle(
                           fontSize: isMobile ? 9 : 11,
-                          color: widget.subtituloColor ?? Colors.white60,
+                          color: widget.subtituloColor ?? subtitleFallback,
                           fontWeight: FontWeight.w500,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -257,7 +277,8 @@ class SparklinePainter extends CustomPainter {
 
     for (int i = 0; i < data.length; i++) {
       final double x = padding + (i / (data.length - 1)) * usableWidth;
-      final double y = padding + (1 - (data[i] - minValue) / normalizedRange) * usableHeight;
+      final double y =
+          padding + (1 - (data[i] - minValue) / normalizedRange) * usableHeight;
 
       if (i == 0) {
         path.moveTo(x, y);

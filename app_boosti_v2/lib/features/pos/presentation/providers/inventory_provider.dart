@@ -139,6 +139,7 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
       isLoading: productosState.isLoading,
     );
   }
+  
 
   // ══════════════════════════════════════════════════════════════
   // FILTROS (públicos)
@@ -158,6 +159,8 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
     state = state.copyWith(soloStockBajo: value);
     aplicarFiltros(ref.read(productosProvider));
   }
+
+  
 
   // ══════════════════════════════════════════════════════════════
   // SELECCIÓN
@@ -185,12 +188,24 @@ class InventoryNotifier extends StateNotifier<InventoryState> {
       seleccionMultiple: false,
     );
   }
+    
 
   Future<void> recargarDesdeSupabase() async {
     final notifier = ref.read(productosProvider.notifier);
     await notifier.recargarDesdeSupabase();
   }
-}
+
+  // ✅ NUEVO: valida que la categoría seleccionada siga existiendo.
+  // Si no existe (fue eliminada), resetea el filtro a "Todas".
+  void validarCategoriaSeleccionada(List<String> categoriasActivas) {
+    final actual = state.categoriaSeleccionadaNombre;
+    if (actual == 'Todas' || actual == 'Stock Bajo') return;
+    if (!categoriasActivas.contains(actual)) {
+      state = state.copyWith(categoriaSeleccionadaNombre: 'Todas');
+      aplicarFiltros(ref.read(productosProvider));
+    }
+  }
+}  
 
 // ══════════════════════════════════════════════════════════════
 // PROVIDER

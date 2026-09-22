@@ -1059,16 +1059,25 @@ class _QuickAccessGrid extends StatelessWidget {
       );
     }
 
-    final crossAxisCount = isMobile ? 1 : (isTablet ? 2 : 3);
+    // ✅ Mismo patrón que PosMenuScreen._buildOptionsGrid
+    //   mobile: 2 columnas
+    //   tablet: 2 columnas
+    //   desktop: 3 columnas
+    final crossAxisCount = isMobile ? 2 : (isTablet ? 2 : 3);
+
+    // ✅ Altura fija (mainAxisExtent) en vez de childAspectRatio:
+    //   mobile → 135px (cards verticales tipo menú)
+    //   tablet/desktop → 105px (cards horizontales)
+    final double itemHeight = isMobile ? 135 : 105;
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: isMobile ? 3.2 : 2.5,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        mainAxisExtent: itemHeight,
+        crossAxisSpacing: isMobile ? 10 : 12,
+        mainAxisSpacing: isMobile ? 10 : 12,
       ),
       itemCount: items.length,
       itemBuilder: (_, i) {
@@ -1082,6 +1091,8 @@ class _QuickAccessGrid extends StatelessWidget {
             context,
             MaterialPageRoute(builder: (_) => item.screenBuilder()),
           ),
+          // ✅ Oculta el subtitle en mobile (cards limpias, sin overflow)
+          compactMode: isMobile,
         );
       },
     );

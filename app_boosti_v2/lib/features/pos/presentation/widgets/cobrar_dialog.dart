@@ -64,6 +64,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   static const Color _colorPunto = Color(0xFF8B5CF6);
   static const Color _colorCliente = Color(0xFF8B5CF6);
   static const Color _colorVuelto = Color(0xFFF59E0B); // Ámbar para vuelto
+  static const Color _colorDanger = Color(0xFFEF4444);
 
   // Altura estándar de botones principales
   static const double _buttonHeight = 56;
@@ -170,15 +171,15 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     }
   }
 
-  double _calcularTasaActiva(Map<String, double> tasas) {
-    if (_monedaSeleccionada == 'Manual') {
-      final manual = double.tryParse(_tasaManualController.text) ?? 0;
-      return manual > 0 ? manual : 1.0;
-    }
-    final t = tasas[_monedaSeleccionada];
-    if (t != null && t > 0) return t;
-    return 1.0;
+ double _calcularTasaActiva(Map<String, double> tasas) {
+  if (_monedaSeleccionada == 'Manual') {
+    final manual = double.tryParse(_tasaManualController.text) ?? 0;
+    return manual > 0 ? manual : 0;   // ← 0 en lugar de 1.0
   }
+  final t = tasas[_monedaSeleccionada];
+  if (t != null && t > 0) return t;
+  return 0;   // ← 0 en lugar de 1.0
+}
 
   double _totalRecibidoUsd(double tasa) {
     switch (_metodoIndex) {
@@ -231,6 +232,12 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     final diferencia = totalRecibido - widget.totalAPagar;
     final vueltoUsd = diferencia > 0 ? diferencia : 0.0;
 
+    if (tasa <= 0) {
+    _showSnack('No hay tasa BCV válida. Ingresa una manualmente.',
+        isError: true);
+    return;
+  }
+
     if (totalRecibido < (widget.totalAPagar - _eps)) return;
 
     final usuario = ref.read(usuarioActualProvider);
@@ -262,6 +269,18 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
       'monedaUsada': _monedaSeleccionada,
     });
   }
+
+  void _showSnack(String msg, {bool isError = false}) {
+  if (!mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(msg),
+      backgroundColor: isError ? _colorDanger : null,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ),
+  );
+}
 
   // ======================================================
   // Abrir formulario de cliente
@@ -339,6 +358,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     final isDark = theme.brightness == Brightness.dark;
 
     final tasas = ref.watch(tasasDisponiblesProvider);
+    final puedeCobrar = ref.watch(puedeConvertirProvider);
     final tasaValida = _calcularTasaActiva(tasas);
 
     final double totalBs = widget.totalAPagar * tasaValida;
@@ -406,12 +426,17 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildHeader(
+                       _buildHeader(
                         theme: theme,
                         colorScheme: colorScheme,
                         isMobile: isMobile,
                         colorMetodo: _colorMetodo,
                       ),
+                      const SizedBox(height: 14),
+
+                      // ✅ NUEVO: banner de advertencia de tasa BCV
+                      const _AvisoTasaBcv(),
+                      const SizedBox(height: 8),
                       const SizedBox(height: 14),
                       _buildTasaDisplay(
                         tasas: tasas,
@@ -484,11 +509,11 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                       ),
                       const SizedBox(height: 18),
                       _buildBotones(
-                        pagoCompleto: pagoCompleto,
-                        tasaValida: tasaValida,
-                        colorMetodo: _colorMetodo,
-                        colorScheme: colorScheme,
-                        isMobile: isMobile,
+                          pagoCompleto: pagoCompleto && puedeCobrar,   // ← AND con puedeCobrar
+                          tasaValida: tasaValida,
+                          colorMetodo: _colorMetodo,
+                          colorScheme: colorScheme,
+                          isMobile: isMobile,
                       ),
                     ],
                   ),
@@ -2133,4 +2158,99 @@ class _MetodoInfo {
     required this.icon,
     required this.color,
   });
+}
+
+// ══════════════════════════════════════════════════════════════
+// Banner de advertencia de tasa BCV
+// ══════════════════════════════════════════════════════════════
+class _AvisoTasaBcv extends ConsumerWidget {
+  const _AvisoTasaBcv();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bcv = ref.watch(bcvProvider);
+    final mensaje = bcv.mensajeAdvertencia;
+    if (mensaje == null) return const SizedBox.shrink();
+
+    final esCritico = bcv.sinTasa;
+    final color =
+        esCritico ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            esCritico
+                ? Icons.error_outline
+                : Icons.warning_amber_rounded,
+            color: color,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              mensaje,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          if (bcv.sinTasa || bcv.tasaObsoleta)
+            TextButton(
+              onPressed: () => _pedirTasaManual(context, ref),
+              child: const Text('Ingresar'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _pedirTasaManual(BuildContext context, WidgetRef ref) async {
+  final controller = TextEditingController(
+    text: ref.read(bcvProvider).tieneTasa
+        ? ref.read(bcvProvider).tasa.toStringAsFixed(2)
+        : '',
+  );
+  final valor = await showDialog<double>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Tasa BCV manual'),
+      content: TextField(
+        controller: controller,
+        keyboardType:
+            const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'Bolívares por 1 USD',
+          prefixText: 'Bs. ',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final v =
+                double.tryParse(controller.text.replaceAll(',', '.'));
+            Navigator.pop(context, v);
+          },
+          child: const Text('Guardar'),
+        ),
+      ],
+    ),
+  );
+  if (valor != null && valor > 0) {
+    await ref.read(bcvProvider).setTasaManual(valor);
+  }
 }

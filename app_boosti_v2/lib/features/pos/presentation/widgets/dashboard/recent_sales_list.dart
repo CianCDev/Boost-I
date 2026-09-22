@@ -1,3 +1,4 @@
+// lib/features/pos/presentation/widgets/dashboard/recent_sales_list.dart
 import 'package:flutter/material.dart';
 import '../../../data/Local/entities/venta_entity.dart';
 
@@ -42,7 +43,6 @@ class RecentSalesList extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               children: [
                 Icon(Icons.receipt_long_rounded,
@@ -78,9 +78,7 @@ class RecentSalesList extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-
-            // Lista
-            if (ventas.isEmpty) ...[
+            if (ventas.isEmpty)
               Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -92,13 +90,12 @@ class RecentSalesList extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-            ] else ...[
+              )
+            else
               for (int i = 0; i < mostrar.length; i++) ...[
                 _buildItem(mostrar[i], i, isMobile, isDark),
                 if (i < mostrar.length - 1) const SizedBox(height: 8),
               ],
-            ],
           ],
         ),
       ),
@@ -110,13 +107,10 @@ class RecentSalesList extends StatelessWidget {
     final iconMetodo = _getMetodoPagoIcon(venta.metodoPago);
     final fecha = venta.fecha ?? DateTime.now();
     final hora =
-      '${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}';
+        '${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}';
 
-    int cantidadArticulos = 0;
-    if (venta.items.isNotEmpty) {
-      cantidadArticulos = venta.items.fold<int>(
-          0, (sum, item) => sum + (item.cantidad.toInt()));
-    }
+    // ✅ ID corto: usa el id local de Isar (auto-increment) o últimos 6 del UUID
+    final idCorto = _shortId(venta);
 
     return TweenAnimationBuilder(
       tween: Tween<double>(begin: 0.0, end: 1.0),
@@ -132,7 +126,7 @@ class RecentSalesList extends StatelessWidget {
         );
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.grey.shade50,
@@ -143,6 +137,7 @@ class RecentSalesList extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // Barra de color del método
             Container(
               width: 4,
               height: 36,
@@ -152,71 +147,56 @@ class RecentSalesList extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(iconMetodo, size: 14, color: colorMetodo),
-                    const SizedBox(width: 4),
-                    Text(
-                      '#${venta.ventaIdString}',
-                      style: TextStyle(
-                        fontSize: isMobile ? 12 : 14,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Text(
-                      venta.empleadoNombre,
-                      style: TextStyle(
-                        fontSize: isMobile ? 10 : 12,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '• $hora',
-                      style: TextStyle(
-                        fontSize: isMobile ? 10 : 12,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
-                      ),
-                    ),
-                    if (cantidadArticulos > 0) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
+
+            // ── Bloque central (expanded para no desbordar) ──
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Fila 1: ícono + ID corto
+                  Row(
+                    children: [
+                      Icon(iconMetodo, size: 13, color: colorMetodo),
+                      const SizedBox(width: 4),
+                      Flexible(
                         child: Text(
-                          '$cantidadArticulos items',
+                          idCorto,
                           style: TextStyle(
-                            fontSize: isMobile ? 9 : 11,
-                            fontWeight: FontWeight.w500,
-                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                            fontSize: isMobile ? 12 : 13,
+                            fontWeight: FontWeight.w700,
+                            color: isDark
+                                ? Colors.grey.shade200
+                                : Colors.grey.shade800,
+                            letterSpacing: 0.2,
                           ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ),
                     ],
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 2),
+                  // Fila 2: empleado · hora · items
+                  Text(
+                    _buildSubtitle(venta, hora),
+                    style: TextStyle(
+                      fontSize: isMobile ? 10 : 11,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ],
+              ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
+
+            // ── Total a la derecha (siempre visible) ──
             Text(
               '\$${venta.total.toStringAsFixed(2)}',
               style: TextStyle(
-                fontSize: isMobile ? 14 : 16,
+                fontSize: isMobile ? 13 : 15,
                 fontWeight: FontWeight.bold,
                 color: Colors.cyan.shade400,
               ),
@@ -225,6 +205,29 @@ class RecentSalesList extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Devuelve un ID corto y legible para mostrar en la lista.
+  ///
+  /// Prioriza el `id` local de Isar (ej: #42) porque es corto y estable.
+  /// Si no hay, usa los últimos 6 caracteres del UUID de Supabase.
+  String _shortId(VentaEntity venta) {
+    if (venta.id > 0) return '#${venta.id}';
+    final uuid = venta.ventaIdString;
+    if (uuid.isEmpty) return '#---';
+    if (uuid.length <= 6) return '#$uuid';
+    return '#…${uuid.substring(uuid.length - 6)}';
+  }
+
+  /// Compone "empleado · hora · N items" en una sola línea.
+  String _buildSubtitle(VentaEntity venta, String hora) {
+    final partes = <String>[venta.empleadoNombre];
+    partes.add(hora);
+    if (venta.items.isNotEmpty) {
+      final items = venta.items.fold<int>(0, (s, i) => s + i.cantidad.toInt());
+      if (items > 0) partes.add('$items items');
+    }
+    return partes.join(' · ');
   }
 
   Color _getMetodoPagoColor(String metodo) {

@@ -35,7 +35,7 @@ class CatalogAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final isTablet = ResponsiveHelper.isTablet(context);
     final isMobile = ResponsiveHelper.isMobile(context);
     final bcvState = ref.watch(bcvProvider);
-    final lowStockCount = ref.read(catalogProvider.notifier).lowStockCount;
+    final lowStockCount = ref.watch(lowStockCountProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final gradient = isDark

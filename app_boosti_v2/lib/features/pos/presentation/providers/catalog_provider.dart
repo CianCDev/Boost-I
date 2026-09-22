@@ -1,8 +1,11 @@
 // lib/features/pos/presentation/providers/catalog_provider.dart
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'productos_provider.dart';
-import '../../data/Local/entities/producto_entity.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../data/Local/entities/categoria_entity.dart';
+import '../../data/Local/entities/producto_entity.dart';
+import 'categorias_provider.dart';
+import 'productos_provider.dart';
 
 class CatalogState {
   final String busqueda;
@@ -34,32 +37,103 @@ class CatalogState {
       isLoading: isLoading ?? this.isLoading,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CatalogState &&
+          other.busqueda == busqueda &&
+          other.categoriaSeleccionada == categoriaSeleccionada &&
+          other.isLoading == isLoading &&
+          listEquals(other.categorias, categorias) &&
+          _mismosProductos(other.productosFiltrados, productosFiltrados));
+
+  @override
+  int get hashCode => Object.hash(
+        busqueda,
+        categoriaSeleccionada,
+        isLoading,
+        Object.hashAll(categorias),
+        Object.hashAll(productosFiltrados.map((p) => p.id)),
+      );
+
+  static bool _mismosProductos(List<ProductoEntity> a, List<ProductoEntity> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id) return false;
+      if (a[i].stock != b[i].stock) return false;
+      if (a[i].precioUnidad != b[i].precioUnidad) return false;
+      if (a[i].nombre != b[i].nombre) return false;
+      if (a[i].imagenUrl != b[i].imagenUrl) return false;
+      if (a[i].stockMinimo != b[i].stockMinimo) return false;
+      if (a[i].categoria != b[i].categoria) return false;
+      if (a[i].esPesado != b[i].esPesado) return false;
+    }
+    return true;
+  }
 }
 
 class CatalogNotifier extends StateNotifier<CatalogState> {
   final Ref ref;
-  // ignore: unused_field
-  late final ProviderSubscription _subscription;
 
   CatalogNotifier(this.ref) : super(const CatalogState()) {
-    _subscription = ref.listen(productosProvider, (_, next) {
-      debugPrint('📢 [CatalogNotifier] ProductosProvider cambió, actualizando filtros');
-      _actualizarCategorias(next.items);
-      _aplicarFiltros(next.isLoading);
-    });
+    // FIX 1: ref.listen devuelve void. El dispose manual es innecesario
+    // porque Riverpod gestiona la destrucción de estos listeners junto con el Provider.
+    ref.listen<ProductosState>(
+      productosProvider,
+      (_, next) => _aplicarFiltros(next.isLoading),
+    );
+
+    ref.listen<AsyncValue<List<CategoriaEntity>>>(
+      categoriasProvider,
+      (_, next) {
+        next.whenData((categorias) => _actualizarCategorias(categorias));
+      },
+    );
+
+    // Inicialización limpia
     final productosState = ref.read(productosProvider);
-    _actualizarCategorias(productosState.items);
-    _aplicarFiltros(productosState.isLoading);
+    final categoriasAsync = ref.read(categoriasProvider);
+    
+    if (categoriasAsync.hasValue) {
+      _actualizarCategorias(categoriasAsync.value!);
+    } else {
+      _aplicarFiltros(productosState.isLoading);
+    }
   }
 
-  void _actualizarCategorias(List<ProductoEntity> productos) {
-    final setCategorias = productos
-        .map((p) => p.categoria.trim())
+  void _actualizarCategorias(List<CategoriaEntity> categoriasActivas) {
+    final nombres = categoriasActivas
+        .map((c) => c.nombre.trim())
         .where((c) => c.isNotEmpty)
-        .toSet()
         .toList()
       ..sort();
-    state = state.copyWith(categorias: ['Todas', ...setCategorias, 'Stock Bajo']);
+
+    final nuevaLista = ['Todas', ...nombres, 'Stock Bajo'];
+
+    final seleccionActual = state.categoriaSeleccionada;
+    final seleccionValida = seleccionActual == 'Todas' ||
+        seleccionActual == 'Stock Bajo' ||
+        nombres.contains(seleccionActual);
+        
+    final seleccionFinal = seleccionValida ? seleccionActual : 'Todas';
+
+    if (listEquals(nuevaLista, state.categorias) &&
+        seleccionFinal == state.categoriaSeleccionada) {
+      return;
+    }
+
+    state = state.copyWith(
+      categorias: nuevaLista,
+      categoriaSeleccionada: seleccionFinal,
+    );
+
+    // FIX 2: Si la validación obligó a cambiar la selección (ej. de una categoría
+    // borrada hacia 'Todas'), debemos forzar que los productos se re-filtren.
+    if (seleccionActual != seleccionFinal) {
+      _aplicarFiltros(state.isLoading);
+    }
   }
 
   void _aplicarFiltros(bool isLoading) {
@@ -68,7 +142,8 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     final categoria = state.categoriaSeleccionada;
 
     final filtrados = productos.where((p) {
-      final coincideTexto = p.nombre.toLowerCase().contains(query) ||
+      final coincideTexto = query.isEmpty ||
+          p.nombre.toLowerCase().contains(query) ||
           p.codigoBarras.toLowerCase().contains(query);
 
       bool coincideCategoria;
@@ -77,14 +152,16 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
       } else if (categoria == 'Todas') {
         coincideCategoria = true;
       } else {
-        coincideCategoria = p.categoria.trim().toLowerCase() == categoria.toLowerCase();
+        coincideCategoria =
+            p.categoria.trim().toLowerCase() == categoria.toLowerCase();
       }
 
       return coincideTexto && coincideCategoria;
     }).toList();
 
-    if (state.productosFiltrados.length != filtrados.length) {
-      debugPrint('🔄 [CatalogNotifier] Filtros aplicados: ${filtrados.length} productos');
+    if (CatalogState._mismosProductos(filtrados, state.productosFiltrados) &&
+        isLoading == state.isLoading) {
+      return;
     }
 
     state = state.copyWith(
@@ -94,11 +171,13 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
   }
 
   void setBusqueda(String busqueda) {
+    if (busqueda == state.busqueda) return;
     state = state.copyWith(busqueda: busqueda);
     _aplicarFiltros(state.isLoading);
   }
 
   void setCategoria(String categoria) {
+    if (categoria == state.categoriaSeleccionada) return;
     state = state.copyWith(categoriaSeleccionada: categoria);
     _aplicarFiltros(state.isLoading);
   }
@@ -106,7 +185,7 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
   Future<void> recargarDesdeSupabase() async {
     final notifier = ref.read(productosProvider.notifier);
     await notifier.recargarDesdeSupabase();
-    // El listener actualizará el estado automáticamente
+    ref.invalidate(categoriasProvider);
   }
 
   Future<void> recargarEnSegundoPlano() async {
@@ -117,11 +196,16 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     }
     await notifier.recargarDesdeSupabase();
   }
-
-  int get lowStockCount =>
-      ref.read(productosProvider).items.where((p) => p.stock <= p.stockMinimo).length;
 }
 
-final catalogProvider = StateNotifierProvider<CatalogNotifier, CatalogState>((ref) {
+final catalogProvider =
+    StateNotifierProvider<CatalogNotifier, CatalogState>((ref) {
   return CatalogNotifier(ref);
+});
+
+// FIX 3: Nuevo Provider reactivo para el conteo de stock bajo.
+// Úsalo en tu UI con `ref.watch(lowStockCountProvider)` en lugar del getter obsoleto.
+final lowStockCountProvider = Provider<int>((ref) {
+  final productos = ref.watch(productosProvider).items;
+  return productos.where((p) => p.stock <= p.stockMinimo).length;
 });

@@ -220,37 +220,40 @@ class ProductDetailDialog extends ConsumerWidget {
     );
   }
 
-  Widget _buildCategoriaStockMinimo(
-      ColorScheme colorScheme, bool isMobile) {
-    return _infoCard(
-      colorScheme: colorScheme,
-      child: Row(
-        children: [
-          Expanded(
-            child: _statBlock(
-              icon: Icons.category_outlined,
-              label: 'Categoría',
-              value: producto.categoria,
-              valueColor: colorScheme.onSurface,
-              colorScheme: colorScheme,
-              isMobile: isMobile,
-            ),
+ Widget _buildCategoriaStockMinimo(ColorScheme colorScheme, bool isMobile) {
+  // ✅ Normalizar: si la categoría está vacía o quedó huérfana, mostrar fallback
+  final categoriaMostrada = producto.categoria.trim().isEmpty
+      ? 'Sin categoría'
+      : producto.categoria.trim();
+
+  return _infoCard(
+    colorScheme: colorScheme,
+    child: Row(
+      children: [
+        Expanded(
+          child: _statBlock(
+            icon: Icons.category_outlined,
+            label: 'Categoría',
+            value: categoriaMostrada,
+            valueColor: colorScheme.onSurface,
+            colorScheme: colorScheme,
+            isMobile: isMobile,
           ),
-          Expanded(
-            child: _statBlock(
-              icon: Icons.warning_amber_outlined,
-              label: 'Stock mínimo',
-              value:
-                  '${producto.stockMinimo} ${producto.esPesado ? 'kg' : 'unid'}',
-              valueColor: colorScheme.onSurface,
-              colorScheme: colorScheme,
-              isMobile: isMobile,
-            ),
+        ),
+        Expanded(
+          child: _statBlock(
+            icon: Icons.warning_amber_outlined,
+            label: 'Stock mínimo',
+            value: '${producto.stockMinimo} ${producto.esPesado ? 'kg' : 'unid'}',
+            valueColor: colorScheme.onSurface,
+            colorScheme: colorScheme,
+            isMobile: isMobile,
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _statBlock({
     required IconData icon,

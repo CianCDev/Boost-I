@@ -395,35 +395,34 @@ Future<void> initForTesting(String directoryPath) async {
     }
   }
 
-  Future<void> crearUsuario({
-    required String nombre,
-    required String pin,
-    required String rol,
-    required String caja,
-  }) async {
-    try {
-      final isar = await db;
-      if (pin.trim().length != 4) {
-        throw Exception('El PIN debe tener 4 dígitos.');
-      }
-      await isar.writeTxn(() async {
-        final nuevoUsuario = UsuarioEntity()
-          ..nombre = nombre.trim()
-          ..pin = pin.trim()
-          ..rol = rol.toLowerCase()
-          ..activo = true
-          ..estado = 'activo'
-          ..cajaAsignada = caja;
-        await isar.usuarioEntitys.put(nuevoUsuario);
-      });
-    } catch (e, stack) {
-      ErrorService.captureError(e,
-          stack: stack,
-          hint: 'crearUsuario_fallo',
-          extras: {'nombre': nombre, 'rol': rol});
-      rethrow;
+/// Obtiene TODOS los usuarios registrados localmente (activos e inactivos).
+/// 
+/// Útil para el selector de login, que debe mostrar a todos los usuarios
+/// sin importar su estado, permitiendo al administrador elegir cualquier cuenta.
+/// 
+/// Parámetros:
+///   - [localId]: Si se especifica, filtra los usuarios por ese local.
+///                Si es null, devuelve todos los usuarios del dispositivo.
+Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
+  try {
+    final isar = await db;
+    if (localId != null) {
+      return await isar.usuarioEntitys
+          .filter()
+          .localIdEqualTo(localId)
+          .findAll();
     }
+    return await isar.usuarioEntitys.where().findAll();
+  } catch (e, stack) {
+    ErrorService.captureError(
+      e,
+      stack: stack,
+      hint: 'obtenerTodosLosUsuarios_fallo',
+      extras: {'localId': localId},
+    );
+    return [];
   }
+}
 
   Future<bool> eliminarUsuario(int id) async {
     try {

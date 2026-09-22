@@ -206,7 +206,8 @@ final empleadosPorLocalProvider =
 
 final usuariosProvider = FutureProvider<List<UsuarioEntity>>((ref) async {
   final isar = IsarService();
-  return await isar.obtenerUsuariosActivos();
+  // ✅ CAMBIO: Traer todos
+  return await isar.obtenerTodosLosUsuarios();
 });
 
 final usuarioPorIdProvider =

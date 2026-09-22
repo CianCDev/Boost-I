@@ -134,22 +134,30 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
     _seleccionarMetodo(seleccionado);
   }
 
-  void _agregarPago() {
-    final metodo = _metodoPrincipalSeleccionado;
-    if (metodo == null) return;
+ void _agregarPago() {
+  final metodo = _metodoPrincipalSeleccionado;
+  if (metodo == null) return;
 
-    final monto = double.tryParse(_montoController.text.replaceAll(',', '.'));
-    if (monto == null || monto <= 0) {
-      _snack('Ingresa un monto válido', esError: true);
-      return;
-    }
+  final monto = double.tryParse(_montoController.text.replaceAll(',', '.'));
+  if (monto == null || monto <= 0) {
+    _snack('Ingresa un monto válido', esError: true);
+    return;
+  }
 
-    // Convertir a USD
-    final esBs = _metodoUsaBs(metodo);
-    final esUsdt = _metodoUsaUsdt(metodo);
-    final montoUsd = esBs
-        ? monto / widget.tasaBcv
-        : (esUsdt ? monto : monto);
+  final esBs = _metodoUsaBs(metodo);
+
+  // ✅ NUEVO: no permitir agregar pagos en Bs sin tasa válida
+  if (esBs && widget.tasaBcv <= 0) {
+    _snack(
+      'No hay tasa BCV válida para convertir Bs a USD.',
+      esError: true,
+    );
+    return;
+  }
+
+  final esUsdt = _metodoUsaUsdt(metodo);
+  final montoUsd = esBs ? monto / widget.tasaBcv : monto;
+       
 
     final pago = PagoInput(
       metodo: metodo,
@@ -266,43 +274,52 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
   // ──────────────── Confirmar ────────────────
 
   Future<void> _confirmar() async {
-    // Si hay un método seleccionado pero no agregado, agregarlo primero
-    if (_metodoPrincipalSeleccionado != null &&
-        _montoController.text.trim().isNotEmpty) {
-      _agregarPago();
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-
-    if (_pagos.isEmpty) {
-      _snack('Agrega al menos un pago', esError: true);
-      return;
-    }
-
-    if (!_cumpleMinimo) {
-      _snack(
-        'Falta cubrir el mínimo requerido '
-        '(\$${_minimoRequeridoUsd.toStringAsFixed(2)})',
-        esError: true,
-      );
-      return;
-    }
-
-    if (!_pagoCompleto) {
-      _snack('El pago no cubre el total de la venta', esError: true);
-      return;
-    }
-
-    final result = WholesaleCobrarResult(
-      pago: VentaMayorPagoInput(
-        pagos: List.from(_pagos),
-        tasaBcv: widget.tasaBcv,
-        montoRecibidoUsd: _totalPagadoUsd,
-        vueltoUsd: _vueltoUsd,
-      ),
+  // ✅ 1. PRIMERO: validar tasa
+  if (widget.tasaBcv <= 0) {
+    _snack(
+      'No hay tasa BCV válida. No se puede procesar el cobro.',
+      esError: true,
     );
-
-    Navigator.of(context).pop(result);
+    return;
   }
+
+  // ✅ 2. Luego: agregar el pago pendiente si lo hay
+  if (_metodoPrincipalSeleccionado != null &&
+      _montoController.text.trim().isNotEmpty) {
+    _agregarPago();
+    await Future.delayed(const Duration(milliseconds: 100));
+  }
+
+  if (_pagos.isEmpty) {
+    _snack('Agrega al menos un pago', esError: true);
+    return;
+  }
+
+  if (!_cumpleMinimo) {
+    _snack(
+      'Falta cubrir el mínimo requerido '
+      '(\$${_minimoRequeridoUsd.toStringAsFixed(2)})',
+      esError: true,
+    );
+    return;
+  }
+
+  if (!_pagoCompleto) {
+    _snack('El pago no cubre el total de la venta', esError: true);
+    return;
+  }
+
+  final result = WholesaleCobrarResult(
+    pago: VentaMayorPagoInput(
+      pagos: List.from(_pagos),
+      tasaBcv: widget.tasaBcv,
+      montoRecibidoUsd: _totalPagadoUsd,
+      vueltoUsd: _vueltoUsd,
+    ),
+  );
+
+  Navigator.of(context).pop(result);
+}
 
   void _snack(String msg, {bool esError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -356,6 +373,37 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
               color: cs.outlineVariant.withValues(alpha: 0.3),
             ),
             _buildTotalBanner(isDark, cs),
+
+              // ✅ NUEVO: banner solo si la tasa no es válida
+    if (widget.tasaBcv <= 0)
+      Container(
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEF4444).withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+          ),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.error_outline,
+                color: Color(0xFFEF4444), size: 20),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Sin tasa BCV válida. No se puede procesar el cobro.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Color(0xFFEF4444),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
 
             // ── Contenido scrollable ──
             Flexible(

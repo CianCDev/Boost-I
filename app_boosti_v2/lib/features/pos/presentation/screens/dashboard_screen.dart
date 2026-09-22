@@ -1,4 +1,6 @@
 // lib/features/pos/presentation/screens/dashboard_screen.dart
+import 'package:app_boosti_v2/features/pos/presentation/widgets/dashboard/monthly_report_service.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/dashboard/reporte_generado_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/dashboard_provider.dart';
@@ -40,11 +42,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: CustomAppBar(
+        appBar: CustomAppBar(
         title: isMobile ? 'Estadísticas' : 'Estadísticas Generales',
         showBackButton: true,
         centerTitle: false,
         actions: [
+          // ✅ Exportar CSV del mes
+          IconButton(
+            icon: const Icon(
+              Icons.file_download_rounded,
+              color: Colors.white,
+            ),
+            tooltip: 'Exportar CSV del mes',
+            onPressed: () async {
+              final service = MonthlyReportService();
+              final reporte = await service.generar();
+
+              if (!context.mounted) return;
+
+              if (reporte == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('⚠️ No hay ventas registradas este mes'),
+                    backgroundColor: Color(0xFFF59E0B),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
+
+              await ReporteGeneradoDialog.mostrar(
+                context,
+                reporte: reporte,
+              );
+            },
+          ),
+
+          // ✅ Refrescar
           IconButton(
             icon: estado.isLoading
                 ? const SizedBox(

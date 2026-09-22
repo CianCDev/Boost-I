@@ -1,6 +1,7 @@
 // lib/features/pos/presentation/screens/empleados/employee_form_dialog.dart
 import 'dart:io';
 
+import 'package:app_boosti_v2/features/pos/presentation/widgets/common/glass_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -85,6 +86,7 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
   bool _isSaving = false;
   bool _isLoadingData = true;
   bool _obscurePassword = true;
+  bool _isPickingImage = false;
 
   bool get _esEdicion => widget.empleado != null;
 
@@ -241,24 +243,213 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
   }
 
   // ══════════════════════════════════════════════════════════════
-  // IMAGEN
+  // IMAGEN — ✅ CORREGIDO: sin cerrar/reabrir el diálogo
   // ══════════════════════════════════════════════════════════════
 
   Future<void> _seleccionarImagen() async {
+    // Evita doble toque mientras el picker está abierto
+    if (_isPickingImage) return;
+    setState(() => _isPickingImage = true);
+
     try {
+      // ✅ Mostrar un bottom sheet para elegir el origen.
+      //    Esto evita abrir directamente el picker y da mejor UX.
+      final origen = await showModalBottomSheet<ImageSource>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (ctx) => _buildOrigenSheet(ctx),
+      );
+
+      if (origen == null) {
+        // El usuario canceló el bottom sheet
+        if (mounted) setState(() => _isPickingImage = false);
+        return;
+      }
+
+      // ✅ Abrimos el picker directamente SIN tocar el Navigator.
+      //    El diálogo principal permanece montado y no hay competencia
+      //    por el foco → no se congela la app.
       final picker = ImagePicker();
       final picked = await picker.pickImage(
-        source: ImageSource.gallery,
+        source: origen,
         maxWidth: 512,
         maxHeight: 512,
         imageQuality: 80,
+        requestFullMetadata: false,
       );
-      if (picked == null) return;
+
       if (!mounted) return;
-      setState(() => _imagenLocal = File(picked.path));
+      if (picked != null) {
+        setState(() => _imagenLocal = File(picked.path));
+      }
     } catch (e) {
       debugPrint('Error seleccionando imagen: $e');
+      if (mounted) {
+        _showSnack(
+          'No se pudo seleccionar la imagen: $e',
+          isError: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPickingImage = false);
     }
+  }
+
+  /// Bottom sheet con las opciones Cámara / Galería.
+  /// Se adapta al tema claro/oscuro con el mismo estilo glass.
+  Widget _buildOrigenSheet(BuildContext ctx) {
+    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+    final colorScheme = Theme.of(ctx).colorScheme;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF1A1A1A).withValues(alpha: 0.95)
+                : Colors.white.withValues(alpha: 0.98),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.05),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Foto del empleado',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '¿De dónde quieres obtener la imagen?',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildOrigenTile(
+                ctx: ctx,
+                icon: Icons.photo_library_rounded,
+                title: 'Galería',
+                subtitle: 'Elegir una imagen existente',
+                color: _colorPrimary,
+                onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
+              ),
+              const SizedBox(height: 8),
+              _buildOrigenTile(
+                ctx: ctx,
+                icon: Icons.camera_alt_rounded,
+                title: 'Cámara',
+                subtitle: 'Tomar una foto nueva',
+                color: _colorPrimary,
+                onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
+                    foregroundColor: colorScheme.onSurfaceVariant,
+                  ),
+                  child: const Text('Cancelar'),
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrigenTile({
+    required BuildContext ctx,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = Theme.of(ctx).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: colorScheme.onSurfaceVariant,
+                  size: 22,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -345,7 +536,6 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
         ..updatedAt = ahora
         ..sincronizado = false;
 
-      // Coherencia activo/estado en creación
       if (!_esEdicion) {
         usuario.activo = true;
         usuario.estado = 'activo';
@@ -442,7 +632,7 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
   }
 
   // ══════════════════════════════════════════════════════════════
-  // BUILD
+  // BUILD — USANDO GlassDialog
   // ══════════════════════════════════════════════════════════════
 
   @override
@@ -450,59 +640,43 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
     final isMobile = ResponsiveHelper.isMobile(context);
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
+    return GlassDialog(
+      maxWidth: 720,
+      maxHeightFactor: 0.92,
       insetPadding: EdgeInsets.symmetric(
         horizontal: isMobile ? 8 : 40,
         vertical: isMobile ? 12 : 32,
       ),
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: 720,
-          maxHeight: MediaQuery.of(context).size.height * 0.92,
-        ),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 30,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildHeader(isMobile, colorScheme),
-            if (_isLoadingData)
-              const Padding(
-                padding: EdgeInsets.all(40),
-                child: CircularProgressIndicator(color: _colorPrimary),
-              )
-            else ...[
-              _buildTabs(colorScheme),
-              Flexible(
-                child: Form(
-                  key: _formKey,
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _tabBasicos(isMobile, colorScheme),
-                      _tabLaboral(isMobile, colorScheme),
-                      _tabCompensacion(isMobile, colorScheme),
-                      _tabHorario(isMobile, colorScheme),
-                      _tabEmergencia(isMobile, colorScheme),
-                    ],
-                  ),
+      accentColor: _colorPrimary,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildHeader(isMobile, colorScheme),
+          if (_isLoadingData)
+            const Padding(
+              padding: EdgeInsets.all(40),
+              child: CircularProgressIndicator(color: _colorPrimary),
+            )
+          else ...[
+            _buildTabs(colorScheme),
+            Flexible(
+              child: Form(
+                key: _formKey,
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _tabBasicos(isMobile, colorScheme),
+                    _tabLaboral(isMobile, colorScheme),
+                    _tabCompensacion(isMobile, colorScheme),
+                    _tabHorario(isMobile, colorScheme),
+                    _tabEmergencia(isMobile, colorScheme),
+                  ],
                 ),
               ),
-              _buildFooter(colorScheme, isMobile),
-            ],
+            ),
+            _buildFooter(colorScheme, isMobile),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -522,9 +696,11 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
       child: Row(
         children: [
           GestureDetector(
-            onTap: _seleccionarImagen,
+            onTap: _isPickingImage ? null : _seleccionarImagen,
             child: MouseRegion(
-              cursor: SystemMouseCursors.click,
+              cursor: _isPickingImage
+                  ? SystemMouseCursors.forbidden
+                  : SystemMouseCursors.click,
               child: _buildAvatarPreview(isMobile),
             ),
           ),
@@ -588,7 +764,11 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
           ),
           child: ClipOval(
             child: _imagenLocal != null
-                ? Image.file(_imagenLocal!, fit: BoxFit.cover)
+                ? Image.file(
+                    _imagenLocal!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _avatarInicial(),
+                  )
                 : (_fotoUrlActual != null
                     ? Image.network(
                         _fotoUrlActual!,
@@ -607,11 +787,20 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
               color: _colorPrimary,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.camera_alt_rounded,
-              size: 12,
-              color: Colors.white,
-            ),
+            child: _isPickingImage
+                ? const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(
+                    Icons.camera_alt_rounded,
+                    size: 12,
+                    color: Colors.white,
+                  ),
           ),
         ),
       ],

@@ -3,13 +3,10 @@
 
 import 'dart:async';
 import 'dart:ui';
-import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// ✅ FIX: `hide AuthState` para evitar ambigüedad con el AuthState local
-//    de `auth_provider.dart` (gotrue también exporta un `AuthState`).
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import '../../data/Local/entities/usuario_entity.dart';
@@ -82,7 +79,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _animationController.forward();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // 1. Cargar usuarios desde Isar local
       await ref.read(authProvider.notifier).loadUsuarios();
       final usuariosActualizados = await ref.refresh(usuariosProvider.future);
       if (usuariosActualizados.isNotEmpty) {
@@ -90,7 +86,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             '✅ Usuarios recargados en login: ${usuariosActualizados.length}');
       }
 
-      // 2. Validar selección guardada y sincronizar en background
       _validateSelectedUser();
       _sincronizarUsuarios(showFeedback: false, isInitialLoad: true);
     });
@@ -142,7 +137,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // SINCRONIZACIÓN
+  // SINCRONIZACIÓN (manual desde botón)
   // ============================================================
   Future<void> _sincronizarUsuarios({
     bool showFeedback = true,
@@ -189,8 +184,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // LOGIN
+  // LOGIN CON PIN
   // ============================================================
+
+  /// Diálogo de carga que se muestra mientras se procesa el login.
+  ///
+  /// Es no-dismissible y se cierra programáticamente antes de navegar.
+  void _mostrarLoadingDialog() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => const _LoginLoadingDialog(),
+    );
+  }
+
+  void _cerrarLoadingDialog() {
+    Navigator.of(context, rootNavigator: true).pop();
+  }
+
   Future<void> _loginWithPin() async {
     final authState = ref.read(authProvider);
     if (authState.usuarios.isEmpty) {
@@ -198,6 +210,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       return;
     }
 
+    // Resolver usuario seleccionado
     UsuarioEntity? usuarioSeleccionado;
     if (_selectedUserId != null) {
       try {
@@ -216,53 +229,82 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       return;
     }
 
+    // Marcar loading y limpiar error
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-    final success = await ref
-        .read(authProvider.notifier)
-        .loginWithPin(usuarioSeleccionado, pin);
+    // Mostrar diálogo modal de carga
+    _mostrarLoadingDialog();
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    if (!success) {
-      setState(() => _errorMessage = 'PIN incorrecto. Intenta de nuevo.');
-      return;
-    }
-
-    final user = ref.read(authProvider).currentUser;
-    if (user == null) return;
-
-    // Registrar en monitoreo y guardar preferencia
-    ref.read(usuarioActualProvider.notifier).setUsuario(user);
-    ErrorService.setUser(user.id.toString(), user.email, user.nombre);
-    await _saveSelectedUser(user.id);
-
-    final tenantState = ref.read(tenantActualProvider);
-    if (!tenantState.tieneTenant) {
-      debugPrint('⚠️ Login PIN sin tenant en prefs. La sincronización fallará.');
-    }
-
-    // 🔥 Sincronización inicial en background para este dispositivo
     try {
-      final syncService = SyncService();
-      await syncService.descargarLocalesDesdeSupabase();
-      await syncService.descargarPedidosDesdeSupabase();
-      debugPrint('✅ Sincronización inicial completada después del login');
-    } catch (e) {
-      debugPrint('⚠️ Error en sincronización inicial: $e');
-      // No bloqueamos el login si falla
-    }
+      // 1️⃣ Validar PIN (rápido, solo hashing local)
+      final success = await ref
+          .read(authProvider.notifier)
+          .loginWithPin(usuarioSeleccionado, pin);
 
-    if (!mounted) return;
-    redirigirSegunRol(user);
+      if (!mounted) return;
+
+      if (!success) {
+        // Cerrar dialog y mostrar error
+        _cerrarLoadingDialog();
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'PIN incorrecto. Intenta de nuevo.';
+        });
+        return;
+      }
+
+      final user = ref.read(authProvider).currentUser;
+      if (user == null) {
+        _cerrarLoadingDialog();
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Error al cargar el usuario.';
+        });
+        return;
+      }
+
+      // 2️⃣ Persistir estado (operaciones rápidas locales)
+      ref.read(usuarioActualProvider.notifier).setUsuario(user);
+      ErrorService.setUser(user.id.toString(), user.email, user.nombre);
+      await _saveSelectedUser(user.id);
+
+      // 3️⃣ Verificar tenant (en memoria, instantáneo)
+      final tenantState = ref.read(tenantActualProvider);
+      if (!tenantState.tieneTenant) {
+        debugPrint(
+            '⚠️ Login PIN sin tenant en prefs. La sincronización fallará.');
+      }
+
+      if (!mounted) return;
+
+      // 4️⃣ Cerrar loading dialog
+      _cerrarLoadingDialog();
+
+      // 5️⃣ Navegar INMEDIATAMENTE (sin esperar sync)
+      redirigirSegunRol(user);
+
+      // 6️⃣ Sync inicial en background (fire-and-forget)
+      _sincronizarEnBackground();
+    } catch (e) {
+      if (!mounted) return;
+      _cerrarLoadingDialog();
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Error inesperado: $e';
+      });
+    }
   }
 
-  /// Navega a la pantalla correspondiente según el rol del usuario.
+  /// Redirige según el rol del usuario autenticado.
+  ///
+  /// - Roles RRHH → EmployeesScreen
+  /// - Resto → MainPosScreen
   void redirigirSegunRol(UsuarioEntity usuario) {
+    if (!mounted) return;
+
     final role = UserRole.fromString(usuario.rol);
 
     if (Permissions.isEmployeesOnlyRole(role)) {
@@ -274,6 +316,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const MainPosScreen()),
+    );
+  }
+
+  /// Sync inicial en background post-login.
+  ///
+  /// Corre en un microtask separado con timeout corto para no bloquear
+  /// ni colgar la app si el dispositivo está offline.
+  void _sincronizarEnBackground() {
+    Future.microtask(() async {
+      try {
+        final syncService = SyncService();
+        await syncService
+            .descargarLocalesDesdeSupabase()
+            .timeout(const Duration(seconds: 5));
+        await syncService
+            .descargarPedidosDesdeSupabase()
+            .timeout(const Duration(seconds: 5));
+        debugPrint('✅ Sync inicial post-login completada');
+      } catch (e) {
+        debugPrint('⚠️ Sync inicial post-login falló (offline?): $e');
+      }
+    });
+  }
+
+  // ============================================================
+  // SELECTOR DE USUARIO (BOTTOM SHEET)
+  // ============================================================
+  void _openUserSelector(List<UsuarioEntity> usuarios) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _UserSelectionBottomSheet(
+        usuarios: usuarios,
+        selectedUserId: _selectedUserId,
+        onUserSelected: (user) {
+          setState(() {
+            _selectedUserId = user.id;
+            _errorMessage = null;
+          });
+          _saveSelectedUser(user.id);
+          Navigator.pop(context);
+        },
+      ),
     );
   }
 
@@ -308,13 +394,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       _selectedUserId = usuariosOrdenados.first.id;
     }
 
-    String ejemploPins = '';
-    for (var u in usuariosOrdenados) {
-      if (u.rol == 'admin') {
-        ejemploPins += 'Admin (${u.nombre}): ${u.pin}';
-      } else {
-        ejemploPins += ' | ${u.nombre}: ${u.pin}';
-      }
+    String nombreSeleccionado = 'Seleccionar Usuario';
+    if (_selectedUserId != null) {
+      try {
+        final u = usuariosOrdenados.firstWhere((u) => u.id == _selectedUserId);
+        nombreSeleccionado = u.nombre;
+      } catch (_) {}
     }
 
     return Scaffold(
@@ -333,7 +418,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
           ),
 
-          // Blob verde esmeralda (arriba izquierda)
+          // Blob verde esmeralda
           Positioned(
             top: -150,
             left: -100,
@@ -350,7 +435,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
           ),
 
-          // Blob púrpura intenso (abajo derecha)
+          // Blob púrpura intenso
           Positioned(
             bottom: -150,
             right: -100,
@@ -428,9 +513,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
-                                      // ═══════════════════════════════
-                                      // Badge de estado de nube
-                                      // ═══════════════════════════════
                                       const _CloudStatusBanner(),
                                       const SizedBox(height: 16),
 
@@ -449,8 +531,165 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                         ),
                                       ),
                                       const SizedBox(height: 32),
-                                      buildPinMode(
-                                          isMobile, isTablet, usuariosOrdenados),
+
+                                      // Selector de usuario
+                                      Text(
+                                        'Seleccionar Usuario',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: isMobile ? 13.0 : 15.0,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.8),
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      InkWell(
+                                        onTap: () =>
+                                            _openUserSelector(usuariosOrdenados),
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 16,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _bgNavy
+                                                .withValues(alpha: 0.65),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.12),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.person_search_rounded,
+                                                color: _accent,
+                                                size: 22,
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  nombreSeleccionado,
+                                                  style: TextStyle(
+                                                    fontSize:
+                                                        isMobile ? 15 : 16,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.white,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              Icon(
+                                                Icons
+                                                    .keyboard_arrow_down_rounded,
+                                                color: Colors.white
+                                                    .withValues(alpha: 0.5),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+
+                                      const SizedBox(height: 24),
+                                      Text(
+                                        'PIN de Acceso',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: isMobile ? 13.0 : 15.0,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.8),
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      TextFormField(
+                                        controller: _pinController,
+                                        obscureText: _obscurePin,
+                                        keyboardType: TextInputType.number,
+                                        maxLength: 6,
+                                        enabled: !_isLoading,
+                                        style: TextStyle(
+                                          fontSize: isMobile ? 18 : 20,
+                                          letterSpacing: 8,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
+                                        decoration: InputDecoration(
+                                          hintText: '••••••',
+                                          hintStyle: TextStyle(
+                                            fontSize: isMobile ? 18 : 20,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.3),
+                                            letterSpacing: 8,
+                                          ),
+                                          counterText: '',
+                                          filled: true,
+                                          fillColor:
+                                              _bgNavy.withValues(alpha: 0.65),
+                                          border: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            borderSide: BorderSide(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.12),
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            borderSide: const BorderSide(
+                                                color: _accent, width: 2.0),
+                                          ),
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            borderSide: BorderSide(
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.12),
+                                            ),
+                                          ),
+                                          prefixIcon: Padding(
+                                            padding: const EdgeInsets.only(
+                                                left: 16.0, right: 12.0),
+                                            child: Icon(
+                                              Icons.lock_outline_rounded,
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.5),
+                                              size: 22,
+                                            ),
+                                          ),
+                                          suffixIcon: Padding(
+                                            padding: const EdgeInsets.only(
+                                                right: 8.0),
+                                            child: IconButton(
+                                              icon: Icon(
+                                                _obscurePin
+                                                    ? Icons
+                                                        .visibility_off_outlined
+                                                    : Icons.visibility_outlined,
+                                                color: Colors.white
+                                                    .withValues(alpha: 0.5),
+                                                size: 22,
+                                              ),
+                                              onPressed: () => setState(() =>
+                                                  _obscurePin = !_obscurePin),
+                                            ),
+                                          ),
+                                          contentPadding:
+                                              EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: isTablet ? 22 : 18,
+                                          ),
+                                        ),
+                                        onFieldSubmitted: (_) =>
+                                            _isLoading ? null : _loginWithPin(),
+                                      ),
+
                                       if (_errorMessage != null) ...[
                                         const SizedBox(height: 16),
                                         Container(
@@ -493,22 +732,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                       ],
                                       const SizedBox(height: 32),
                                       buildLoginButton(buttonHeight, isMobile),
-                                      const SizedBox(height: 20),
-                                      Center(
-                                        child: Text(
-                                          'PIN de ejemplo: $ejemploPins',
-                                          style: TextStyle(
-                                            fontSize: isMobile ? 11 : 12,
-                                            color: Colors.white
-                                                .withValues(alpha: 0.35),
-                                            fontWeight: FontWeight.w400,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
 
-                                      // ── Botón de sincronización manual ──
+                                      // Botón de sincronización manual
+                                      const SizedBox(height: 16),
                                       Center(
                                         child: TextButton(
                                           onPressed: _isLoading
@@ -550,22 +776,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                         ),
                                       ),
 
-                                      TextButton(
-                                  onPressed: () async {
-                                    final isar = IsarService();
-                                    final usuarios = await isar.obtenerUsuarios();
-                                    if (usuarios.isEmpty) return;
-
-                                    final u = usuarios.first;
-                                    final ok = await isar.forzarPinLegacyParaTest(u.id, '1234');
-                                    debugPrint(ok
-                                        ? '🧪 PIN legacy "1234" inyectado en "${u.nombre}" (ID: ${u.id})'
-                                        : '⚠️ No se pudo inyectar');
-                                  },
-                                  child: const Text('🧪 Forzar PIN legacy'),
-                                ),
-
-                                      // ── Hint para tablets nuevas ──
                                       const SizedBox(height: 6),
                                       Center(
                                         child: Text(
@@ -654,228 +864,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   // ============================================================
-  // PIN MODE
-  // ============================================================
-  Widget buildPinMode(
-    bool isMobile,
-    bool isTablet,
-    List<UsuarioEntity> usuarios,
-  ) {
-    final fontSizeLabel = isMobile ? 13.0 : 15.0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Seleccionar Usuario',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: fontSizeLabel,
-            color: Colors.white.withValues(alpha: 0.8),
-            letterSpacing: 0.3,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: _bgNavy.withValues(alpha: 0.65),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.12),
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              hoverColor: Colors.white.withValues(alpha: 0.08),
-              focusColor: Colors.white.withValues(alpha: 0.08),
-              splashColor: Colors.transparent,
-              highlightColor: Colors.transparent,
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: _selectedUserId,
-                isExpanded: true,
-                borderRadius: BorderRadius.circular(16),
-                icon: Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: Colors.white.withValues(alpha: 0.5),
-                ),
-                style: TextStyle(
-                  fontSize: isMobile ? 16 : 18,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white,
-                ),
-                dropdownColor: _bgIndigo,
-                itemHeight: 64,
-                menuMaxHeight: 350,
-                items: usuarios.map((u) {
-                  final role = UserRole.fromString(u.rol);
-                  final isAdmin = role == UserRole.admin;
-                  final isRrhh = role == UserRole.rrhh;
-                  final isSupervisor = role == UserRole.supervisor;
-
-                  Color chipColor;
-                  IconData chipIcon;
-
-                  if (isAdmin) {
-                    chipColor = const Color(0xFF3B82F6);
-                    chipIcon = Icons.admin_panel_settings_rounded;
-                  } else if (isRrhh) {
-                    chipColor = const Color(0xFF8B5CF6);
-                    chipIcon = Icons.badge_rounded;
-                  } else if (isSupervisor) {
-                    chipColor = const Color(0xFFF59E0B);
-                    chipIcon = Icons.supervisor_account_rounded;
-                  } else {
-                    chipColor = _accent;
-                    chipIcon = Icons.person_rounded;
-                  }
-
-                  return DropdownMenuItem<int>(
-                    value: u.id,
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: chipColor.withValues(alpha: 0.2),
-                          child: Icon(
-                            chipIcon,
-                            size: 18,
-                            color: chipColor,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                u.nombre,
-                                style: TextStyle(
-                                  fontWeight: isAdmin
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                  fontSize: isMobile ? 15 : 16,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              if (isAdmin || isRrhh || isSupervisor)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 2),
-                                  child: Text(
-                                    role.label.toUpperCase(),
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.5,
-                                      color: chipColor.withValues(alpha: 0.9),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  setState(() {
-                    _selectedUserId = val;
-                    _errorMessage = null;
-                  });
-                  if (val != null) _saveSelectedUser(val);
-                },
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          'PIN de Acceso',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: fontSizeLabel,
-            color: Colors.white.withValues(alpha: 0.8),
-            letterSpacing: 0.3,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _pinController,
-          obscureText: _obscurePin,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          style: TextStyle(
-            fontSize: isMobile ? 18 : 20,
-            letterSpacing: 8,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-          decoration: InputDecoration(
-            hintText: '••••••',
-            hintStyle: TextStyle(
-              fontSize: isMobile ? 18 : 20,
-              color: Colors.white.withValues(alpha: 0.3),
-              letterSpacing: 8,
-            ),
-            counterText: '',
-            filled: true,
-            fillColor: _bgNavy.withValues(alpha: 0.65),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: Colors.white.withValues(alpha: 0.12),
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _accent, width: 2.0),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: Colors.white.withValues(alpha: 0.12),
-              ),
-            ),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 16.0, right: 12.0),
-              child: Icon(
-                Icons.lock_outline_rounded,
-                color: Colors.white.withValues(alpha: 0.5),
-                size: 22,
-              ),
-            ),
-            suffixIcon: Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: IconButton(
-                icon: Icon(
-                  _obscurePin
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: Colors.white.withValues(alpha: 0.5),
-                  size: 22,
-                ),
-                onPressed: () => setState(() => _obscurePin = !_obscurePin),
-              ),
-            ),
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: isTablet ? 22 : 18,
-            ),
-          ),
-          onFieldSubmitted: (_) => _loginWithPin(),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
   // BOTÓN LOGIN
   // ============================================================
   Widget buildLoginButton(double height, bool isMobile) {
+    final habilitado = !_isLoading && _selectedUserId != null;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       height: height,
@@ -889,15 +882,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           elevation: 0,
           shadowColor: _accent.withValues(alpha: 0.4),
         ),
-        onPressed: _isLoading || _selectedUserId == null ? null : _loginWithPin,
+        onPressed: habilitado ? _loginWithPin : null,
         child: _isLoading
-            ? const SizedBox(
-                height: 24,
-                width: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2.5,
-                ),
+            ? const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2.5,
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Verificando...',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -923,18 +930,383 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// CLOUD STATUS BANNER — versión robusta
+// LOGIN LOADING DIALOG
 //
-// Detecta en vivo el estado de la sesión de Supabase:
-//   · Verde   → sesión válida + token no expirado
-//   · Ámbar   → offline (sin sesión) o sesión expirada sin posibilidad
-//               de refrescar
-//
-// Acciones:
-//   · Tocarlo offline → navega a EmailLoginScreen
-//   · Tocarlo online  → bottom sheet con opción de desconectar
-//
-// Offline-first: si no hay sesión, el login por PIN sigue funcionando.
+// Diálogo no-dismissible que aparece mientras se procesa el login.
+// Se cierra programáticamente antes de navegar.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _LoginLoadingDialog extends StatefulWidget {
+  const _LoginLoadingDialog();
+
+  @override
+  State<_LoginLoadingDialog> createState() => _LoginLoadingDialogState();
+}
+
+class _LoginLoadingDialogState extends State<_LoginLoadingDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnim;
+  int _mensajeIndex = 0;
+
+  static const List<String> _mensajes = [
+    'Verificando PIN...',
+    'Preparando sesión...',
+    'Iniciando app...',
+  ];
+
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+    _fadeAnim = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _controller.forward();
+
+    // Rotar mensajes cada 1.2s
+    _timer = Timer.periodic(const Duration(milliseconds: 1200), (_) {
+      if (mounted && _mensajeIndex < _mensajes.length - 1) {
+        setState(() => _mensajeIndex++);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: PopScope(
+        canPop: false,
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A4E).withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+                BoxShadow(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                  blurRadius: 40,
+                  spreadRadius: -5,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Spinner
+                const SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF10B981),
+                    strokeWidth: 3,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Mensaje dinámico
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  ),
+                  child: Text(
+                    _mensajes[_mensajeIndex],
+                    key: ValueKey(_mensajeIndex),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: 0.3,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Esto puede tardar unos segundos si estás offline',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontWeight: FontWeight.w400,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// USER SELECTION BOTTOM SHEET
+// ═══════════════════════════════════════════════════════════════════════
+
+class _UserSelectionBottomSheet extends StatefulWidget {
+  final List<UsuarioEntity> usuarios;
+  final int? selectedUserId;
+  final ValueChanged<UsuarioEntity> onUserSelected;
+
+  const _UserSelectionBottomSheet({
+    required this.usuarios,
+    required this.selectedUserId,
+    required this.onUserSelected,
+  });
+
+  @override
+  State<_UserSelectionBottomSheet> createState() =>
+      _UserSelectionBottomSheetState();
+}
+
+class _UserSelectionBottomSheetState extends State<_UserSelectionBottomSheet> {
+  late TextEditingController _searchController;
+  late List<UsuarioEntity> _filteredUsuarios;
+
+  static const Color _bgIndigo = Color(0xFF1A1A4E);
+  static const Color _bgNavy = Color(0xFF0A0E27);
+  static const Color _accent = Color(0xFF10B981);
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+    _filteredUsuarios = widget.usuarios;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filtrarUsuarios(String query) {
+    if (query.isEmpty) {
+      setState(() => _filteredUsuarios = widget.usuarios);
+      return;
+    }
+    final lowerQuery = query.toLowerCase();
+    setState(() {
+      _filteredUsuarios = widget.usuarios
+          .where((u) => u.nombre.toLowerCase().contains(lowerQuery))
+          .toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      decoration: const BoxDecoration(
+        color: _bgNavy,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 12, bottom: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              'Seleccionar Usuario',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: isMobile ? 18 : 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _filtrarUsuarios,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Buscar por nombre...',
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+                prefixIcon: Icon(Icons.search_rounded,
+                    color: Colors.white.withValues(alpha: 0.5)),
+                filled: true,
+                fillColor: _bgIndigo.withValues(alpha: 0.5),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _filteredUsuarios.isEmpty
+                ? Center(
+                    child: Text(
+                      'No se encontraron usuarios',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.5),
+                        fontSize: 14,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: EdgeInsets.only(
+                      left: 12,
+                      right: 12,
+                      bottom: 20 + bottomPadding,
+                    ),
+                    itemCount: _filteredUsuarios.length,
+                    itemBuilder: (context, index) {
+                      final u = _filteredUsuarios[index];
+                      final isSelected = u.id == widget.selectedUserId;
+                      final role = UserRole.fromString(u.rol);
+
+                      Color chipColor;
+                      IconData chipIcon;
+                      if (role == UserRole.admin) {
+                        chipColor = const Color(0xFF3B82F6);
+                        chipIcon = Icons.admin_panel_settings_rounded;
+                      } else if (role == UserRole.rrhh) {
+                        chipColor = const Color(0xFF8B5CF6);
+                        chipIcon = Icons.badge_rounded;
+                      } else if (role == UserRole.supervisor) {
+                        chipColor = const Color(0xFFF59E0B);
+                        chipIcon = Icons.supervisor_account_rounded;
+                      } else {
+                        chipColor = _accent;
+                        chipIcon = Icons.person_rounded;
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        child: Material(
+                          color: isSelected
+                              ? _accent.withValues(alpha: 0.15)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            onTap: () => widget.onUserSelected(u),
+                            borderRadius: BorderRadius.circular(14),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? _accent.withValues(alpha: 0.5)
+                                      : Colors.white.withValues(alpha: 0.08),
+                                  width: isSelected ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor:
+                                        chipColor.withValues(alpha: 0.2),
+                                    child: Icon(chipIcon,
+                                        size: 20, color: chipColor),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          u.nombre,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 15,
+                                            color: u.activo
+                                                ? Colors.white
+                                                : Colors.white
+                                                    .withValues(alpha: 0.4),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        if (!u.activo)
+                                          Text(
+                                            'INACTIVO',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.orange
+                                                  .withValues(alpha: 0.8),
+                                            ),
+                                          )
+                                        else
+                                          Text(
+                                            role.label.toUpperCase(),
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: chipColor
+                                                  .withValues(alpha: 0.9),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    Icon(Icons.check_circle_rounded,
+                                        color: _accent, size: 22),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CLOUD STATUS BANNER
 // ═══════════════════════════════════════════════════════════════════════
 
 class _CloudStatusBanner extends StatefulWidget {
@@ -945,11 +1317,7 @@ class _CloudStatusBanner extends StatefulWidget {
 }
 
 class _CloudStatusBannerState extends State<_CloudStatusBanner> {
-   // ✅ StreamSubscription SIN genérico:
-  //    con `hide AuthState` en el import, `StreamSubscription<AuthState>`
-  //    se resuelve a tu AuthState local, pero onAuthStateChange emite
-  //    Stream<gotrue.AuthState>. Sin genérico, ambos encajan.
-  StreamSubscription? _authSub;   // ← ya NO dice <AuthState>
+  StreamSubscription? _authSub;
   bool _conectado = false;
   bool _cargando = true;
   bool _procesando = false;
@@ -961,9 +1329,6 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
   static const Color _ambar = Color(0xFFF59E0B);
   static const Color _bgIndigo = Color(0xFF1A1A4E);
 
-  /// Debounce para evitar re-renders en ráfaga cuando el stream emite
-  /// varios eventos seguidos (p.ej. `signedIn` seguido de `tokenRefreshed`).
-
   @override
   void initState() {
     super.initState();
@@ -971,30 +1336,30 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
     _suscribirAuthStream();
   }
 
- void _suscribirAuthStream() {
-  try {
-    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen(
-      (event) {
-        debugPrint('☁️ Auth event: ${event.event.name}');
-        _debounce?.cancel();
-        _debounce = Timer(const Duration(milliseconds: 200), () {
-          if (mounted) _checkStatus(motivo: 'stream:${event.event.name}');
+  void _suscribirAuthStream() {
+    try {
+      _authSub = Supabase.instance.client.auth.onAuthStateChange.listen(
+        (event) {
+          debugPrint('☁️ Auth event: ${event.event.name}');
+          _debounce?.cancel();
+          _debounce = Timer(const Duration(milliseconds: 200), () {
+            if (mounted) _checkStatus(motivo: 'stream:${event.event.name}');
+          });
+        },
+        onError: (e) {
+          debugPrint('⚠️ auth stream error: $e');
+        },
+      );
+    } catch (e) {
+      debugPrint('⚠️ No se pudo suscribir a auth stream: $e');
+      if (mounted) {
+        setState(() {
+          _conectado = false;
+          _cargando = false;
         });
-      },
-      onError: (e) {
-        debugPrint('⚠️ auth stream error: $e');
-      },
-    );
-  } catch (e) {
-    debugPrint('⚠️ No se pudo suscribir a auth stream: $e');
-    if (mounted) {
-      setState(() {
-        _conectado = false;
-        _cargando = false;
-      });
+      }
     }
   }
-}
 
   @override
   void dispose() {
@@ -1003,21 +1368,11 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
     super.dispose();
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // DETECCIÓN REAL DE SESIÓN
-  //
-  // Estrategia:
-  //   1. Leer `currentSession` del cliente Supabase.
-  //   2. Si está expirada → intentar `refreshSession()` proactivamente.
-  //   3. Si el refresh falla → tratar como offline.
-  //   4. Loguear todo con prefijo `☁️` para diagnóstico transparente.
-  // ═══════════════════════════════════════════════════════════════════
   Future<void> _checkStatus({required String motivo}) async {
     try {
       final auth = Supabase.instance.client.auth;
       Session? session = auth.currentSession;
 
-      // ── Auto-refresh proactivo si está expirada ──
       if (session != null && session.isExpired) {
         debugPrint('☁️ [$motivo] Sesión expirada, intentando refresh...');
         try {
@@ -1035,20 +1390,13 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
       if (activa) {
         _emailConectado = session.user.email;
         _expiraSesion = session.expiresAt != null
-            ? DateTime.fromMillisecondsSinceEpoch(
-                session.expiresAt! * 1000,
-              )
+            ? DateTime.fromMillisecondsSinceEpoch(session.expiresAt! * 1000)
             : null;
-
         final uidShort = session.user.id.length >= 8
             ? session.user.id.substring(0, 8)
             : session.user.id;
-
         debugPrint(
-          '☁️ [$motivo] CONECTADO · '
-          'email: ${_emailConectado ?? "?"} · '
-          'uid: $uidShort… · '
-          'expira: ${_expiraSesion?.toIso8601String() ?? "?"}',
+          '☁️ [$motivo] CONECTADO · email: ${_emailConectado ?? "?"} · uid: $uidShort… · expira: ${_expiraSesion?.toIso8601String() ?? "?"}',
         );
       } else {
         _emailConectado = null;
@@ -1072,10 +1420,6 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
       });
     }
   }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // ACCIONES
-  // ═══════════════════════════════════════════════════════════════════
 
   Future<void> _onTap() async {
     if (_cargando || _procesando) return;
@@ -1126,7 +1470,6 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── Header ──
                 Row(
                   children: [
                     Container(
@@ -1182,8 +1525,6 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
                   ],
                 ),
                 const SizedBox(height: 20),
-
-                // ── Botón: cerrar sesión nube ──
                 _sheetAction(
                   icon: Icons.logout_rounded,
                   color: _ambar,
@@ -1196,8 +1537,6 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
                   },
                 ),
                 const SizedBox(height: 10),
-
-                // ── Botón: cancelar ──
                 _sheetAction(
                   icon: Icons.close_rounded,
                   color: Colors.white70,
@@ -1270,14 +1609,6 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // DESCONEXIÓN ROBUSTA
-  //
-  // 1. `signOut()` de Supabase (limpia tokens locales + server).
-  // 2. Si falla por red → forzar limpieza local invocando `signOut` de
-  //    nuevo (Supabase limpia local en el primer intento de todos modos).
-  // 3. NUNCA toca Isar ni SharedPreferences → PIN sigue funcionando.
-  // ═══════════════════════════════════════════════════════════════════
   Future<void> _desconectarNube() async {
     setState(() => _procesando = true);
     try {
@@ -1285,8 +1616,6 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
       await Supabase.instance.client.auth.signOut();
       debugPrint('☁️ signOut OK');
 
-      // Forzar un check inmediato para actualizar el badge sin esperar
-      // al evento del stream (que también llegará, pero por debounce).
       await _checkStatus(motivo: 'post-signOut');
 
       if (!mounted) return;
@@ -1302,8 +1631,6 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
       );
     } catch (e) {
       debugPrint('⚠️ Error en signOut: $e');
-      // Aunque signOut falle por red, la sesión local normalmente ya se
-      // limpió en el primer intento. Verificamos y avisamos.
       await _checkStatus(motivo: 'post-signOut-error');
 
       if (!mounted) return;
@@ -1323,12 +1650,6 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // BUILD
-  // ═══════════════════════════════════════════════════════════════════
-
-
-
   @override
   Widget build(BuildContext context) {
     final color = _conectado ? _verde : _ambar;
@@ -1336,7 +1657,6 @@ class _CloudStatusBannerState extends State<_CloudStatusBanner> {
         ? Icons.cloud_done_rounded
         : Icons.cloud_off_rounded;
 
-    // Texto dinámico: mostramos email si está conectado
     final String label;
     if (_conectado && _emailConectado != null) {
       label = 'Conectado · $_emailConectado';

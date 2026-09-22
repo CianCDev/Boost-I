@@ -1,5 +1,5 @@
+// lib/features/pos/presentation/widgets/common/barcode_scanner_dialog.dart
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -36,6 +36,8 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog>
 
   @override
   void dispose() {
+    // 🔧 Cerrar el controlador de forma segura para evitar el
+    // MissingPluginException al llamar a stop() durante el dispose.
     _controller.dispose();
     _scanAnimation.dispose();
     super.dispose();
@@ -43,213 +45,257 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog>
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    final isPortrait = screenSize.width < screenSize.height;
-    final scanSize = isPortrait
-        ? screenSize.width * 0.7
-        : screenSize.height * 0.6;
+    // 🔧 Usar LayoutBuilder para adaptar el tamaño del marco de escaneo
+    // y evitar desbordamientos en pantallas pequeñas.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPortrait = constraints.maxWidth < constraints.maxHeight;
+        // El marco de escaneo ocupa como máximo el 70% del ancho (vertical)
+        // o el 60% de la altura (horizontal), con un límite absoluto.
+        final maxScanSize = isPortrait
+            ? constraints.maxWidth * 0.7
+            : constraints.maxHeight * 0.6;
+        final scanSize = maxScanSize.clamp(200.0, 320.0);
 
-    return Dialog(
-      insetPadding: EdgeInsets.zero,
-      backgroundColor: Colors.transparent,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Fondo con gradiente suave
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFF0A0E1A),
-                  Color(0xFF1A1F2E),
-                  Color(0xFF0A0E1A),
-                ],
-              ),
-            ),
-          ),
-          // Cámara
-          MobileScanner(
-            controller: _controller,
-            onDetect: (capture) async {
-              if (_isProcessing) return;
-              final barcodes = capture.barcodes;
-              for (final barcode in barcodes) {
-                final rawValue = barcode.rawValue;
-                if (rawValue != null && rawValue.isNotEmpty) {
-                  _isProcessing = true;
-                  Navigator.of(context).pop(rawValue);
-                  break;
-                }
-              }
-              Future.delayed(const Duration(milliseconds: 500), () => _isProcessing = false);
-            },
-          ),
-          // Overlay oscuro alrededor del marco de escaneo
-          Center(
-            child: Container(
-              width: scanSize,
-              height: scanSize,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                    blurRadius: 40,
-                    spreadRadius: 20,
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Stack(
-                  children: [
-                    // Fondo transparente con bordes recortados
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.6),
-                          width: 3,
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                    ),
-                    // Esquinas decorativas (4 esquinas)
-                    _buildCorner(top: true, left: true, color: const Color(0xFF10B981)),
-                    _buildCorner(top: true, left: false, color: const Color(0xFF10B981)),
-                    _buildCorner(top: false, left: true, color: const Color(0xFF10B981)),
-                    _buildCorner(top: false, left: false, color: const Color(0xFF10B981)),
-                    // Línea de escaneo animada
-                    AnimatedBuilder(
-                      animation: _scanPosition,
-                      builder: (context, child) {
-                        return Positioned(
-                          left: 0,
-                          right: 0,
-                          top: _scanPosition.value * scanSize - 2,
-                          child: Container(
-                            height: 2,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                                colors: [
-                                  Colors.transparent,
-                                  Color(0xFF10B981),
-                                  Colors.transparent,
-                                ],
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF10B981).withValues(alpha: 0.5),
-                                  blurRadius: 12,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    // Texto "Centra el código" dentro del marco
-                    Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          '🔍 Centra el código',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            shadows: [
-                              Shadow(color: Colors.black45, blurRadius: 8),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // Botones superiores (cerrar y linterna)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
-            left: 16,
-            right: 16,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildCircleButton(
-                  icon: Icons.close,
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                _buildCircleButton(
-                  icon: _isTorchOn ? Icons.flash_on : Icons.flash_off,
-                  onPressed: () {
-                    setState(() => _isTorchOn = !_isTorchOn);
-                    _controller.toggleTorch();
-                  },
-                ),
-              ],
-            ),
-          ),
-          // Instrucciones inferiores
-          Positioned(
-            bottom: MediaQuery.of(context).padding.bottom + 32,
-            left: 0,
-            right: 0,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 4.0, sigmaY: 4.0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  margin: const EdgeInsets.symmetric(horizontal: 40),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.qr_code_scanner_rounded,
-                        color: const Color(0xFF10B981).withValues(alpha: 0.8),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Apunta la cámara al código de barras',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+        return Dialog(
+          insetPadding: EdgeInsets.zero,
+          backgroundColor: Colors.transparent,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Fondo con gradiente suave
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFF0A0E1A),
+                      Color(0xFF1A1F2E),
+                      Color(0xFF0A0E1A),
                     ],
                   ),
                 ),
               ),
-            ),
+              // Cámara
+              MobileScanner(
+                controller: _controller,
+                onDetect: (capture) async {
+                  if (_isProcessing) return;
+                  final barcodes = capture.barcodes;
+                  for (final barcode in barcodes) {
+                    final rawValue = barcode.rawValue;
+                    if (rawValue != null && rawValue.isNotEmpty) {
+                      _isProcessing = true;
+                      Navigator.of(context).pop(rawValue);
+                      break;
+                    }
+                  }
+                  Future.delayed(
+                    const Duration(milliseconds: 500),
+                    () => _isProcessing = false,
+                  );
+                },
+              ),
+              // Overlay oscuro alrededor del marco de escaneo
+              Center(
+                child: Container(
+                  width: scanSize,
+                  height: scanSize,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        blurRadius: 40,
+                        spreadRadius: 20,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Stack(
+                      children: [
+                        // Fondo transparente con bordes recortados
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: const Color(0xFF10B981)
+                                  .withValues(alpha: 0.6),
+                              width: 3,
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                        ),
+                        // Esquinas decorativas (4 esquinas)
+                        _buildCorner(
+                          top: true,
+                          left: true,
+                          color: const Color(0xFF10B981),
+                        ),
+                        _buildCorner(
+                          top: true,
+                          left: false,
+                          color: const Color(0xFF10B981),
+                        ),
+                        _buildCorner(
+                          top: false,
+                          left: true,
+                          color: const Color(0xFF10B981),
+                        ),
+                        _buildCorner(
+                          top: false,
+                          left: false,
+                          color: const Color(0xFF10B981),
+                        ),
+                        // Línea de escaneo animada
+                        AnimatedBuilder(
+                          animation: _scanPosition,
+                          builder: (context, child) {
+                            return Positioned(
+                              left: 0,
+                              right: 0,
+                              top: _scanPosition.value * scanSize - 2,
+                              child: Container(
+                                height: 2,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                    colors: [
+                                      Colors.transparent,
+                                      Color(0xFF10B981),
+                                      Colors.transparent,
+                                    ],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF10B981)
+                                          .withValues(alpha: 0.5),
+                                      blurRadius: 12,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        // Texto "Centra el código" dentro del marco
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFF10B981)
+                                    .withValues(alpha: 0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              '🔍 Centra el código',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black45,
+                                    blurRadius: 8,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Botones superiores (cerrar y linterna)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 16,
+                left: 16,
+                right: 16,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildCircleButton(
+                      icon: Icons.close,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    _buildCircleButton(
+                      icon: _isTorchOn ? Icons.flash_on : Icons.flash_off,
+                      onPressed: () {
+                        setState(() => _isTorchOn = !_isTorchOn);
+                        _controller.toggleTorch();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              // Instrucciones inferiores
+              Positioned(
+                bottom: MediaQuery.of(context).padding.bottom + 32,
+                left: 0,
+                right: 0,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 4.0, sigmaY: 4.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      margin: const EdgeInsets.symmetric(horizontal: 40),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.qr_code_scanner_rounded,
+                            color: const Color(0xFF10B981)
+                                .withValues(alpha: 0.8),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Text(
+                              'Apunta la cámara al código de barras',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -285,8 +331,10 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog>
           borderRadius: BorderRadius.only(
             topLeft: top && left ? const Radius.circular(8) : Radius.zero,
             topRight: top && !left ? const Radius.circular(8) : Radius.zero,
-            bottomLeft: !top && left ? const Radius.circular(8) : Radius.zero,
-            bottomRight: !top && !left ? const Radius.circular(8) : Radius.zero,
+            bottomLeft:
+                !top && left ? const Radius.circular(8) : Radius.zero,
+            bottomRight:
+                !top && !left ? const Radius.circular(8) : Radius.zero,
           ),
         ),
       ),
@@ -317,11 +365,7 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog>
           onTap: onPressed,
           child: Padding(
             padding: const EdgeInsets.all(12),
-            child: Icon(
-              icon,
-              color: Colors.white,
-              size: 28,
-            ),
+            child: Icon(icon, color: Colors.white, size: 28),
           ),
         ),
       ),
