@@ -17,6 +17,7 @@ import 'package:app_boosti_v2/features/pos/presentation/widgets/catalog/quantity
 import 'package:app_boosti_v2/features/pos/presentation/widgets/cobrar_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/inventory/product_form_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/catalog_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/common/glass_dialog.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
 
 final ultimoFactorProvider = StateProvider<double>((ref) => 1.0);
@@ -29,7 +30,11 @@ class CatalogActions {
 
   CatalogActions(this._isar, this._sync, this._ref);
 
-  // Buscar producto por código (alias + principal)
+  // ═══════════════════════════════════════════════════════════════════
+  // BÚSQUEDA DE PRODUCTO
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Busca producto por código de barras (alias o principal).
   Future<ProductoEntity?> buscarProductoPorCodigo(String codigo) async {
     final codigoLimpio = codigo.trim();
     final alias = await _isar.obtenerAliasPorCodigo(codigoLimpio);
@@ -40,7 +45,8 @@ class CatalogActions {
         return producto;
       }
     }
-    final producto = await _isar.obtenerProductoPorCodigoBarrasExacto(codigoLimpio);
+    final producto =
+        await _isar.obtenerProductoPorCodigoBarrasExacto(codigoLimpio);
     if (producto != null) {
       _ref.read(ultimoFactorProvider.notifier).state = 1.0;
       return producto;
@@ -48,14 +54,18 @@ class CatalogActions {
     return null;
   }
 
-  // Afiliar código a producto existente
+  // ═══════════════════════════════════════════════════════════════════
+  // AFILIAR CÓDIGO
+  // ═══════════════════════════════════════════════════════════════════
+
   Future<void> afiliarCodigo(String codigo, BuildContext context) async {
     final productos = await _isar.obtenerProductos();
     if (productos.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('No hay productos disponibles para afiliar. Crea uno primero.'),
+            content:
+                Text('No hay productos disponibles para afiliar. Crea uno primero.'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -64,7 +74,6 @@ class CatalogActions {
     }
 
     final productoSeleccionado = await showDialog<ProductoEntity>(
-      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Seleccionar Producto'),
@@ -111,24 +120,28 @@ class CatalogActions {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Código "$codigo" afiliado a "${productoSeleccionado.nombre}"'),
+            content: Text(
+                '✅ Código "$codigo" afiliado a "${productoSeleccionado.nombre}"'),
             backgroundColor: Colors.green,
           ),
         );
       }
-      // Refrescar el catálogo (opcional, ya que catalogProvider escucha cambios)
       _ref.read(catalogProvider.notifier).setBusqueda('');
     }
   }
 
-  // Crear nuevo producto
+  // ═══════════════════════════════════════════════════════════════════
+  // CREAR PRODUCTO
+  // ═══════════════════════════════════════════════════════════════════
+
   Future<void> crearProducto(String codigo, BuildContext context) async {
     final usuario = _ref.read(usuarioActualProvider);
     if (usuario == null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('⚠️ Usuario no autenticado. No se puede crear producto.'),
+            content:
+                Text('⚠️ Usuario no autenticado. No se puede crear producto.'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -142,7 +155,8 @@ class CatalogActions {
         codigoBarrasPrecargado: codigo,
         onGuardar: (producto) async {
           final productosNotifier = _ref.read(productosProvider.notifier);
-          await productosNotifier.guardarProducto(producto, usuario, esNuevo: true);
+          await productosNotifier.guardarProducto(producto, usuario,
+              esNuevo: true);
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -157,7 +171,10 @@ class CatalogActions {
     );
   }
 
-  // Mostrar diálogo de cantidad y agregar al carrito
+  // ═══════════════════════════════════════════════════════════════════
+  // MOSTRAR MODAL DE CANTIDAD
+  // ═══════════════════════════════════════════════════════════════════
+
   void mostrarModalCantidad(
     ProductoEntity producto,
     BuildContext context, {
@@ -175,13 +192,32 @@ class CatalogActions {
     );
   }
 
-  void agregarAlCarrito(ProductoEntity producto, double cantidad, BuildContext context) {
+  // ═══════════════════════════════════════════════════════════════════
+  // AGREGAR AL CARRITO
+  // ═══════════════════════════════════════════════════════════════════
+  //
+  // 🎯 FIX CRÍTICO: Validación estricta de stock.
+  //
+  //   Reglas aplicadas:
+  //     1. Si stock <= 0 → diálogo bloqueante "Sin stock" (no agrega).
+  //     2. Si cantidad > stock → ajustar a stock (SnackBar informativo).
+  //     3. El nuevo stock NUNCA queda negativo (clamp a 0).
+  //
+  //   Antes: se mostraba un SnackBar pero igual se seguía con el flujo,
+  //   provocando stock negativo al vender productos agotados.
+  //
+  void agregarAlCarrito(
+    ProductoEntity producto,
+    double cantidad,
+    BuildContext context,
+  ) {
     final usuario = _ref.read(usuarioActualProvider);
     if (usuario == null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('⚠️ Usuario no autenticado. No se puede agregar al carrito.'),
+            content: Text(
+                '⚠️ Usuario no autenticado. No se puede agregar al carrito.'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -190,21 +226,38 @@ class CatalogActions {
     }
 
     _isar.obtenerStockTotalPorProducto(producto.id).then((stockTotal) async {
-      if (stockTotal < cantidad && !producto.esPesado) {
+      // ── Caso 1: producto agotado → bloquear ──
+      if (stockTotal <= 0) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Stock insuficiente. Disponible: $stockTotal'),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-          );
+          _mostrarDialogoSinStock(context, producto);
         }
         return;
       }
 
-      // Descontar stock y registrar movimiento
+      // ── Caso 2: cantidad excede stock → ajustar ──
+      double cantidadFinal = cantidad;
+      if (cantidadFinal > stockTotal) {
+        cantidadFinal = stockTotal;
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Solo hay ${stockTotal.toStringAsFixed(producto.esPesado ? 3 : 0)} '
+                'disponibles. Se ajustó la cantidad.',
+              ),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+
+      // ── Calcular nuevo stock (NUNCA negativo) ──
+      final nuevoStock =
+          (stockTotal - cantidadFinal).clamp(0.0, double.infinity);
+
+      // ── Descontar stock ──
       final productosNotifier = _ref.read(productosProvider.notifier);
-      final nuevoStock = stockTotal - cantidad;
       await productosNotifier.actualizarStock(
         producto.id,
         nuevoStock,
@@ -212,7 +265,7 @@ class CatalogActions {
         motivo: 'Venta',
       );
 
-      // Agregar al carrito
+      // ── Agregar al carrito ──
       HapticFeedback.lightImpact();
       final productItem = ProductItem(
         id: producto.id.toString(),
@@ -224,9 +277,10 @@ class CatalogActions {
       );
       _ref.read(cartProvider.notifier).agregarProducto(
             productItem,
-            cantidad: cantidad,
+            cantidad: cantidadFinal,
             stockMaximo: nuevoStock,
           );
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -249,10 +303,114 @@ class CatalogActions {
     });
   }
 
-  // Procesar cobro
-  Future<void> mostrarModalCobro(BuildContext context, UsuarioEntity? usuarioLogueado) async {
+  // ═══════════════════════════════════════════════════════════════════
+  // DIÁLOGO BLOQUEANTE: SIN STOCK
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Muestra un diálogo bloqueante cuando el producto no tiene stock.
+  ///
+  /// Usa `GlassDialog` para mantener consistencia visual con el resto
+  /// de la app. No permite "continuar"; solo cerrar y elegir otro
+  /// producto.
+  void _mostrarDialogoSinStock(
+    BuildContext context,
+    ProductoEntity producto,
+  ) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => GlassDialog(
+        maxWidth: 420,
+        accentColor: const Color(0xFFEF4444),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Icono ──
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.inventory_2_outlined,
+                  color: Color(0xFFEF4444),
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // ── Título ──
+              const Text(
+                'Producto sin stock',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // ── Mensaje ──
+              Text(
+                '"${producto.nombre}" no tiene unidades disponibles.\n\n'
+                'Repón el stock en el inventario antes de intentar venderlo.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 22),
+
+              // ── Botón cerrar ──
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text(
+                    'Entendido',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // COBRO
+  // ═══════════════════════════════════════════════════════════════════
+
+  Future<void> mostrarModalCobro(
+    BuildContext context,
+    UsuarioEntity? usuarioLogueado,
+  ) async {
     final cartState = _ref.read(cartProvider);
     if (cartState.total <= 0) return;
+
+    // 🎯 Guard extra: aunque el botón ya está deshabilitado,
+    //    defendemos aquí por si el estado se modificó por otra vía.
+    if (cartState.hayItemsSinStock) {
+      return;
+    }
+
     HapticFeedback.mediumImpact();
     double tasaActual = _ref.read(bcvProvider).tasa;
     if (tasaActual.isNaN || tasaActual <= 0) tasaActual = 0.0;
@@ -266,9 +424,12 @@ class CatalogActions {
       ),
     );
 
-    if (resultado != null && resultado['procesado'] == true && context.mounted) {
+    if (resultado != null &&
+        resultado['procesado'] == true &&
+        context.mounted) {
       final String metodoPago = resultado['metodoPago'] ?? 'Efectivo';
-      final double montoRecibido = resultado['montoRecibido'] ?? cartState.total;
+      final double montoRecibido =
+          resultado['montoRecibido'] ?? cartState.total;
       final double cambio = resultado['vuelto'] ?? 0.0;
 
       final ventaService = _ref.read(ventaServiceProvider);

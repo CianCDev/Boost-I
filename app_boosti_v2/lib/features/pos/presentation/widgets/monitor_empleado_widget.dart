@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
-import '../../data/Local/entities/json_utils.dart';
 import '../utils/responsive_helper.dart';
 import '../services/sync_service.dart';
 
@@ -48,39 +47,44 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
     super.dispose();
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // CARGA Y SINCRONIZACIÓN
-  // ═══════════════════════════════════════════════════════════════
+ // ═══════════════════════════════════════════════════════════════
+// CARGA Y SINCRONIZACIÓN
+// ═══════════════════════════════════════════════════════════════
 
-  Future<void> _sincronizarYActualizar() async {
-    try {
-      await _syncService.sincronizarUsuariosDesdeSupabase();
-      await _actualizarEstadosDesdeNube();
-      await _cargarUsuariosLocal();
-    } catch (e) {
-      debugPrint('⚠️ Error en sincronización: $e');
-      await _cargarUsuariosLocal();
-    }
+/// Ciclo automático del timer (cada 5s).
+/// Baja usuarios de Supabase y recarga la lista local.
+Future<void> _sincronizarYActualizar() async {
+  try {
+    await _syncService.sincronizarUsuariosDesdeSupabase();
+    // ✅ El sync ya actualiza los estados en Isar. No hace falta
+    //    llamar a un método extra que duplique la consulta.
+    await _cargarUsuariosLocal();
+  } catch (e) {
+    debugPrint('⚠️ Error en sincronización: $e');
+    await _cargarUsuariosLocal();
   }
+}
 
-  Future<void> _cargarUsuarios() async {
+  /// Carga inicial o manual (botón "Actualizar ahora").
+Future<void> _cargarUsuarios() async {
+  setState(() {
+    _isLoading = true;
+    _error = null;
+  });
+  try {
+    await _syncService.sincronizarUsuariosDesdeSupabase();
+    // ✅ El sync ya actualiza los estados en Isar.
+    await _cargarUsuariosLocal();
+  } catch (e) {
+    if (!mounted) return;
     setState(() {
-      _isLoading = true;
-      _error = null;
+      _error = e.toString();
+      _isLoading = false;
     });
-    try {
-      await _syncService.sincronizarUsuariosDesdeSupabase();
-      await _actualizarEstadosDesdeNube();
-      await _cargarUsuariosLocal();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
   }
+}
 
+  // ignore: unused_element
   Future<void> _actualizarEstadosDesdeNube() async {
     try {
       final nubeUsuarios = await _syncService.obtenerUsuariosDesdeSupabase();
@@ -112,76 +116,84 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
     }
   }
 
-  Future<void> _cargarUsuariosLocal() async {
-    try {
-      final todos = await _isarService.obtenerUsuarios();
+  /// Lee los usuarios de Isar y aplica los filtros activos.
+///
+/// ⚠️ FIX: NO auto-seleccionamos el primer departamento. Antes se
+/// hacía `_departamentoSeleccionado = depts.first`, lo cual ocultaba
+/// a los usuarios sin departamento asignado (ej. el admin).
+Future<void> _cargarUsuariosLocal() async {
+  try {
+    final todos = await _isarService.obtenerUsuarios();
 
-      // Departamentos únicos ordenados
-      final depts = todos
-          .map((u) => u.departamento ?? '')
-          .where((d) => d.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
+    // Departamentos únicos ordenados
+    final depts = todos
+        .map((u) => u.departamento ?? '')
+        .where((d) => d.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
 
-      // ✅ Filtro en cascada: departamento → estado → búsqueda
-      List<UsuarioEntity> filtrados = todos;
+    // ── Filtro en cascada: departamento → estado → búsqueda ──
+    List<UsuarioEntity> filtrados = todos;
 
-      if (_departamentoSeleccionado != null &&
-          _departamentoSeleccionado!.isNotEmpty) {
-        filtrados = filtrados
-            .where((u) => u.departamento == _departamentoSeleccionado)
-            .toList();
-      }
-
-      switch (_filtroEstado) {
-        case 'activos':
-          filtrados = filtrados.where((u) => u.estado == 'activo').toList();
-          break;
-        case 'inactivos':
-          filtrados = filtrados
-              .where((u) =>
-                  u.estado == 'inactivo' || u.estado == 'desconectado')
-              .toList();
-          break;
-        case 'descanso':
-          filtrados =
-              filtrados.where((u) => u.estado == 'descanso').toList();
-          break;
-        default:
-          break;
-      }
-
-      final q = _queryBusqueda.trim().toLowerCase();
-      if (q.isNotEmpty) {
-        filtrados = filtrados.where((u) {
-          final nombre = u.nombre.toLowerCase();
-          final email = (u.email ?? '').toLowerCase();
-          final rol = u.rol.toLowerCase();
-          return nombre.contains(q) ||
-              email.contains(q) ||
-              rol.contains(q);
-        }).toList();
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _departamentos = depts;
-        if (_departamentoSeleccionado == null && depts.isNotEmpty) {
-          _departamentoSeleccionado = depts.first;
-        }
-        _usuarios = filtrados;
-        _isLoading = false;
-        _error = null;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
+    if (_departamentoSeleccionado != null &&
+        _departamentoSeleccionado!.isNotEmpty) {
+      filtrados = filtrados
+          .where((u) => u.departamento == _departamentoSeleccionado)
+          .toList();
     }
+
+    switch (_filtroEstado) {
+      case 'activos':
+        filtrados = filtrados.where((u) => u.estado == 'activo').toList();
+        break;
+      case 'inactivos':
+        filtrados = filtrados
+            .where((u) =>
+                u.estado == 'inactivo' || u.estado == 'desconectado')
+            .toList();
+        break;
+      case 'descanso':
+        // ✅ FIX: el enum real es 'en_descanso', no 'descanso'.
+        filtrados =
+            filtrados.where((u) => u.estado == 'en_descanso').toList();
+        break;
+      default:
+        break;
+    }
+
+    final q = _queryBusqueda.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      filtrados = filtrados.where((u) {
+        final nombre = u.nombre.toLowerCase();
+        final email = (u.email ?? '').toLowerCase();
+        final rol = u.rol.toLowerCase();
+        return nombre.contains(q) ||
+            email.contains(q) ||
+            rol.contains(q);
+      }).toList();
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _departamentos = depts;
+      // ✅ FIX: no auto-seleccionar. Dejamos que el dropdown muestre
+      //    "Todos los departamentos" por defecto.
+      // if (_departamentoSeleccionado == null && depts.isNotEmpty) {
+      //   _departamentoSeleccionado = depts.first;
+      // }
+      _usuarios = filtrados;
+      _isLoading = false;
+      _error = null;
+    });
+  } catch (e) {
+    if (!mounted) return;
+    setState(() {
+      _error = e.toString();
+      _isLoading = false;
+    });
   }
+}
 
   // ═══════════════════════════════════════════════════════════════
   // HELPERS DE UI
@@ -624,7 +636,7 @@ class _EmployeeMonitorDialogState extends ConsumerState<EmployeeMonitorDialog> {
     ThemeData theme,
   ) {
     final isActive = usuario.estado == 'activo';
-    final isDescanso = usuario.estado == 'descanso';
+    final isDescanso = usuario.estado == 'en_descanso';
     final isInactive =
         usuario.estado == 'inactivo' || usuario.estado == 'desconectado';
 

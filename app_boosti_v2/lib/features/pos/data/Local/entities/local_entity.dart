@@ -20,5 +20,28 @@ class LocalEntity {
   DateTime? createdAt;
   DateTime? updatedAt;
 
+
+   @Index()
+  String businessMode = 'mercado';
+
+  /// Cuándo se configuró el modo por última vez (auditoría).
+  DateTime? modoConfiguradoEn;
+
+  // ═══════════════════════════════════════════════════════════
+  // 🎯 NUEVO: Caché del plan vigente
+  // ═══════════════════════════════════════════════════════════
+  //
+  // Evita consultar Supabase en cada arranque. Se invalida cada
+  // 24h o cuando el Realtime detecta un cambio en `suscripciones`.
+
+  String? planIdCache;              // 'basico' | 'pro' | 'corporativo'
+  DateTime? planVerificadoEn;       // última validación contra Supabase
+
+  // ═══════════════════════════════════════════════════════════
+  // Sync
+  // ═══════════════════════════════════════════════════════════
+
+
+
   LocalEntity();
 }

@@ -1,7 +1,8 @@
+// lib/features/pos/presentation/providers/marca_provider.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
-import 'package:uuid/uuid.dart'; // ✅ Agregar import
+import 'package:uuid/uuid.dart';
 
 import '../../data/Local/entities/marca_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
@@ -9,23 +10,45 @@ import '../../data/Local/entities/producto_entity.dart';
 import '../services/sync_service.dart';
 
 // ============================================================
-// PROVIDERS DE LECTURA
+// HELPERS DE FILTRADO (en Dart, no en Isar)
+// ============================================================
+//
+// 🎯 FIX: `syncStatusNotEqualTo` no está disponible como filter
+//    clause en el QueryBuilder generado por Isar (probablemente
+//    porque `syncStatus` no está @Index()). En vez de pelear con
+//    la API de queries, cargamos todo y filtramos en memoria.
+//    Para una tabla de marcas esto es trivial en performance.
+
+bool _esVisibleEnUI(MarcaEntity m) => m.syncStatus != 'deleted';
+
+bool _esActivaYVisible(MarcaEntity m) =>
+    m.activo && m.syncStatus != 'deleted';
+
+// ============================================================
+// PROVIDERS DE LECTURA (reactivos a cambios de Isar)
 // ============================================================
 
-/// Provider para leer marcas activas (solo lectura)
-final marcasProvider = FutureProvider<List<MarcaEntity>>((ref) async {
+/// Marcas activas — reactivo a cambios de Isar.
+///
+/// 🎯 FIX Bug "marcas no aparecen en el form":
+///   - Antes era `FutureProvider`, que cachea para siempre.
+///   - Ahora `StreamProvider` + `.watch()` refresca el dropdown
+///     automáticamente cuando Isar cambia.
+final marcasProvider = StreamProvider<List<MarcaEntity>>((ref) async* {
   final isar = await IsarService().db;
-  return await isar.marcaEntitys
+  yield* isar.marcaEntitys
       .where()
-      .filter()
-      .activoEqualTo(true)
-      .findAll();
+      .watch(fireImmediately: true)
+      .map((marcas) => marcas.where(_esActivaYVisible).toList());
 });
 
-/// Provider para obtener TODAS las marcas (activas + inactivas)
-final todasLasMarcasProvider = FutureProvider<List<MarcaEntity>>((ref) async {
+/// TODAS las marcas (activas + inactivas) — reactivo a cambios de Isar.
+final todasLasMarcasProvider = StreamProvider<List<MarcaEntity>>((ref) async* {
   final isar = await IsarService().db;
-  return await isar.marcaEntitys.where().findAll();
+  yield* isar.marcaEntitys
+      .where()
+      .watch(fireImmediately: true)
+      .map((marcas) => marcas.where(_esVisibleEnUI).toList());
 });
 
 // ============================================================
@@ -44,27 +67,28 @@ class MarcasNotifier extends StateNotifier<AsyncValue<List<MarcaEntity>>> {
     cargarMarcas();
   }
 
-  /// Carga todas las marcas desde Isar
   Future<void> cargarMarcas() async {
     state = const AsyncValue.loading();
     try {
       final isar = await IsarService().db;
       final marcas = await isar.marcaEntitys.where().findAll();
-      state = AsyncValue.data(marcas);
+      state = AsyncValue.data(
+        marcas.where(_esVisibleEnUI).toList(),
+      );
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
     }
   }
 
-  /// Crea una nueva marca localmente y la marca para sincronizar
   Future<void> crearMarca(MarcaEntity marca) async {
     try {
       final isar = await IsarService().db;
-      // ✅ Generar UUID válido para Supabase
-      marca.supabaseId ??= const Uuid().v4(); // 🔥 Cambio clave: usar UUID real
+      final now = DateTime.now();
+
+      marca.supabaseId ??= const Uuid().v4();
       marca.syncStatus = 'pending';
-      marca.createdAt = DateTime.now();
-      marca.updatedAt = DateTime.now();
+      marca.createdAt = now;
+      marca.updatedAt = now;
 
       await isar.writeTxn(() async {
         await isar.marcaEntitys.put(marca);
@@ -78,7 +102,6 @@ class MarcasNotifier extends StateNotifier<AsyncValue<List<MarcaEntity>>> {
     }
   }
 
-  /// Actualiza una marca existente
   Future<void> actualizarMarca(MarcaEntity marca) async {
     try {
       final isar = await IsarService().db;
@@ -97,7 +120,7 @@ class MarcasNotifier extends StateNotifier<AsyncValue<List<MarcaEntity>>> {
     }
   }
 
-  /// Desactiva o elimina una marca (según tenga productos asociados)
+  /// Desactiva o marca para eliminación lógica.
   Future<bool> eliminarMarca(int id) async {
     try {
       final isar = await IsarService().db;
@@ -110,44 +133,66 @@ class MarcasNotifier extends StateNotifier<AsyncValue<List<MarcaEntity>>> {
           .findAll();
 
       if (productos.isNotEmpty) {
+        // Soft delete porque tiene productos asociados.
         marca.activo = false;
         marca.syncStatus = 'pending';
+        marca.updatedAt = DateTime.now();
+
         await isar.writeTxn(() async {
           await isar.marcaEntitys.put(marca);
         });
+
         await cargarMarcas();
         _sincronizarEnSegundoPlano();
-        return false;
+        return false; // Desactivada, no eliminada
       } else {
-        await isar.writeTxn(() async {
-          await isar.marcaEntitys.delete(id);
-        });
+        // 🛠️ MODO OFFLINE: si nunca subió, borramos físicamente.
+        // Si ya subió, marcamos `deleted` para que SyncService haga DELETE.
+        final nuncaSubio = marca.syncStatus == 'pending' &&
+            (marca.supabaseId == null || marca.supabaseId!.isEmpty);
+
+        if (nuncaSubio) {
+          await isar.writeTxn(() async {
+            await isar.marcaEntitys.delete(id);
+          });
+        } else {
+          marca.activo = false;
+          marca.syncStatus = 'deleted';
+          marca.updatedAt = DateTime.now();
+          await isar.writeTxn(() async {
+            await isar.marcaEntitys.put(marca);
+          });
+        }
+
         await cargarMarcas();
         _sincronizarEnSegundoPlano();
         return true;
       }
     } catch (e) {
       state = AsyncValue.error(e, StackTrace.current);
-      return false;
+      rethrow;
     }
   }
 
-  /// Busca marcas por nombre
   Future<List<MarcaEntity>> buscarMarcas(String query) async {
     if (query.trim().isEmpty) return [];
     try {
       final isar = await IsarService().db;
       final q = query.trim().toLowerCase();
-      return await isar.marcaEntitys
-          .filter()
-          .nombreContains(q, caseSensitive: false)
-          .findAll();
+      // 🎯 FIX: filtramos en Dart para evitar problemas con
+      //    filter clauses generados por Isar.
+      final marcas = await isar.marcaEntitys.where().findAll();
+      return marcas
+          .where((m) =>
+              _esVisibleEnUI(m) &&
+              (m.nombre.toLowerCase().contains(q) ||
+                  (m.descripcion ?? '').toLowerCase().contains(q)))
+          .toList();
     } catch (e) {
       return [];
     }
   }
 
-  /// Obtiene una marca por su UUID de Supabase
   Future<MarcaEntity?> obtenerMarcaPorSupabaseId(String supabaseId) async {
     if (supabaseId.isEmpty) return null;
     try {
@@ -170,14 +215,15 @@ class MarcasNotifier extends StateNotifier<AsyncValue<List<MarcaEntity>>> {
       try {
         final syncService = ref.read(syncServiceProvider);
         await syncService.sincronizarMarcasPendientes();
-        debugPrint('✅ [MarcasNotifier] Sincronización en segundo plano completada.');
+        debugPrint(
+            '✅ [MarcasNotifier] Sincronización en segundo plano completada.');
       } catch (e) {
-        debugPrint('❌ [MarcasNotifier] Error en sincronización en segundo plano: $e');
+        debugPrint(
+            '❌ [MarcasNotifier] Error en sincronización en segundo plano: $e');
       }
     });
   }
 
-  /// Fuerza la sincronización completa
   Future<void> sincronizarCompleto() async {
     try {
       final syncService = ref.read(syncServiceProvider);

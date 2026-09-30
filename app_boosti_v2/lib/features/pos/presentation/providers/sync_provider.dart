@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/sync_service.dart';
+import 'business_mode_provider.dart';
 import 'categorias_provider.dart';
 import 'clientes/clientes_provider.dart';
 import 'dashboard_provider.dart';
@@ -51,6 +52,19 @@ final syncServiceProvider = Provider<SyncService>((ref) {
       //      Se auto-actualizan porque observan productosProvider.
       //    - localActualProvider → apunta al local activo, se pierde
       // ════════════════════════════════════════════════════════════
+    },
+    // 🎯 NUEVO: reacciona a cambios de locales desde otro dispositivo.
+    //
+    // Solo recarga el modo de negocio del local activo. La UI se
+    // reconstruye automáticamente porque `featureFlagsProvider` es
+    // derivado y depende de `businessModeProvider`.
+    //
+    // NO se invalidan catálogo/inventario/lotes porque todavía NO
+    // dependen reactivamente de los flags (eso es Fase 2).
+    onLocalCambiado: () {
+      _safe(ref, () {
+        ref.read(businessModeProvider.notifier).recargar();
+      });
     },
   );
 });

@@ -1,4 +1,5 @@
 // lib/features/pos/presentation/screens/pos_menu_screen.dart
+import 'package:app_boosti_v2/features/pos/presentation/providers/business_mode_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -382,19 +383,24 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     }
 
     // Construir secciones desde el config
+    final flags = ref.watch(featureFlagsProvider);
+
+    // Construir secciones desde el config
     final todasLasSecciones = MenuBuilder.buildSections(
       usuario: usuario,
       context: context,
+      flags: flags,                                     // 🎯 NUEVO
       onCrearBackup: _crearBackup,
       onSincronizar: _sincronizarConProgreso,
       ventasPendientesSync: _ventasPendientesSync,
     );
 
-    // Filtrar por permisos
+    // Filtrar por permisos + feature flags
     final seccionesConPermisos = todasLasSecciones
         .map((s) => s.copyWith(
               options: s.options
-                  .where((o) => MenuBuilder.puedeVerOpcion(role, o.id))
+                  .where((o) =>
+                      MenuBuilder.puedeVerOpcion(role, o.id, flags))  // 🎯 CAMBIO
                   .toList(),
             ))
         .where((s) => s.options.isNotEmpty)

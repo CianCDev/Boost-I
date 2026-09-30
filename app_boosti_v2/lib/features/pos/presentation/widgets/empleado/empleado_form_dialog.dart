@@ -1,6 +1,7 @@
 // lib/features/pos/presentation/screens/empleados/employee_form_dialog.dart
 import 'dart:io';
 
+import 'package:app_boosti_v2/features/pos/presentation/providers/tenant_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/common/glass_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -452,6 +453,70 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
     );
   }
 
+
+
+// ══════════════════════════════════════════════════════════════
+// SUBIR IMAGEN A SUPABASE STORAGE
+// ══════════════════════════════════════════════════════════════
+
+/// Sube una imagen local al bucket `avatars` y devuelve la URL pública.
+///
+/// Estructura del path: `avatars/{tenant_id}/{usuario_dynamicId}.{ext}`
+///
+/// - El `tenant_id` en el path permite a las policies de Storage aislar
+///   por tenant (aunque el bucket sea público, cada tenant escribe en su
+///   propia carpeta).
+/// - Se agrega un `?t=<timestamp>` a la URL para evitar cache del navegador
+///   cuando se reemplaza la imagen de un mismo usuario.
+Future<String?> _subirImagenASupabase({
+  required File imagen,
+  required String tenantId,
+  required String usuarioId,
+}) async {
+  try {
+    final supabase = Supabase.instance.client;
+
+    // ── 1. Detectar extensión y validarla ──
+    final nombreArchivo = imagen.path.split(RegExp(r'[/\\]')).last;
+    final puntoIdx = nombreArchivo.lastIndexOf('.');
+    final extOriginal = puntoIdx > 0
+        ? nombreArchivo.substring(puntoIdx).toLowerCase()
+        : '.png';
+
+    const extensionesValidas = {'.jpg', '.jpeg', '.png', '.webp'};
+    final ext = extensionesValidas.contains(extOriginal)
+        ? extOriginal
+        : '.png';
+
+    // ── 2. MIME type según extensión ──
+    final contentType = switch (ext) {
+      '.jpg' || '.jpeg' => 'image/jpeg',
+      '.webp' => 'image/webp',
+      _ => 'image/png',
+    };
+
+    // ── 3. Path: {tenant_id}/{usuarioId}.ext ──
+    final path = '$tenantId/$usuarioId$ext';
+
+    // ── 4. Subir (upsert) ──
+    await supabase.storage.from('avatars').upload(
+      path,
+      imagen,
+      fileOptions: FileOptions(
+        upsert: true,
+        contentType: contentType,
+        cacheControl: '3600',
+      ),
+    );
+
+    // ── 5. Obtener URL pública con cache-buster ──
+    final urlBase = supabase.storage.from('avatars').getPublicUrl(path);
+    return '$urlBase?t=${DateTime.now().millisecondsSinceEpoch}';
+  } catch (e) {
+    debugPrint('❌ Error subiendo avatar a Supabase: $e');
+    return null;
+  }
+}
   // ══════════════════════════════════════════════════════════════
   // GUARDAR
   // ══════════════════════════════════════════════════════════════
@@ -549,11 +614,52 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
         usuario.password = password;
       }
 
-      if (_fotoUrlActual != null) {
-        usuario.fotoUrl = _fotoUrlActual;
-      }
+      // ── Conservar foto previa en edición sin nueva imagen ──
+if (_imagenLocal == null && _fotoUrlActual != null) {
+  usuario.fotoUrl = _fotoUrlActual;
+}
 
+// ── Primera persistencia (sin URL todavía) ──
+await isarService.guardarUsuario(usuario);
+
+// ── Subir imagen nueva si existe ──
+if (_imagenLocal != null) {
+  final tenantId = ref.read(tenantActualProvider).tenantId;
+
+  if (tenantId == null || tenantId.isEmpty) {
+    debugPrint('⚠️ Sin tenant_id, no se puede subir la imagen');
+    if (mounted) {
+      _showSnack(
+        'No se pudo subir la foto (sin tenant activo). '
+        'Los demás datos se guardaron.',
+        isError: true,
+      );
+    }
+  } else {
+    debugPrint('📤 Subiendo avatar de "${usuario.nombre}"...');
+
+    final url = await _subirImagenASupabase(
+      imagen: _imagenLocal!,
+      tenantId: tenantId,
+      usuarioId: usuario.dynamicId,
+    );
+
+    if (!mounted) return;
+
+    if (url != null) {
+      usuario.fotoUrl = url;
+      // 🎯 SEGUNDA persistencia: la URL queda grabada en Isar
       await isarService.guardarUsuario(usuario);
+      _fotoUrlActual = url;
+      debugPrint('✅ URL de avatar guardada en Isar: $url');
+    } else {
+      _showSnack(
+        'La foto no se pudo subir. Los demás datos se guardaron.',
+        isError: true,
+      );
+    }
+  }
+}
 
       // ── 2. EmpleadoInfoEntity ──
       final info = _esEdicion && widget.empleado!.info != null

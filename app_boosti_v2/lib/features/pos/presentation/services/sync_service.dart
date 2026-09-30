@@ -1,5 +1,8 @@
+// ignore_for_file: unused_field
+
 import 'dart:async';
 import 'dart:convert';
+import 'package:app_boosti_v2/core/security/telegram_crypto.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:isar/isar.dart';
@@ -33,6 +36,15 @@ import '../../data/Local/entities/movimiento_lote_entity.dart';
 import '../../data/Local/entities/cliente_entity.dart';
 import 'error_service.dart'; // ✅ NUEVO: Para monitoreo
 
+// 🛠️ FIX: Constantes centralizadas para evitar strings mágicos
+class _SyncConstants {
+  static const String synced = 'synced';
+  static const String failed = 'failed';
+  static const String activo = 'activo';
+  static const String inactivo = 'inactivo';
+  static const String desconectado = 'desconectado';
+}
+
 /// Servicio central de sincronización entre la base de datos local (Isar) y Supabase.
 class SyncService {
   final IsarService _isarService = IsarService();
@@ -58,7 +70,16 @@ class SyncService {
   bool _configLoaded = false;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isSyncing = false;
-  bool _syncEnCurso = false; // guard de sincronizarTodo
+  bool _escribiendoUsuarios = false;
+  // 🎯 Anti-eco: evita procesar eventos de `locales` que provienen de
+  //    nuestra propia escritura. Se activa en `sincronizarLocalesPendientes()`
+  //    y se desactiva en su `finally`.
+  bool _escribiendoLocales = false;
+  bool _timestampsDifieren(DateTime? a, DateTime? b) {
+  if (a == null && b == null) return false;
+  if (a == null || b == null) return true;
+  return a.difference(b).abs().inSeconds > 5;
+}
 
   /// Convierte valores que PostgREST serializa como String (bigint, numeric)
   /// a tipos nativos de Dart. Nunca lanza, siempre devuelve un valor válido.
@@ -76,6 +97,31 @@ class SyncService {
     if (value is num) return value.toDouble();
     if (value is String) return double.tryParse(value) ?? defaultValue;
     return defaultValue;
+  }
+
+  /// Retorna `true` si [s] es un UUID válido (hex con guiones).
+  ///
+  /// 🎯 FIX Bug 6: usado por `_enviarMarcaAlServidor` para detectar
+  /// IDs corruptos generados con `DateTime.now().millisecondsSinceEpoch`
+  /// (por ejemplo "1790482577151") que PostgREST rechaza con 22P02.
+  bool _esUuid(String s) {
+    final re = RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    );
+    return re.hasMatch(s);
+  }
+
+  /// Normaliza el valor de `business_mode` que viene de Supabase.
+  ///
+  /// Si es null, vacío o un valor desconocido → devuelve 'mercado'
+  /// (retrocompatible con locales existentes que no tienen el campo).
+  String _parseBusinessMode(dynamic value) {
+    if (value == null) return 'mercado';
+    final s = value.toString().trim().toLowerCase();
+    const validos = {'mercado', 'restaurante', 'servicios'};
+    if (validos.contains(s)) return s;
+    return 'mercado';
   }
 
   // ============================================================
@@ -106,17 +152,27 @@ class SyncService {
   final List<RealtimeChannel> _channels = [];
   final VoidCallback? onDataChanged;
 
+  /// Callback opcional que se dispara cuando un local cambió desde
+  /// OTRO dispositivo (vía Realtime de Supabase).
+  ///
+  /// El consumidor (`syncServiceProvider`) lo usa para recargar el
+  /// `businessModeProvider` y refrescar la UI sin reiniciar.
+  final VoidCallback? onLocalCambiado;
+
   SyncService({
     this.onDataChanged,
+    this.onLocalCambiado,
     SupabaseClient? supabaseClient,
   }) : _supabaseClient = supabaseClient;
 
   void iniciarSuscripcionesRealtime() {
+    // 🛠️ FIX: Prevenir memory leaks por listeners duplicados
+    detenerSuscripcionesRealtime();
     try {
       _suscribirATabla('productos', () => descargarProductosDesdeSupabase());
       _suscribirATabla('categorias', () => descargarCategoriasDesdeSupabase());
       _suscribirATabla('marcas', () => descargarMarcasDesdeSupabase());
-      _suscribirATabla('locales', () => descargarLocalesDesdeSupabase());
+      _suscribirATabla('locales', _onLocalesCambiaronDesdeNube);
       _suscribirATabla(
           'departamentos', () => descargarDepartamentosDesdeSupabase());
       _suscribirATabla('usuarios', () => sincronizarUsuariosDesdeSupabase());
@@ -131,34 +187,79 @@ class SyncService {
   }
 
   void _suscribirATabla(String tabla, Future<void> Function() onCambio) {
-    Timer? debounce;
-    try {
-      final channel = _supabase
-          .channel('realtime:$tabla')
-          .onPostgresChanges(
-            schema: 'public',
-            table: tabla,
-            event: PostgresChangeEvent.all,
-            callback: (payload) {
+  Timer? debounce;
+  try {
+    final channel = _supabase
+        .channel('realtime:$tabla')
+        .onPostgresChanges(
+          schema: 'public',
+          table: tabla,
+          event: PostgresChangeEvent.all,
+          callback: (payload) {
+            if (_isSyncing) return;
+
+            // ═══════════════════════════════════════════════════════
+            // 🎯 FIX ANTI-ECO
+            //
+            //   Cuando `sincronizarUsuariosASupabase` sube cambios, el
+            //   Realtime de Supabase nos avisa de esos mismos cambios
+            //   y dispara un download inmediato → write → eco → download…
+            //
+            //   Ignoramos los eventos de `usuarios` mientras estamos
+            //   escribiendo nosotros mismos. Los cambios reales de otros
+            //   dispositivos siguen llegando cuando `_escribiendoUsuarios`
+            //   vuelve a `false`.
+            // ═══════════════════════════════════════════════════════
+            if (tabla == 'usuarios' && _escribiendoUsuarios) {
+              return;
+            }
+
+            // 🎯 Anti-eco para locales
+            if (tabla == 'locales' && _escribiendoLocales) {
+              return;
+            }
+
+            // Debounce: evita ráfagas de cambios seguidos
+            debounce?.cancel();
+            debounce = Timer(const Duration(seconds: 5), () {
               if (_isSyncing) return;
-              // ✅ Debounce: evita ráfagas de cambios seguidos
-              debounce?.cancel();
-              debounce = Timer(const Duration(seconds: 5), () {
-                if (_isSyncing) return;
-                debugPrint('🔄 Cambio detectado en $tabla, actualizando...');
-                onCambio();
-              });
-            },
-          )
-          .subscribe();
-      _channels.add(channel);
+              debugPrint('🔄 Cambio detectado en $tabla, actualizando...');
+              onCambio();
+            });
+          },
+        )
+        .subscribe();
+    _channels.add(channel);
+  } catch (e, stack) {
+    ErrorService.captureError(e,
+        stack: stack,
+        hint: '_suscribirATabla_fallo',
+        extras: {'tabla': tabla});
+  }
+
+  /// Handler ejecutado cuando Realtime detecta cambios en `locales`
+  /// desde OTRO dispositivo.
+  ///
+  /// Estrategia:
+  ///   1. Descarga los locales actualizados desde Supabase → Isar.
+  ///   2. Notifica al consumidor vía `onLocalCambiado` para que recargue
+  ///      el `businessModeProvider` y refresque la UI.
+  Future<void> _onLocalesCambiaronDesdeNube() async {
+    try {
+      debugPrint('🔄 [Realtime] Locales cambiaron, re-descargando...');
+      await descargarLocalesDesdeSupabase();
+
+      onLocalCambiado?.call();
+      debugPrint('✅ [Realtime] Locales actualizados + callback disparado');
     } catch (e, stack) {
-      ErrorService.captureError(e,
-          stack: stack,
-          hint: '_suscribirATabla_fallo',
-          extras: {'tabla': tabla});
+      ErrorService.captureError(
+        e,
+        stack: stack,
+        hint: 'onLocalesCambiaronDesdeNube_fallo',
+      );
     }
   }
+}
 
   void detenerSuscripcionesRealtime() {
     for (var channel in _channels) {
@@ -239,12 +340,38 @@ class SyncService {
   // USUARIOS
   // ============================================================
 
- Future<void> sincronizarUsuariosASupabase() async {
+ // ============================================================
+// ACTUALIZAR ESTADO DE USUARIO → SUPABASE
+// ============================================================
+//
+// Canal EXCLUSIVO para propagar cambios de `estado` a Supabase.
+//
+// Uso esperado desde la UI:
+//   - Botón "Descanso"           → 'en_descanso'
+//   - Botón "Volver de descanso" → 'activo'
+//   - Botón "Conectar"           → 'activo'
+//   - Al hacer logout            → 'desconectado'
+//   - Al deshabilitar un usuario → 'inactivo'
+//
+// Devuelve `true` si la fila se actualizó (response no vacío).
+// Si el `supabaseId` no existe en la BD, el update devuelve 0 filas
+// y retorna `false` — pero NO lanza excepción.
+//
+// Notas:
+//   - Prioriza `supabaseId` si viene. Fallback a `id_isar`.
+//   - Actualiza también `updated_at` para que el LWW del sync
+//     detecte el cambio como "nube más reciente" y no lo pise.
+//
+Future<void> sincronizarUsuariosASupabase() async {
+  // ── Guard: sin sesión activa no hay tenant_id → RLS bloqueará ──
   if (!_tieneSesionSupabase()) {
     debugPrint(
         '⚠️ [SyncService] Sin sesión activa. sincronizarUsuariosASupabase omitido.');
     return;
   }
+
+   // 🎯 FIX: activar guard anti-eco.
+  _escribiendoUsuarios = true;
 
   try {
     final usuarios = await _isarService.obtenerUsuarios();
@@ -255,6 +382,7 @@ class SyncService {
 
     debugPrint('🔄 Sincronizando ${usuarios.length} usuarios con Supabase...');
 
+    // ── Contadores para el log final ──
     int sincronizados = 0;
     int recuperados = 0;
     int omitidos = 0;
@@ -270,6 +398,7 @@ class SyncService {
         if (usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty) {
           final esUsuarioActual = usuario.supabaseId == currentUserId;
 
+          // ── Lectura del estado actual en la nube ──
           Map<String, dynamic>? existing;
           try {
             existing = await _supabase
@@ -281,7 +410,7 @@ class SyncService {
             debugPrint('⚠️ Error consultando usuario por ID: $e');
           }
 
-          // ── UUID no visible (puede ser fantasma REAL o bloqueo de RLS) ──
+          // ── Sub-caso: UUID no visible ──
           if (existing == null) {
             debugPrint(
                 '⚠️ Usuario "${usuario.nombre}" no visible por ID '
@@ -334,23 +463,8 @@ class SyncService {
               }
             }
 
-            // ══════════════════════════════════════════════════════
-            // ✅ FIX CRÍTICO: NO borrar el UUID.
-            //
-            // Antes: `usuario.supabaseId = null; ... continue;`
-            // Eso destruía la vinculación local cuando simplemente
-            // había un bloqueo temporal de RLS (sesión expirada,
-            // tenant distinto, etc.) y provocaba DUPLICADOS en
-            // auth.users en el próximo ciclo.
-            //
-            // Ahora: preservamos el UUID. El update de abajo intentará
-            // escribirlo. Si el UUID era realmente inválido, el update
-            // retornará 0 filas silenciosamente y el usuario seguirá
-            // funcionando offline conservando su identidad.
-            // ══════════════════════════════════════════════════════
             debugPrint(
                 '🛡️ UUID de "${usuario.nombre}" preservado. Se intentará update directo.');
-            // ↓ NO hacemos continue: caemos al update normal de abajo.
           }
 
           // ── Guard: last-write-wins por updated_at ──
@@ -372,7 +486,7 @@ class SyncService {
             }
           }
 
-          // ── Resolver tenant ──
+          // ── Resolver tenant del usuario ──
           String? tenantUuid;
           if (usuario.localId != null && usuario.localId! > 0) {
             tenantUuid = await _obtenerSupabaseIdLocal(usuario.localId!);
@@ -396,7 +510,10 @@ class SyncService {
             continue;
           }
 
-          // ── Payload ──
+          // ══════════════════════════════════════════════════════════
+          // PAYLOAD DE ACTUALIZACIÓN
+          // ══════════════════════════════════════════════════════════
+          // ⚠️ El campo `estado` NO se incluye aquí (se maneja aparte).
          final Map<String, dynamic> payload = {
             'nombre': usuario.nombre,
             'rol': usuario.rol,
@@ -405,40 +522,26 @@ class SyncService {
             'caja_asignada': usuario.cajaAsignada,
             'departamento': usuario.departamento,
             'tenant_id': tenantUuid,
-            'updated_at': DateTime.now().toIso8601String(),
+            // 🎯 FIX Bug 10: NO enviamos `updated_at`.
+            //    El trigger `update_updated_at_column` en Supabase lo
+            //    setea con hora de servidor. Si lo mandamos desde el
+            //    cliente, un reloj desincronizado rompe el LWW.
+            if (usuario.fotoUrl != null && usuario.fotoUrl!.isNotEmpty)
+            'foto_url': usuario.fotoUrl,
           };
 
-
-          if (esUsuarioActual) {
-              // Usuario actual: siempre sube su estado real
-              payload['estado'] = usuario.estado;
-            } else if (existing != null) {
-              final estadoNube = existing['estado'] as String?;
-              if (estadoNube != usuario.estado) {
-                // Cambio real pendiente → subimos
-                payload['estado'] = usuario.estado;
-                debugPrint(
-                    '📤 Estado de "${usuario.nombre}" actualizado: '
-                    '$estadoNube → ${usuario.estado}');
-              }
-              // Si son iguales, no lo incluimos (ahorra ancho de banda)
-            } else {
-              // existing == null y NO es el usuario actual → no tocamos el estado
-              debugPrint(
-                  '🛡️ Estado de "${usuario.nombre}" NO se sube (RLS oculta el actual)');
-            }
-
-          // Solo enviamos `pin` si difiere del que hay en la nube.
-          // Si `existing` es null (RLS), enviamos el pin local para no
-          // perder el cambio pendiente.
+          // ── PIN ──
           final pinLocal = usuario.pin;
           final pinNube = existing != null ? existing['pin'] as String? : null;
-          if (pinLocal.isNotEmpty && pinLocal != pinNube) {
+
+          if (!usuario.sincronizado &&
+              pinLocal.isNotEmpty &&
+              pinLocal != pinNube) {
             payload['pin'] = pinLocal;
             debugPrint('📤 PIN actualizado para "${usuario.nombre}"');
           }
 
-          // ── Update con manejo de excepciones ──
+          // ── Update ──
           try {
             await _supabase
                 .from('usuarios')
@@ -471,14 +574,17 @@ class SyncService {
         }
 
         // ══════════════════════════════════════════════════════════
-        // CASO 2: Sin supabaseId → recuperar o crear
+        // CASO 2: Sin supabaseId → crear (cajero: INSERT / admin: signUp)
         // ══════════════════════════════════════════════════════════
+
+        // Sin email no podemos crear.
         if (usuario.email == null || usuario.email!.isEmpty) {
           debugPrint('⚠️ "${usuario.nombre}" sin email. Skip.');
           omitidos++;
           continue;
         }
 
+        // 2a. ¿Existe ya en public.usuarios por email?
         final existingByEmail = await _supabase
             .from('usuarios')
             .select('id')
@@ -497,82 +603,169 @@ class SyncService {
           continue;
         }
 
-        if (usuario.password == null || usuario.password!.isEmpty) {
-          debugPrint(
-              '⚠️ "${usuario.nombre}" sin password. No se puede crear en Auth. Skip.');
+        // ── Resolver tenant para creación ──
+        // (aquí es donde antes faltaba declarar `tenantId`)
+        String? tenantId = usuario.tenantId;
+        if (tenantId == null || tenantId.isEmpty) {
+          final localActivo = await _isarService.obtenerLocalActivo();
+          if (localActivo != null) {
+            tenantId = localActivo.supabaseId;
+            if (tenantId == null || tenantId.isEmpty) {
+              tenantId = await _obtenerSupabaseIdLocal(localActivo.id);
+            }
+          }
+        }
+        if (tenantId == null || tenantId.isEmpty) {
+          tenantId = getTenantIdFromJWT();
+        }
+
+        if (tenantId == null || tenantId.isEmpty) {
+          debugPrint('⚠️ "${usuario.nombre}" sin tenant_id. Skip.');
           omitidos++;
           continue;
         }
 
-        try {
-          final tenantId = usuario.tenantId ?? getTenantIdFromJWT();
-          if (tenantId == null) {
-            debugPrint('⚠️ "${usuario.nombre}" sin tenant_id. Skip.');
+        // ══════════════════════════════════════════════════════════
+        // 🎯 Modelo A: solo los ADMIN van a auth.users.
+        //    Los cajeros se insertan directamente en public.usuarios.
+        // ══════════════════════════════════════════════════════════
+        final esAdmin = usuario.rol == 'admin';
+
+        if (esAdmin) {
+          // ── ADMIN: signUp en auth.users ──
+          if (usuario.password == null || usuario.password!.isEmpty) {
+            debugPrint(
+                '⚠️ Admin "${usuario.nombre}" sin password. No se puede crear en Auth. Skip.');
             omitidos++;
             continue;
           }
 
-          final response = await _supabase.auth.signUp(
-            email: usuario.email!,
-            password: usuario.password!,
-            data: {
-              'nombre': usuario.nombre,
-              'rol': usuario.rol,
-              'pin': usuario.pin,
-              'tenant_id': tenantId,
-            },
-          );
+          try {
+            final response = await _supabase.auth.signUp(
+              email: usuario.email!,
+              password: usuario.password!,
+              data: {
+                'nombre': usuario.nombre,
+                'rol': usuario.rol,
+                'pin': usuario.pin,
+                'tenant_id': tenantId,
+                'id_isar': usuario.id, // ← el trigger lo usará
+              },
+            );
 
-          if (response.user != null) {
-            usuario.supabaseId = response.user!.id;
-            usuario.sincronizado = true;
-            usuario.fechaSincronizacion = DateTime.now();
-            await _isarService.guardarUsuario(usuario);
-            debugPrint(
-                '✅ "${usuario.nombre}" creado en auth.users (${usuario.supabaseId})');
-            sincronizados++;
-          } else {
-            debugPrint('⚠️ "${usuario.nombre}" response.user = null. Skip.');
-            omitidos++;
-          }
-        } on AuthApiException catch (e) {
-          final yaExiste = e.code == 'user_already_exists' ||
-              e.statusCode == '422' ||
-              e.message.toLowerCase().contains('already registered');
-
-          if (yaExiste) {
-            await Future.delayed(const Duration(milliseconds: 500));
-            final retryLookup = await _supabase
-                .from('usuarios')
-                .select('id')
-                .eq('email', usuario.email!)
-                .maybeSingle();
-
-            if (retryLookup != null) {
-              usuario.supabaseId = retryLookup['id'] as String;
+            if (response.user != null) {
+              usuario.supabaseId = response.user!.id;
               usuario.sincronizado = true;
               usuario.fechaSincronizacion = DateTime.now();
               await _isarService.guardarUsuario(usuario);
               debugPrint(
-                  '✅ UUID recuperado tras 422 para "${usuario.nombre}"');
-              recuperados++;
+                  '✅ Admin "${usuario.nombre}" creado en auth.users (${usuario.supabaseId})');
               sincronizados++;
             } else {
               debugPrint(
-                  '❌ "${usuario.nombre}" existe en auth pero no en public.usuarios. '
-                  'Revisar trigger on_auth_user_created.');
+                  '⚠️ Admin "${usuario.nombre}" response.user = null. Skip.');
+              omitidos++;
+            }
+          } on AuthApiException catch (e) {
+            final yaExiste = e.code == 'user_already_exists' ||
+                e.statusCode == '422' ||
+                e.message.toLowerCase().contains('already registered');
+
+            if (yaExiste) {
+              await Future.delayed(const Duration(milliseconds: 500));
+              final retry = await _supabase
+                  .from('usuarios')
+                  .select('id')
+                  .eq('email', usuario.email!)
+                  .maybeSingle();
+              if (retry != null) {
+                usuario.supabaseId = retry['id'] as String;
+                usuario.sincronizado = true;
+                usuario.fechaSincronizacion = DateTime.now();
+                await _isarService.guardarUsuario(usuario);
+                debugPrint(
+                    '✅ UUID recuperado tras 422 para "${usuario.nombre}"');
+                recuperados++;
+                sincronizados++;
+              } else {
+                debugPrint(
+                    '❌ Admin "${usuario.nombre}" existe en auth pero no en public. Revisar trigger.');
+                errores++;
+              }
+            } else {
+              debugPrint(
+                  '❌ Auth error para "${usuario.nombre}": ${e.message}');
               errores++;
             }
-          } else {
+          } catch (e) {
             debugPrint(
-                '❌ Auth error para "${usuario.nombre}": ${e.message} (${e.code})');
+                '❌ Error inesperado creando admin "${usuario.nombre}": $e');
             errores++;
           }
-        } catch (e) {
-          debugPrint('❌ Error inesperado creando "${usuario.nombre}": $e');
-          errores++;
+        } else {
+          // ── CAJERO: INSERT directo en public.usuarios ──
+          try {
+            final payload = <String, dynamic>{
+              'id_isar': usuario.id,
+              'nombre': usuario.nombre,
+              'rol': usuario.rol,
+              'email': usuario.email,
+              'pin': usuario.pin,
+              'tenant_id': tenantId,
+              'estado': _SyncConstants.desconectado,
+              'caja_asignada': usuario.cajaAsignada,
+              'device_id': usuario.deviceId ?? '',
+              'updated_at': DateTime.now().toIso8601String(),
+            };
+
+            final response = await _supabase
+                .from('usuarios')
+                .insert(payload)
+                .select('id')
+                .single();
+
+            usuario.supabaseId = response['id'] as String;
+            usuario.sincronizado = true;
+            usuario.fechaSincronizacion = DateTime.now();
+            await _isarService.guardarUsuario(usuario);
+            debugPrint(
+                '✅ Cajero "${usuario.nombre}" insertado en public.usuarios (${usuario.supabaseId})');
+            sincronizados++;
+          } on PostgrestException catch (e) {
+            // 23505 = unique_violation → recuperar
+            if (e.code == '23505') {
+              final retry = await _supabase
+                  .from('usuarios')
+                  .select('id')
+                  .eq('email', usuario.email!)
+                  .maybeSingle();
+              if (retry != null) {
+                usuario.supabaseId = retry['id'] as String;
+                usuario.sincronizado = true;
+                usuario.fechaSincronizacion = DateTime.now();
+                await _isarService.guardarUsuario(usuario);
+                debugPrint(
+                    '✅ Cajero "${usuario.nombre}" recuperado tras 23505');
+                recuperados++;
+                sincronizados++;
+              } else {
+                debugPrint(
+                    '❌ Conflicto no resuelto para cajero "${usuario.nombre}": ${e.message}');
+                errores++;
+              }
+            } else {
+              debugPrint(
+                  '❌ Error insertando cajero "${usuario.nombre}": ${e.message} (${e.code})');
+              errores++;
+            }
+          } catch (e) {
+            debugPrint(
+                '❌ Error inesperado creando cajero "${usuario.nombre}": $e');
+            errores++;
+          }
         }
       } catch (e, stack) {
+        // Catch externo: un fallo en un usuario NO debe detener el loop.
         debugPrint('⚠️ Error procesando "${usuario.nombre}": $e');
         errores++;
         ErrorService.captureError(e,
@@ -587,6 +780,9 @@ class SyncService {
     debugPrint('❌ Error general sincronizando usuarios: $e');
     ErrorService.captureError(e,
         stack: stack, hint: 'sincronizarUsuariosASupabase_fallo');
+        } finally {
+    // 🎯 FIX: siempre desactivar el guard.
+    _escribiendoUsuarios = false;
   }
 }
   /// Limpia SOLO los huérfanos verdaderos de `public.usuarios`:
@@ -689,6 +885,10 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
       for (var u in locales) u.id: u,
     };
 
+    int usuariosActualizados = 0;
+    int usuariosCreados = 0;
+    int usuariosSinCambios = 0;
+
     for (var data in response) {
       final idIsar = _toInt(data['id_isar']);
       if (idIsar == 0) {
@@ -704,17 +904,71 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
 
       final local = localesMap[idIsar];
 
+      // ═══════════════════════════════════════════════════════════════
+      // USUARIO EXISTENTE → actualizar campos con dirty tracking
+      // ═══════════════════════════════════════════════════════════════
       if (local != null) {
-        // ============================================================
-        // USUARIO EXISTENTE → actualizar campos
-        // ============================================================
-        local.supabaseId = data['id'] as String?;
-        local.email = data['email'] as String? ?? local.email;
-        local.deviceId = data['device_id'] as String? ?? local.deviceId;
-        local.cajaAsignada =
-            data['caja_asignada'] as String? ?? local.cajaAsignada;
-        local.departamento =
-            data['departamento'] as String? ?? local.departamento;
+        bool dirty = false;
+
+        // ── Campos básicos ──
+        final nuevoSupabaseId = data['id'] as String?;
+        if (nuevoSupabaseId != null &&
+            nuevoSupabaseId.isNotEmpty &&
+            nuevoSupabaseId != local.supabaseId) {
+          local.supabaseId = nuevoSupabaseId;
+          dirty = true;
+        }
+
+        final nuevoEmail = data['email'] as String?;
+        if (nuevoEmail != null && nuevoEmail != local.email) {
+          local.email = nuevoEmail;
+          dirty = true;
+        }
+
+        final nuevoNombre = data['nombre'] as String?;
+        if (nuevoNombre != null &&
+            nuevoNombre.isNotEmpty &&
+            nuevoNombre != local.nombre) {
+          local.nombre = nuevoNombre;
+          dirty = true;
+        }
+
+        final nuevoDeviceId = data['device_id'] as String?;
+        if (nuevoDeviceId != null && nuevoDeviceId != local.deviceId) {
+          local.deviceId = nuevoDeviceId;
+          dirty = true;
+        }
+
+        final nuevaCaja = data['caja_asignada'] as String?;
+        if (nuevaCaja != null && nuevaCaja != local.cajaAsignada) {
+          local.cajaAsignada = nuevaCaja;
+          dirty = true;
+        }
+
+        final nuevoDepto = data['departamento'] as String?;
+        if (nuevoDepto != local.departamento) {
+          local.departamento = nuevoDepto;
+          dirty = true;
+        }
+
+        final nuevoRol = data['rol'] as String?;
+        if (nuevoRol != null && nuevoRol != local.rol) {
+          local.rol = nuevoRol;
+          dirty = true;
+        }
+
+        // ── Foto URL ──
+        // 🎯 FIX: solo actualizar y loggear si la URL cambió realmente.
+        //    Sin este check, el log se spamea en cada ciclo del monitor
+        //    (cada 8-15s) aunque nada haya cambiado.
+        final fotoUrlNube = data['foto_url'] as String?;
+        if (fotoUrlNube != null &&
+            fotoUrlNube.isNotEmpty &&
+            fotoUrlNube != local.fotoUrl) {
+          local.fotoUrl = fotoUrlNube;
+          dirty = true;
+          debugPrint('🖼️ fotoUrl actualizada desde nube: $fotoUrlNube');
+        }
 
         // ── PIN protegido si hay cambios pendientes ──
         final pinNube = data['pin'] as String?;
@@ -723,6 +977,7 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
             pinNube != local.pin) {
           if (local.sincronizado) {
             local.pin = pinNube;
+            dirty = true;
           } else {
             debugPrint(
                 '🛡️ PIN local de "${local.nombre}" protegido '
@@ -730,33 +985,65 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
           }
         }
 
-        local.rol = data['rol'] as String? ?? local.rol;
-
-        if (tenantUuid != null && tenantUuid.isNotEmpty) {
+        // ── Tenant / Local ──
+        if (tenantUuid != null &&
+            tenantUuid.isNotEmpty &&
+            tenantUuid != local.tenantId) {
           local.tenantId = tenantUuid;
+          dirty = true;
         }
-        if (localIdResuelto != null) {
+        if (localIdResuelto != null && localIdResuelto != local.localId) {
           local.localId = localIdResuelto;
+          dirty = true;
         }
 
-        local.inicioDescanso = data['inicio_descanso'] != null
-            ? DateTime.tryParse(data['inicio_descanso'].toString())
-            : local.inicioDescanso;
-        local.minutosDescanso =
+        // ── Descanso ──
+        final nuevoInicioDescanso = data['inicio_descanso'] != null
+          ? DateTime.tryParse(data['inicio_descanso'].toString())
+          : null;
+      if (_timestampsDifieren(nuevoInicioDescanso, local.inicioDescanso)) {
+        local.inicioDescanso = nuevoInicioDescanso;
+        dirty = true;
+      }
+
+        final nuevosMinutosDescanso =
             _toInt(data['minutos_descanso'], local.minutosDescanso ?? 0);
-        local.ultimaActividad = data['ultima_actividad'] != null
-            ? DateTime.tryParse(data['ultima_actividad'].toString())
-            : local.ultimaActividad;
-        local.ultimaActualizacion = data['ultimaActualizacion'] != null
-            ? DateTime.tryParse(data['ultimaActualizacion'].toString())
-            : local.ultimaActualizacion;
+        if (nuevosMinutosDescanso != local.minutosDescanso) {
+          local.minutosDescanso = nuevosMinutosDescanso;
+          dirty = true;
+        }
+
+        // ── Actividad ──
+       
+
+        // ultima_actividad
+        if (data['ultima_actividad'] != null) {
+          final nuevaUltima = DateTime.tryParse(data['ultima_actividad'].toString());
+          if (_timestampsDifieren(nuevaUltima, local.ultimaActividad)) {
+            local.ultimaActividad = nuevaUltima;
+            dirty = true;
+          }
+        }
+
+        // ultimaActualizacion
+        if (data['ultimaActualizacion'] != null) {
+          final nuevaUltima =
+              DateTime.tryParse(data['ultimaActualizacion'].toString());
+          if (_timestampsDifieren(nuevaUltima, local.ultimaActualizacion)) {
+            local.ultimaActualizacion = nuevaUltima;
+            dirty = true;
+          }
+        }
 
         // ── Estado ──
         final estadoNube = data['estado'] as String?;
-        if (estadoNube != null && estadoNube.isNotEmpty) {
+        if (estadoNube != null &&
+            estadoNube.isNotEmpty &&
+            estadoNube != local.estado) {
           local.estado = estadoNube;
           local.activo =
-              estadoNube != 'inactivo' && estadoNube != 'desconectado';
+              estadoNube != _SyncConstants.inactivo && estadoNube != _SyncConstants.desconectado;
+          dirty = true;
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -768,7 +1055,7 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
         // logout y evita que el monitor muestre activos a usuarios
         // que llevan horas sin tocar la caja.
         // ═══════════════════════════════════════════════════════════════
-        if (estadoNube == 'activo' &&
+        if (estadoNube == _SyncConstants.activo &&
             local.supabaseId != null &&
             local.supabaseId != currentUid) {
           final ultima = local.ultimaActividad ?? local.updatedAt;
@@ -779,11 +1066,12 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
             try {
               await _supabase
                   .from('usuarios')
-                  .update({'estado': 'inactivo'})
+                  .update({'estado': _SyncConstants.inactivo})
                   .eq('id', local.supabaseId!);
-              local.estado = 'inactivo';
+              local.estado = _SyncConstants.inactivo;
               local.activo = false;
               local.sincronizado = false; // forzar resync
+              dirty = true;
               debugPrint(
                   '🧹 "${local.nombre}" llevaba activo desde '
                   '${ultima?.toIso8601String() ?? "?"} → forzado a inactivo');
@@ -794,37 +1082,47 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
           }
         }
 
-        // ── created/updated ──
+        // ── Timestamps ──
         final creadoRaw = data['creado_en'] ?? data['created_at'];
         if (creadoRaw != null) {
-          local.createdAt = DateTime.tryParse(creadoRaw.toString());
-        }
+        final nuevoCreatedAt = DateTime.tryParse(creadoRaw.toString());
+        if (_timestampsDifieren(nuevoCreatedAt, local.createdAt)) {
+          local.createdAt = nuevoCreatedAt;
+          dirty = true;
+        }}
         if (data['updated_at'] != null) {
-          local.updatedAt = DateTime.tryParse(data['updated_at'].toString());
+        final nuevoUpdatedAt =
+            DateTime.tryParse(data['updated_at'].toString());
+        if (_timestampsDifieren(nuevoUpdatedAt, local.updatedAt)) {
+          local.updatedAt = nuevoUpdatedAt;
+          dirty = true;
         }
+      }
 
-        if (local.sincronizado) {
-          local.fechaSincronizacion = DateTime.now();
-        }
-
+        // ── Persistir SOLO si algo cambió ──
+        if (dirty) {
+         local.fechaSincronizacion = DateTime.now();
         await _isarService.guardarUsuario(local);
+        usuariosActualizados++;
+        }
       } else {
-        // ============================================================
+        // ═══════════════════════════════════════════════════════════════
         // USUARIO NUEVO → crear desde Supabase
-        // ============================================================
+        // ═══════════════════════════════════════════════════════════════
         final nuevoUsuario = UsuarioEntity()
           ..id = idIsar
           ..nombre = data['nombre'] as String? ?? ''
           ..pin = data['pin'] as String? ?? ''
           ..rol = data['rol'] as String? ?? 'cajero'
           ..activo = true
-          ..estado = data['estado'] as String? ?? 'inactivo'
+          ..estado = data['estado'] as String? ?? _SyncConstants.inactivo
           ..cajaAsignada =
               data['caja_asignada'] as String? ?? 'Caja Principal'
           ..email = data['email'] as String?
           ..deviceId = data['device_id'] as String? ?? ''
           ..departamento = data['departamento'] as String?
           ..supabaseId = data['id'] as String?
+          ..fotoUrl = data['foto_url'] as String?
           ..tenantId = tenantUuid
           ..localId = localIdResuelto
           ..inicioDescanso = data['inicio_descanso'] != null
@@ -850,10 +1148,16 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
           ..fechaSincronizacion = DateTime.now();
 
         await _isarService.guardarUsuario(nuevoUsuario);
+        usuariosCreados++;
       }
     }
 
-    debugPrint('✅ Usuarios sincronizados desde Supabase');
+    // 🎯 Log resumido: solo mostrar cuántos cambiaron realmente.
+    debugPrint(
+        '✅ Usuarios: $usuariosCreados nuevos · '
+        '$usuariosActualizados actualizados · '
+        '$usuariosSinCambios sin cambios');
+
     onDataChanged?.call();
   } catch (e, stack) {
     debugPrint('❌ Error descargando usuarios: $e');
@@ -926,6 +1230,7 @@ Future<bool> eliminarUsuarioEnSupabase(
   String? supabaseId,
 }) async {
   try {
+    // 🛠️ FIX: Null safety - proteger evaluación de respuesta
     final List<dynamic> response;
 
     if (supabaseId != null && supabaseId.isNotEmpty) {
@@ -942,7 +1247,16 @@ Future<bool> eliminarUsuarioEnSupabase(
           .select();
     }
 
+    // 🛠️ FIX: Verificar que response no sea null y tenga elementos
     return response.isNotEmpty;
+  } on PostgrestException catch (e) {
+    // 🛠️ FIX: Manejar errores RLS específicamente
+    if (e.code == '42501') {
+      debugPrint('⚠️ RLS bloqueó eliminación de usuario (políticas de seguridad)');
+    } else {
+      debugPrint('❌ Error PostgREST eliminando usuario: ${e.message}');
+    }
+    return false;
   } catch (e, stack) {
     debugPrint('❌ Error eliminando usuario en Supabase: $e');
     ErrorService.captureError(e,
@@ -981,7 +1295,7 @@ Future<void> subirUsuariosPendientes() async {
         ..id = _toInt(row['id_isar']) // ✅ ya no castea directo
         ..nombre = row['nombre'] as String? ?? ''
         ..rol = row['rol'] as String? ?? 'cajero'
-        ..estado = row['estado'] as String? ?? 'inactivo'
+        ..estado = row['estado'] as String? ?? _SyncConstants.inactivo
         ..deviceId = row['device_id'] as String? ?? ''
         ..supabaseId = row['id'] as String?;
     }).toList();
@@ -1018,7 +1332,7 @@ Future<void> subirUsuariosPendientes() async {
           'telefono': proveedor.telefono,
           'empresa': proveedor.empresa,
           'activo': proveedor.activo,
-          'sync_status': 'synced',
+          'sync_status': _SyncConstants.synced,
           'updated_at': DateTime.now().toIso8601String(),
         };
 
@@ -1164,66 +1478,13 @@ Future<void> subirUsuariosPendientes() async {
       final productosLocales = await _isarService.obtenerProductos();
       if (productosLocales.isEmpty) return true;
 
-      int insertados = 0;
-      int actualizados = 0;
+      // 🛠️ FIX: Batching - construir lista para upsert masivo
+      final List<Map<String, dynamic>> payloads = [];
+      final List<ProductoEntity> productosParaActualizar = [];
 
       for (final p in productosLocales) {
-        final existente = await _supabase
-            .from('productos')
-            .select('uuid')
-            .eq('codigo_barras', p.codigoBarras)
-            .maybeSingle();
-
-        if (existente != null) {
-          final payloadUpdate = <String, dynamic>{
-            'codigo_barras': p.codigoBarras,
-            'nombre': p.nombre,
-            'marca': p.marca,
-            'marca_supabase_id': p.marcaSupabaseId,
-            'precio_unidad': _limpiarNumero(p.precioUnidad, 0.0),
-            'stock': _limpiarNumero(p.stock, 0.0),
-            'stock_minimo': _limpiarNumero(p.stockMinimo, 5.0),
-            'es_pesado': p.esPesado,
-            'categoria': p.categoria,
-            'proveedor_nombre': p.proveedorNombre,
-            'proveedor_telefono': p.proveedorTelefono,
-            'proveedor_email': p.proveedorEmail,
-            'proveedor_direccion': p.proveedorDireccion,
-            'proveedor_id': p.proveedorSupabaseId,
-            'version': p.version,
-            'updated_at': DateTime.now().toIso8601String(),
-            'updated_by': p.updatedBy,
-            'updated_by_name': p.updatedByName ?? '',
-            'permite_venta_mayor': p.permiteVentaMayor,
-            'precio_mayor': p.precioMayor,
-            'cantidad_minima_mayor': p.cantidadMinimaMayor,
-            'precio_medio_mayor': p.precioMedioMayor,
-            'cantidad_minima_medio_mayor': p.cantidadMinimaMedioMayor,
-            'unidades_por_bulto': p.unidadesPorBulto,
-            'costo_unitario_promedio': p.costoUnitarioPromedio,
-          };
-          if (p.imagenUrl != null && p.imagenUrl!.isNotEmpty) {
-            payloadUpdate['imagen_url'] = p.imagenUrl;
-          }
-          try {
-            final uuid = existente['uuid'] as String;
-            await _supabase
-                .from('productos')
-                .update(payloadUpdate)
-                .eq('uuid', uuid);
-            p.supabaseId = uuid;
-            p.sincronizado = true;
-            p.fechaSincronizacion = DateTime.now();
-            await _isarService.guardarProducto(p);
-            actualizados++;
-          } catch (e) {
-            debugPrint('⚠️ Error actualizando producto ${p.nombre}: $e');
-          }
-          continue;
-        }
-
-        final nuevoUuid = const Uuid().v4();
-        final payloadInsert = <String, dynamic>{
+        final nuevoUuid = p.supabaseId ?? const Uuid().v4();
+        final payload = <String, dynamic>{
           'uuid': nuevoUuid,
           'id_isar': p.id,
           'codigo_barras': p.codigoBarras,
@@ -1257,52 +1518,40 @@ Future<void> subirUsuariosPendientes() async {
           'costo_unitario_promedio': p.costoUnitarioPromedio,
         };
         if (p.imagenUrl != null && p.imagenUrl!.isNotEmpty) {
-          payloadInsert['imagen_url'] = p.imagenUrl;
+          payload['imagen_url'] = p.imagenUrl;
         }
+        payloads.add(payload);
+        productosParaActualizar.add(p);
+      }
 
-        try {
-          await _supabase.from('productos').insert(payloadInsert);
-          p.supabaseId = nuevoUuid;
-          p.sincronizado = true;
-          p.fechaSincronizacion = DateTime.now();
-          await _isarService.guardarProducto(p);
-          insertados++;
-        } catch (e) {
-          final esColisionIsar =
-              e.toString().contains('productos_id_isar_unique');
-          if (esColisionIsar) {
-            debugPrint(
-                '⚠️ Colisión id_isar=${p.id} para "${p.nombre}", reasignando...');
-            final maxRow = await _supabase
-                .from('productos')
-                .select('id_isar')
-                .order('id_isar', ascending: false)
-                .limit(1)
-                .maybeSingle();
-            final newIdIsar = _toInt(maxRow?['id_isar']) + 1;
-            payloadInsert['id_isar'] = newIdIsar;
-
-            try {
-              await _supabase.from('productos').insert(payloadInsert);
-              p.supabaseId = nuevoUuid;
-              p.sincronizado = true;
-              p.fechaSincronizacion = DateTime.now();
-              await _isarService.guardarProducto(p);
-              insertados++;
-              debugPrint(
-                  '✅ "${p.nombre}" subido con id_isar reasignado: $newIdIsar');
-            } catch (e2) {
-              debugPrint(
-                  '❌ Error insertando "${p.nombre}" tras reasignar: $e2');
-            }
-          } else {
-            debugPrint('⚠️ Error insertando producto ${p.nombre}: $e');
+      // 🛠️ FIX: Upsert masivo en Supabase
+      try {
+        await _supabase.from('productos').upsert(payloads, onConflict: 'uuid');
+        debugPrint('✅ ${payloads.length} productos enviados en upsert masivo');
+      } catch (e) {
+        debugPrint('⚠️ Error en upsert masivo de productos: $e');
+        // Fallback: intentar uno por uno
+        for (var i = 0; i < productosLocales.length; i++) {
+          try {
+            await _supabase.from('productos').insert(payloads[i]);
+          } catch (e2) {
+            debugPrint('⚠️ Error insertando producto ${productosLocales[i].nombre}: $e2');
           }
         }
       }
 
-      debugPrint(
-          '✅ Productos: $insertados insertados, $actualizados actualizados');
+      // 🛠️ FIX: Batching - actualizar Isar en transacción masiva
+      final isar = await _isarService.db;
+      final ahora = DateTime.now();
+      await isar.writeTxn(() async {
+        for (var p in productosParaActualizar) {
+          p.supabaseId = p.supabaseId ?? const Uuid().v4();
+          p.sincronizado = true;
+          p.fechaSincronizacion = ahora;
+          await isar.productoEntitys.put(p);
+        }
+      });
+      debugPrint('✅ ${productosParaActualizar.length} productos actualizados en Isar');
       return true;
     } catch (e, stack) {
       debugPrint('🚫 Error sincronizando productos: $e');
@@ -1331,6 +1580,10 @@ Future<void> subirUsuariosPendientes() async {
         for (var p in productosLocales) p.codigoBarras: p
       };
       final Set<String> codigosEnNube = {};
+
+      // 🛠️ FIX: Batching - acumular registros para transacción masiva
+      final List<ProductoEntity> productosParaGuardar = [];
+      final List<int> idsParaEliminar = [];
 
       for (var data in response) {
         final codigoBarras = data['codigo_barras'] ?? '';
@@ -1402,22 +1655,30 @@ Future<void> subirUsuariosPendientes() async {
         if (productoLocal != null) {
           productoNube.id = productoLocal.id;
           productoNube.proveedorId = productoLocal.proveedorId;
-          await _isarService.guardarProducto(productoNube);
-          debugPrint('🔄 Producto actualizado: ${productoNube.nombre}');
-        } else {
-          await _isarService.guardarProducto(productoNube);
-          debugPrint('✅ Producto creado: ${productoNube.nombre}');
         }
+        productosParaGuardar.add(productoNube);
       }
 
+      // 🛠️ FIX: Transacción masiva para guardar productos
+      final isar = await _isarService.db;
+      await isar.writeTxn(() async {
+        await isar.productoEntitys.putAll(productosParaGuardar);
+      });
+      debugPrint('✅ ${productosParaGuardar.length} productos guardados en lote');
+
+      // 🛠️ FIX: Transacción masiva para eliminar productos
       int eliminados = 0;
       for (var producto in productosLocales) {
         if (!codigosEnNube.contains(producto.codigoBarras)) {
-          await _isarService.eliminarProducto(producto.id);
+          idsParaEliminar.add(producto.id);
           eliminados++;
-          debugPrint(
-              '🗑️ Producto eliminado por no existir en Supabase: ${producto.nombre}');
         }
+      }
+      if (idsParaEliminar.isNotEmpty) {
+        await isar.writeTxn(() async {
+          await isar.productoEntitys.deleteAll(idsParaEliminar);
+        });
+        debugPrint('🗑️ $eliminados productos eliminados en lote');
       }
       debugPrint(
           '✅ Productos sincronizados: ${response.length} actualizados/creados, $eliminados eliminados');
@@ -1513,10 +1774,10 @@ Future<void> subirUsuariosPendientes() async {
         try {
           final exito = await _enviarVentaAlServidor(venta);
           if (exito) {
-            await _isarService.actualizarSyncStatusVenta(venta.id, 'synced');
+            await _isarService.actualizarSyncStatusVenta(venta.id, _SyncConstants.synced);
             ventasSincronizadas++;
           } else {
-            await _isarService.actualizarSyncStatusVenta(venta.id, 'failed');
+            await _isarService.actualizarSyncStatusVenta(venta.id, _SyncConstants.failed);
             debugPrint('⚠️ Venta ${venta.idSupabase} marcada como failed');
           }
         } catch (e, stack) {
@@ -1527,7 +1788,7 @@ Future<void> subirUsuariosPendientes() async {
                 'ventaId': venta.id,
                 'ventaSupabaseId': venta.idSupabase
               });
-          await _isarService.actualizarSyncStatusVenta(venta.id, 'failed');
+          await _isarService.actualizarSyncStatusVenta(venta.id, _SyncConstants.failed);
         }
       }
     } catch (e, stack) {
@@ -1552,7 +1813,7 @@ Future<void> subirUsuariosPendientes() async {
       }
 
       final payload = _ventaToJson(venta);
-      payload['sync_status'] = 'synced';
+      payload['sync_status'] = _SyncConstants.synced;
 
       // 🔥 Obtener los detalles de la venta desde la base de datos usando el UUID
       final detalles =
@@ -1672,7 +1933,7 @@ Future<void> subirUsuariosPendientes() async {
       'autorizado_por_linea': detalle.autorizadoPorLinea,
       'costo_unitario_snapshot': detalle.costoUnitarioSnapshot,
       'lote_id_isar': detalle.loteIdIsar,
-      'sync_status': 'synced', // ✅ NUEVO
+      'sync_status': _SyncConstants.synced, // ✅ NUEVO
     };
   }
 
@@ -1729,7 +1990,7 @@ Future<void> subirUsuariosPendientes() async {
           ..metodoPago = data['metodo_pago'] ?? ''
           ..documento = _toInt(data['documento'])
           ..empleado = data['empleado_nombre'] ?? data['empleado'] ?? ''
-          ..syncStatus = 'synced'
+          ..syncStatus = _SyncConstants.synced
           ..tieneDescuentoEspecial = data['tiene_descuento_especial'] ?? false
           ..montoDescuentoTotal = _toDouble(data['monto_descuento_total']);
 
@@ -1784,7 +2045,7 @@ Future<void> subirUsuariosPendientes() async {
           // Validación: el pago necesita ventaSupabaseId
           if (pago.ventaSupabaseId == null || pago.ventaSupabaseId!.isEmpty) {
             debugPrint('⚠️ Pago ${pago.id} sin ventaSupabaseId. Saltando.');
-            await _isarService.actualizarSyncStatusPagoVenta(pago.id, 'failed');
+            await _isarService.actualizarSyncStatusPagoVenta(pago.id, _SyncConstants.failed);
             continue;
           }
 
@@ -1798,13 +2059,13 @@ Future<void> subirUsuariosPendientes() async {
           if (ventaExistente == null) {
             debugPrint(
                 '⚠️ Pago ${pago.id}: venta ${pago.ventaSupabaseId} no existe en Supabase. Saltando.');
-            await _isarService.actualizarSyncStatusPagoVenta(pago.id, 'failed');
+            await _isarService.actualizarSyncStatusPagoVenta(pago.id, _SyncConstants.failed);
             continue;
           }
 
           final payload = pago.toSupabaseJson();
           payload['venta_id'] = pago.ventaSupabaseId;
-          payload['sync_status'] = 'synced';
+          payload['sync_status'] = _SyncConstants.synced;
 
           // ✅ Si tenant_id es null, quitarlo para que la DB use su default
           if (payload['tenant_id'] == null) {
@@ -1817,7 +2078,7 @@ Future<void> subirUsuariosPendientes() async {
               .select('id')
               .maybeSingle();
 
-          await _isarService.actualizarSyncStatusPagoVenta(pago.id, 'synced');
+          await _isarService.actualizarSyncStatusPagoVenta(pago.id, _SyncConstants.synced);
           sincronizados++;
         } catch (e, stack) {
           debugPrint('❌ Error sincronizando pago ${pago.id}: $e');
@@ -1825,7 +2086,7 @@ Future<void> subirUsuariosPendientes() async {
               stack: stack,
               hint: 'sincronizarPagoVenta_individual_fallo',
               extras: {'pagoId': pago.id});
-          await _isarService.actualizarSyncStatusPagoVenta(pago.id, 'failed');
+          await _isarService.actualizarSyncStatusPagoVenta(pago.id, _SyncConstants.failed);
         }
       }
 
@@ -1894,7 +2155,7 @@ Future<void> subirUsuariosPendientes() async {
               .maybeSingle();
 
           await _isarService.actualizarSyncStatusAutorizacion(
-              autz.id, 'synced');
+              autz.id, _SyncConstants.synced);
           sincronizadas++;
         } catch (e, stack) {
           debugPrint('❌ Error sincronizando autorización ${autz.id}: $e');
@@ -1903,7 +2164,7 @@ Future<void> subirUsuariosPendientes() async {
               hint: 'sincronizarAutorizacion_individual_fallo',
               extras: {'autzId': autz.id});
           await _isarService.actualizarSyncStatusAutorizacion(
-              autz.id, 'failed');
+              autz.id, _SyncConstants.failed);
         }
       }
 
@@ -1932,10 +2193,10 @@ Future<void> subirUsuariosPendientes() async {
         try {
           final exito = await _enviarMovimientoAlServidor(mov);
           if (exito) {
-            await _isarService.actualizarSyncStatusMovimiento(mov.id, 'synced');
+            await _isarService.actualizarSyncStatusMovimiento(mov.id, _SyncConstants.synced);
             sincronizados++;
           } else {
-            await _isarService.actualizarSyncStatusMovimiento(mov.id, 'failed');
+            await _isarService.actualizarSyncStatusMovimiento(mov.id, _SyncConstants.failed);
             debugPrint('⚠️ Movimiento ${mov.id} marcado como failed');
           }
         } catch (e, stack) {
@@ -1943,7 +2204,7 @@ Future<void> subirUsuariosPendientes() async {
               stack: stack,
               hint: 'sincronizarMovimiento_individual_fallo',
               extras: {'movimientoId': mov.id});
-          await _isarService.actualizarSyncStatusMovimiento(mov.id, 'failed');
+          await _isarService.actualizarSyncStatusMovimiento(mov.id, _SyncConstants.failed);
         }
       }
       debugPrint('✅ $sincronizados movimientos sincronizados.');
@@ -2021,7 +2282,7 @@ Future<void> subirUsuariosPendientes() async {
       'cantidad': mov.cantidad,
       'stock_resultante': mov.stockResultante,
       'fecha': mov.fecha.toIso8601String(),
-      'sync_status': 'synced',
+      'sync_status': _SyncConstants.synced,
     };
     if (mov.usuarioId > 0) {
       payload['usuario_id'] = mov.usuarioId; // int local — columna es bigint
@@ -2057,11 +2318,11 @@ Future<void> subirUsuariosPendientes() async {
               .from('categorias')
               .upsert(json, onConflict: 'id')
               .select();
-          categoria.syncStatus = 'synced';
+          categoria.syncStatus = _SyncConstants.synced;
           await _isarService.guardarCategoria(categoria);
           sincronizadas++;
         } catch (e) {
-          categoria.syncStatus = 'failed';
+          categoria.syncStatus = _SyncConstants.failed;
           await _isarService.guardarCategoria(categoria);
           debugPrint('❌ Error sincronizando categoría ${categoria.nombre}: $e');
         }
@@ -2100,7 +2361,7 @@ Future<void> subirUsuariosPendientes() async {
             existente.descripcion = categoria.descripcion;
             existente.activo = categoria.activo;
             existente.updatedAt = DateTime.now();
-            existente.syncStatus = 'synced';
+            existente.syncStatus = _SyncConstants.synced;
             await _isarService.guardarCategoria(existente);
             guardadas++;
           }
@@ -2139,11 +2400,11 @@ Future<void> subirUsuariosPendientes() async {
         try {
           final exito = await _enviarMarcaAlServidor(marca);
           if (exito) {
-            await _isarService.actualizarSyncStatusMarca(marca.id, 'synced');
+            await _isarService.actualizarSyncStatusMarca(marca.id, _SyncConstants.synced);
             sincronizadas++;
             debugPrint('✅ Marca ${marca.nombre} sincronizada');
           } else {
-            await _isarService.actualizarSyncStatusMarca(marca.id, 'failed');
+            await _isarService.actualizarSyncStatusMarca(marca.id, _SyncConstants.failed);
             debugPrint('⚠️ Marca ${marca.nombre} marcada como failed');
           }
         } catch (e, stack) {
@@ -2163,8 +2424,23 @@ Future<void> subirUsuariosPendientes() async {
 
   Future<bool> _enviarMarcaAlServidor(MarcaEntity marca) async {
     try {
-      if (marca.supabaseId == null || marca.supabaseId!.isEmpty) {
+      // 🎯 FIX Bug 6: validar que sea un UUID REAL, no solo no-vacío.
+      //    Antes, si `supabaseId` ya contenía un timestamp tipo
+      //    "1790482577151", `isEmpty` daba false, no se regeneraba y
+      //    PostgREST respondía 22P02 (invalid input syntax for type uuid).
+      final String? actual = marca.supabaseId;
+      if (actual == null || actual.isEmpty || !_esUuid(actual)) {
+        debugPrint(
+            '🔧 Marca "${marca.nombre}" con UUID inválido ($actual). '
+            'Regenerando...');
         marca.supabaseId = const Uuid().v4();
+
+        // Persistir el UUID corregido en Isar para que no se regenere
+        // en cada ciclo de sync.
+        final isar = await _isarService.db;
+        await isar.writeTxn(() async {
+          await isar.marcaEntitys.put(marca);
+        });
       }
 
       final data = {
@@ -2227,7 +2503,7 @@ Future<void> subirUsuariosPendientes() async {
             local.proveedorId = marcaNube.proveedorId;
             local.activo = marcaNube.activo;
             local.updatedAt = DateTime.now();
-            local.syncStatus = 'synced';
+            local.syncStatus = _SyncConstants.synced;
             await isar.writeTxn(() async {
               await isar.marcaEntitys.put(local);
             });
@@ -2310,7 +2586,7 @@ Future<void> subirUsuariosPendientes() async {
           ..usuarioId = usuarioIsarId
           ..usuarioNombre = data['usuario_nombre'] ?? ''
           ..fecha = DateTime.parse(data['fecha']).toLocal()
-          ..syncStatus = 'synced';
+          ..syncStatus = _SyncConstants.synced;
 
         if (gastoLocal != null) {
           gastoNube.id = gastoLocal.id;
@@ -2357,11 +2633,11 @@ Future<void> subirUsuariosPendientes() async {
         try {
           final exito = await _enviarGastoAlServidor(gasto);
           if (exito) {
-            await _isarService.actualizarSyncStatusGasto(gasto.id, 'synced');
+            await _isarService.actualizarSyncStatusGasto(gasto.id, _SyncConstants.synced);
             sincronizados++;
             debugPrint('✅ Gasto ${gasto.id} sincronizado');
           } else {
-            await _isarService.actualizarSyncStatusGasto(gasto.id, 'failed');
+            await _isarService.actualizarSyncStatusGasto(gasto.id, _SyncConstants.failed);
             debugPrint('⚠️ Gasto ${gasto.id} marcado como failed');
           }
         } catch (e, stack) {
@@ -2369,7 +2645,7 @@ Future<void> subirUsuariosPendientes() async {
               stack: stack,
               hint: 'sincronizarGasto_individual_fallo',
               extras: {'gastoId': gasto.id});
-          await _isarService.actualizarSyncStatusGasto(gasto.id, 'failed');
+          await _isarService.actualizarSyncStatusGasto(gasto.id, _SyncConstants.failed);
         }
       }
       debugPrint('✅ $sincronizados gastos sincronizados');
@@ -2406,7 +2682,7 @@ Future<void> subirUsuariosPendientes() async {
         'categoria': gasto.categoria,
         'usuario_nombre': gasto.usuarioNombre,
         'fecha': gasto.fecha.toIso8601String(),
-        'sync_status': 'synced',
+        'sync_status': _SyncConstants.synced,
         'usuario_id': usuarioUuid,
       };
 
@@ -2487,7 +2763,8 @@ Future<void> subirUsuariosPendientes() async {
       final usuarioUuid = await _obtenerSupabaseIdUsuario(turno.usuarioId);
       if (usuarioUuid == null || usuarioUuid.isEmpty) {
         debugPrint(
-            '⚠️ Turno ${turno.id}: usuario local ${turno.usuarioId} sin UUID. No se puede sincronizar.');
+            '⚠️ Turno ${turno.id}: usuario local ${turno.usuarioId} sin UUID. '
+            'Queda pendiente para el próximo ciclo.');
         return false;
       }
 
@@ -2505,7 +2782,7 @@ Future<void> subirUsuariosPendientes() async {
         'monto_final': turno.montoFinal ?? 0.0,
         'fecha_apertura': turno.fechaApertura.toIso8601String(),
         'estado': turno.estado,
-        'sync_status': 'synced', // ← corregido (antes 'pending')
+        'sync_status': _SyncConstants.synced, // ← corregido (antes 'pending')
       };
 
       if (turno.fechaCierre != null) {
@@ -2541,6 +2818,7 @@ Future<void> subirUsuariosPendientes() async {
   // ============================================================
 
   Future<void> sincronizarLocalesPendientes() async {
+    _escribiendoLocales = true;
     try {
       final pendientes = await _isarService.obtenerLocalesPendientesSync();
       if (pendientes.isEmpty) {
@@ -2560,7 +2838,8 @@ Future<void> subirUsuariosPendientes() async {
           'telefono': local.telefono,
           'email': local.email,
           'activo': local.activo,
-          'sync_status': 'synced',
+          'business_mode': local.businessMode,
+          'sync_status': _SyncConstants.synced,
           'updated_at': DateTime.now().toIso8601String(),
         };
 
@@ -2598,6 +2877,8 @@ Future<void> subirUsuariosPendientes() async {
       ErrorService.captureError(e,
           stack: stack, hint: 'sincronizarLocalesPendientes_fallo');
       rethrow;
+    } finally {
+      _escribiendoLocales = false;
     }
   }
 
@@ -2654,6 +2935,7 @@ Future<void> subirUsuariosPendientes() async {
           ..telefono = data['telefono'] as String?
           ..email = data['email'] as String?
           ..activo = data['activo'] ?? true
+          ..businessMode = _parseBusinessMode(data['business_mode'])
           ..sincronizado = true
           ..fechaSincronizacion = DateTime.now()
           ..rif = data['rif'];
@@ -2692,16 +2974,10 @@ Future<void> subirUsuariosPendientes() async {
       debugPrint(
           '🔄 Sincronizando ${pendientes.length} departamentos con Supabase...');
 
-      for (var departamento in pendientes) {
+       for (var departamento in pendientes) {
         String? localUuid;
         if (departamento.localId != null) {
           localUuid = await _obtenerSupabaseIdLocal(departamento.localId!);
-        }
-
-        String? usuarioUuid;
-        if (departamento.usuarioId != null) {
-          usuarioUuid =
-              await _obtenerSupabaseIdUsuario(departamento.usuarioId!);
         }
 
         final tenantActual = localUuid;
@@ -2711,16 +2987,21 @@ Future<void> subirUsuariosPendientes() async {
           continue;
         }
 
+        // 🎯 FIX Bug 7: `departamento.usuarioId` YA es el id_isar (bigint).
+        //    NO convertirlo a UUID — la columna `usuario_id` es bigint.
+        final int? usuarioIdInt = departamento.usuarioId;
+
         final data = <String, dynamic>{
           'id_isar': departamento.id,
           'nombre': departamento.nombre,
           'descripcion': departamento.descripcion,
           'tenant_id': tenantActual,
-          'usuario_id': usuarioUuid,
+          'usuario_id': usuarioIdInt, // ← bigint, no UUID
           'activo': departamento.activo,
-          'sync_status': 'synced',
+          'sync_status': _SyncConstants.synced,
           'updated_at': DateTime.now().toIso8601String(),
         };
+
 
         try {
           final response = await _supabase
@@ -2806,10 +3087,11 @@ Future<void> subirUsuariosPendientes() async {
           localIsarId = uuidToIsarId[localUuid];
         }
 
-        int? usuarioIsarId;
-        final usuarioUuid = data['usuario_id'] as String?;
-        if (usuarioUuid != null && usuarioUuid.isNotEmpty) {
-          usuarioIsarId = await _obtenerIsarIdUsuario(usuarioUuid);
+          int? usuarioIsarId;
+        final rawUsuarioId = data['usuario_id'];
+        if (rawUsuarioId != null) {
+          final idIsar = _toInt(rawUsuarioId);
+          if (idIsar > 0) usuarioIsarId = idIsar;
         }
 
         final deptoNube = DepartamentoEntity()
@@ -2931,7 +3213,7 @@ Future<void> subirUsuariosPendientes() async {
           if (response != null) {
             final supabaseId = response['id'] as String;
             cliente.supabaseId = supabaseId;
-            cliente.syncStatus = 'synced';
+            cliente.syncStatus = _SyncConstants.synced;
             cliente.updatedAt = DateTime.now();
             await _isarService.guardarCliente(cliente);
             debugPrint(
@@ -2939,7 +3221,7 @@ Future<void> subirUsuariosPendientes() async {
           }
         } catch (e) {
           debugPrint('❌ Error sincronizando cliente ${cliente.nombre}: $e');
-          cliente.syncStatus = 'failed';
+          cliente.syncStatus = _SyncConstants.failed;
           await _isarService.guardarCliente(cliente);
         }
       }
@@ -3022,7 +3304,7 @@ Future<void> subirUsuariosPendientes() async {
           ..descuentoPreferencial = data['descuento_preferencial'] == null
               ? null
               : _toDouble(data['descuento_preferencial'])
-          ..syncStatus = 'synced'
+          ..syncStatus = _SyncConstants.synced
           ..createdAt = data['created_at'] != null
               ? DateTime.parse(data['created_at'])
               : null
@@ -3393,8 +3675,14 @@ Future<void> subirUsuariosPendientes() async {
 
       final data = config.toSupabaseJson();
       data['tenant_id'] = tenantJwt; // ← viene del JWT, no de la BD local
-      data['sync_status'] = 'synced';
+      data['sync_status'] = _SyncConstants.synced;
       data['sincronizado'] = true;
+
+      // ✅ Encriptar el token ANTES de enviar a Supabase (AES-256-CBC)
+      if (config.botToken.isNotEmpty) {
+        final encrypted = await TelegramCrypto.encryptToken(config.botToken);
+        data['bot_token'] = encrypted;
+      }
 
       try {
         final response = await _supabase
@@ -3407,7 +3695,7 @@ Future<void> subirUsuariosPendientes() async {
         if (supabaseId != null) {
           config.supabaseId = supabaseId;
           config.sincronizado = true;
-          config.syncStatus = 'synced';
+          config.syncStatus = _SyncConstants.synced;
           config.fechaSincronizacion = DateTime.now();
           await _isarService.guardarTelegramConfig(config);
           debugPrint(
@@ -3417,7 +3705,7 @@ Future<void> subirUsuariosPendientes() async {
               '⚠️ No se obtuvo ID de Supabase para usuario ${config.usuarioId}');
         }
       } catch (e) {
-        config.syncStatus = 'failed';
+        config.syncStatus = _SyncConstants.failed;
         await _isarService.guardarTelegramConfig(config);
         debugPrint('❌ Error sync config (usuario ${config.usuarioId}): $e');
       }
@@ -3431,12 +3719,12 @@ Future<void> subirUsuariosPendientes() async {
 
   Future<void> descargarTelegramConfigDesdeSupabase() async {
     try {
-      // ✅ SELECT explícito: NO incluimos bot_token.
+      // ✅ SELECT incluye bot_token (encriptado con AES-256-CBC del lado de la app)
       final response = await _supabase
           .from('telegram_config')
           .select(
             'id, id_isar, usuario_id, tenant_id, chat_id, nombre_chat, '
-            'enabled, notificar_stock_bajo, notificar_ventas, '
+            'bot_token, enabled, notificar_stock_bajo, notificar_ventas, '
             'notificar_pedidos, comandos_permitidos, sincronizado, '
             'sync_status, fecha_sincronizacion, created_at, updated_at',
           )
@@ -3490,8 +3778,17 @@ Future<void> subirUsuariosPendientes() async {
                   ? List<String>.from(data['comandos_permitidos'])
                   : local.comandosPermitidos
               ..sincronizado = true
-              ..syncStatus = 'synced'
+              ..syncStatus = _SyncConstants.synced
               ..updatedAt = nubeUpdated;
+
+            // ✅ Desencriptar el token de Supabase si existe
+            final encryptedToken = data['bot_token'] as String?;
+            if (encryptedToken != null && encryptedToken.isNotEmpty) {
+              final decrypted = await TelegramCrypto.decryptToken(encryptedToken);
+              if (decrypted != null && decrypted.isNotEmpty) {
+                local.botToken = decrypted;
+              }
+            }
 
             await _isarService.guardarTelegramConfig(local);
             debugPrint('🔄 Config Telegram actualizada (usuario $usuarioId)');
@@ -3516,7 +3813,7 @@ Future<void> subirUsuariosPendientes() async {
                 ? List<String>.from(data['comandos_permitidos'])
                 : const ['/ventas', '/stock', '/ayuda']
             ..sincronizado = true
-            ..syncStatus = 'synced'
+            ..syncStatus = _SyncConstants.synced
             ..botToken = ''; // ← Sin token, el usuario debe reconfigurarlo
 
           await _isarService.guardarTelegramConfig(nueva);
@@ -3610,7 +3907,7 @@ Future<void> subirUsuariosPendientes() async {
           'observaciones': pedido.observaciones,
           'total': pedido.total,
           'tipo_pedido': 'proveedor',
-          'sync_status': 'synced',
+          'sync_status': _SyncConstants.synced,
         };
 
         String? supabasePedidoId;
@@ -3718,9 +4015,36 @@ Future<void> subirUsuariosPendientes() async {
           debugPrint('⚠️ Pedido ${pedidoJson['id']} omitido: campos faltantes');
           continue;
         }
+  final int localOrigenId = await _obtenerIsarIdLocal(localOrigenUuid);
+        int usuarioId = await _obtenerIsarIdUsuario(usuarioUuid);
 
-        final int localOrigenId = await _obtenerIsarIdLocal(localOrigenUuid);
-        final int usuarioId = await _obtenerIsarIdUsuario(usuarioUuid);
+        // 🎯 FIX Bug 9: si el usuario no existe ni local ni en Supabase
+        //    (fue borrado), crear un placeholder para no perder el pedido.
+        //    El pedido es dato histórico: la FK rota no debe descartarlo.
+        if (usuarioId == 0 && usuarioUuid.isNotEmpty) {
+          final placeholder = UsuarioEntity()
+            ..supabaseId = usuarioUuid
+            ..nombre = 'Usuario eliminado'
+            ..pin = '' // sin PIN — no puede iniciar sesión
+            ..rol = 'cajero'
+            ..activo = false
+            ..estado = _SyncConstants.desconectado
+            ..cajaAsignada = ''
+            ..sincronizado = true
+            ..fechaSincronizacion = DateTime.now();
+
+          await _isarService.guardarUsuario(placeholder);
+          usuarioId = placeholder.id;
+          debugPrint(
+              '🔧 Placeholder creado para usuario $usuarioUuid → id=$usuarioId');
+        }
+
+        if (localOrigenId == 0 || usuarioId == 0) {
+          debugPrint(
+              '⚠️ Pedido ${pedidoJson['id']} omitido: IDs no encontrados '
+              '(origen=$localOrigenId, usuario=$usuarioId)');
+          continue;
+        }
 
         if (localOrigenId == 0 || usuarioId == 0) {
           debugPrint(
@@ -3934,7 +4258,7 @@ Future<void> subirUsuariosPendientes() async {
           .eq('id', supabaseId)
           .maybeSingle();
       if (response != null) {
-        final estadoNube = response['estado'] as String? ?? 'inactivo';
+        final estadoNube = response['estado'] as String? ?? _SyncConstants.inactivo;
         // ✅ PinHasher va a hashear si viene plano, pero verificamos antes
         //    para evitar doble hash si ya venía hasheado desde Supabase.
         final pinRaw = response['pin'] as String? ?? '1234';
@@ -3951,7 +4275,7 @@ Future<void> subirUsuariosPendientes() async {
           ..email = response['email'] as String?
           ..tenantId = response['tenant_id'] as String?
           // activo se deriva de estado
-          ..activo = estadoNube != 'inactivo' && estadoNube != 'desconectado'
+          ..activo = estadoNube != _SyncConstants.inactivo && estadoNube != _SyncConstants.desconectado
           ..estado = estadoNube
           ..cajaAsignada = ''
           ..sincronizado = true
@@ -4122,11 +4446,12 @@ Future<void> subirUsuariosPendientes() async {
           '⚠️ [SyncService] Sin sesión activa. sincronizarTodo omitido.');
       return;
     }
-    if (_syncEnCurso) {
+    // 🛠️ FIX: Unificación de banderas - usar _isSyncing en lugar de _syncEnCurso
+    if (_isSyncing) {
       debugPrint('⚠️ [SyncService] Sync ya en curso, saltando.');
       return;
     }
-    _syncEnCurso = true;
+    _isSyncing = true;
     try {
       debugPrint('🔄 [SyncService] Iniciando sincronización completa...');
 
@@ -4142,17 +4467,16 @@ Future<void> subirUsuariosPendientes() async {
       await _safe('sincronizarAutorizaciones', sincronizarAutorizaciones);
       await _safe('descargarVentas', descargarVentasDesdeSupabase);
 
-      await _safe('sincronizarMovimientos', sincronizarMovimientosInventario);
-      await _safe('sincronizarTurnos', sincronizarTurnos);
-
       await _safe(
           'limpiarUsuariosHuerfanos', limpiarUsuariosHuerfanosEnSupabase);
       await _safe('sincronizarUsuariosASupabase', sincronizarUsuariosASupabase);
       await _safe(
           'sincronizarUsuariosDesdeSupabase', sincronizarUsuariosDesdeSupabase);
 
+      await _safe('sincronizarMovimientos', sincronizarMovimientosInventario);
+      await _safe('sincronizarTurnos', sincronizarTurnos);
+
       await _safe('sincronizarGastos', sincronizarGastosPendientes);
-      await _safe('descargarGastos', descargarGastosDesdeSupabase);
 
       await _safe('sincronizarPedidos', sincronizarPedidosPendientes);
       await _safe('descargarPedidos', descargarPedidosDesdeSupabase);
@@ -4179,7 +4503,8 @@ Future<void> subirUsuariosPendientes() async {
       debugPrint('❌ Error en sincronización completa: $e');
       ErrorService.captureError(e, stack: stack, hint: 'sincronizarTodo_fallo');
     } finally {
-      _syncEnCurso = false;
+      // 🛠️ FIX: Unificación de banderas - liberar _isSyncing
+      _isSyncing = false;
     }
   }
 

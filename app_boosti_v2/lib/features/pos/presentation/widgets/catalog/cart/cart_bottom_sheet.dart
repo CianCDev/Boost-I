@@ -1,5 +1,6 @@
 // lib/features/pos/presentation/widgets/catalog/cart_bottom_sheet.dart
 import 'dart:ui';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/common/glass_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -613,10 +614,17 @@ class CartBottomSheet extends ConsumerWidget {
             ),
             onPressed: hasItems
                 ? () {
-                    Navigator.of(context).pop();
-                    onCobrar();
-                  }
-                : null,
+        // ═══════════════════════════════════════════════════════════
+        // 🎯 FIX: bloquear cobro si hay items sin stock
+        // ═══════════════════════════════════════════════════════════
+        if (cartState.hayItemsSinStock) {
+          _mostrarDialogoCarritoConProblemas(context, cartState);
+          return;
+        }
+        Navigator.of(context).pop();
+        onCobrar();
+      }
+    : null,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -729,4 +737,146 @@ class CartBottomSheet extends ConsumerWidget {
       },
     );
   }
+}
+/// Diálogo que bloquea el cobro cuando hay items sin stock en el carrito.
+///
+/// Lista los productos problemáticos y pide al usuario eliminarlos
+/// manualmente antes de proceder al cobro.
+void _mostrarDialogoCarritoConProblemas(
+  BuildContext context,
+  CartState cartState,
+) {
+  final itemsConProblema = cartState.itemsSinStock;
+
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => GlassDialog(
+      maxWidth: 460,
+      accentColor: redError,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Header ──
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: redError.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    color: redError,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Carrito con problemas',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(ctx).colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // ── Mensaje ──
+            Text(
+              'Hay ${itemsConProblema.length} producto(s) sin stock '
+              'en el carrito. Elimínalos para continuar con el cobro.',
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // ── Lista de items con problema ──
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: redError.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: redError.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: itemsConProblema
+                    .map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.cancel_outlined,
+                              size: 16,
+                              color: redError,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                item.producto.nombre,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(ctx)
+                                      .colorScheme
+                                      .onSurface,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              '× ${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: redError,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 22),
+
+            // ── Botón cerrar ──
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: redError,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: const Text(
+                'Entendido',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

@@ -1,83 +1,47 @@
 // lib/features/pos/presentation/screens/empleados/employees_screen.dart
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:app_boosti_v2/features/pos/presentation/widgets/empleado/empleado_detail_dialog.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/empleado/employees_toolbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../data/Local/entities/empleado_entity.dart';
+import '../../../data/Local/entities/isar_service.dart';
 import '../../../data/Local/entities/usuario_entity.dart';
 import '../../../domain/models/empleado_view_model.dart';
 import '../../providers/empleados/monitor_empleados_provider.dart';
 import '../../providers/isar_provider.dart';
+import '../../providers/usuario_provider.dart';
 import '../../utils/responsive_helper.dart';
 import '../../widgets/appbar.dart';
-import '../../widgets/common/active_toggle.dart';
-import '../../widgets/common/card_action_button.dart';
-import '../../widgets/common/dialog_header.dart';
-import '../../widgets/common/filtro_chip_template.dart';
-import '../../widgets/common/glass_card.dart';
-import '../../widgets/common/glass_dialog.dart';
 import '../../widgets/common/glass_search_bar.dart';
 import '../../widgets/common/metric_pedido.dart';
 import '../../widgets/common/segmented_toggle.dart';
-import '../../widgets/common/status_badge.dart';
+import '../../widgets/empleado/empleado_card.dart';
 import '../../widgets/empleado/empleado_form_dialog.dart';
+import 'employees_enums.dart';
 
-// ═══════════════════════════════════════════════════════════════════════
-// ENUMS
-// ═══════════════════════════════════════════════════════════════════════
 
-enum _EmployeeView { grid, list }
-enum _EmployeeTab { empleados, monitor }
+// ═══════════════════════════════════════════════════════════════
+// PROVIDERS LOCALES
+// ═══════════════════════════════════════════════════════════════
 
-enum _EmployeeFilter {
-  todos,
-  activos,
-  inactivos,
-  descanso,
-  admin,
-  cajero,
-  supervisor,
-  almacen,
-}
+/// Mapa `usuarioId → EmpleadoInfoEntity`.
+final empleadosInfoProvider =
+    FutureProvider.autoDispose<Map<int, EmpleadoInfoEntity>>((ref) async {
+  final isar = await IsarService().db;
+  final infos = await isar.empleadoInfoEntitys.where().findAll();
+  return {for (final i in infos) i.usuarioId: i};
+});
 
-extension _EmployeeFilterX on _EmployeeFilter {
-  String get label => switch (this) {
-        _EmployeeFilter.todos => 'Todos',
-        _EmployeeFilter.activos => 'Activos',
-        _EmployeeFilter.inactivos => 'Inactivos',
-        _EmployeeFilter.descanso => 'En descanso',
-        _EmployeeFilter.admin => 'Admins',
-        _EmployeeFilter.cajero => 'Cajeros',
-        _EmployeeFilter.supervisor => 'Supervisores',
-        _EmployeeFilter.almacen => 'Almacén',
-      };
-
-  IconData get icon => switch (this) {
-        _EmployeeFilter.todos => Icons.groups_rounded,
-        _EmployeeFilter.activos => Icons.check_circle_rounded,
-        _EmployeeFilter.inactivos => Icons.block_rounded,
-        _EmployeeFilter.descanso => Icons.free_breakfast_rounded,
-        _EmployeeFilter.admin => Icons.admin_panel_settings_rounded,
-        _EmployeeFilter.cajero => Icons.point_of_sale_rounded,
-        _EmployeeFilter.supervisor => Icons.shield_rounded,
-        _EmployeeFilter.almacen => Icons.inventory_2_rounded,
-      };
-
-  Color get color => switch (this) {
-        _EmployeeFilter.todos => const Color(0xFF3B82F6),
-        _EmployeeFilter.activos => const Color(0xFF10B981),
-        _EmployeeFilter.inactivos => const Color(0xFFEF4444),
-        _EmployeeFilter.descanso => const Color(0xFFF59E0B),
-        _EmployeeFilter.admin => const Color(0xFF8B5CF6),
-        _EmployeeFilter.cajero => const Color(0xFF06B6D4),
-        _EmployeeFilter.supervisor => const Color(0xFF6366F1),
-        _EmployeeFilter.almacen => const Color(0xFFEC4899),
-      };
-}
-
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // PANTALLA
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 
 class EmployeesScreen extends ConsumerStatefulWidget {
   const EmployeesScreen({super.key});
@@ -87,15 +51,17 @@ class EmployeesScreen extends ConsumerStatefulWidget {
 }
 
 class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   final _searchController = TextEditingController();
-
   late final AnimationController _fabController;
 
   String _searchQuery = '';
-  _EmployeeView _view = _EmployeeView.grid;
-  _EmployeeTab _tab = _EmployeeTab.empleados;
-  _EmployeeFilter _filter = _EmployeeFilter.todos;
+  EmployeeView _view = EmployeeView.detailed;
+  EmployeeTab _tab = EmployeeTab.empleados;
+  EmployeeFilter _filter = EmployeeFilter.todos;
+  EmployeeSort _sort = EmployeeSort.nombre;
+  String? _departamentoFiltro;
+  bool _agruparPorDepartamento = false;
 
   @override
   void initState() {
@@ -114,110 +80,71 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
   }
 
   // ════════════════════════════════════════════════════════════════
-  // ESTADO EFECTIVO — `estado` manda, `activo` es respaldo
+  // FILTROS Y ORDEN
   // ════════════════════════════════════════════════════════════════
 
-  String _estadoEfectivo(UsuarioEntity u) {
-    final estado = u.estado.toLowerCase().trim();
-    if (estado == 'descanso') return 'descanso';
-    if (estado == 'inactivo') return 'inactivo';
-    if (estado == 'desconectado') return 'inactivo';
-    if (!u.activo) return 'inactivo';
-    return 'activo';
-  }
-
-  // ════════════════════════════════════════════════════════════════
-  // FILTRADO
-  // ════════════════════════════════════════════════════════════════
-
-  bool _pasaFiltro(UsuarioEntity u, _EmployeeFilter f) {
-    final estado = _estadoEfectivo(u);
-    switch (f) {
-      case _EmployeeFilter.todos:
-        return true;
-      case _EmployeeFilter.activos:
-        return estado == 'activo';
-      case _EmployeeFilter.inactivos:
-        return estado == 'inactivo';
-      case _EmployeeFilter.descanso:
-        return estado == 'descanso';
-      case _EmployeeFilter.admin:
-        return u.rol.toLowerCase().contains('admin');
-      case _EmployeeFilter.cajero:
-        return u.rol.toLowerCase().contains('cajer');
-      case _EmployeeFilter.supervisor:
-        return u.rol.toLowerCase().contains('super');
-      case _EmployeeFilter.almacen:
-        return u.rol.toLowerCase().contains('almac');
-    }
+  bool _pasaFiltro(UsuarioEntity u, EmployeeFilter f) {
+    final estado = estadoEfectivo(u);
+    return switch (f) {
+      EmployeeFilter.todos => true,
+      EmployeeFilter.activos => estado == 'activo',
+      EmployeeFilter.inactivos => estado == 'inactivo',
+      EmployeeFilter.descanso => estado == 'descanso',
+      EmployeeFilter.sinPin => u.pin.isEmpty,
+    };
   }
 
   bool _coincideBusqueda(UsuarioEntity u, String q) {
     if (q.isEmpty) return true;
     return u.nombre.toLowerCase().contains(q) ||
         (u.email ?? '').toLowerCase().contains(q) ||
-        u.pin.toLowerCase().contains(q) ||
+        (u.numeroDocumento ?? '').toLowerCase().contains(q) ||
+        (u.telefono ?? '').toLowerCase().contains(q) ||
         u.rol.toLowerCase().contains(q);
+  }
+
+  bool _pasaDepartamento(UsuarioEntity u) {
+    if (_departamentoFiltro == null) return true;
+    final dept = (u.departamento ?? '').trim();
+    if (_departamentoFiltro == '__none__') return dept.isEmpty;
+    return dept == _departamentoFiltro;
   }
 
   List<UsuarioEntity> _aplicarFiltros(List<UsuarioEntity> usuarios) {
     final q = _searchQuery.trim().toLowerCase();
     return usuarios
-        .where((u) => _coincideBusqueda(u, q) && _pasaFiltro(u, _filter))
+        .where((u) =>
+            _coincideBusqueda(u, q) &&
+            _pasaDepartamento(u) &&
+            _pasaFiltro(u, _filter))
         .toList();
   }
 
-  int _contarPorFiltro(List<UsuarioEntity> usuarios, _EmployeeFilter f) {
-    final q = _searchQuery.trim().toLowerCase();
-    return usuarios
-        .where((u) => _coincideBusqueda(u, q) && _pasaFiltro(u, f))
-        .length;
-  }
-
-  // ════════════════════════════════════════════════════════════════
-  // HELPERS DE PRESENTACIÓN
-  // ════════════════════════════════════════════════════════════════
-
-  Color _colorRol(String rol) {
-    final r = rol.toLowerCase();
-    if (r.contains('admin')) return const Color(0xFF8B5CF6);
-    if (r.contains('super')) return const Color(0xFF6366F1);
-    if (r.contains('cajer')) return const Color(0xFF06B6D4);
-    if (r.contains('almac')) return const Color(0xFFEC4899);
-    if (r.contains('rrhh')) return const Color(0xFF10B981);
-    return const Color(0xFF64748B);
-  }
-
-  IconData _iconoRol(String rol) {
-    final r = rol.toLowerCase();
-    if (r.contains('admin')) return Icons.admin_panel_settings_rounded;
-    if (r.contains('super')) return Icons.shield_rounded;
-    if (r.contains('cajer')) return Icons.point_of_sale_rounded;
-    if (r.contains('almac')) return Icons.inventory_2_rounded;
-    if (r.contains('rrhh')) return Icons.badge_rounded;
-    return Icons.person_rounded;
-  }
-
-  Color _colorEstado(UsuarioEntity u) {
-    switch (_estadoEfectivo(u)) {
-      case 'inactivo':
-        return const Color(0xFFEF4444);
-      case 'descanso':
-        return const Color(0xFFF59E0B);
-      default:
-        return const Color(0xFF10B981);
+  List<UsuarioEntity> _ordenar(List<UsuarioEntity> usuarios) {
+    final list = [...usuarios];
+    switch (_sort) {
+      case EmployeeSort.nombre:
+        list.sort((a, b) =>
+            a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
+      case EmployeeSort.estado:
+        list.sort((a, b) {
+          final ea = estadoOrden(a);
+          final eb = estadoOrden(b);
+          if (ea != eb) return ea.compareTo(eb);
+          return a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase());
+        });
     }
+    return list;
   }
 
-  String _labelEstado(UsuarioEntity u) {
-    switch (_estadoEfectivo(u)) {
-      case 'inactivo':
-        return 'Inactivo';
-      case 'descanso':
-        return 'En descanso';
-      default:
-        return 'Activo';
+  Map<String, List<UsuarioEntity>> _agrupar(List<UsuarioEntity> usuarios) {
+    final map = <String, List<UsuarioEntity>>{};
+    for (final u in usuarios) {
+      final d = (u.departamento ?? '').trim();
+      final key = d.isEmpty ? 'Sin departamento' : d;
+      map.putIfAbsent(key, () => []).add(u);
     }
+    return map;
   }
 
   String _hora(DateTime d) =>
@@ -229,23 +156,26 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
 
   @override
   Widget build(BuildContext context) {
-    // 👇 Consumimos el provider compartido con el monitor
     final monitorState = ref.watch(monitorEmpleadosProvider);
-    final usuarios = monitorState.usuarios;
+    final infosAsync = ref.watch(empleadosInfoProvider);
+    final infos = infosAsync.maybeWhen(
+      data: (v) => v,
+      orElse: () => <int, EmpleadoInfoEntity>{},
+    );
 
+    final usuarios = monitorState.usuarios;
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    final usuariosFiltrados = _aplicarFiltros(usuarios);
+    final filtrados = _ordenar(_aplicarFiltros(usuarios));
 
     final activos =
-        usuarios.where((u) => _estadoEfectivo(u) == 'activo').length;
+        usuarios.where((u) => estadoEfectivo(u) == 'activo').length;
     final descanso =
-        usuarios.where((u) => _estadoEfectivo(u) == 'descanso').length;
+        usuarios.where((u) => estadoEfectivo(u) == 'descanso').length;
     final inactivos =
-        usuarios.where((u) => _estadoEfectivo(u) == 'inactivo').length;
+        usuarios.where((u) => estadoEfectivo(u) == 'inactivo').length;
 
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLow,
@@ -254,6 +184,8 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
         showBackButton: true,
         actions: [
           if (!isMobile) _buildTabSelector(),
+          const SizedBox(width: 4),
+          _buildExportButton(usuarios),
           const SizedBox(width: 4),
           _buildSyncButton(monitorState),
           const SizedBox(width: 4),
@@ -264,7 +196,8 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
             ref.read(monitorEmpleadosProvider.notifier).sincronizar(),
         child: _buildBody(
           usuarios,
-          usuariosFiltrados,
+          filtrados,
+          infos,
           activos,
           descanso,
           inactivos,
@@ -278,8 +211,39 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
   }
 
   // ════════════════════════════════════════════════════════════════
-  // SYNC BUTTON
+  // APPBAR ACTIONS
   // ════════════════════════════════════════════════════════════════
+
+  Widget _buildTabSelector() {
+    return SegmentedToggle<EmployeeTab>(
+      selected: _tab,
+      accentColor: const Color(0xFF10B981),
+      onChanged: (v) => setState(() => _tab = v),
+      items: const [
+        SegmentedToggleItem(
+          value: EmployeeTab.empleados,
+          label: 'Empleados',
+          icon: Icons.people_alt_rounded,
+        ),
+        SegmentedToggleItem(
+          value: EmployeeTab.monitor,
+          label: 'Monitor',
+          icon: Icons.visibility_rounded,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExportButton(List<UsuarioEntity> usuarios) {
+    return Tooltip(
+      message: 'Exportar a CSV',
+      child: IconButton(
+        onPressed: usuarios.isEmpty ? null : () => _exportarCSV(usuarios),
+        icon: const Icon(Icons.download_rounded, size: 22),
+        color: Colors.white,
+      ),
+    );
+  }
 
   Widget _buildSyncButton(MonitorEmpleadosState state) {
     final isSyncing = state.isLoading && state.lastSync != null;
@@ -302,7 +266,6 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
               )
             : const Icon(Icons.cloud_sync_rounded, size: 22),
         color: Colors.white,
-        tooltip: 'Sincronizar',
       ),
     );
   }
@@ -311,86 +274,87 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
   // CUERPO
   // ════════════════════════════════════════════════════════════════
 
-  Widget _buildBody(
-    List<UsuarioEntity> todos,
-    List<UsuarioEntity> filtrados,
-    int activos,
-    int descanso,
-    int inactivos,
-    bool isMobile,
-    bool isTablet,
-    ColorScheme colorScheme,
-  ) {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 12 : 24,
-        vertical: 16,
-      ),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1100),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (isMobile) ...[
-                _buildTabSelector(),
+ Widget _buildBody(
+  List<UsuarioEntity> todos,
+  List<UsuarioEntity> filtrados,
+  Map<int, EmpleadoInfoEntity> infos,
+  int activos,
+  int descanso,
+  int inactivos,
+  bool isMobile,
+  bool isTablet,
+  ColorScheme colorScheme,
+) {
+  final monitorState = ref.watch(monitorEmpleadosProvider);
+
+  return SingleChildScrollView(
+    physics: const AlwaysScrollableScrollPhysics(),
+    padding: EdgeInsets.symmetric(
+      horizontal: isMobile ? 12 : 24,
+      vertical: 16,
+    ),
+    child: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (isMobile) ...[
+              _buildTabSelector(),
+              const SizedBox(height: 14),
+            ],
+
+            // Búsqueda
+            GlassSearchBar(
+              hint: 'Buscar por nombre, email, documento, teléfono o rol…',
+              controller: _searchController,
+              onChanged: (v) => setState(() => _searchQuery = v),
+              accentColor: const Color(0xFF10B981),
+            ),
+            const SizedBox(height: 16),
+
+            if (_tab == EmployeeTab.empleados) ...[
+              // 🎯 FIX UX: ocultar métricas en móvil.
+              //    Los chips de filtro ya muestran los conteos y ahorramos
+              //    ~120px de espacio vertical antes de las cards.
+              if (!isMobile) ...[
+                _buildMetricas(activos, descanso, inactivos),
                 const SizedBox(height: 14),
               ],
-
-              GlassSearchBar(
-                hint: 'Buscar por nombre, email, PIN o rol…',
-                controller: _searchController,
-                onChanged: (v) => setState(() => _searchQuery = v),
-                accentColor: const Color(0xFF10B981),
+              EmployeesToolbar(
+                departamentos: monitorState.departamentos,
+                filter: _filter,
+                sort: _sort,
+                view: _view,
+                departamentoFiltro: _departamentoFiltro,
+                agruparPorDepartamento: _agruparPorDepartamento,
+                contarPorFiltro: (f) => todos
+                    .where((u) =>
+                        _coincideBusqueda(
+                            u, _searchQuery.trim().toLowerCase()) &&
+                        _pasaDepartamento(u) &&
+                        _pasaFiltro(u, f))
+                    .length,
+                onFilterChanged: (v) => setState(() => _filter = v),
+                onSortChanged: (v) => setState(() => _sort = v),
+                onViewChanged: (v) => setState(() => _view = v),
+                onDepartamentoChanged: (v) =>
+                    setState(() => _departamentoFiltro = v),
+                onAgruparChanged: (v) =>
+                    setState(() => _agruparPorDepartamento = v),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
+              _buildContenido(filtrados, infos, isMobile, isTablet),
+            ] else
+              _buildMonitorView(todos, infos, isMobile),
 
-              if (_tab == _EmployeeTab.empleados) ...[
-                _buildMetricas(activos, descanso, inactivos),
-                const SizedBox(height: 16),
-                _buildFiltrosYToggle(todos, isMobile, isTablet),
-                const SizedBox(height: 18),
-                _buildAnimatedResults(
-                  filtrados,
-                  isMobile,
-                  isTablet,
-                  colorScheme,
-                ),
-              ] else
-                _buildMonitorView(todos, isMobile, isTablet, colorScheme),
-
-              const SizedBox(height: 80),
-            ],
-          ),
+            const SizedBox(height: 80),
+          ],
         ),
       ),
-    );
-  }
-
-  // ════════════════════════════════════════════════════════════════
-  // TABS
-  // ════════════════════════════════════════════════════════════════
-
-  Widget _buildTabSelector() {
-    return SegmentedToggle<_EmployeeTab>(
-      selected: _tab,
-      accentColor: const Color(0xFF10B981),
-      onChanged: (v) => setState(() => _tab = v),
-      items: const [
-        SegmentedToggleItem(
-          value: _EmployeeTab.empleados,
-          label: 'Empleados',
-          icon: Icons.people_alt_rounded,
-        ),
-        SegmentedToggleItem(
-          value: _EmployeeTab.monitor,
-          label: 'Monitor',
-          icon: Icons.visibility_rounded,
-        ),
-      ],
-    );
-  }
+    ),
+  );
+}
 
   // ════════════════════════════════════════════════════════════════
   // MÉTRICAS
@@ -424,347 +388,157 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
   }
 
   // ════════════════════════════════════════════════════════════════
-  // FILTROS + TOGGLE VISTA
+  // CONTENIDO
   // ════════════════════════════════════════════════════════════════
 
-  Widget _buildFiltrosYToggle(
-    List<UsuarioEntity> todos,
-    bool isMobile,
-    bool isTablet,
-  ) {
-    final filtros = _EmployeeFilter.values;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            children: [
-              for (final f in filtros) ...[
-                FiltroChip(
-                  label: f.label,
-                  icon: f.icon,
-                  color: f.color,
-                  selected: _filter == f,
-                  size: FiltroChipSize.small,
-                  count: _contarPorFiltro(todos, f),
-                  onTap: () => setState(() => _filter = f),
-                ),
-                const SizedBox(width: 8),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerRight,
-          child: SegmentedToggle<_EmployeeView>(
-            selected: _view,
-            accentColor: const Color(0xFF3B82F6),
-            compact: isMobile,
-            onChanged: (v) => setState(() => _view = v),
-            items: const [
-              SegmentedToggleItem(
-                value: _EmployeeView.grid,
-                label: 'Grid',
-                icon: Icons.grid_view_rounded,
-              ),
-              SegmentedToggleItem(
-                value: _EmployeeView.list,
-                label: 'Lista',
-                icon: Icons.view_list_rounded,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ════════════════════════════════════════════════════════════════
-  // RESULTADOS ANIMADOS
-  // ════════════════════════════════════════════════════════════════
-
-  Widget _buildAnimatedResults(
+  Widget _buildContenido(
     List<UsuarioEntity> filtrados,
+    Map<int, EmpleadoInfoEntity> infos,
     bool isMobile,
     bool isTablet,
-    ColorScheme colorScheme,
   ) {
-    final key = ValueKey<String>(
-      'emp::${_searchQuery.trim().toLowerCase()}::${_filter.name}::${_view.name}::${filtrados.length}',
-    );
+    if (filtrados.isEmpty) {
+      return _buildEmptyState(Theme.of(context).colorScheme);
+    }
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 280),
-      reverseDuration: const Duration(milliseconds: 200),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      layoutBuilder: (currentChild, previousChildren) => Stack(
-        alignment: Alignment.topCenter,
+    if (_agruparPorDepartamento) {
+      final grupos = _agrupar(filtrados);
+      final keys = grupos.keys.toList()..sort();
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ...previousChildren,
-          if (currentChild != null) currentChild,
+          for (final key in keys) ...[
+            _buildGrupoHeader(key, grupos[key]!.length),
+            const SizedBox(height: 10),
+            _buildGrid(grupos[key]!, infos, isMobile, isTablet),
+            const SizedBox(height: 24),
+          ],
         ],
-      ),
-      transitionBuilder: (child, animation) {
-        final slide = Tween<Offset>(
-          begin: const Offset(0, 0.04),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-        );
-        return FadeTransition(
-          opacity: animation,
-          child: SlideTransition(position: slide, child: child),
-        );
-      },
-      child: KeyedSubtree(
-        key: key,
-        child: filtrados.isEmpty
-            ? _buildEmptyState(colorScheme)
-            : (_view == _EmployeeView.grid
-                ? _buildGrid(filtrados, isMobile, isTablet)
-                : _buildList(filtrados)),
-      ),
-    );
+      );
+    }
+
+    return _buildGrid(filtrados, infos, isMobile, isTablet);
   }
 
-  Widget _buildGrid(
-    List<UsuarioEntity> items,
-    bool isMobile,
-    bool isTablet,
-  ) {
-    final crossAxisCount = isMobile
-        ? 1
-        : isTablet
-            ? 2
-            : 3;
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        childAspectRatio: isMobile ? 3.4 : 2.6,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: items.length,
-      itemBuilder: (_, i) => _buildEmployeeCard(items[i], compact: false),
-    );
-  }
-
-  Widget _buildList(List<UsuarioEntity> items) {
-    return Column(
+  Widget _buildGrupoHeader(String nombre, int count) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
       children: [
-        for (final u in items) _buildEmployeeCard(u, compact: true),
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            color: const Color(0xFF3B82F6),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          nombre.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.2,
+            color: Color(0xFF3B82F6),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          decoration: BoxDecoration(
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF3B82F6),
+            ),
+          ),
+        ),
+        const Spacer(),
+        Container(
+          height: 1,
+          width: 60,
+          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+        ),
       ],
     );
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // TARJETA DE EMPLEADO
-  // ════════════════════════════════════════════════════════════════
+ Widget _buildGrid(
+  List<UsuarioEntity> items,
+  Map<int, EmpleadoInfoEntity> infos,
+  bool isMobile,
+  bool isTablet,
+) {
+  final isCompact = _view == EmployeeView.compact;
 
-  Widget _buildEmployeeCard(UsuarioEntity u, {required bool compact}) {
-    final rolColor = _colorRol(u.rol);
-    final estadoColor = _colorEstado(u);
-    final rolIcon = _iconoRol(u.rol);
-    final estadoLabel = _labelEstado(u);
+  // 🎯 FIX: 1 columna en móvil para vista detallada.
+  //    Antes eran 2 columnas → las cards se apretaban y overflow.
+  final crossAxisCount = isCompact
+      ? (isMobile ? 2 : (isTablet ? 4 : 5))
+      : (isMobile ? 1 : (isTablet ? 3 : 4));
 
-    final initials = u.nombre
-        .trim()
-        .split(RegExp(r'\s+'))
-        .take(2)
-        .map((s) => s.isEmpty ? '' : s[0].toUpperCase())
-        .join();
+  // 🎯 FIX: altura adecuada según modo y dispositivo.
+  final extent = isCompact
+      ? (isMobile ? 220.0 : 200.0)
+      : (isMobile ? 270.0 : 300.0);
+  final spacing = isCompact ? 10.0 : 12.0;
 
-    return GlassCard(
-      onTap: () => _mostrarDetalle(u),
-      showStatusBar: true,
-      statusColor: estadoColor,
-      padding: const EdgeInsets.all(14),
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Container(
-            width: compact ? 44 : 50,
-            height: compact ? 44 : 50,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  rolColor,
-                  Color.lerp(rolColor, Colors.black, 0.25)!,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: rolColor.withValues(alpha: 0.30),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              initials.isEmpty ? '?' : initials,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        u.nombre,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    _buildPulseDot(estadoColor),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    StatusBadge(
-                      label: u.rol.toUpperCase(),
-                      color: rolColor,
-                      icon: rolIcon,
-                      size: StatusBadgeSize.small,
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        estadoLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: estadoColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (!compact && (u.email ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    u.email!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CardActionButton(
-                icon: Icons.edit_rounded,
-                color: const Color(0xFF3B82F6),
-                tooltip: 'Editar',
-                padding: const EdgeInsets.all(6),
-                iconSize: 16,
-                onPressed: () => _abrirFormulario(u),
-              ),
-              const SizedBox(height: 6),
-              CardActionButton(
-                icon: u.activo
-                    ? Icons.pause_circle_rounded
-                    : Icons.play_circle_rounded,
-                color: u.activo
-                    ? const Color(0xFFF59E0B)
-                    : const Color(0xFF10B981),
-                tooltip: u.activo ? 'Desactivar' : 'Activar',
-                padding: const EdgeInsets.all(6),
-                iconSize: 16,
-                onPressed: () => _toggleActivo(u),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPulseDot(Color color) {
-    final isActive = color == const Color(0xFF10B981);
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.7, end: 1.0),
-      duration: Duration(milliseconds: isActive ? 900 : 0),
-      curve: Curves.easeInOut,
-      builder: (_, v, __) => Transform.scale(
-        scale: isActive ? v : 1.0,
-        child: Container(
-          width: 9,
-          height: 9,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.6),
-                blurRadius: 6 * (isActive ? v : 1.0),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  return GridView.builder(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: crossAxisCount,
+      mainAxisExtent: extent,
+      crossAxisSpacing: spacing,
+      mainAxisSpacing: spacing,
+    ),
+    itemCount: items.length,
+    itemBuilder: (_, i) {
+      final u = items[i];
+      final info = infos[u.id];
+      return EmployeeCard(
+        key: ValueKey('emp-${u.id}-${u.fotoUrl}-${_view.name}'),
+        usuario: u,
+        info: info,
+        mode: isCompact
+            ? EmployeeCardMode.compact
+            : EmployeeCardMode.detailed,
+        showEmail: !isCompact,
+        showActivity: !isCompact,
+        onTap: () => _mostrarDetalle(u, info),
+        onEdit: () => _abrirFormulario(u, info),
+        onToggleActive: () => _toggleActivo(u),
+        onDelete: _esAdmin ? () => _confirmarEliminar(u) : null,
+      );
+    },
+  );
+}
 
   // ════════════════════════════════════════════════════════════════
-  // MONITOR VIEW
+  // MONITOR
   // ════════════════════════════════════════════════════════════════
 
   Widget _buildMonitorView(
     List<UsuarioEntity> todos,
+    Map<int, EmpleadoInfoEntity> infos,
     bool isMobile,
-    bool isTablet,
-    ColorScheme colorScheme,
   ) {
     final activos = <UsuarioEntity>[];
     final descanso = <UsuarioEntity>[];
     final inactivos = <UsuarioEntity>[];
 
     for (final u in todos) {
-      switch (_estadoEfectivo(u)) {
+      switch (estadoEfectivo(u)) {
         case 'activo':
           activos.add(u);
-          break;
         case 'descanso':
           descanso.add(u);
-          break;
         default:
           inactivos.add(u);
       }
@@ -778,6 +552,8 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
           activos,
           const Color(0xFF10B981),
           Icons.bolt_rounded,
+          infos,
+          isMobile,
         ),
         const SizedBox(height: 16),
         _buildMonitorSeccion(
@@ -785,6 +561,8 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
           descanso,
           const Color(0xFFF59E0B),
           Icons.free_breakfast_rounded,
+          infos,
+          isMobile,
         ),
         const SizedBox(height: 16),
         _buildMonitorSeccion(
@@ -792,6 +570,8 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
           inactivos,
           const Color(0xFFEF4444),
           Icons.block_rounded,
+          infos,
+          isMobile,
         ),
       ],
     );
@@ -802,6 +582,8 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
     List<UsuarioEntity> usuarios,
     Color color,
     IconData icon,
+    Map<int, EmpleadoInfoEntity> infos,
+    bool isMobile,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -851,13 +633,13 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
             ),
           )
         else
-          ...usuarios.map((u) => _buildEmployeeCard(u, compact: true)),
+          _buildGrid(usuarios, infos, isMobile, false),
       ],
     );
   }
 
   // ════════════════════════════════════════════════════════════════
-  // EMPTY STATE
+  // EMPTY / FAB
   // ════════════════════════════════════════════════════════════════
 
   Widget _buildEmptyState(ColorScheme colorScheme) {
@@ -865,17 +647,10 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
       padding: const EdgeInsets.symmetric(vertical: 60),
       child: Column(
         children: [
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.85, end: 1.0),
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOutBack,
-            builder: (context, scale, child) =>
-                Transform.scale(scale: scale, child: child),
-            child: Icon(
-              Icons.person_search_rounded,
-              size: 64,
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-            ),
+          Icon(
+            Icons.person_search_rounded,
+            size: 64,
+            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -896,14 +671,25 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: () => _abrirFormulario(null, null),
+            icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+            label: const Text('Crear el primero'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
-
-  // ════════════════════════════════════════════════════════════════
-  // FAB
-  // ════════════════════════════════════════════════════════════════
 
   Widget _buildFab() {
     return ScaleTransition(
@@ -914,7 +700,7 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
       child: FadeTransition(
         opacity: _fabController,
         child: FloatingActionButton.extended(
-          onPressed: () => _abrirFormulario(null),
+          onPressed: () => _abrirFormulario(null, null),
           backgroundColor: const Color(0xFF10B981),
           foregroundColor: Colors.white,
           icon: const Icon(Icons.person_add_alt_1_rounded),
@@ -930,6 +716,11 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
   // ════════════════════════════════════════════════════════════════
   // ACCIONES
   // ════════════════════════════════════════════════════════════════
+
+  bool get _esAdmin {
+    final actual = ref.read(usuarioActualProvider);
+    return actual?.rol.toLowerCase() == 'admin';
+  }
 
   Future<void> _toggleActivo(UsuarioEntity u) async {
     final isarService = ref.read(isarServiceProvider);
@@ -947,10 +738,9 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
     await isarService.guardarUsuario(u);
 
     if (!mounted) return;
-    // Refrescamos el provider compartido para que la UI reaccione
-    await ref.read(monitorEmpleadosProvider.notifier).sincronizar(
-          silencioso: true,
-        );
+    await ref
+        .read(monitorEmpleadosProvider.notifier)
+        .sincronizar(silencioso: true);
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -966,42 +756,90 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
     );
   }
 
-  Future<void> _mostrarDetalle(UsuarioEntity u) async {
-    await showDialog(
+  Future<void> _confirmarEliminar(UsuarioEntity u) async {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => _EmployeeDetailDialog(
-        usuario: u,
-        onToggleActivo: () => _toggleActivo(u),
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Eliminar empleado'),
+        content: Text(
+          '¿Estás seguro de eliminar a "${u.nombre}"?\n\n'
+          'Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
       ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    try {
+      await ref.read(isarServiceProvider).eliminarUsuario(u.id);
+      await ref
+          .read(monitorEmpleadosProvider.notifier)
+          .sincronizar(silencioso: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🗑 ${u.nombre} eliminado'),
+          backgroundColor: colorScheme.error,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al eliminar: $e'),
+          backgroundColor: colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _mostrarDetalle(
+    UsuarioEntity u,
+    EmpleadoInfoEntity? info,
+  ) async {
+    await EmpleadoDetailDialog.show(
+      context,
+      usuario: u,
+      info: info,
+      onToggleActivo: () => _toggleActivo(u),
     );
   }
 
-  Future<void> _abrirFormulario(UsuarioEntity? usuario) async {
-    EmpleadoViewModel? vm;
-
-    if (usuario != null) {
-      try {
-        final isarService = ref.read(isarServiceProvider);
-        final db = await isarService.db;
-
-        final info = await db.empleadoInfoEntitys
-            .filter()
-            .usuarioIdEqualTo(usuario.id)
-            .findFirst();
-
-        vm = EmpleadoViewModel(usuario: usuario, info: info);
-      } catch (e) {
-        debugPrint('Error construyendo EmpleadoViewModel: $e');
-      }
-    }
-
+  Future<void> _abrirFormulario(
+    UsuarioEntity? usuario,
+    EmpleadoInfoEntity? info,
+  ) async {
     if (!mounted) return;
-    final result = await EmployeeFormDialog.show(context, empleado: vm);
+    final result = await EmployeeFormDialog.show(
+      context,
+      empleado: usuario != null
+          ? EmpleadoViewModel(usuario: usuario, info: info)
+          : null,
+    );
 
     if (result == true && mounted) {
-      await ref.read(monitorEmpleadosProvider.notifier).sincronizar(
-            silencioso: true,
-          );
+      ref.invalidate(empleadosInfoProvider);
+      await ref
+          .read(monitorEmpleadosProvider.notifier)
+          .sincronizar(silencioso: true);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1019,129 +857,71 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
       );
     }
   }
-}
 
-// ═══════════════════════════════════════════════════════════════════════
-// DIÁLOGO DE DETALLE
-// ═══════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════
+  // EXPORTAR CSV
+  // ════════════════════════════════════════════════════════════════
 
-class _EmployeeDetailDialog extends StatefulWidget {
-  final UsuarioEntity usuario;
-  final VoidCallback onToggleActivo;
+  Future<void> _exportarCSV(List<UsuarioEntity> usuarios) async {
+    try {
+      final infosAsync = ref.read(empleadosInfoProvider);
+      final infos = infosAsync.maybeWhen(
+        data: (v) => v,
+        orElse: () => <int, EmpleadoInfoEntity>{},
+      );
 
-  const _EmployeeDetailDialog({
-    required this.usuario,
-    required this.onToggleActivo,
-  });
+      final buffer = StringBuffer();
+      buffer.writeln(
+        'Nombre,Documento,Email,Rol,Estado,Caja,Cargo,Telefono,Departamento',
+      );
 
-  @override
-  State<_EmployeeDetailDialog> createState() => _EmployeeDetailDialogState();
-}
+      for (final u in usuarios) {
+        final info = infos[u.id];
+        final doc = u.numeroDocumento != null
+            ? '${u.tipoDocumento?.codigo ?? ''}-${u.numeroDocumento}'
+            : '';
+        buffer.writeln([
+          _csvEscape(u.nombre),
+          _csvEscape(doc),
+          _csvEscape(u.email ?? ''),
+          _csvEscape(u.rol),
+          _csvEscape(labelEstado(u)),
+          _csvEscape(u.cajaAsignada),
+          _csvEscape(info?.cargo ?? ''),
+          _csvEscape(u.telefono ?? ''),
+          _csvEscape(u.departamento ?? ''),
+        ].join(','));
+      }
 
-class _EmployeeDetailDialogState extends State<_EmployeeDetailDialog> {
-  late UsuarioEntity _u;
+      final dir = await getTemporaryDirectory();
+      final ts = DateTime.now()
+          .toIso8601String()
+          .replaceAll(RegExp(r'[:.]'), '-');
+      final file = File('${dir.path}/empleados_$ts.csv');
+      await file.writeAsString(
+        '\uFEFF${buffer.toString()}',
+        encoding: utf8,
+      );
 
-  @override
-  void initState() {
-    super.initState();
-    _u = widget.usuario;
-  }
-
-  Color _rolColor(String rol) {
-    final r = rol.toLowerCase();
-    if (r.contains('admin')) return const Color(0xFF8B5CF6);
-    if (r.contains('super')) return const Color(0xFF6366F1);
-    if (r.contains('cajer')) return const Color(0xFF06B6D4);
-    if (r.contains('almac')) return const Color(0xFFEC4899);
-    return const Color(0xFF10B981);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _rolColor(_u.rol);
-
-    return GlassDialog(
-      maxWidth: 520,
-      accentColor: color,
-      scrollable: true,
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DialogHeader(
-              icon: Icons.person_rounded,
-              title: _u.nombre,
-              subtitle: _u.email ?? 'Sin correo',
-              color: color,
-              onClose: () => Navigator.pop(context),
-            ),
-            const SizedBox(height: 20),
-
-            _InfoRow(label: 'Rol', value: _u.rol),
-            _InfoRow(label: 'Caja asignada', value: _u.cajaAsignada),
-            _InfoRow(label: 'Departamento', value: _u.departamento ?? '—'),
-            _InfoRow(label: 'PIN', value: _u.pin),
-            _InfoRow(
-              label: 'Estado',
-              value: !_u.activo
-                  ? 'Inactivo'
-                  : (_u.estado == 'descanso' ? 'En descanso' : 'Activo'),
-            ),
-
-            const SizedBox(height: 18),
-            ActiveToggle(
-              value: _u.activo,
-              onChanged: (v) {
-                setState(() => _u.activo = v);
-                widget.onToggleActivo();
-              },
-              activeLabel: 'Empleado activo',
-              inactiveLabel: 'Empleado inactivo',
-              activeSubtitle: 'Puede iniciar sesión y operar',
-              inactiveSubtitle: 'No podrá iniciar sesión',
-              activeColor: const Color(0xFF10B981),
-            ),
-          ],
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'text/csv')],
+        subject: 'Empleados — BoostI POS',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al exportar: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
-      ),
-    );
+      );
+    }
   }
-}
 
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _InfoRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 130,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade500,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  String _csvEscape(String s) {
+    if (s.contains(',') || s.contains('"') || s.contains('\n')) {
+      return '"${s.replaceAll('"', '""')}"';
+    }
+    return s;
   }
 }

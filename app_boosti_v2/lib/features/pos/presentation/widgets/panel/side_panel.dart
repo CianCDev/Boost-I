@@ -1,5 +1,6 @@
 // lib/features/panel/widgets/side_panel.dart
 import 'dart:ui';
+import 'package:app_boosti_v2/features/pos/presentation/providers/business_mode_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Provider;
 import 'package:provider/provider.dart';
@@ -297,19 +298,20 @@ class _SidePanelState extends ConsumerState<SidePanel>
     );
   }
 
-  Widget _buildButtonList(BuildContext screenContext) {
+ Widget _buildButtonList(BuildContext screenContext) {
     final controller =
         Provider.of<PanelController>(screenContext, listen: false);
     final ref = this.ref;
     final usuarioActual = ref.watch(usuarioActualProvider);
+    final flags = ref.watch(featureFlagsProvider);   // 🎯 NUEVO
     final puedeCambiarCajero = usuarioActual != null &&
         (usuarioActual.rol == 'admin' || usuarioActual.rol == 'supervisor');
 
-    final categories = [
+    final categories = <_Category>[
       // ============================================================
-      // CATEGORÍA LOCAL (solo si el usuario tiene 2+ locales)
+      // LOCAL — solo si multi-local está habilitado por el plan
       // ============================================================
-      if (_numLocales > 1)
+      if (_numLocales > 1 && flags.multiLocal)
         _Category(
           title: 'Local',
           icon: Icons.business_rounded,
@@ -326,7 +328,7 @@ class _SidePanelState extends ConsumerState<SidePanel>
         ),
 
       // ============================================================
-      // CATEGORÍA CONFIGURACIÓN
+      // CONFIGURACIÓN — siempre disponible
       // ============================================================
       _Category(
         title: 'Configuración',
@@ -366,7 +368,7 @@ class _SidePanelState extends ConsumerState<SidePanel>
       ),
 
       // ============================================================
-      // CATEGORÍA PROMOCIONES
+      // PROMOCIONES — siempre disponible
       // ============================================================
       _Category(
         title: 'Promociones',
@@ -404,45 +406,47 @@ class _SidePanelState extends ConsumerState<SidePanel>
       ),
 
       // ============================================================
-      // CATEGORÍA PRODUCTOS
+      // PRODUCTOS — solo si el modo usa inventario
       // ============================================================
-      _Category(
-        title: 'Productos',
-        icon: Icons.inventory_2_rounded,
-        items: [
-          _PanelItem(
-            icon: Icons.inventory_2_rounded,
-            label: 'Productos inactivos',
-            color: Colors.red,
-            action: () {
-              _closePanel(() {
-                ProductosInactivosDialog.show(screenContext);
-              });
-            },
-          ),
-        ],
-      ),
+      if (flags.mostrarInventario)
+        _Category(
+          title: 'Productos',
+          icon: Icons.inventory_2_rounded,
+          items: [
+            _PanelItem(
+              icon: Icons.inventory_2_rounded,
+              label: 'Productos inactivos',
+              color: Colors.red,
+              action: () {
+                _closePanel(() {
+                  ProductosInactivosDialog.show(screenContext);
+                });
+              },
+            ),
+          ],
+        ),
 
       // ============================================================
-      // CATEGORÍA PEDIDOS
+      // PEDIDOS — solo si el modo usa inventario Y NO es servicios
       // ============================================================
-      _Category(
-        title: 'Pedidos',
-        icon: Icons.shopping_bag_rounded,
-        items: [
-          _PanelItem(
-            icon: Icons.shopping_bag_rounded,
-            label: 'Pedidos remotos',
-            color: Colors.cyan,
-            action: () {
-              _closePanel(() => controller.pedidosRemotos(screenContext));
-            },
-          ),
-        ],
-      ),
+      if (flags.mostrarInventario && !flags.esServicios)
+        _Category(
+          title: 'Pedidos',
+          icon: Icons.shopping_bag_rounded,
+          items: [
+            _PanelItem(
+              icon: Icons.shopping_bag_rounded,
+              label: 'Pedidos remotos',
+              color: Colors.cyan,
+              action: () {
+                _closePanel(() => controller.pedidosRemotos(screenContext));
+              },
+            ),
+          ],
+        ),
 
       // ============================================================
-      // CATEGORÍA SISTEMA
+      // SISTEMA — siempre disponible
       // ============================================================
       _Category(
         title: 'Sistema',

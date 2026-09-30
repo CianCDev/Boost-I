@@ -1,8 +1,7 @@
 // lib/features/pos/presentation/widgets/gestion_personal_dialog.dart
 // ignore_for_file: use_build_context_synchronously
 
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,6 +11,7 @@ import '../../data/Local/entities/usuario_entity.dart';
 import '../../data/Local/entities/log_entity.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
+import '../utils/pin_hasher.dart';
 import '../providers/usuario_provider.dart';
 import '../providers/tenant_provider.dart';
 import '../utils/tenant_utils.dart';
@@ -80,10 +80,12 @@ class _PersonnelManagementDialogState
   // ═══════════════════════════════════════════════════════════════
   // UTILIDADES
   // ═══════════════════════════════════════════════════════════════
-
-  String _hashPin(String pin) {
-    return sha256.convert(utf8.encode(pin)).toString();
-  }
+  //
+  // 🎯 NOTA: El hasheo del PIN vive exclusivamente en `PinHasher`.
+  //    NO duplicar la lógica aquí. Un solo punto de verdad evita
+  //    discrepancias de formato (`sha256:hash:salt`).
+  //
+  // ═══════════════════════════════════════════════════════════════
 
   String _getPasswordStrength(String password) {
     if (password.isEmpty) return '';
@@ -172,6 +174,8 @@ class _PersonnelManagementDialogState
 
     final password = _passwordController.text.trim();
     final strength = _getPasswordStrength(password);
+
+    // ── Confirmación si la contraseña es débil ──
     if (strength == 'Débil' && password.isNotEmpty) {
       final confirm = await showDialog<bool>(
         context: context,
@@ -213,38 +217,79 @@ class _PersonnelManagementDialogState
             'No hay tenant activo. Vuelve a iniciar sesión antes de crear usuarios.');
       }
 
-      final pinHasheado = _hashPin(_pinController.text.trim());
+      // ═══════════════════════════════════════════════════════════════
+      // 🎯 FIX: Hashear con PinHasher (formato `sha256:hash:salt`).
+      //
+      //   Antes se usaba un hash local `sha256(pin)` SIN salt ni prefijo,
+      //   lo que causaba que IsarService lo re-hasheara (doble hash) y
+      //   el PIN nunca coincidiera en el login.
+      //
+      //   Con PinHasher.hashWithNewSalt():
+      //     - El formato es el correcto desde el primer momento.
+      //     - IsarService.guardarUsuario() detecta `isHashed() == true`
+      //       y NO vuelve a hashear.
+      //     - Supabase recibe el MISMO hash por metadata, manteniendo
+      //       coherencia entre Isar y la nube.
+      // ═══════════════════════════════════════════════════════════════
+      final pinPlano = _pinController.text.trim();
+      final pinHasheadoDefinitivo = PinHasher.hashWithNewSalt(pinPlano);
 
-      final response = await supabase.auth.signUp(
-        email: _emailController.text.trim(),
-        password: password,
-        data: {
-          'nombre': _nombreController.text.trim(),
-          'rol': _rolSeleccionado,
-          'pin': pinHasheado,
-          'tenant_id': tenantId,
-        },
-      );
+      // ═══════════════════════════════════════════════════════════════
+      // 🎯 Modelo A: solo los ADMIN van a auth.users.
+      //
+      //   - Admin → signUp en auth.users. Necesita email/password porque
+      //             es la única identidad con la que se emite el JWT que
+      //             sincroniza TODO el tenant.
+      //
+      //   - Cajero → SOLO se guarda en Isar. Cuando haya conexión, el
+      //              sync lo inserta directamente en public.usuarios con
+      //              su propio UUID (generado por la DB). No toca auth.
+      // ═══════════════════════════════════════════════════════════════
+      final esAdmin = _rolSeleccionado == 'admin';
+      final haySesion = supabase.auth.currentSession != null;
 
-      if (response.user == null) {
-        throw Exception(
-            'No se pudo crear el usuario. Verifica que el email no esté registrado.');
+      String? supabaseUuid;
+
+      if (esAdmin) {
+        if (!haySesion) {
+          throw Exception(
+              'Para crear un administrador necesitas conexión a la nube.');
+        }
+
+        final response = await supabase.auth.signUp(
+          email: _emailController.text.trim(),
+          password: password,
+          data: {
+            'nombre': _nombreController.text.trim(),
+            'rol': 'admin',
+            'pin': pinHasheadoDefinitivo, // ← hash con formato correcto
+            'tenant_id': tenantId,
+          },
+        );
+
+        if (response.user == null) {
+          throw Exception('No se pudo crear el administrador en auth.users.');
+        }
+        supabaseUuid = response.user!.id;
       }
+      // Para cajeros: supabaseUuid queda null → no toca auth.users.
 
       final nuevoUsuario = UsuarioEntity()
         ..nombre = _nombreController.text.trim()
         ..email = _emailController.text.trim()
         ..password = password
-        ..pin = pinHasheado
+        ..pin = pinHasheadoDefinitivo // ← hash con formato correcto
         ..rol = _rolSeleccionado
         ..estado = 'inactivo'
         ..activo = true
-        ..supabaseId = response.user!.id
+        ..supabaseId = supabaseUuid            // ← null para cajeros
+        ..sincronizado = supabaseUuid != null  // ← cajeros quedan pendientes
         ..tenantId = tenantId
         ..cajaAsignada = '';
 
       await _isarService.guardarUsuario(nuevoUsuario);
 
+      // ── Log local ──
       await _isarService.guardarLog(
         LogEntity()
           ..accion = 'CREAR_USUARIO'
@@ -255,6 +300,11 @@ class _PersonnelManagementDialogState
           ..fecha = DateTime.now()
           ..sincronizado = false,
       );
+
+      // ── Sincronizar en background (no bloquea la UI) ──
+      if (haySesion) {
+        unawaited(_syncService.sincronizarUsuariosASupabase());
+      }
 
       if (!mounted) return;
 
@@ -269,7 +319,16 @@ class _PersonnelManagementDialogState
 
       await _cargarUsuarios();
       if (!mounted) return;
-      _snack('✅ Usuario creado correctamente', _colorSuccess);
+
+      // Mensaje contextual
+      if (esAdmin) {
+        _snack('✅ Administrador creado y sincronizado', _colorSuccess);
+      } else if (haySesion) {
+        _snack('✅ Cajero creado y sincronizado', _colorSuccess);
+      } else {
+        _snack('✅ Cajero creado (offline). Se sincronizará al conectar.',
+            _colorSuccess);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _guardando = false);
@@ -287,442 +346,456 @@ class _PersonnelManagementDialogState
     }
   }
 
- Future<void> _editarUsuario(UsuarioEntity usuario) async {
-  final nombreController = TextEditingController(text: usuario.nombre);
-  final emailController = TextEditingController(text: usuario.email ?? '');
-  final passwordController = TextEditingController();
-  // PIN vacío al editar para no cargar el hash SHA-256 de 64 chars.
-  final pinController = TextEditingController();
-  String rolSeleccionado = usuario.rol;
+  Future<void> _editarUsuario(UsuarioEntity usuario) async {
+    final nombreController = TextEditingController(text: usuario.nombre);
+    final emailController = TextEditingController(text: usuario.email ?? '');
+    final passwordController = TextEditingController();
+    // PIN vacío al editar para no cargar el hash SHA-256 de 64 chars.
+    final pinController = TextEditingController();
+    String rolSeleccionado = usuario.rol;
 
-  final formKey = GlobalKey<FormState>();
-  bool editando = false;
-  bool obscureEditPassword = true;
+    final formKey = GlobalKey<FormState>();
+    bool editando = false;
+    bool obscureEditPassword = true;
 
-  await showDialog(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (context, setStateDialog) {
-        final colorScheme = Theme.of(context).colorScheme;
-        final isDark = Theme.of(context).brightness == Brightness.dark;
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          final colorScheme = Theme.of(context).colorScheme;
+          final isDark = Theme.of(context).brightness == Brightness.dark;
 
-        return GlassDialog(
-          maxWidth: 560,
-          scrollable: true,
-          accentColor: _colorPrimary,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ═══ HEADER ═══
-                  _buildEditHeader(context, usuario.nombre, colorScheme),
-                  const SizedBox(height: 22),
+          return GlassDialog(
+            maxWidth: 560,
+            scrollable: true,
+            accentColor: _colorPrimary,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ═══ HEADER ═══
+                    _buildEditHeader(context, usuario.nombre, colorScheme),
+                    const SizedBox(height: 22),
 
-                  // ═══ SECCIÓN: DATOS PERSONALES ═══
-                  FormSection(
-                    title: 'Datos personales',
-                    icon: Icons.person_rounded,
-                    accentColor: _colorPrimary,
-                    children: [
-                      PersonaTextField(
-                        controller: nombreController,
-                        label: 'Nombre *',
-                        icon: Icons.person_outline_rounded,
-                        accentColor: _colorPrimary,
-                        textCapitalization: TextCapitalization.words,
-                        enabled: !editando,
-                        validator: (v) =>
-                            v?.trim().isNotEmpty == true ? null : 'Requerido',
-                      ),
-                      const SizedBox(height: 14),
-                      PersonaTextField(
-                        controller: emailController,
-                        label: 'Correo electrónico *',
-                        icon: Icons.email_rounded,
-                        accentColor: _colorPrimary,
-                        keyboardType: TextInputType.emailAddress,
-                        enabled: !editando,
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Requerido';
-                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$')
-                              .hasMatch(v.trim())) {
-                            return 'Email inválido';
-                          }
-                          return null;
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-
-                  // ═══ SECCIÓN: SEGURIDAD ═══
-                  FormSection(
-                    title: 'Seguridad',
-                    icon: Icons.lock_rounded,
-                    accentColor: _colorPrimary,
-                    children: [
-                      // ── Password con toggle (usa InputDecoration custom) ──
-                      TextFormField(
-                        controller: passwordController,
-                        enabled: !editando,
-                        obscureText: obscureEditPassword,
-                        onChanged: (_) => setStateDialog(() {}),
-                        style: TextStyle(color: colorScheme.onSurface),
-                        decoration: InputDecoration(
-                          labelText: 'Nueva contraseña (opcional)',
-                          hintText: 'Dejar vacío para no cambiarla',
-                          labelStyle:
-                              TextStyle(color: colorScheme.onSurfaceVariant),
-                          hintStyle: TextStyle(
-                            color: colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.6),
-                            fontSize: 12.5,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.lock_outline_rounded,
-                            color: _colorPrimary,
-                          ),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              obscureEditPassword
-                                  ? Icons.visibility_off_rounded
-                                  : Icons.visibility_rounded,
-                              size: 20,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            onPressed: () => setStateDialog(
-                              () => obscureEditPassword = !obscureEditPassword,
-                            ),
-                          ),
-                          filled: true,
-                          fillColor: isDark
-                              ? Colors.white.withValues(alpha: 0.04)
-                              : const Color(0xFFF9FAFB),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                              color: colorScheme.outlineVariant
-                                  .withValues(alpha: 0.5),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                                color: _colorPrimary, width: 2),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 16),
+                    // ═══ SECCIÓN: DATOS PERSONALES ═══
+                    FormSection(
+                      title: 'Datos personales',
+                      icon: Icons.person_rounded,
+                      accentColor: _colorPrimary,
+                      children: [
+                        PersonaTextField(
+                          controller: nombreController,
+                          label: 'Nombre *',
+                          icon: Icons.person_outline_rounded,
+                          accentColor: _colorPrimary,
+                          textCapitalization: TextCapitalization.words,
+                          enabled: !editando,
+                          validator: (v) =>
+                              v?.trim().isNotEmpty == true ? null : 'Requerido',
                         ),
-                      ),
-                      if (passwordController.text.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        _PasswordStrengthIndicator(
-                          password: passwordController.text,
-                          strength: _getPasswordStrength(
-                              passwordController.text),
-                          score:
-                              _getPasswordScore(passwordController.text),
-                          color: _getPasswordColor(
-                              _getPasswordStrength(passwordController.text)),
-                          icon: _getPasswordIcon(
-                              _getPasswordStrength(passwordController.text)),
+                        const SizedBox(height: 14),
+                        PersonaTextField(
+                          controller: emailController,
+                          label: 'Correo electrónico *',
+                          icon: Icons.email_rounded,
+                          accentColor: _colorPrimary,
+                          keyboardType: TextInputType.emailAddress,
+                          enabled: !editando,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Requerido';
+                            }
+                            if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$')
+                                .hasMatch(v.trim())) {
+                              return 'Email inválido';
+                            }
+                            return null;
+                          },
                         ),
                       ],
-                      const SizedBox(height: 14),
+                    ),
+                    const SizedBox(height: 22),
 
-                      // ── PIN (opcional al editar) ──
-                      PersonaTextField(
-                        controller: pinController,
-                        label: 'Nuevo PIN (opcional)',
-                        icon: Icons.pin_rounded,
-                        accentColor: _colorPrimary,
-                        keyboardType: TextInputType.number,
-                        enabled: !editando,
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return null;
-                          if (v.trim().length != 4 ||
-                              int.tryParse(v.trim()) == null) {
-                            return 'Debe ser 4 dígitos numéricos';
-                          }
-                          return null;
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-
-                  // ═══ SECCIÓN: PERMISOS ═══
-                  FormSection(
-                    title: 'Permisos',
-                    icon: Icons.assignment_ind_rounded,
-                    accentColor: _colorPrimary,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        initialValue: rolSeleccionado,
-                        isExpanded: true,
-                        style: TextStyle(
-                          color: colorScheme.onSurface,
-                          fontSize: 14,
+                    // ═══ SECCIÓN: SEGURIDAD ═══
+                    FormSection(
+                      title: 'Seguridad',
+                      icon: Icons.lock_rounded,
+                      accentColor: _colorPrimary,
+                      children: [
+                        // ── Password con toggle (usa InputDecoration custom) ──
+                        TextFormField(
+                          controller: passwordController,
+                          enabled: !editando,
+                          obscureText: obscureEditPassword,
+                          onChanged: (_) => setStateDialog(() {}),
+                          style: TextStyle(color: colorScheme.onSurface),
+                          decoration: InputDecoration(
+                            labelText: 'Nueva contraseña (opcional)',
+                            hintText: 'Dejar vacío para no cambiarla',
+                            labelStyle: TextStyle(
+                                color: colorScheme.onSurfaceVariant),
+                            hintStyle: TextStyle(
+                              color: colorScheme.onSurfaceVariant
+                                  .withValues(alpha: 0.6),
+                              fontSize: 12.5,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.lock_outline_rounded,
+                              color: _colorPrimary,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscureEditPassword
+                                    ? Icons.visibility_off_rounded
+                                    : Icons.visibility_rounded,
+                                size: 20,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                              onPressed: () => setStateDialog(
+                                () => obscureEditPassword =
+                                    !obscureEditPassword,
+                              ),
+                            ),
+                            filled: true,
+                            fillColor: isDark
+                                ? Colors.white.withValues(alpha: 0.04)
+                                : const Color(0xFFF9FAFB),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: colorScheme.outlineVariant
+                                    .withValues(alpha: 0.5),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(
+                                  color: _colorPrimary, width: 2),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 16),
+                          ),
                         ),
-                        decoration: InputDecoration(
-                          labelText: 'Rol',
-                          labelStyle:
-                              TextStyle(color: colorScheme.onSurfaceVariant),
-                          prefixIcon: const Icon(
-                            Icons.assignment_ind_rounded,
-                            color: _colorPrimary,
-                          ),
-                          filled: true,
-                          fillColor: isDark
-                              ? Colors.white.withValues(alpha: 0.04)
-                              : const Color(0xFFF9FAFB),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide.none,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(
-                              color: colorScheme.outlineVariant
-                                  .withValues(alpha: 0.5),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                                color: _colorPrimary, width: 2),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 16),
-                        ),
-                        dropdownColor: colorScheme.surface,
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'admin',
-                            child: Row(
-                              children: [
-                                Icon(Icons.admin_panel_settings_rounded,
-                                    color: Color(0xFF3B82F6), size: 18),
-                                SizedBox(width: 8),
-                                Text('Administrador'),
-                              ],
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: 'cajero',
-                            child: Row(
-                              children: [
-                                Icon(Icons.person_rounded,
-                                    color: Color(0xFF10B981), size: 18),
-                                SizedBox(width: 8),
-                                Text('Cajero'),
-                              ],
-                            ),
+                        if (passwordController.text.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          _PasswordStrengthIndicator(
+                            password: passwordController.text,
+                            strength: _getPasswordStrength(
+                                passwordController.text),
+                            score:
+                                _getPasswordScore(passwordController.text),
+                            color: _getPasswordColor(
+                                _getPasswordStrength(passwordController.text)),
+                            icon: _getPasswordIcon(
+                                _getPasswordStrength(passwordController.text)),
                           ),
                         ],
-                        onChanged: editando
-                            ? null
-                            : (val) {
-                                if (val != null) {
-                                  setStateDialog(
-                                      () => rolSeleccionado = val);
-                                }
-                              },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
+                        const SizedBox(height: 14),
 
-                  // ═══ ACCIONES ═══
-                  FormActions(
-                    isSaving: editando,
-                    confirmLabel: 'Guardar Cambios',
-                    accentColor: _colorPrimary,
-                    onCancel: () => Navigator.pop(dialogContext),
-                    onConfirm: () async {
-                      if (!formKey.currentState!.validate()) return;
-                      setStateDialog(() => editando = true);
+                        // ── PIN (opcional al editar) ──
+                        PersonaTextField(
+                          controller: pinController,
+                          label: 'Nuevo PIN (opcional)',
+                          icon: Icons.pin_rounded,
+                          accentColor: _colorPrimary,
+                          keyboardType: TextInputType.number,
+                          enabled: !editando,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return null;
+                            if (v.trim().length != 4 ||
+                                int.tryParse(v.trim()) == null) {
+                              return 'Debe ser 4 dígitos numéricos';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
 
-                      try {
-                        final newPassword = passwordController.text.trim();
-                        final newPin = pinController.text.trim();
-
-                        if (newPassword.isNotEmpty) {
-                          final strength = _getPasswordStrength(newPassword);
-                          if (strength == 'Débil') {
-                            final confirm = await showDialog<bool>(
-                              context: dialogContext,
-                              builder: (ctx) => AlertDialog(
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16)),
-                                title: const Text('Contraseña débil'),
-                                content: const Text(
-                                    'La nueva contraseña es débil. ¿Deseas continuar de todos modos?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(ctx, false),
-                                    child: const Text('Cancelar'),
-                                  ),
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _colorWarning,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    onPressed: () =>
-                                        Navigator.pop(ctx, true),
-                                    child: const Text('Continuar'),
-                                  ),
+                    // ═══ SECCIÓN: PERMISOS ═══
+                    FormSection(
+                      title: 'Permisos',
+                      icon: Icons.assignment_ind_rounded,
+                      accentColor: _colorPrimary,
+                      children: [
+                        DropdownButtonFormField<String>(
+                          initialValue: rolSeleccionado,
+                          isExpanded: true,
+                          style: TextStyle(
+                            color: colorScheme.onSurface,
+                            fontSize: 14,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Rol',
+                            labelStyle: TextStyle(
+                                color: colorScheme.onSurfaceVariant),
+                            prefixIcon: const Icon(
+                              Icons.assignment_ind_rounded,
+                              color: _colorPrimary,
+                            ),
+                            filled: true,
+                            fillColor: isDark
+                                ? Colors.white.withValues(alpha: 0.04)
+                                : const Color(0xFFF9FAFB),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(
+                                color: colorScheme.outlineVariant
+                                    .withValues(alpha: 0.5),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(
+                                  color: _colorPrimary, width: 2),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 16),
+                          ),
+                          dropdownColor: colorScheme.surface,
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'admin',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.admin_panel_settings_rounded,
+                                      color: Color(0xFF3B82F6), size: 18),
+                                  SizedBox(width: 8),
+                                  Text('Administrador'),
                                 ],
                               ),
-                            );
-                            if (confirm != true) {
-                              setStateDialog(() => editando = false);
-                              return;
+                            ),
+                            DropdownMenuItem(
+                              value: 'cajero',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.person_rounded,
+                                      color: Color(0xFF10B981), size: 18),
+                                  SizedBox(width: 8),
+                                  Text('Cajero'),
+                                ],
+                              ),
+                            ),
+                          ],
+                          onChanged: editando
+                              ? null
+                              : (val) {
+                                  if (val != null) {
+                                    setStateDialog(
+                                        () => rolSeleccionado = val);
+                                  }
+                                },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ═══ ACCIONES ═══
+                    FormActions(
+                      isSaving: editando,
+                      confirmLabel: 'Guardar Cambios',
+                      accentColor: _colorPrimary,
+                      onCancel: () => Navigator.pop(dialogContext),
+                      onConfirm: () async {
+                        if (!formKey.currentState!.validate()) return;
+                        setStateDialog(() => editando = true);
+
+                        try {
+                          final newPassword = passwordController.text.trim();
+                          final newPin = pinController.text.trim();
+
+                          if (newPassword.isNotEmpty) {
+                            final strength = _getPasswordStrength(newPassword);
+                            if (strength == 'Débil') {
+                              final confirm = await showDialog<bool>(
+                                context: dialogContext,
+                                builder: (ctx) => AlertDialog(
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(16)),
+                                  title: const Text('Contraseña débil'),
+                                  content: const Text(
+                                      'La nueva contraseña es débil. ¿Deseas continuar de todos modos?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text('Cancelar'),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: _colorWarning,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, true),
+                                      child: const Text('Continuar'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm != true) {
+                                setStateDialog(() => editando = false);
+                                return;
+                              }
                             }
                           }
-                        }
 
-                        usuario.nombre = nombreController.text.trim();
-                        usuario.email = emailController.text.trim();
-                        usuario.rol = rolSeleccionado;
+                          usuario.nombre = nombreController.text.trim();
+                          usuario.email = emailController.text.trim();
+                          usuario.rol = rolSeleccionado;
 
-                        if (newPin.isNotEmpty) {
-                          usuario.pin = _hashPin(newPin);
-                        }
-                        if (newPassword.isNotEmpty) {
-                          usuario.password = newPassword;
-                        }
-                        await _isarService.guardarUsuario(usuario);
-
-                        if (usuario.supabaseId != null &&
-                            usuario.supabaseId!.isNotEmpty) {
-                          final supabase = Supabase.instance.client;
-                          final Map<String, dynamic> updateData = {
-                            'nombre': usuario.nombre,
-                            'rol': usuario.rol,
-                            'email': usuario.email,
-                            'updated_at':
-                                DateTime.now().toIso8601String(),
-                          };
-                          // Solo envía el PIN si fue modificado
+                          // ════════════════════════════════════════════
+                          // 🎯 FIX: usar PinHasher directamente.
+                          //
+                          //   Antes: usuario.pin = _hashPin(newPin);  ← sin salt
+                          //   Ahora: PinHasher.hashWithNewSalt(newPin) ← correcto
+                          //
+                          //   IsarService.guardarUsuario detecta `isHashed()`
+                          //   y NO re-hashea. Un solo formato en todos lados.
+                          // ════════════════════════════════════════════
                           if (newPin.isNotEmpty) {
-                            updateData['pin'] = usuario.pin;
+                            usuario.pin = PinHasher.hashWithNewSalt(newPin);
                           }
-                          await supabase
-                              .from('usuarios')
-                              .update(updateData)
-                              .eq('id', usuario.supabaseId!);
+                          if (newPassword.isNotEmpty) {
+                            usuario.password = newPassword;
+                          }
+                          await _isarService.guardarUsuario(usuario);
+
+                          if (usuario.supabaseId != null &&
+                              usuario.supabaseId!.isNotEmpty) {
+                            final supabase = Supabase.instance.client;
+                            final Map<String, dynamic> updateData = {
+                              'nombre': usuario.nombre,
+                              'rol': usuario.rol,
+                              'email': usuario.email,
+                              'updated_at':
+                                  DateTime.now().toIso8601String(),
+                            };
+                            // Solo envía el PIN si fue modificado
+                            if (newPin.isNotEmpty) {
+                              updateData['pin'] = usuario.pin;
+                            }
+                            await supabase
+                                .from('usuarios')
+                                .update(updateData)
+                                .eq('id', usuario.supabaseId!);
+                          }
+
+                          await _syncService
+                              .sincronizarUsuariosASupabase();
+
+                          if (!mounted) return;
+                          Navigator.pop(dialogContext);
+                          _snack('✅ Usuario actualizado correctamente',
+                              _colorSuccess);
+                          await _cargarUsuarios();
+                        } catch (e) {
+                          if (!mounted) return;
+                          setStateDialog(() => editando = false);
+                          _snack('❌ Error al actualizar: $e', _colorDanger);
                         }
-
-                        await _syncService
-                            .sincronizarUsuariosASupabase();
-
-                        if (!mounted) return;
-                        Navigator.pop(dialogContext);
-                        _snack('✅ Usuario actualizado correctamente',
-                            _colorSuccess);
-                        await _cargarUsuarios();
-                      } catch (e) {
-                        if (!mounted) return;
-                        setStateDialog(() => editando = false);
-                        _snack('❌ Error al actualizar: $e', _colorDanger);
-                      }
-                    },
-                  ),
-                ],
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
-    ),
-  );
-}
-Widget _buildEditHeader(
-  BuildContext context,
-  String nombre,
-  ColorScheme colorScheme,
-) {
-  return Row(
-    children: [
-      Container(
-        padding: const EdgeInsets.all(11),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              _colorPrimary,
-              Color.lerp(_colorPrimary, Colors.black, 0.15)!,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEditHeader(
+    BuildContext context,
+    String nombre,
+    ColorScheme colorScheme,
+  ) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(11),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                _colorPrimary,
+                Color.lerp(_colorPrimary, Colors.black, 0.15)!,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: _colorPrimary.withValues(alpha: 0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
             ],
           ),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: _colorPrimary.withValues(alpha: 0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Icon(
-          Icons.edit_rounded,
-          color: Colors.white,
-          size: 22,
-        ),
-      ),
-      const SizedBox(width: 14),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Editar Usuario',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: colorScheme.onSurface,
-                letterSpacing: -0.4,
-                height: 1.15,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              nombre,
-              style: TextStyle(
-                fontSize: 12.5,
-                color: colorScheme.onSurfaceVariant,
-                height: 1.3,
-              ),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-          ],
-        ),
-      ),
-      MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: Icon(
-            Icons.close_rounded,
-            color: colorScheme.onSurfaceVariant,
+          child: const Icon(
+            Icons.edit_rounded,
+            color: Colors.white,
+            size: 22,
           ),
-          tooltip: 'Cerrar',
         ),
-      ),
-    ],
-  );
-}
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Editar Usuario',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: colorScheme.onSurface,
+                  letterSpacing: -0.4,
+                  height: 1.15,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                nombre,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.3,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ],
+          ),
+        ),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: Icon(
+              Icons.close_rounded,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            tooltip: 'Cerrar',
+          ),
+        ),
+      ],
+    );
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // ELIMINAR USUARIO

@@ -73,8 +73,25 @@ class CartState {
     if (!ivaHabilitado) return 0.0;
     return configIva.porcentajeIva;
   }
+    int get cantidadItems => items.length;
 
-  int get cantidadItems => items.length;
+  // ═══════════════════════════════════════════════════════════════════
+  // 🎯 NUEVO: ¿Hay algún item con cantidad <= 0?
+  //
+  //   Se usa para bloquear el botón "Cobrar Orden" cuando el carrito
+  //   tiene items que no se pueden vender (cantidad 0 o negativa).
+  //
+  //   El usuario debe eliminar manualmente esos items desde la lista
+  //   del carrito antes de poder cobrar.
+  // ═══════════════════════════════════════════════════════════════════
+  bool get hayItemsSinStock {
+    return items.any((item) => item.cantidad <= 0);
+  }
+
+  // Lista de items con problema (para mostrar en el diálogo)
+  List<CartItem> get itemsSinStock {
+    return items.where((item) => item.cantidad <= 0).toList();
+  }
 
   static double _redondearDosDecimales(double valor) {
     return double.parse(valor.toStringAsFixed(2));

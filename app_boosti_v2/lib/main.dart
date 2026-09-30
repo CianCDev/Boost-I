@@ -1,12 +1,17 @@
 // lib/main.dart
 import 'dart:async';
+import 'dart:io';
 
 import 'package:device_preview/device_preview.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+// 🔥 Configuración de Supabase compilada
+import 'core/config/supabase_config.dart';
 
 // Entities & Services
 import 'features/pos/data/Local/entities/isar_service.dart';
@@ -22,7 +27,7 @@ import 'features/pos/presentation/providers/themes/theme_provider.dart';
 import 'features/pos/presentation/providers/usuario_provider.dart';
 
 // Screens
-import 'features/pos/presentation/screens/configuracion_empresa_screen.dart';
+// 🎯 ELIMINADO: import de configuracion_empresa_screen.dart (ya no existe)
 import 'features/pos/presentation/screens/empleados/employees_screen.dart';
 import 'features/pos/presentation/screens/login_screen.dart';
 import 'features/pos/presentation/screens/main_pos_screen.dart';
@@ -36,6 +41,8 @@ import 'features/pos/presentation/services/ota_update_service.dart';
 
 // Widgets
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
+
 
 // ════════════════════════════════════════════════════════════════════
 // MAIN
@@ -44,6 +51,9 @@ import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 void main() async {
   if (kDebugMode) {
     debugPrint('🚀 BoostiPOS iniciando — ${DateTime.now()}');
+    debugPrint('🔍 SupabaseConfig.estaConfigurado: ${SupabaseConfig.estaConfigurado}');
+    debugPrint('🔍 URL: "${SupabaseConfig.url}"');
+    debugPrint('🔍 Key length: ${SupabaseConfig.publishableKey.length}');
   }
 
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,12 +84,58 @@ void main() async {
     debugPrint('⚠️ OTA check falló: $e');
   }
 
-  // ── 3. App ──
-  runApp(
-    DevicePreview(
-      enabled: !kReleaseMode,
-      builder: (_) => ProviderScope(
-        child: BoostiPOS(supabaseInitialized: supabaseInitialized),
+  // ── 3. Metadatos de la app (para Sentry release dinámico) ──
+  String release = 'unknown';
+  try {
+    final packageInfo = await PackageInfo.fromPlatform();
+    release = '${packageInfo.version}+${packageInfo.buildNumber}';
+    debugPrint('📦 App release: $release');
+  } catch (e) {
+    debugPrint('⚠️ No se pudo obtener PackageInfo: $e');
+  }
+
+  // ── 4. Sentry ──
+  await SentryFlutter.init(
+    (options) {
+      options.dsn =
+          'https://d6ba391e37a1ea64b67002541041c94d@o4512161811922944.ingest.us.sentry.io/4512164794793984';
+
+      options.environment = kReleaseMode ? 'production' : 'development';
+      options.release = release;
+      options.tracesSampleRate = kReleaseMode ? 0.1 : 1.0;
+      options.profilesSampleRate = kReleaseMode ? 0.1 : 1.0;
+      options.attachStacktrace = true;
+      options.attachScreenshot = false;
+
+      options.beforeSend = (event, hint) {
+        final throwable = event.throwable;
+
+        if (throwable is SocketException) return null;
+        if (throwable is TimeoutException) return null;
+
+        final msg = throwable?.toString() ?? '';
+        if (msg.contains('SocketException') ||
+            msg.contains('Failed host lookup') ||
+            msg.contains('Connection refused') ||
+            msg.contains('Connection closed')) {
+          return null;
+        }
+
+        return event;
+      };
+
+      if (kDebugMode) {
+        options.debug = true;
+      }
+    },
+    appRunner: () => runApp(
+      SentryWidget(
+        child: DevicePreview(
+          enabled: !kReleaseMode,
+          builder: (_) => ProviderScope(
+            child: BoostiPOS(supabaseInitialized: supabaseInitialized),
+          ),
+        ),
       ),
     ),
   );
@@ -89,16 +145,30 @@ void main() async {
 // HELPERS DE INICIALIZACIÓN
 // ════════════════════════════════════════════════════════════════════
 
+/// Inicializa Supabase usando EXCLUSIVAMENTE las credenciales
+/// compiladas vía `--dart-define-from-file=env.json`.
+///
+/// 🎯 SEGURIDAD: Se eliminó el fallback a SharedPreferences. La app
+/// nunca acepta credenciales ingresadas por el usuario final.
+/// Si `env.json` no se pasó al compilar, la app muestra una pantalla
+/// de error en vez del formulario de configuración.
 Future<bool> _inicializarSupabase(SharedPreferences prefs) async {
-  String? url = prefs.getString('supabase_url');
-  final anonKey = prefs.getString('supabase_anon_key');
-
-  if (url == null || url.isEmpty || anonKey == null || anonKey.isEmpty) {
-    debugPrint('⚠️ Sin config Supabase → se mostrará ConfiguracionEmpresa');
+  // ── Única fuente de credenciales: env.json ──
+  if (!SupabaseConfig.estaConfigurado) {
+    debugPrint(
+      '🚨 SEGURIDAD: App compilada SIN env.json. '
+      'No hay forma de conectarse a Supabase. '
+      'Compila con --dart-define-from-file=env.json',
+    );
     return false;
   }
 
-  // Normalizar URL
+  var url = SupabaseConfig.url;
+  final anonKey = SupabaseConfig.publishableKey;
+
+  debugPrint('✅ Usando credenciales de env.json (hardcoded en el binario)');
+
+  // Normalizar URL (quitar barra final, rutas extras)
   if (url.endsWith('/')) url = url.substring(0, url.length - 1);
   final uri = Uri.tryParse(url);
   if (uri != null) {
@@ -106,7 +176,6 @@ Future<bool> _inicializarSupabase(SharedPreferences prefs) async {
   }
 
   try {
-    // 🔥 IMPORTANTE: Se activa autoRefreshToken
     await Supabase.initialize(
       url: url,
       publishableKey: anonKey,
@@ -114,10 +183,15 @@ Future<bool> _inicializarSupabase(SharedPreferences prefs) async {
         authFlowType: AuthFlowType.implicit,
       ),
     );
-    debugPrint('✅ Supabase inicializado');
+
+    // Persistimos para que otros servicios que leen prefs sigan funcionando
+    await prefs.setString('supabase_url', url);
+    await prefs.setString('supabase_anon_key', anonKey);
+
+    debugPrint('✅ Supabase inicializado → $url');
     return true;
   } catch (e) {
-    debugPrint('⚠️ Error inicializando Supabase: $e');
+    debugPrint('🚨 Error inicializando Supabase: $e');
     return false;
   }
 }
@@ -154,6 +228,8 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
   bool _bootstrapDone = false;
   StreamSubscription<AuthState>? _authStateSubscription;
 
+  final _navigatorObserver = SentryNavigatorObserver();
+
   @override
   void initState() {
     super.initState();
@@ -169,7 +245,6 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
     super.dispose();
   }
 
-  /// Configura un listener para reaccionar a renovaciones automáticas del JWT.
   void _setupAuthStateListener() {
     if (!widget.supabaseInitialized) return;
 
@@ -178,14 +253,12 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
       final AuthChangeEvent event = data.event;
       final Session? session = data.session;
 
-      // ✅ Reaccionar a renovaciones de token
       if (event == AuthChangeEvent.tokenRefreshed && session != null) {
         debugPrint('🔄 JWT renovado automáticamente por Supabase Auth.');
         _actualizarTenantDesdeSesion(session);
         return;
       }
 
-      // ✅ NUEVO: Limpiar tenant al cerrar sesión
       if (event == AuthChangeEvent.signedOut) {
         debugPrint('🚪 Sesión Supabase cerrada → limpiando tenant');
         ref.read(tenantActualProvider.notifier).limpiar();
@@ -199,27 +272,15 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
 
     if (!mounted) return;
 
-    // ✅ Forzar inicialización del TenantNotifier (lee de prefs)
     ref.read(tenantActualProvider);
-
-    // 1. Refrescar JWT y rehidratar tenant desde la sesión activa
     await _cargarTenantDesdeSesion();
 
-    // 2. Sync en background
     if (widget.supabaseInitialized && !_syncStarted) {
       _syncStarted = true;
       _startBackgroundSync();
     }
   }
 
-  /// ✅ CORREGIDO: Valida el tenant antes de aceptarlo.
-  ///
-  /// Reglas:
-  ///   1. Si el JWT no trae tenant → no hace nada.
-  ///   2. Si el tenant del JWT == tenant actual → no hace nada (idempotente).
-  ///   3. Si el tenant del JWT es distinto → valida contra `locales`.
-  ///      - Si existe (Isar o Supabase) → lo acepta.
-  ///      - Si NO existe → fuerza logout para evitar RLS bloqueado.
   Future<void> _actualizarTenantDesdeSesion(Session session) async {
     final token = session.accessToken;
     final tenantJwt = JwtService.extraerTenantId(token);
@@ -232,7 +293,6 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
 
     final tenantActual = ref.read(tenantActualProvider).tenantId;
 
-    // ── Caso 1: mismo tenant → no-op ──
     if (tenantJwt == tenantActual) {
       return;
     }
@@ -240,7 +300,6 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
     debugPrint(
         '🔍 JWT trae tenant $tenantJwt (actual: $tenantActual). Validando...');
 
-    // ── Caso 2: validar que el tenant exista ──
     try {
       final isar = IsarService();
       final localIsar = await isar.obtenerLocalPorSupabaseId(tenantJwt);
@@ -253,7 +312,6 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
         return;
       }
 
-      // No está en Isar local → verificar en Supabase
       final supaLocal = await Supabase.instance.client
           .from('locales')
           .select('id, nombre')
@@ -269,7 +327,6 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
         return;
       }
 
-      // ── Caso 3: tenant fantasma → forzar logout ──
       debugPrint(
           '🚨 Tenant $tenantJwt NO existe en Isar ni en Supabase. '
           'Cerrando sesión huérfana para forzar re-login.');
@@ -280,23 +337,17 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
         debugPrint('⚠️ Error en signOut forzado: $e');
       }
 
-      // Limpiar el tenant local (probablemente apunta a un fantasma)
       await ref.read(tenantActualProvider.notifier).limpiar();
-
-      // Limpiar usuario actual para forzar LoginScreen
       ref.read(usuarioActualProvider.notifier).clearUsuario();
     } catch (e) {
       debugPrint('⚠️ Error validando tenant $tenantJwt: $e');
-      // No forzamos logout si el error es de red — preferimos modo offline
     }
   }
 
-  /// Refresca la sesión activa al inicio y rehidrata `tenant_id` del JWT.
   Future<void> _cargarTenantDesdeSesion() async {
     try {
       if (!widget.supabaseInitialized) return;
 
-      // Intentar refrescar sesión manualmente al arrancar la app
       try {
         final res = await Supabase.instance.client.auth.refreshSession();
         if (res.session != null) {
@@ -309,7 +360,6 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
             'ℹ️ No se pudo refrescar la sesión manualmente (modo offline): $e');
       }
 
-      // Fallback: usar la sesión cacheada
       final session = Supabase.instance.client.auth.currentSession;
       if (session == null) {
         debugPrint('ℹ️ Sin sesión Supabase cacheada → tenant desde prefs');
@@ -327,7 +377,6 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
     syncService.iniciarSuscripcionesRealtime();
     syncService.iniciarMonitoreo();
 
-    // Solo sincronizar si hay sesión activa
     final usuario = ref.read(usuarioActualProvider);
     if (usuario == null) {
       debugPrint('ℹ️ Sin sesión → se omite sync inicial');
@@ -345,10 +394,15 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
     }
   }
 
-  /// Determina la pantalla inicial según configuración + sesión.
+  /// Determina la pantalla inicial.
+  ///
+  /// 🎯 SEGURIDAD: si Supabase no está configurado (falta env.json),
+  /// mostramos una pantalla de error en vez del formulario de
+  /// configuración. Esto evita que usuarios finales ingresen
+  /// credenciales arbitrarias.
   Widget _homeInicial() {
     if (!widget.supabaseInitialized) {
-      return const ConfiguracionEmpresaScreen();
+      return const _SupabaseNoConfiguradoScreen();
     }
 
     final usuario = ref.watch(usuarioActualProvider);
@@ -362,7 +416,7 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
       return const MainPosScreen();
     }
 
-    // Sin usuario local → Splash valida y redirige
+    // Sin usuario local → Splash valida y redirige a Welcome/Login
     return const SplashScreen();
   }
 
@@ -377,9 +431,10 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
       theme: lightTheme(),
       darkTheme: darkTheme(),
       themeMode: themeMode,
+      navigatorObservers: [_navigatorObserver],
       home: _homeInicial(),
+      // 🎯 ELIMINADA la ruta '/configuracion'
       routes: {
-        '/configuracion': (_) => const ConfiguracionEmpresaScreen(),
         '/login': (_) => const LoginScreen(),
         '/main': (_) => const MainPosScreen(),
         '/employees': (_) => const EmployeesScreen(),
@@ -394,6 +449,62 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
           ),
         );
       },
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PANTALLA DE ERROR: SUPABASE NO CONFIGURADO
+// ════════════════════════════════════════════════════════════════════
+//
+// 🎯 SEGURIDAD: esta pantalla se muestra SOLO si la app se compiló
+// sin el archivo env.json. No permite ninguna interacción con
+// credenciales. El usuario final debe contactar al proveedor.
+
+class _SupabaseNoConfiguradoScreen extends StatelessWidget {
+  const _SupabaseNoConfiguradoScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 72,
+                color: Color(0xFFEF4444),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Configuración no disponible',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Esta versión de la aplicación no fue compilada con las '
+                'credenciales necesarias. Contacta a tu proveedor para '
+                'obtener una versión válida.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

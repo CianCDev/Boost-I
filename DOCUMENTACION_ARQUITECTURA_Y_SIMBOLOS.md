@@ -106,7 +106,7 @@ main.dart
 
 ## 5. Servicios principales
 
-- **`lib/features/pos/presentation/services/sync_service.dart`**: Sincronizacion bidireccional con Supabase, realtime, conectividad y envio de pendientes.
+- **`lib/features/pos/presentation/services/sync_service.dart`**: Sincronizacion bidireccional con Supabase, realtime (con anti-eco para `usuarios` y `locales`), conectividad, envio de pendientes, batching de productos y sincronizacion de `business_mode` por local.
 - **`lib/features/pos/presentation/services/venta_service.dart`**: Orquesta la transaccion de venta, detalles, stock, cliente y ticket.
 - **`lib/features/pos/presentation/services/cash_register_service.dart`**: Calcula cierre diario y totales por metodo de pago.
 - **`lib/features/pos/presentation/services/printer_service.dart`**: Descubre y usa impresoras de red/Bluetooth.
@@ -120,6 +120,7 @@ main.dart
 - **`lib/features/pos/presentation/services/backup_service.dart`**: Crea y comparte respaldos.
 - **`lib/features/pos/presentation/services/logger_service.dart`**: Registra eventos persistentes en Isar.
 - **`lib/features/pos/presentation/services/device_info.dart`**: Identifica plataforma/dispositivo.
+- **`lib/core/security/telegram_crypto.dart`**: Encriptacion/desencriptacion AES-256-CBC de tokens de bot de Telegram.
 
 ## 6. Providers y controladores
 
@@ -148,7 +149,9 @@ main.dart
 - **`lib/features/pos/presentation/providers/pos_menu_provider.dart`**: PosMenuNotifier, PosMenuState; funciones: abrirTurno, cargarEstadoInicial, cargarEstadoSync, cargarEstadoTurno, cargarTurnoUsuario, cerrarTurno, getTurnoButtonColor, getTurnoButtonText, getTurnoIcon, sincronizarTodo.
 - **`lib/features/pos/presentation/providers/productos_provider.dart`**: ProductosNotifier, ProductosState; funciones: _listasSonIguales, cargarProductos, copyWith, eliminarProducto, guardarProducto, recargarDesdeSupabase.
 - **`lib/features/pos/presentation/providers/proveedores_provider.dart`**: ProveedoresNotifier; funciones: cargarProveedores, desactivarProveedor, guardarProveedor.
-- **`lib/features/pos/presentation/providers/sync_provider.dart`**: declaraciones/provider global.
+- **`lib/features/pos/presentation/providers/sync_provider.dart`**: declaraciones/provider global; callbacks `onDataChanged` y `onLocalCambiado` (recarga `businessModeProvider` cuando otro dispositivo cambia el modo).
+- **`lib/features/pos/presentation/providers/suscripcion_provider.dart`**: gestiona la suscripcion activa del local y la validacion de planes.
+- **`lib/features/pos/presentation/providers/business_mode_provider.dart`**: BusinessModeProvider; gestiona el modo de negocio del local activo (`mercado` | `restaurante` | `servicios`), sincronizacion con Supabase y recarga reactiva.
 - **`lib/features/pos/presentation/providers/telegram_provider.dart`**: declaraciones/provider global.
 - **`lib/features/pos/presentation/providers/themes/app_colors.dart`**: declaraciones/provider global.
 - **`lib/features/pos/presentation/providers/themes/theme.dart`**: declaraciones/provider global; funciones: darkTheme, lightTheme.
@@ -165,7 +168,7 @@ main.dart
 - **`lib/features/pos/data/Local/entities/detalle_venta_entity.dart`**: tipos `DetalleVentaEntity`; campos detectados: cantidad, esDescuentoEspecial, id, nombreProducto, precioOriginal, precioUnidad, productoId, subtotal, syncStatus, ventaIdFk.
 - **`lib/features/pos/data/Local/entities/entrega_entity.dart`**: tipos `EntregaEntity`; campos detectados: createdAt, estadoEntrega, fechaEntrega, id, observaciones, pedidoId, supabaseId, usuarioId.
 - **`lib/features/pos/data/Local/entities/gasto_entity.dart`**: tipos `GastoEntity`; campos detectados: categoria, descripcion, fecha, id, moneda, monto, supabaseId, syncStatus, tasaBcv, usuarioId, usuarioNombre.
-- **`lib/features/pos/data/Local/entities/local_entity.dart`**: tipos `LocalEntity`; campos detectados: activo, createdAt, direccion, email, fechaSincronizacion, id, nombre, rif, sincronizado, supabaseId, telefono, updatedAt.
+- **`lib/features/pos/data/Local/entities/local_entity.dart`**: tipos `LocalEntity`; campos detectados: activo, businessMode, createdAt, direccion, email, fechaSincronizacion, id, nombre, rif, sincronizado, supabaseId, telefono, updatedAt.
 - **`lib/features/pos/data/Local/entities/log_entity.dart`**: tipos `LogEntity`; campos detectados: accion, detalles, fecha, id, sincronizado, usuarioNombre, usuarioRol.
 - **`lib/features/pos/data/Local/entities/lote_entity.dart`**: tipos `LoteEntity`; campos detectados: cantidadInicial, cantidadRestante, codigoBarrasLote, codigoLoteProveedor, costoUnitario, estado, fechaIngreso, fechaSincronizacion, fechaVencimiento, id, productoId, sincronizado, supabaseId.
 - **`lib/features/pos/data/Local/entities/marca_entity.dart`**: tipos `MarcaEntity`; campos detectados: activo, createdAt, descripcion, id, logoUrl, nombre, proveedorId, supabaseId, syncStatus, updatedAt.
@@ -178,6 +181,8 @@ main.dart
 - **`lib/features/pos/data/Local/entities/telegram_config_entity.dart`**: tipos `TelegramConfigEntity`; campos detectados: botToken, chatId, comandosPermitidos, createdAt, enabled, fechaSincronizacion, id, nombreChat, notificarPedidos, notificarStockBajo, notificarVentas, sincronizado, supabaseId, updatedAt, usuarioId.
 - **`lib/features/pos/data/Local/entities/turno_entity.dart`**: tipos `TurnoEntity`; campos detectados: cajaId, cajaNombre, estado, fechaApertura, fechaCierre, id, montoFinal, montoInicial, syncStatus, totalVentas, turnoId, usuarioId, usuarioNombre, ventasCount.
 - **`lib/features/pos/data/Local/entities/usuario_entity.dart`**: tipos `UsuarioEntity`; campos detectados: activo, cajaAsignada, createdAt, departamento, departamentoId, deviceId, dynamicId, email, estado, fechaSincronizacion, id, localId, nombre, password, pin, rol, sincronizado, supabaseId, supabaseUid, updatedAt.
+- **`lib/features/pos/data/Local/entities/plan_entity.dart`**: tipos `PlanEntity`; planes de suscripcion con limites por modo de negocio.
+- **`lib/features/pos/data/Local/entities/suscripcion_entity.dart`**: tipos `SuscripcionEntity`; suscripcion activa del local con plan y fecha de expiracion.
 - **`lib/features/pos/data/Local/entities/venta_entity.dart`**: tipos `VentaEntity`; campos detectados: documento, empleado, fecha, id, idSupabase, impuesto, items, metodoPago, montoDescuentoTotal, subtotal, syncStatus, tasaBcv, tieneDescuentoEspecial, total, totalBolivares.
 - `isar_service.dart`: singleton de acceso a Isar; inicializacion por empresa, CRUD, login, ventas, inventario, pedidos, lotes, gastos, usuarios, logs y migraciones.
 - Cada entidad tiene un `.g.dart` generado con schema, serializacion y query builders Isar.
@@ -188,8 +193,8 @@ main.dart
 - **POS/ventas:** `main_pos_screen.dart`, `inventory_catalog_screen.dart`, `sales_history_screen.dart`, `history_root_screen.dart`, `printer_setup_screen.dart`, `printer_selection_screen.dart`.
 - **Inventario/catalogo:** `inventory_screen.dart`, `departamentos_screen.dart`, `proveedores_screen.dart`, `locales_screen.dart`, `lotes_screen.dart`.
 - **Operacion:** `pedidos_screen.dart`, `gastos_screen.dart`, `cash_closing_screen.dart`, `dashboard_screen.dart`.
-- **Administracion/comunicacion:** `audit_log_screen.dart`, `telegram_config_screen.dart`.
-- **Widgets:** catalogo, inventario, ventas, pedidos, proveedores, locales, dashboard, caja, menu, lotes, clientes y componentes compartidos; la lista exhaustiva por archivo esta en la seccion 9.
+- **Administracion/comunicacion:** `audit_log_screen.dart`, `telegram_config_screen.dart`, `user_settings_screen.dart`, `seleccionar_modo_negocio_screen.dart`.
+- **Widgets:** catalogo, inventario, ventas, pedidos, proveedores, locales, dashboard, caja, menu, lotes, clientes, modo_negocio_card y componentes compartidos; la lista exhaustiva por archivo esta en la seccion 9.
 
 ## 9. Inventario exhaustivo por archivo, clases, funciones y variables
 

@@ -1,109 +1,86 @@
-name: app_boosti_v2
+name: "app_boosti_v2"
 description: "A new Flutter project."
-publish_to: 'none'
-version: 1.0.0+1
-
+publish_to: "none"
+version: "1.0.0+2"
 environment:
-  sdk: ^3.3.0
-
+  sdk: "^3.3.0"
 dependencies:
-
-  # Seguridad
-  crypto: ^3.0.7
-
+  crypto: "^3.0.7"
+  encrypt: "^5.0.3"
   flutter:
-    sdk: flutter
-
-  # Isar (base de datos local)
-  isar: ^3.1.0+1
+    sdk: "flutter"
+  isar: "^3.1.0+1"
   isar_flutter_libs:
-    path: plugins/isar_flutter_libs
-
-  # Backend y estado
-  supabase_flutter: ^2.15.2
-  flutter_riverpod: ^2.5.1
-  web_socket_channel: ^3.0.3
-  http: ^1.2.0
-  connectivity_plus: ^7.0.0
-  shared_preferences: ^2.3.2
-  provider: ^6.1.1
-
-  # PDF e impresión
-  pdf: ^3.11.1
-  esc_pos_printer_lts: ^4.1.0
-  esc_pos_utils_plus: ^2.0.4
-  esc_pos_utils_lts: ^0.0.1
-
-  # Archivos y rutas
-  path_provider: ^2.1.5
-  open_filex: ^4.5.0
-  share_plus: ^10.0.0
-  archive: ^3.4.0
-  restart_app: ^1.3.2
-
-  # Imágenes y cámara
-  image: ^4.3.0
-  image_picker: ^1.1.2
-  file_selector: ^1.1.0
-  image_cropper: ^12.2.1
-  image_cropper_platform_interface: 8.0.0
-  image_cropper_for_web: 7.0.0
-  flutter_svg: ^2.0.0
-  barcode_widget: ^2.0.4
-
-  # UI y animaciones
-  flutter_staggered_animations: ^1.1.1
-  fl_chart: ^0.68.0
-  shimmer: ^3.0.0
-  lottie: ^3.0.0
-  flutter_slidable: ^3.0.0
-  flutter_typeahead: ^5.2.0
-  device_preview: ^1.3.1
-  cupertino_icons: ^1.0.8
-  intl: ^0.20.2
-  collection: ^1.19.1
-  flutter_keyboard_visibility: ^6.0.0
-
-  # Dispositivos y sensores
-  flutter_blue_plus: ^1.32.0
-  platform_serial: ^0.2.0
-  device_info_plus: ^10.1.0
-  permission_handler: ^11.3.1
-  mobile_scanner: ^6.0.2
-  charset_converter: 2.4.0
-
-  # Utilidades
-  uuid: ^4.4.2
-
-  # OTA code-push con Shorebird
-  shorebird_code_push: ^2.0.7
-
-  # Monitoreo y backup
-  sentry_flutter: ^9.29.0
-  workmanager: 0.10.10
-  path_provider_platform_interface: ^2.1.3
-
+    path: "plugins/isar_flutter_libs"
+  supabase_flutter: "^2.15.2"
+  flutter_riverpod: "^2.5.1"
+  web_socket_channel: "^3.0.3"
+  http: "^1.2.0"
+  connectivity_plus: "^7.0.0"
+  shared_preferences: "^2.3.2"
+  provider: "^6.1.1"
+  pdf: "^3.11.1"
+  esc_pos_printer_lts: "^4.1.0"
+  esc_pos_utils_plus: "^2.0.4"
+  esc_pos_utils_lts: "^0.0.1"
+  path_provider: "^2.1.5"
+  open_filex: "^4.5.0"
+  share_plus: "^10.0.0"
+  archive: "^3.4.0"
+  restart_app: "^1.3.2"
+  image: "^4.3.0"
+  image_picker: "^1.1.2"
+  file_selector: "^1.1.0"
+  image_cropper: "^12.2.1"
+  image_cropper_platform_interface: "8.0.0"
+  image_cropper_for_web: "7.0.0"
+  flutter_svg: "^2.0.0"
+  barcode_widget: "^2.0.4"
+  flutter_staggered_animations: "^1.1.1"
+  fl_chart: "^0.68.0"
+  shimmer: "^3.0.0"
+  lottie: "^3.0.0"
+  flutter_slidable: "^3.0.0"
+  flutter_typeahead: "^5.2.0"
+  device_preview: "^1.3.1"
+  cupertino_icons: "^1.0.8"
+  intl: "^0.20.2"
+  collection: "^1.19.1"
+  flutter_keyboard_visibility: "^6.0.0"
+  flutter_blue_plus: "^1.32.0"
+  platform_serial: "^0.2.0"
+  device_info_plus: "^10.1.0"
+  permission_handler: "^11.3.1"
+  mobile_scanner: "^6.0.2"
+  charset_converter: "2.4.0"
+  uuid: "^4.4.2"
+  shorebird_code_push: "^2.0.7"
+  sentry_flutter: "^9.29.0"
+  workmanager: "0.10.10"
+  path_provider_platform_interface: "^2.1.3"
+  package_info_plus: ^9.0.1
 dev_dependencies:
+  sentry_dart_plugin: "^3.4.0"
   flutter_test:
-    sdk: flutter
-  flutter_lints: ^5.0.0
-  analyzer: ^5.13.0
-  build_runner: ^2.4.13
-  isar_generator: ^3.1.0+1
-  flutter_launcher_icons: ^0.13.1
-
+    sdk: "flutter"
+  flutter_lints: "^5.0.0"
+  analyzer: "^5.13.0"
+  build_runner: "^2.4.13"
+  isar_generator: "^3.1.0+1"
+  flutter_launcher_icons: "^0.13.1"
+  inno_bundle: ^0.12.0
 flutter:
   uses-material-design: true
   assets:
-    - assets/config.json
-    - assets/animations/succes.json
-    - assets/animations/error.json
-    - assets/animations/clock.json
-    - assets/logoboosti300px.svg
-    - shorebird.yaml
-    - assets/icon/app_icon.png
-    - assets/icon/app_icon_foreground.png
-
+    - "assets/config.json"
+    - "assets/animations/succes.json"
+    - "assets/animations/error.json"
+    - "assets/animations/clock.json"
+    - "assets/logoboosti300px.svg"
+    - "shorebird.yaml"
+    - "assets/icon/app_icon.png"
+    - "assets/icon/app_icon.ico"
+    - "assets/icon/app_icon_foreground.png"
 flutter_launcher_icons:
   android: true
   ios: true
@@ -119,3 +96,26 @@ flutter_launcher_icons:
     generate: true
     image_path: "assets/icon/app_icon.png"
     icon_size: 256
+sentry:
+  upload_debug_symbols: true
+  upload_source_maps: true
+  project: "flutter"
+  org: "jahtlabs"
+
+
+# ═══════════════════════════════════════════════════════════════
+# CONFIGURACIÓN DEL INSTALADOR DE WINDOWS (inno_bundle)
+# ═══════════════════════════════════════════════════════════════
+inno_bundle:
+  # GUID único de tu app. Debe ser el mismo en cada release
+  # para que las actualizaciones se instalen SOBRE la anterior.
+  id: "f18d8f66-b846-4f2b-9cee-306d1579da1f"
+
+  # Nombre visible en el instalador, menú inicio y accesos directos.
+  name: "Boosti POS"
+
+  # Publisher (aparece en las propiedades del .exe).
+  publisher: "JAH Lab"
+
+  # Ruta al archivo .ico (debe existir y ser un .ico real).
+  installer_icon: "assets/icon/app_icon.ico"

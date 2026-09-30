@@ -1,6 +1,7 @@
 // lib/features/pos/presentation/screens/splash_screen.dart
 import 'dart:io' show Platform;
 
+import 'package:app_boosti_v2/features/pos/data/Local/entities/plan_entity.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,11 +17,12 @@ import '../../domain/permissions/roles.dart';
 import '../providers/tenant_provider.dart';
 import '../providers/usuario_provider.dart';
 // ✅ Import ya presente
-import 'configuracion_empresa_screen.dart';
 import 'empleados/employees_screen.dart';
 import 'login_screen.dart';
 import 'main_pos_screen.dart';
 import 'welcome_screen.dart';
+import '../providers/suscripcion_provider.dart';
+import 'seleccionar_modo_negocio_screen.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -242,63 +244,137 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   // NAVEGACIÓN
   // ════════════════════════════════════════════════════════════════
 
-  Future<void> _decidirNavegacion() async {
-    // ── 1. Verificación defensiva de config ──
-    if (!SupabaseConfig.estaConfigurado) {
-      debugPrint('⚠️ SupabaseConfig no configurado → ConfiguracionEmpresa');
+ Future<void> _decidirNavegacion() async {
+  // ── 1. Verificación defensiva de config ──
+  if (!SupabaseConfig.estaConfigurado) {
+    debugPrint('⚠️ SupabaseConfig no configurado → ConfiguracionEmpresa');
+    if (!mounted) return;
+    setState(() => _mensajeCarga = 'Configuración requerida');
+    await Future.delayed(const Duration(milliseconds: 600));
+    return;
+  }
+
+  // ── 2. ¿Hay sesión activa? ──
+  final usuario = ref.read(usuarioActualProvider);
+  if (usuario != null) {
+    // 🎯 NUEVO: ¿El local activo necesita onboarding?
+    //
+    //    Reglas:
+    //      - Sin local activo → no forzar (lo creará luego desde Welcome).
+    //      - Local con `modoConfiguradoEn == null` → forzar onboarding.
+    //      - Local ya configurado → continuar flujo normal.
+    final necesitaOnboarding = await _necesitaOnboarding();
+
+    if (necesitaOnboarding) {
+      debugPrint('➡️ Local sin modo configurado → Onboarding');
+      // Pre-cargar planes + suscripción para que el onboarding no
+      // muestre loading largo al entrar.
+      await _precargarDatosOnboarding();
       if (!mounted) return;
-      setState(() => _mensajeCarga = 'Configuración requerida');
-      await Future.delayed(const Duration(milliseconds: 600));
-      _goTo(const ConfiguracionEmpresaScreen());
+      _goTo(const SeleccionarModoNegocioScreen());
       return;
     }
 
-    // ── 2. ¿Hay sesión activa? ──
-    final usuario = ref.read(usuarioActualProvider);
-    if (usuario != null) {
-      final role = UserRole.fromString(usuario.rol);
+    final role = UserRole.fromString(usuario.rol);
 
-      if (Permissions.isEmployeesOnlyRole(role)) {
-        debugPrint('➡️ Sesión RRHH → EmployeesScreen');
-        _goTo(const EmployeesScreen());
-        return;
-      }
-
-      debugPrint('➡️ Sesión activa → MainPosScreen');
-      _goTo(const MainPosScreen());
+    if (Permissions.isEmployeesOnlyRole(role)) {
+      debugPrint('➡️ Sesión RRHH → EmployeesScreen');
+      _goTo(const EmployeesScreen());
       return;
     }
 
-    // ── 3. ¿El dispositivo ya está configurado con tenant? ──
-    final tenantState = ref.read(tenantActualProvider);
-    final tieneTenant = tenantState.tieneTenant;
+    debugPrint('➡️ Sesión activa → MainPosScreen');
+    _goTo(const MainPosScreen());
+    return;
+  }
 
-    debugPrint('🔍 Tenant configurado: $tieneTenant (${tenantState.tenantId})');
+  // ── 3. ¿El dispositivo ya está configurado con tenant? ──
+  final tenantState = ref.read(tenantActualProvider);
+  final tieneTenant = tenantState.tieneTenant;
 
-    if (!tieneTenant) {
-      debugPrint('➡️ Sin tenant configurado → WelcomeScreen (forzar setup)');
+  debugPrint('🔍 Tenant configurado: $tieneTenant (${tenantState.tenantId})');
+
+  if (!tieneTenant) {
+    debugPrint('➡️ Sin tenant configurado → WelcomeScreen (forzar setup)');
+    _goTo(const WelcomeScreen());
+    return;
+  }
+
+  // ── 4. Con tenant: verificar usuarios locales ──
+  try {
+    final isar = IsarService();
+    final usuarios = await isar.obtenerUsuariosActivos();
+    if (!mounted) return;
+
+    if (usuarios.isEmpty) {
+      debugPrint('➡️ Sin usuarios → WelcomeScreen');
       _goTo(const WelcomeScreen());
-      return;
-    }
-
-    // ── 4. Con tenant: verificar usuarios locales ──
-    try {
-      final isar = IsarService();
-      final usuarios = await isar.obtenerUsuariosActivos();
-      if (!mounted) return;
-
-      if (usuarios.isEmpty) {
-        debugPrint('➡️ Sin usuarios → WelcomeScreen');
-        _goTo(const WelcomeScreen());
-      } else {
-        debugPrint('➡️ Con usuarios + tenant → LoginScreen');
-        _goTo(const LoginScreen());
-      }
-    } catch (e) {
-      debugPrint('❌ Error verificando usuarios: $e');
+    } else {
+      debugPrint('➡️ Con usuarios + tenant → LoginScreen');
       _goTo(const LoginScreen());
     }
+  } catch (e) {
+    debugPrint('❌ Error verificando usuarios: $e');
+    _goTo(const LoginScreen());
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// ONBOARDING — CHEQUEO + PRE-CARGA
+// ════════════════════════════════════════════════════════════════
+
+/// Devuelve `true` si el local activo NO tiene modo de negocio
+/// configurado (`modoConfiguradoEn == null`).
+///
+/// Reglas defensivas:
+///   - Sin local activo → `false` (no forzamos onboarding sin contexto).
+///   - Error de Isar → `false` (no bloqueamos el arranque).
+Future<bool> _necesitaOnboarding() async {
+  try {
+    final local = await IsarService().obtenerLocalActivo();
+
+    if (local == null) {
+      debugPrint('🔍 [Onboarding] Sin local activo → no forzar');
+      return false;
+    }
+
+    final necesita = local.modoConfiguradoEn == null;
+    debugPrint(
+      '🔍 [Onboarding] Local "${local.nombre}" '
+      'modoConfiguradoEn=${local.modoConfiguradoEn} → necesita=$necesita',
+    );
+    return necesita;
+  } catch (e) {
+    debugPrint('⚠️ [Onboarding] Error chequeando: $e');
+    return false;
+  }
+}
+
+/// Pre-carga `planesProvider` y `suscripcionProvider` en paralelo con
+/// un timeout corto. Si falla, el onboarding mostrará su propio
+/// estado de loading + retry.
+Future<void> _precargarDatosOnboarding() async {
+  try {
+    await Future.wait<void>([
+      ref
+          .read(planesProvider.future)
+          .timeout(
+            const Duration(seconds: 6),
+            onTimeout: () => <PlanEntity>[],
+          ),
+      ref
+          .read(suscripcionProvider.future)
+          .timeout(
+            const Duration(seconds: 6),
+            onTimeout: () => null,
+          ),
+    ]);
+    debugPrint('✅ [Onboarding] Datos pre-cargados');
+  } catch (e) {
+    debugPrint('⚠️ [Onboarding] Error pre-cargando: $e');
+    // No bloqueamos; el onboarding tiene su propio loading/retry.
+  }
+}
 
   void _goTo(Widget screen) {
     if (!mounted) return;

@@ -1,11 +1,16 @@
+// lib/features/pos/presentation/widgets/printer_selection_widget.dart
 // ignore_for_file: use_build_context_synchronously
 
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../domain/models/printer_models.dart';
 import '../../domain/enums/printer_error.dart';
 import '../services/printer_service.dart';
 import '../providers/esc_pos_provider.dart';
+import 'common/glass_dialog.dart';
 import 'dialogos_genericos/succes_dialog.dart';
 import '../widgets/dialogos_genericos/error_dialog.dart';
 import '../widgets/dialogos_genericos/confirm_dialog.dart';
@@ -26,35 +31,82 @@ class _PrinterSelectionDialogState
   bool _isScanning = false;
   String? _selectedAddress;
 
+  // ═══════════════════════════════════════════════════════════════════
+  // PLATAFORMA
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// ¿Esta plataforma soporta escaneo Bluetooth con `flutter_blue_plus`?
+  ///
+  /// Soporta:
+  ///   - Android
+  ///   - iOS
+  ///   - macOS
+  ///
+  /// NO soporta (lanza "Unsupported operation"):
+  ///   - Windows
+  ///   - Linux
+  ///   - Web
+  ///
+  /// ⚠️ Usamos `defaultTargetPlatform` en vez de `Platform` (dart:io)
+  ///    para no romper builds web. Es la forma idiomática en Flutter.
+  bool get _bluetoothSoportado {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+  }
+
   @override
   void initState() {
     super.initState();
-    // Obtener la impresora seleccionada actualmente
+
+    // 🎯 Si la plataforma no soporta Bluetooth, arrancamos en modo Red.
+    //    Así el usuario no se topa con un botón que no funciona.
+    if (!_bluetoothSoportado) {
+      _printerType = PrinterType.network;
+    }
+
     final current = ref.read(printerProvider);
     _selectedAddress = current?.device.address;
   }
 
-  // ============================================================
-  // ESCANEO DE DISPOSITIVOS
-  // ============================================================
+  // ═══════════════════════════════════════════════════════════════════
+  // ESCANEO / AGREGAR
+  // ═══════════════════════════════════════════════════════════════════
+
   Future<void> _scan() async {
+    // ── Modo Red: abrir diálogo de IP directamente ──
+    if (_printerType == PrinterType.network) {
+      _showAddNetworkPrinterDialog();
+      return;
+    }
+
+    // ── Modo Bluetooth: validar plataforma ──
+    if (!_bluetoothSoportado) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => const ErrorDialog(
+            title: 'Bluetooth no disponible',
+            content:
+                'El escaneo Bluetooth solo funciona en Android, iOS y macOS.\n\n'
+                'En esta plataforma usa una impresora de red (WiFi).',
+          ),
+        );
+      }
+      return;
+    }
+
+    // ── Escaneo Bluetooth real ──
     setState(() {
       _isScanning = true;
       _devices.clear();
     });
 
     try {
-      List<PrinterDevice> results = [];
-
-      if (_printerType == PrinterType.bluetooth) {
-        results = await _printerService.scanBluetoothPrinters(
-          timeout: const Duration(seconds: 8),
-        );
-      } else if (_printerType == PrinterType.network) {
-        _showAddNetworkPrinterDialog();
-        setState(() => _isScanning = false);
-        return;
-      }
+      final results = await _printerService.scanBluetoothPrinters(
+        timeout: const Duration(seconds: 8),
+      );
 
       setState(() {
         _devices.addAll(results);
@@ -84,9 +136,10 @@ class _PrinterSelectionDialogState
     }
   }
 
-  // ============================================================
+  // ═══════════════════════════════════════════════════════════════════
   // AGREGAR IMPRESORA DE RED MANUAL
-  // ============================================================
+  // ═══════════════════════════════════════════════════════════════════
+
   void _showAddNetworkPrinterDialog() {
     final ipController = TextEditingController();
     final nameController = TextEditingController();
@@ -153,11 +206,14 @@ class _PrinterSelectionDialogState
     );
   }
 
-  // ============================================================
-  // SELECCIONAR IMPRESORA
-  // ============================================================
+  // ═══════════════════════════════════════════════════════════════════
+  // SELECCIONAR
+  // ═══════════════════════════════════════════════════════════════════
+
   void _selectPrinter(PrinterDevice printer) {
-    ref.read(printerProvider.notifier).seleccionarImpresora(printer, printer.type);
+    ref
+        .read(printerProvider.notifier)
+        .seleccionarImpresora(printer, printer.type);
     setState(() => _selectedAddress = printer.address);
     Navigator.pop(context);
     showDialog(
@@ -169,11 +225,11 @@ class _PrinterSelectionDialogState
     );
   }
 
-  // ============================================================
-  // PROBAR IMPRESORA
-  // ============================================================
+  // ═══════════════════════════════════════════════════════════════════
+  // PROBAR
+  // ═══════════════════════════════════════════════════════════════════
+
   Future<void> _testPrinter(PrinterDevice printer) async {
-    // Mostrar un diálogo de carga
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -196,7 +252,7 @@ class _PrinterSelectionDialogState
 
     try {
       final result = await _printerService.testPrinter(printer);
-      Navigator.pop(context); // cerrar diálogo de carga
+      Navigator.pop(context);
 
       if (result.success) {
         showDialog(
@@ -207,17 +263,16 @@ class _PrinterSelectionDialogState
           ),
         );
       } else {
-        String errorMessage = _getErrorMessage(result.error ?? PrinterError.unknown);
         showDialog(
           context: context,
           builder: (_) => ErrorDialog(
             title: 'Prueba fallida',
-            content: errorMessage,
+            content: _getErrorMessage(result.error ?? PrinterError.unknown),
           ),
         );
       }
     } catch (e) {
-      Navigator.pop(context); // cerrar diálogo de carga
+      Navigator.pop(context);
       showDialog(
         context: context,
         builder: (_) => ErrorDialog(
@@ -245,9 +300,10 @@ class _PrinterSelectionDialogState
     }
   }
 
-  // ============================================================
-  // CONFIRMAR DESCONEXIÓN (opcional)
-  // ============================================================
+  // ═══════════════════════════════════════════════════════════════════
+  // DESCONECTAR
+  // ═══════════════════════════════════════════════════════════════════
+
   void _confirmDisconnect() {
     showDialog(
       context: context,
@@ -270,321 +326,407 @@ class _PrinterSelectionDialogState
     );
   }
 
-  // ============================================================
-  // BUILD CON GLASSMORPHISM
-  // ============================================================
+  // ═══════════════════════════════════════════════════════════════════
+  // WIDGETS INTERNOS
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Segmentado adaptativo. Solo incluye "Bluetooth" si la plataforma
+  /// lo soporta. En Windows/Linux/Web queda únicamente "WiFi".
+  Widget _buildSegmented(bool isCompact) {
+    final segments = <ButtonSegment<PrinterType>>[];
+
+    if (_bluetoothSoportado) {
+      segments.add(
+        ButtonSegment(
+          value: PrinterType.bluetooth,
+          icon: const Icon(Icons.bluetooth_rounded),
+          label: isCompact ? null : const Text('Bluetooth'),
+          tooltip: 'Buscar por Bluetooth',
+        ),
+      );
+    }
+
+    segments.add(
+      ButtonSegment(
+        value: PrinterType.network,
+        icon: const Icon(Icons.wifi_rounded),
+        label: isCompact ? null : const Text('WiFi'),
+        tooltip: 'Agregar impresora de red',
+      ),
+    );
+
+    return SegmentedButton<PrinterType>(
+      showSelectedIcon: !isCompact,
+      style: ButtonStyle(
+        padding: WidgetStateProperty.all(
+          EdgeInsets.symmetric(
+            horizontal: isCompact ? 14 : 16,
+            vertical: 12,
+          ),
+        ),
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.blue.withValues(alpha: 0.15)
+              : Colors.transparent,
+        ),
+      ),
+      segments: segments,
+      selected: {_printerType},
+      onSelectionChanged: (newType) {
+        setState(() {
+          _printerType = newType.first;
+          _devices.clear();
+        });
+      },
+    );
+  }
+
+  /// Botón principal: "Buscar" en Bluetooth, "Agregar" en Red.
+  /// Si `isCompact`, se convierte en un IconButton para ganar espacio.
+  Widget _buildSearchButton(bool isCompact) {
+    final isNetworkMode = _printerType == PrinterType.network;
+
+    final icon = _isScanning
+        ? const SizedBox(
+            height: 18,
+            width: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          )
+        : Icon(isNetworkMode ? Icons.add_rounded : Icons.search_rounded);
+
+    final label = _isScanning
+        ? 'Buscando...'
+        : (isNetworkMode ? 'Agregar' : 'Buscar');
+
+    if (isCompact) {
+      return IconButton.filled(
+        onPressed: _isScanning ? null : _scan,
+        icon: icon,
+        style: IconButton.styleFrom(
+          backgroundColor: Colors.blue,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.all(12),
+        ),
+        tooltip: isNetworkMode
+            ? 'Agregar impresora de red'
+            : 'Buscar impresoras',
+      );
+    }
+
+    return ElevatedButton.icon(
+      onPressed: _isScanning ? null : _scan,
+      icon: icon,
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
+  /// Bloque de controles con layout responsive.
+  ///
+  /// Desktop/Tablet (≥ 500px):
+  ///   [ SegmentedButton (expanded) ] [ Buscar/Agregar ]
+  ///
+  /// Mobile (≥ 400px):
+  ///   [ SegmentedButton — ancho completo           ]
+  ///   [                              Buscar/Agregar ]
+  ///
+  /// Compacto (< 400px):
+  ///   [ Solo iconos WiFi | BT ] [ 🔍/＋ ]
+  Widget _buildControls({
+    required bool isMobile,
+    required bool isCompact,
+  }) {
+    final segmented = _buildSegmented(isCompact);
+    final actionButton = _buildSearchButton(isCompact);
+
+    // ── Desktop / Tablet: 1 fila ──
+    if (!isMobile) {
+      return Row(
+        children: [
+          Expanded(child: segmented),
+          const SizedBox(width: 12),
+          actionButton,
+        ],
+      );
+    }
+
+    // ── Mobile: 2 filas ──
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        segmented,
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerRight,
+          child: actionButton,
+        ),
+      ],
+    );
+  }
+
+  /// Texto contextual según el modo activo y la plataforma.
+  String _emptyStateText() {
+    if (_printerType == PrinterType.bluetooth) {
+      return 'No se encontraron impresoras Bluetooth.\n'
+          'Asegúrate de que estén encendidas.';
+    }
+    return 'Presiona "Agregar" para configurar una impresora\n'
+        'de red por IP (ej: 192.168.1.100).';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // BUILD
+  // ═══════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 500;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isMobile = screenWidth < 500;
+    final isCompact = screenWidth < 400;
+
     final currentPrinter = ref.watch(printerProvider);
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      child: Container(
-        width: isMobile ? double.infinity : 500,
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.8,
-        ),
-        decoration: BoxDecoration(
-          // ✨ Glassmorphism
-          color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.grey[900]!.withValues(alpha: 0.85)
-              : Colors.white.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.2),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 30,
-              spreadRadius: 5,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: Theme.of(context).brightness == Brightness.dark
-                ? const ColorFilter.mode(Colors.transparent, BlendMode.srcOver)
-                : const ColorFilter.mode(Colors.white, BlendMode.srcOver),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // HEADER
-                  Row(
+    return GlassDialog(
+      maxWidth: 500,
+      maxHeightFactor: 0.8,
+      accentColor: Colors.blue,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ═══ HEADER ═══
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.print_rounded,
+                    color: Colors.blue,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(Icons.print_rounded, color: Colors.blue),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Conectar Impresora',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            if (currentPrinter != null)
-                              Text(
-                                'Actual: ${currentPrinter.device.name}',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.green.shade600,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                          ],
+                      const Text(
+                        'Conectar Impresora',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                       if (currentPrinter != null)
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, color: Colors.red),
-                          tooltip: 'Desconectar',
-                          onPressed: _confirmDisconnect,
+                        Text(
+                          'Actual: ${currentPrinter.device.name}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.green.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  // CONTROLES
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SegmentedButton<PrinterType>(
-                          style: ButtonStyle(
-                            backgroundColor: WidgetStateProperty.resolveWith(
-                              (states) => states.contains(WidgetState.selected)
-                                  ? Colors.blue.withValues(alpha: 0.15)
-                                  : Colors.transparent,
-                            ),
-                          ),
-                          segments: const [
-                            ButtonSegment(
-                              value: PrinterType.bluetooth,
-                              label: Text('Bluetooth'),
-                              icon: Icon(Icons.bluetooth_rounded),
-                            ),
-                            ButtonSegment(
-                              value: PrinterType.network,
-                              label: Text('WiFi'),
-                              icon: Icon(Icons.wifi_rounded),
-                            ),
-                          ],
-                          selected: {_printerType},
-                          onSelectionChanged: (newType) {
-                            setState(() {
-                              _printerType = newType.first;
-                              _devices.clear();
-                            });
-                          },
-                        ),
+                ),
+                if (currentPrinter != null)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.red,
+                    ),
+                    tooltip: 'Desconectar',
+                    onPressed: _confirmDisconnect,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+
+            // ═══ CONTROLES ═══
+            _buildControls(
+              isMobile: isMobile,
+              isCompact: isCompact,
+            ),
+            const SizedBox(height: 16),
+
+            // ═══ LISTA DE DISPOSITIVOS ═══
+            Expanded(
+              child: _isScanning
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('Buscando impresoras...'),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        onPressed: _isScanning ? null : _scan,
-                        icon: _isScanning
-                            ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
+                    )
+                  : _devices.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.search_off_rounded,
+                                size: 60,
+                                color: Colors.grey.shade400,
+                              ),
+                              const SizedBox(height: 16),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8),
+                                child: Text(
+                                  _emptyStateText(),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 14,
+                                  ),
                                 ),
-                              )
-                            : const Icon(Icons.search_rounded),
-                        label: Text(_isScanning ? 'Buscando...' : 'Buscar'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // LISTA DE DISPOSITIVOS
-                  Expanded(
-                    child: _isScanning
-                        ? const Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CircularProgressIndicator(),
-                                SizedBox(height: 16),
-                                Text('Buscando impresoras...'),
-                              ],
-                            ),
-                          )
-                        : _devices.isEmpty
-                            ? Center(
-                                child: Column(
+                        )
+                      : ListView.builder(
+                          itemCount: _devices.length,
+                          itemBuilder: (context, index) {
+                            final device = _devices[index];
+                            final isSelected =
+                                _selectedAddress == device.address;
+                            final isBluetooth =
+                                device.type == PrinterType.bluetooth;
+
+                            return Card(
+                              margin:
+                                  const EdgeInsets.symmetric(vertical: 4),
+                              elevation: isSelected ? 0 : 1,
+                              color: isSelected
+                                  ? Colors.green.withValues(alpha: 0.08)
+                                  : null,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                side: isSelected
+                                    ? BorderSide(
+                                        color: Colors.green.shade400,
+                                        width: 2,
+                                      )
+                                    : BorderSide.none,
+                              ),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                                leading: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: isBluetooth
+                                        ? Colors.blue.withValues(alpha: 0.1)
+                                        : Colors.orange
+                                            .withValues(alpha: 0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    isBluetooth
+                                        ? Icons.bluetooth_rounded
+                                        : Icons.wifi_rounded,
+                                    color: isBluetooth
+                                        ? Colors.blue
+                                        : Colors.orange,
+                                  ),
+                                ),
+                                title: Text(
+                                  device.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  device.address,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
-                                      Icons.search_off_rounded,
-                                      size: 60,
-                                      color: Colors.grey.shade400,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      _printerType == PrinterType.bluetooth
-                                          ? 'No se encontraron impresoras Bluetooth.\n'
-                                              'Asegúrate de que estén encendidas.'
-                                          : 'Presiona "Buscar" para escanear WiFi\no agrega una IP manualmente.',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Colors.grey.shade600,
-                                        fontSize: 14,
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.play_arrow_rounded,
+                                        color: Colors.orange,
                                       ),
+                                      tooltip: 'Probar impresora',
+                                      onPressed: () => _testPrinter(device),
+                                      splashRadius: 20,
                                     ),
+                                    const SizedBox(width: 4),
+                                    if (isSelected)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green
+                                              .withValues(alpha: 0.15),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: const Text(
+                                          'ACTIVA',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.green,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      Icon(
+                                        Icons.arrow_forward_ios_rounded,
+                                        size: 16,
+                                        color: Colors.grey.shade400,
+                                      ),
                                   ],
                                 ),
-                              )
-                            : ListView.builder(
-                                itemCount: _devices.length,
-                                itemBuilder: (context, index) {
-                                  final device = _devices[index];
-                                  final isSelected =
-                                      _selectedAddress == device.address;
-
-                                  return Card(
-                                    margin: const EdgeInsets.symmetric(
-                                      vertical: 4,
-                                    ),
-                                    elevation: isSelected ? 0 : 1,
-                                    color: isSelected
-                                        ? Colors.green.withValues(alpha: 0.08)
-                                        : null,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                      side: isSelected
-                                          ? BorderSide(
-                                              color: Colors.green.shade400,
-                                              width: 2,
-                                            )
-                                          : BorderSide.none,
-                                    ),
-                                    child: ListTile(
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 4,
-                                      ),
-                                      leading: Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: device.type ==
-                                                  PrinterType.bluetooth
-                                              ? Colors.blue.withValues(alpha: 0.1)
-                                              : Colors.orange.withValues(alpha: 0.1),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Icon(
-                                          device.type == PrinterType.bluetooth
-                                              ? Icons.bluetooth_rounded
-                                              : Icons.wifi_rounded,
-                                          color: device.type ==
-                                                  PrinterType.bluetooth
-                                              ? Colors.blue
-                                              : Colors.orange,
-                                        ),
-                                      ),
-                                      title: Text(
-                                        device.name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        device.address,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                                      trailing: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          // Botón de prueba
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.play_arrow_rounded,
-                                              color: Colors.orange,
-                                            ),
-                                            tooltip: 'Probar impresora',
-                                            onPressed: () =>
-                                                _testPrinter(device),
-                                            splashRadius: 20,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          if (isSelected)
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 8,
-                                                vertical: 4,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.green
-                                                    .withValues(alpha: 0.15),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: const Text(
-                                                'ACTIVA',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.green,
-                                                ),
-                                              ),
-                                            )
-                                          else
-                                            Icon(
-                                              Icons.arrow_forward_ios_rounded,
-                                              size: 16,
-                                              color: Colors.grey.shade400,
-                                            ),
-                                        ],
-                                      ),
-                                      onTap: () => _selectPrinter(device),
-                                    ),
-                                  );
-                                },
+                                onTap: () => _selectPrinter(device),
                               ),
-                  ),
-                  const SizedBox(height: 12),
-                  // BOTÓN CERRAR
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cerrar'),
-                    ),
-                  ),
-                ],
+                            );
+                          },
+                        ),
+            ),
+            const SizedBox(height: 12),
+
+            // ═══ BOTÓN CERRAR ═══
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cerrar'),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

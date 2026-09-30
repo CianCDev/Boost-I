@@ -2,6 +2,7 @@
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
+import 'package:app_boosti_v2/features/pos/presentation/providers/business_mode_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -15,7 +16,6 @@ import '../utils/responsive_helper.dart';
 import '../widgets/catalog/bcv_moneda_selector.dart';
 import '../widgets/menu/pos_menu_card.dart';
 import 'cash_closing_screen.dart';
-import 'configuracion_empresa_screen.dart';
 import 'dashboard_screen.dart';
 import 'departamentos/departamentos_screen.dart';
 import 'empleados/employees_screen.dart';
@@ -102,9 +102,10 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
     );
   }
 
-  @override
+    @override
   Widget build(BuildContext context) {
     final usuario = ref.watch(usuarioActualProvider);
+    final flags = ref.watch(featureFlagsProvider);   // 🎯 NUEVO
 
     if (usuario == null) {
       return const Scaffold(
@@ -118,19 +119,16 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
     final roleColor = _roleColor(role);
 
     return Scaffold(
-      // ✅ backgroundColor lo aporta el Stack del fondo (base gradient)
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: _buildAppBar(context),
       body: Stack(
+        fit: StackFit.expand,
         clipBehavior: Clip.none,
         children: [
-          // ── Fondo con blobs animados + gradiente base ──
           Positioned.fill(
             child: _WelcomeBackground(seed: roleColor),
           ),
-
-          // ── Contenido scrolleable encima del fondo ──
           SafeArea(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -166,6 +164,7 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
                             const SizedBox(height: 12),
                             _QuickAccessGrid(
                               role: role,
+                              flags: flags,    // 🎯 NUEVO
                               isMobile: isMobile,
                               isTablet: isTablet,
                             ),
@@ -1030,18 +1029,20 @@ class _GuideStepCardState extends State<_GuideStepCard> {
 
 class _QuickAccessGrid extends StatelessWidget {
   final UserRole role;
+  final FeatureFlags flags;   // 🎯 NUEVO
   final bool isMobile;
   final bool isTablet;
 
   const _QuickAccessGrid({
     required this.role,
+    required this.flags,      // 🎯 NUEVO
     required this.isMobile,
     required this.isTablet,
   });
 
   @override
   Widget build(BuildContext context) {
-    final items = _quickItemsForRole(role);
+    final items = _quickItemsForRole(role, flags);   // 🎯 CAMBIO
 
     if (items.isEmpty) {
       return Container(
@@ -1059,15 +1060,7 @@ class _QuickAccessGrid extends StatelessWidget {
       );
     }
 
-    // ✅ Mismo patrón que PosMenuScreen._buildOptionsGrid
-    //   mobile: 2 columnas
-    //   tablet: 2 columnas
-    //   desktop: 3 columnas
     final crossAxisCount = isMobile ? 2 : (isTablet ? 2 : 3);
-
-    // ✅ Altura fija (mainAxisExtent) en vez de childAspectRatio:
-    //   mobile → 135px (cards verticales tipo menú)
-    //   tablet/desktop → 105px (cards horizontales)
     final double itemHeight = isMobile ? 135 : 105;
 
     return GridView.builder(
@@ -1091,7 +1084,6 @@ class _QuickAccessGrid extends StatelessWidget {
             context,
             MaterialPageRoute(builder: (_) => item.screenBuilder()),
           ),
-          // ✅ Oculta el subtitle en mobile (cards limpias, sin overflow)
           compactMode: isMobile,
         );
       },
@@ -1412,10 +1404,11 @@ List<_GuideStep> _guideStepsForRole(UserRole role) {
 // ACCESOS RÁPIDOS POR ROL
 // ═══════════════════════════════════════════════════════════════════════
 
-List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
+List<_QuickAccessItem> _quickItemsForRole(UserRole role, FeatureFlags flags) {
   final items = <_QuickAccessItem>[];
 
-  if (Permissions.canAccessPos(role)) {
+  // ── POS ── (en restaurante el POS "rápido" se reemplaza por mesas)
+  if (Permissions.canAccessPos(role) && !flags.requiereMesa) {
     items.add(_QuickAccessItem(
       icon: Icons.point_of_sale_rounded,
       title: 'Punto de venta',
@@ -1425,7 +1418,8 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
-  if (Permissions.canAccessInventory(role)) {
+  // ── Inventario ── (oculto en modo servicios)
+  if (Permissions.canAccessInventory(role) && flags.mostrarInventario) {
     items.add(_QuickAccessItem(
       icon: Icons.inventory_2_outlined,
       title: 'Inventario',
@@ -1435,6 +1429,7 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
+  // ── Empleados ── (siempre, si el rol lo permite)
   if (Permissions.canAccessEmployees(role)) {
     items.add(_QuickAccessItem(
       icon: Icons.badge_rounded,
@@ -1445,7 +1440,8 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
-  if (Permissions.canViewDashboard(role)) {
+  // ── Dashboard ── (requiere feature del plan)
+  if (Permissions.canViewDashboard(role) && flags.dashboard) {
     items.add(_QuickAccessItem(
       icon: Icons.dashboard_rounded,
       title: 'Dashboard',
@@ -1455,7 +1451,8 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
-  if (Permissions.canViewDashboard(role)) {
+  // ── Historial de ventas ──
+  if (Permissions.canViewDashboard(role) && flags.historialVentas) {
     items.add(_QuickAccessItem(
       icon: Icons.receipt_long_rounded,
       title: 'Historial de ventas',
@@ -1465,6 +1462,7 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
+  // ── Cierre de caja ── (siempre disponible)
   if (Permissions.canOpenCashRegister(role)) {
     items.add(_QuickAccessItem(
       icon: Icons.payments_outlined,
@@ -1475,7 +1473,8 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
-  if (Permissions.canManageLotes(role)) {
+  // ── Lotes ── (requiere plan + no servicios)
+  if (Permissions.canManageLotes(role) && flags.mostrarLotes) {
     items.add(_QuickAccessItem(
       icon: Icons.inventory_2_rounded,
       title: 'Lotes y vencimientos',
@@ -1485,7 +1484,10 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
-  if (Permissions.canAccessInventory(role)) {
+  // ── Pedidos a proveedores ── (requiere plan + no servicios)
+  if (Permissions.canAccessInventory(role) &&
+      flags.pedidosProveedores &&
+      !flags.esServicios) {
     items.add(_QuickAccessItem(
       icon: Icons.shopping_cart_rounded,
       title: 'Pedidos a proveedores',
@@ -1495,7 +1497,8 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
-  if (Permissions.canAccessInventory(role)) {
+  // ── Proveedores ── (oculto en servicios)
+  if (Permissions.canAccessInventory(role) && !flags.esServicios) {
     items.add(_QuickAccessItem(
       icon: Icons.local_shipping_outlined,
       title: 'Proveedores',
@@ -1505,6 +1508,7 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
+  // ── Gastos ── (sin cambios)
   if (Permissions.canViewFinancials(role)) {
     items.add(_QuickAccessItem(
       icon: Icons.payments_outlined,
@@ -1515,7 +1519,8 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
-  if (Permissions.canManageLocales(role)) {
+  // ── Locales ── (requiere plan multi-local)
+  if (Permissions.canManageLocales(role) && flags.multiLocal) {
     items.add(_QuickAccessItem(
       icon: Icons.store_rounded,
       title: 'Locales',
@@ -1525,7 +1530,8 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
-  if (Permissions.canManageLocales(role)) {
+  // ── Departamentos ── (requiere plan)
+  if (Permissions.canManageLocales(role) && flags.departamentos) {
     items.add(_QuickAccessItem(
       icon: Icons.business_center_rounded,
       title: 'Departamentos',
@@ -1535,7 +1541,8 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
-  if (Permissions.canManageTelegram(role)) {
+  // ── Telegram ── (requiere plan)
+  if (Permissions.canManageTelegram(role) && flags.telegram) {
     items.add(_QuickAccessItem(
       icon: Icons.telegram,
       title: 'Bot de Telegram',
@@ -1545,16 +1552,7 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role) {
     ));
   }
 
-  if (Permissions.canAccessSettings(role)) {
-    items.add(_QuickAccessItem(
-      icon: Icons.settings_rounded,
-      title: 'Configuración de empresa',
-      subtitle: 'Supabase y credenciales',
-      color: const Color(0xFF64748B),
-      screenBuilder: () => const ConfiguracionEmpresaScreen(),
-    ));
-  }
-
+  // ── Menú completo ── (siempre, si no es rol employees-only)
   if (!Permissions.isEmployeesOnlyRole(role)) {
     items.add(_QuickAccessItem(
       icon: Icons.apps_rounded,

@@ -1,5 +1,6 @@
 // lib/features/pos/presentation/widgets/product/product_data_tab.dart
 import 'dart:io';
+import 'package:app_boosti_v2/features/pos/presentation/providers/marca_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/common/persona_form_template.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -885,34 +886,32 @@ class _MarcaAutocomplete extends ConsumerStatefulWidget {
 }
 
 class _MarcaAutocompleteState extends ConsumerState<_MarcaAutocomplete> {
-  late Future<List<MarcaEntity>> _marcasFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _marcasFuture = _cargarMarcas();
-  }
-
-  Future<List<MarcaEntity>> _cargarMarcas() async {
-    // Ajusta este import a tu IsarService o provider real.
-    return const [];
-  }
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final marcas = _marcasFuture;
 
-    return FutureBuilder<List<MarcaEntity>>(
-      future: marcas,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final lista = snapshot.data ?? const <MarcaEntity>[];
+    // 🎯 FIX CRÍTICO: leer del provider reactivo en vez de un Future
+    //    hardcodeado con `const []`. El StreamProvider refresca solo
+    //    cuando Isar cambia, así que el dropdown ve marcas nuevas al
+    //    instante sin reiniciar la app.
+    final marcasAsync = ref.watch(marcasProvider);
+
+    return marcasAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+      error: (err, stack) => Text(
+        'Error al cargar marcas: $err',
+        style: TextStyle(fontSize: 13, color: cs.error),
+      ),
+      data: (lista) {
         if (lista.isEmpty) {
           return Text(
             'No hay marcas disponibles.',
@@ -921,6 +920,9 @@ class _MarcaAutocompleteState extends ConsumerState<_MarcaAutocomplete> {
         }
 
         return Autocomplete<MarcaEntity>(
+          initialValue: TextEditingValue(
+            text: widget.seleccionada?.nombre ?? '',
+          ),
           optionsBuilder: (value) {
             if (value.text.isEmpty) return lista;
             final q = value.text.toLowerCase();
@@ -959,7 +961,8 @@ class _MarcaAutocompleteState extends ConsumerState<_MarcaAutocomplete> {
               borderRadius: BorderRadius.circular(12),
               color: cs.surface,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 200, minWidth: 280),
+                constraints:
+                    const BoxConstraints(maxHeight: 200, minWidth: 280),
                 child: ListView.builder(
                   padding: EdgeInsets.zero,
                   shrinkWrap: true,
@@ -968,13 +971,18 @@ class _MarcaAutocompleteState extends ConsumerState<_MarcaAutocomplete> {
                     final opt = options.elementAt(i);
                     return ListTile(
                       dense: true,
-                      leading: Icon(Icons.branding_watermark_rounded,
-                          color: widget.accentColor, size: 20),
+                      leading: Icon(
+                        Icons.branding_watermark_rounded,
+                        color: widget.accentColor,
+                        size: 20,
+                      ),
                       title: Text(opt.nombre),
                       subtitle: (opt.descripcion ?? '').isEmpty
                           ? null
-                          : Text(opt.descripcion!,
-                              style: const TextStyle(fontSize: 12)),
+                          : Text(
+                              opt.descripcion!,
+                              style: const TextStyle(fontSize: 12),
+                            ),
                       onTap: () => onSelected(opt),
                     );
                   },

@@ -1,6 +1,7 @@
 // lib/features/pos/presentation/providers/empleados/monitor_empleados_provider.dart
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/Local/entities/isar_service.dart';
@@ -56,6 +57,10 @@ class MonitorEmpleadosNotifier extends StateNotifier<MonitorEmpleadosState> {
   late final SyncService _syncService;
   Timer? _timer;
   bool _syncing = false;
+  AppLifecycleListener? _lifecycle;
+
+  // 🎯 FIX: intervalo configurable (antes 8s, ahora 15s).
+  static const _intervaloSync = Duration(seconds: 15);
 
   MonitorEmpleadosNotifier(this._ref) : super(const MonitorEmpleadosState()) {
     _isarService = _ref.read(isarServiceProvider);
@@ -65,11 +70,37 @@ class MonitorEmpleadosNotifier extends StateNotifier<MonitorEmpleadosState> {
 
   void _iniciar() {
     sincronizar();
-    // Auto-refresh cada 8 s (equivalente al monitor)
+
+    // 🎯 FIX: pausar el timer cuando la app va a background.
+    //    Esto evita consumir batería y datos si el usuario no
+    //    está viendo la pantalla.
+    _lifecycle = AppLifecycleListener(
+      onPause: _pausarTimer,
+      onResume: _reanudarTimer,
+    );
+
+    _programarTimer();
+  }
+
+  void _programarTimer() {
+    _timer?.cancel();
     _timer = Timer.periodic(
-      const Duration(seconds: 8),
+      _intervaloSync,
       (_) => sincronizar(silencioso: true),
     );
+  }
+
+  void _pausarTimer() {
+    _timer?.cancel();
+    _timer = null;
+    debugPrint('⏸ Monitor: timer pausado (app en background)');
+  }
+
+  void _reanudarTimer() {
+    // Sincronizar una vez al volver + reiniciar el timer.
+    sincronizar(silencioso: true);
+    _programarTimer();
+    debugPrint('▶️ Monitor: timer reanudado');
   }
 
   /// Sincroniza usuarios desde Supabase y refresca el estado.
@@ -127,19 +158,25 @@ class MonitorEmpleadosNotifier extends StateNotifier<MonitorEmpleadosState> {
     if (estadosNube.isEmpty) return;
 
     final locales = await _isarService.obtenerUsuarios();
+    int cambios = 0;
     for (final local in locales) {
       final estadoNube = estadosNube[local.id];
       if (estadoNube == null) continue;
       if (local.estado == estadoNube) continue;
 
       await _isarService.actualizarEstadoUsuario(local.id, estadoNube);
-      // ignore: avoid_print
-      print('🔄 Empleados: ${local.nombre} → $estadoNube');
+      cambios++;
+    }
+
+    // 🎯 FIX: solo loggear si hubo cambios reales.
+    if (cambios > 0) {
+      debugPrint('🔄 Empleados: $cambios estado(s) actualizado(s)');
     }
   }
 
   @override
   void dispose() {
+    _lifecycle?.dispose();
     _timer?.cancel();
     super.dispose();
   }

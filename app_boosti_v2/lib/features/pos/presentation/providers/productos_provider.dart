@@ -76,7 +76,9 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
     if (a[i].cantidadMinimaMayor != b[i].cantidadMinimaMayor) return false;
     if (a[i].precioMedioMayor != b[i].precioMedioMayor) return false;
     if (a[i].cantidadMinimaMedioMayor !=
-        b[i].cantidadMinimaMedioMayor) return false;
+        b[i].cantidadMinimaMedioMayor) {
+      return false;
+    }
     if (a[i].unidadesPorBulto != b[i].unidadesPorBulto) return false;
     if (a[i].costoUnitarioPromedio != b[i].costoUnitarioPromedio) return false;
   }
@@ -89,37 +91,69 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
     await cargarProductos();
   }
 
-  Future<void> actualizarStock(
-    int productoId,
-    double nuevoStock,
-    UsuarioEntity usuario, {
-    String? motivo,
-  }) async {
-    final producto = await _isar.obtenerProductoPorId(productoId);
-    if (producto == null) return;
+  /// Actualiza el stock de un producto.
+///
+/// 🎯 FIX CRÍTICO: el stock NUNCA queda negativo.
+///
+///   Aunque el caller pase un valor negativo por error (bug de cálculo,
+///   desincronización de la BD, condición de carrera), aquí se aplica
+///   `clamp(0, double.infinity)` antes de persistir.
+///
+///   Si el valor fue "corregido", se registra un `debugPrint` para
+///   auditoría y el movimiento de inventario refleja la diferencia
+///   REAL aplicada (no la solicitada).
+Future<void> actualizarStock(
+  int productoId,
+  double nuevoStock,
+  UsuarioEntity usuario, {
+  String? motivo,
+}) async {
+  final producto = await _isar.obtenerProductoPorId(productoId);
+  if (producto == null) return;
 
-    final stockAnterior = producto.stock;
-    final diferencia = nuevoStock - stockAnterior;
+  final stockAnterior = producto.stock;
 
-    if (diferencia != 0) {
-      producto.stock = nuevoStock;
-      await _isar.guardarProducto(producto);
+  // ═══════════════════════════════════════════════════════════════════
+  // 🎯 Clamp: nunca permitir stock negativo.
+  //
+  //   El stock físico de un producto es >= 0 por definición. Si el
+  //   caller pasa un negativo, lo forzamos a 0 y loggeamos el ajuste.
+  // ═══════════════════════════════════════════════════════════════════
+  final stockLimitado = nuevoStock.clamp(0.0, double.infinity);
 
-      final movimiento = MovimientoInventarioEntity()
-        ..productoId = producto.id
-        ..nombreProducto = producto.nombre
-        ..tipoMovimiento = motivo ?? 'Ajuste manual'
-        ..cantidad = diferencia
-        ..stockResultante = nuevoStock
-        ..fecha = DateTime.now()
-        ..usuarioId = usuario.id
-        ..syncStatus = 'pending';
-      await _isar.guardarMovimientoInventario(movimiento);
-
-      await _sync.sincronizarMovimientosInventario();
-      await cargarProductos();
-    }
+  if (stockLimitado != nuevoStock) {
+    debugPrint(
+      '⚠️ [ProductosNotifier] Stock de "${producto.nombre}" corregido '
+      'de $nuevoStock → $stockLimitado (se aplicó clamp a 0)',
+    );
   }
+
+  // ── Diferencia real (post-clamp) ──
+  final diferencia = stockLimitado - stockAnterior;
+
+  if (diferencia == 0) {
+    // Nada que actualizar. Evita escribir en disco innecesariamente.
+    return;
+  }
+
+  producto.stock = stockLimitado;
+  await _isar.guardarProducto(producto);
+
+  // ── Movimiento de inventario con la diferencia REAL ──
+  final movimiento = MovimientoInventarioEntity()
+    ..productoId = producto.id
+    ..nombreProducto = producto.nombre
+    ..tipoMovimiento = motivo ?? 'Ajuste manual'
+    ..cantidad = diferencia // ← refleja el cambio real aplicado
+    ..stockResultante = stockLimitado
+    ..fecha = DateTime.now()
+    ..usuarioId = usuario.id
+    ..syncStatus = 'pending';
+  await _isar.guardarMovimientoInventario(movimiento);
+
+  await _sync.sincronizarMovimientosInventario();
+  await cargarProductos();
+}
 
   Future<void> eliminarProducto(int productoId, UsuarioEntity usuario) async {
     final producto = await _isar.obtenerProductoPorId(productoId);

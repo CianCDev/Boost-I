@@ -21,8 +21,8 @@ class SecureCredentials {
   // CLAVES DE ALMACENAMIENTO
   // ══════════════════════════════════════════════════════════════
 
-  static const String _keySupabaseUrl = 'https://moeedweiombdnssjrgai.supabase.co';
-  static const String _keySupabaseAnonKey = 'sb_publishable_3u_VXY6GnKj6i0z1eerteA_9dVsym2K';
+  static const String _keySupabaseUrl = 'supabase_url';
+static const String _keySupabaseAnonKey = 'supabase_anon_key';
   static const String _keyEmpresaId = 'empresa_id';
   static const String _keySyncServerUrl = 'sync_server_url';
   static const String _keySyncApiKey = 'sync_api_key';
@@ -61,6 +61,30 @@ class SecureCredentials {
 
     return true;
   }
+
+  /// Migra las claves antiguas (URL/key hardcodeadas del proyecto origen)
+/// a las claves neutras actuales. Llamar una vez al arrancar.
+static Future<void> migrarClavesAntiguas() async {
+  final prefs = await SharedPreferences.getInstance();
+
+  const oldUrlKey = 'https://moeedweiombdnssjrgai.supabase.co';
+  const oldAnonKeyKey = 'sb_publishable_3u_VXY6GnKj6i0z1eerteA_9dVsym2K';
+
+  final oldUrl = prefs.getString(oldUrlKey);
+  final oldAnonKey = prefs.getString(oldAnonKeyKey);
+
+  if (oldUrl != null && oldUrl.isNotEmpty) {
+    await prefs.setString(_keySupabaseUrl, oldUrl);
+    await prefs.remove(oldUrlKey);
+    debugPrint('🔄 Migrada URL de SharedPreferences');
+  }
+
+  if (oldAnonKey != null && oldAnonKey.isNotEmpty) {
+    await prefs.setString(_keySupabaseAnonKey, oldAnonKey);
+    await prefs.remove(oldAnonKeyKey);
+    debugPrint('🔄 Migrada anon key de SharedPreferences');
+  }
+}
 
   /// Valida el formato de la Anon Key de Supabase.
   ///

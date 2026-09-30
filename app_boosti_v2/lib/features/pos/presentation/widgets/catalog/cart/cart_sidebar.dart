@@ -1,5 +1,6 @@
 // lib/features/pos/presentation/widgets/catalog/cart_sidebar.dart
 import 'dart:ui';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/common/glass_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,7 +99,7 @@ class CartSidebar extends ConsumerWidget {
           child: Column(
             children: [
               // ═══════════════════════════════════════════════════════
-              // HEADER con botones de parkear / ver en espera / limpiar
+              // HEADER
               // ═══════════════════════════════════════════════════════
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -126,7 +127,7 @@ class CartSidebar extends ConsumerWidget {
                     ),
                     const Spacer(),
 
-                    // Botón "Poner en espera" (solo icono en el sidebar)
+                    // Botón "Poner en espera"
                     if (cartState.items.isNotEmpty)
                       Consumer(
                         builder: (context, ref, _) {
@@ -149,35 +150,35 @@ class CartSidebar extends ConsumerWidget {
                         },
                       ),
 
-                    // 🆕 Botón "Ver carritos en espera" con badge
-                         Consumer(
-                          builder: (context, ref, _) {
-                            final count = ref.watch(cartSessionsProvider).count;
-                            return Padding(
-                              padding: const EdgeInsets.only(left: 6),
-                              child: CartHeaderAction(
-                                icon: Icons.playlist_play_rounded,
-                                tooltip: 'Carritos en espera ($count)',
-                                color: const Color(0xFF8B5CF6),
-                                compact: true,
-                                badge: count,
-                                onPressed: () => ParkedCartsDialog.mostrar(context),
-                              ),
-                            );
-                          },
-                        ),
+                    // Botón "Ver carritos en espera" con badge
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final count = ref.watch(cartSessionsProvider).count;
+                        return Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: CartHeaderAction(
+                            icon: Icons.playlist_play_rounded,
+                            tooltip: 'Carritos en espera ($count)',
+                            color: const Color(0xFF8B5CF6),
+                            compact: true,
+                            badge: count,
+                            onPressed: () =>
+                                ParkedCartsDialog.mostrar(context),
+                          ),
+                        );
+                      },
+                    ),
 
                     // Botón "Limpiar"
-                        if (cartState.items.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: CartHeaderAction(
-                              icon: Icons.delete_outline_rounded,
-                              tooltip: 'Limpiar carrito',
-                              color: redError,
-                              compact: true,
-                              onPressed: onLimpiar,
-
+                    if (cartState.items.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: CartHeaderAction(
+                          icon: Icons.delete_outline_rounded,
+                          tooltip: 'Limpiar carrito',
+                          color: redError,
+                          compact: true,
+                          onPressed: onLimpiar,
                         ),
                       ),
                   ],
@@ -196,15 +197,16 @@ class CartSidebar extends ConsumerWidget {
                             Icon(
                               Icons.shopping_cart_outlined,
                               size: 48,
-                              color: textSecondaryColor.withValues(alpha: 0.3),
+                              color:
+                                  textSecondaryColor.withValues(alpha: 0.3),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'Carrito vacío',
                               style: TextStyle(
                                 fontSize: 14,
-                                color:
-                                    textSecondaryColor.withValues(alpha: 0.5),
+                                color: textSecondaryColor
+                                    .withValues(alpha: 0.5),
                               ),
                             ),
                           ],
@@ -504,7 +506,8 @@ class CartSidebar extends ConsumerWidget {
                         child: Column(
                           children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   'Base imponible',
@@ -525,7 +528,8 @@ class CartSidebar extends ConsumerWidget {
                             ),
                             const SizedBox(height: 2),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   'IVA ${(cartState.configIva.porcentajeIva * 100).toStringAsFixed(0)}%',
@@ -549,11 +553,27 @@ class CartSidebar extends ConsumerWidget {
                       ),
                     ],
                     const SizedBox(height: 12),
+
+                    // ═══════════════════════════════════════════════════
+                    // BOTÓN COBRAR (con validación de items sin stock)
+                    // ═══════════════════════════════════════════════════
                     SizedBox(
                       width: double.infinity,
                       height: isTablet ? 48 : 40,
                       child: ElevatedButton(
-                        onPressed: cartState.items.isEmpty ? null : onCobrar,
+                        onPressed: cartState.items.isEmpty
+                            ? null
+                            : () {
+                                // 🎯 FIX: bloquear cobro si hay items sin stock
+                                if (cartState.hayItemsSinStock) {
+                                  _mostrarDialogoCarritoConProblemas(
+                                    context,
+                                    cartState,
+                                  );
+                                  return;
+                                }
+                                onCobrar();
+                              },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryGreen,
                           foregroundColor: Colors.white,
@@ -589,8 +609,150 @@ class CartSidebar extends ConsumerWidget {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // DIÁLOGO: CARRITO CON PROBLEMAS
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Diálogo que bloquea el cobro cuando hay items sin stock.
+  void _mostrarDialogoCarritoConProblemas(
+    BuildContext context,
+    CartState cartState,
+  ) {
+    final itemsConProblema = cartState.itemsSinStock;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => GlassDialog(
+        maxWidth: 460,
+        accentColor: redError,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: redError.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.warning_amber_rounded,
+                      color: redError,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Carrito con problemas',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(ctx).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Hay ${itemsConProblema.length} producto(s) sin stock '
+                'en el carrito. Elimínalos para continuar con el cobro.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: redError.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: redError.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: itemsConProblema
+                      .map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.cancel_outlined,
+                                size: 16,
+                                color: redError,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  item.producto.nombre,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color:
+                                        Theme.of(ctx).colorScheme.onSurface,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Text(
+                                '× ${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: redError,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 22),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: redError,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text(
+                  'Entendido',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // DIÁLOGO: CONFIRMAR ELIMINACIÓN
+  // ═══════════════════════════════════════════════════════════════════
+
   Future<bool?> _confirmarEliminarProducto(
-      BuildContext context, String nombre) {
+    BuildContext context,
+    String nombre,
+  ) {
     return showDialog<bool>(
       context: context,
       barrierDismissible: true,

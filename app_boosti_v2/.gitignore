@@ -48,3 +48,18 @@ app.*.map.json
 .env
 .env.*
 !.env.example
+
+
+# Variables de entorno locales (NO subir a Git)
+env.json
+.env
+.env.*
+*.env
+
+# Variantes por entorno
+env.dev.json
+env.prod.json
+env.staging.json
+sentry.properties
+
+sentry.properties

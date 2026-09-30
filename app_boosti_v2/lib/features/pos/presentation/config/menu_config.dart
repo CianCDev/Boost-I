@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../domain/permissions/roles.dart';
+import '../providers/business_mode_provider.dart';
 import '../screens/audit_log_screen.dart';
 import '../screens/cash_closing_screen.dart';
-import '../screens/configuracion_empresa_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/departamentos/departamentos_screen.dart';
 import '../screens/empleados/employees_screen.dart';
@@ -23,7 +23,6 @@ import '../widgets/menu/diagnostico_lote_dialog.dart';
 import '../widgets/monitor_empleado_widget.dart';
 import '../widgets/printer_selection_widget.dart';
 import '../screens/inventory_screen.dart';
-
 
 // ═══════════════════════════════════════════════════════════════════════
 // MODELOS DE MENÚ
@@ -70,8 +69,22 @@ class MenuSection {
 // ═══════════════════════════════════════════════════════════════════════
 
 class MenuBuilder {
-  /// Verifica si un rol puede ver una opción específica.
-  static bool puedeVerOpcion(UserRole role, String opcionId) {
+  /// Verifica si un rol puede ver una opción específica,
+  /// **combinando** permisos de rol + feature flags del plan/modo.
+  static bool puedeVerOpcion(
+    UserRole role,
+    String opcionId,
+    FeatureFlags flags,
+  ) {
+    if (!_rolPermite(role, opcionId)) return false;
+    return _flagPermite(opcionId, flags);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // FILTRO POR ROL (permisos de usuario)
+  // ══════════════════════════════════════════════════════════════
+
+  static bool _rolPermite(UserRole role, String opcionId) {
     return switch (opcionId) {
       'dashboard' => Permissions.canViewDashboard(role),
       'empleados' => Permissions.canAccessEmployees(role),
@@ -99,10 +112,53 @@ class MenuBuilder {
     };
   }
 
-  /// Construye todas las secciones del menú con sus opciones.
+  // ══════════════════════════════════════════════════════════════
+  // FILTRO POR FEATURE FLAGS (modo + plan)
+  // ══════════════════════════════════════════════════════════════
+
+  static bool _flagPermite(String opcionId, FeatureFlags flags) {
+    return switch (opcionId) {
+      // ── POS / Operación ──
+      'ventas_mayor' => flags.ventasAlMayor,
+
+      // ── Inventario ──
+      'inventario' => flags.mostrarInventario,
+      'lotes' => flags.mostrarLotes,
+      'pedidos' => flags.pedidosProveedores && !flags.esServicios,
+      'proveedores' => !flags.esServicios,
+      'diagnostico' => flags.mostrarLotes,
+
+      // ── Reportes ──
+      'dashboard' => flags.dashboard,
+      'ventas' => flags.historialVentas,
+      'gastos' => flags.historialGastos,
+
+      // ── Personal ──
+      'monitor' => flags.monitorEmpleados,
+
+      // ── Configuración ──
+      'locales' => flags.multiLocal,
+      'departamentos' => flags.departamentos,
+      'telegram' => flags.telegram,
+
+      // ── Sin restricción por feature ──
+      _ => true,
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // CONSTRUCCIÓN DE SECCIONES
+  // ══════════════════════════════════════════════════════════════
+
+  /// Construye todas las secciones del menú.
+  ///
+  /// NOTA: este método NO filtra por rol ni por flags. Devuelve
+  /// TODAS las opciones posibles. El filtrado final se hace en
+  /// `PosMenuScreen` con `puedeVerOpcion(role, id, flags)`.
   static List<MenuSection> buildSections({
     required UsuarioEntity usuario,
     required BuildContext context,
+    required FeatureFlags flags,   // 🎯 NUEVO: solo para futuras extensiones
     required Future<void> Function() onCrearBackup,
     required Future<void> Function() onSincronizar,
     required int ventasPendientesSync,
@@ -123,9 +179,7 @@ class MenuBuilder {
             color: const Color(0xFF8B5CF6),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const WholesaleScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const WholesaleScreen()),
             ),
           ),
           MenuOption(
@@ -171,7 +225,6 @@ class MenuBuilder {
         title: 'INVENTARIO',
         color: const Color(0xFF8B5CF6),
         options: [
-
           MenuOption(
             id: 'inventario',
             icon: Icons.inventory_rounded,
@@ -180,9 +233,7 @@ class MenuBuilder {
             color: const Color(0xFF14B8A6),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const InventoryScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const InventoryScreen()),
             ),
           ),
           MenuOption(
@@ -216,8 +267,7 @@ class MenuBuilder {
             color: const Color(0xFF6366F1),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(
-                  builder: (_) => const ProveedoresScreen()),
+              MaterialPageRoute(builder: (_) => const ProveedoresScreen()),
             ),
           ),
         ],
@@ -370,18 +420,6 @@ class MenuBuilder {
             color: const Color(0xFF10B981),
             onTap: onCrearBackup,
           ),
-          MenuOption(
-            id: 'configuracion',
-            icon: Icons.settings_rounded,
-            title: 'Configuración de empresa',
-            subtitle: 'Supabase y credenciales',
-            color: const Color(0xFF64748B),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const ConfiguracionEmpresaScreen()),
-            ),
-          ),
         ],
       ),
 
@@ -410,9 +448,7 @@ class MenuBuilder {
             color: const Color(0xFF8B5CF6),
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const UserSettingsScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const UserSettingsScreen()),
             ),
           ),
         ],

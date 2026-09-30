@@ -81,7 +81,7 @@ class BcvController extends ChangeNotifier {
         return 'No hay tasa BCV disponible. Ingresa una manualmente.';
       case EstadoTasa.cacheObsoleta:
         final edad = edadTasa;
-        final horas = edad == null ? null : edad.inHours;
+        final horas = edad?.inHours;
         return horas == null
             ? 'Tasa BCV desde caché sin fecha conocida. Verifica antes de cobrar.'
             : 'Tasa BCV desactualizada (hace $horas h). Verifica antes de cobrar.';

@@ -1,4 +1,5 @@
 // lib/features/pos/presentation/widgets/lotes/verificar_lote_dialog.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
@@ -24,45 +25,148 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
   final IsarService _isar = IsarService();
   final TextEditingController _codigoController = TextEditingController();
   final TextEditingController _cantidadController = TextEditingController();
+  final FocusNode _codigoFocus = FocusNode();
+
   bool _isLoading = false;
-  String? _errorMessage;
+  bool _validandoCodigo = false;
   bool _codigoValidado = false;
   String? _codigoValidadoTexto;
+  String? _productoNombre;
+  String? _errorCodigo;
+  String? _errorCantidad;
+
+  /// Timer de debounce para validar tras 400ms de inactividad.
+  Timer? _debounce;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🎯 FIX: flag de bloqueo re-entrada y estado de cancelación.
+  // ═══════════════════════════════════════════════════════════════════
+  bool _mostrandoDialogoAfiliacion = false;
+  String? _codigoCancelado; // ← Guarda el último código rechazado/cancelado
 
   static const _colorPrimary = Color(0xFF8B5CF6);
   static const _colorSuccess = Color(0xFF10B981);
   static const _colorWarning = Color(0xFFF59E0B);
-  // ignore: unused_field
-  static const _colorDanger = Color(0xFFEF4444);
 
   @override
   void initState() {
     super.initState();
     _cantidadController.text = widget.lote.cantidadInicial.toString();
+    _cargarNombreProducto();
+    _codigoFocus.addListener(_onCodigoFocusChange);
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
+    _codigoFocus.removeListener(_onCodigoFocusChange);
+    _codigoFocus.dispose();
     _codigoController.dispose();
     _cantidadController.dispose();
     super.dispose();
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // CARGA INICIAL
+  // ═══════════════════════════════════════════════════════════════════
+
+  Future<void> _cargarNombreProducto() async {
+    final producto = await _isar.obtenerProductoPorId(widget.lote.productoId);
+    if (mounted) {
+      setState(() {
+        _productoNombre =
+            producto?.nombre ?? 'Producto #${widget.lote.productoId}';
+      });
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // VALIDACIÓN AUTOMÁTICA
+  // ═══════════════════════════════════════════════════════════════════
+
+  void _onCodigoFocusChange() {
+    if (_mostrandoDialogoAfiliacion) return;
+
+    final codigo = _codigoController.text.trim();
+    
+    if (!_codigoFocus.hasFocus &&
+        codigo.isNotEmpty &&
+        !_codigoValidado &&
+        codigo != _codigoCancelado) { // ← Evita re-validar el código cancelado al perder el foco
+      _debounce?.cancel();
+      _validarCodigo(codigo);
+    }
+  }
+
+  void _onCodigoChanged(String value) {
+    if (_mostrandoDialogoAfiliacion) return;
+
+    _debounce?.cancel();
+    final codigo = value.trim();
+
+    // ← Resetea el bloqueo si el usuario comienza a escribir un código distinto
+    if (_codigoCancelado != null && codigo != _codigoCancelado) {
+      _codigoCancelado = null;
+    }
+
+    if (_codigoValidado) {
+      setState(() {
+        _codigoValidado = false;
+        _codigoValidadoTexto = null;
+      });
+    }
+    if (_errorCodigo != null) {
+      setState(() => _errorCodigo = null);
+    }
+
+    // ← No arrancar el timer si es exactamente el código que ya fue cancelado
+    if (codigo.length >= 6 && codigo != _codigoCancelado) {
+      setState(() => _validandoCodigo = true);
+      _debounce = Timer(const Duration(milliseconds: 400), () {
+        if (mounted && !_mostrandoDialogoAfiliacion) {
+          _validarCodigo(codigo);
+        }
+      });
+    } else {
+      setState(() => _validandoCodigo = false);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ESCANEAR
+  // ═══════════════════════════════════════════════════════════════════
+
   Future<void> _escanearCodigo() async {
+    if (_mostrandoDialogoAfiliacion) return;
+
     final codigo = await showDialog<String>(
       context: context,
       builder: (_) => const BarcodeScannerDialog(),
     );
-    if (codigo != null && codigo.isNotEmpty) {
+    if (codigo != null && codigo.isNotEmpty && mounted) {
       _codigoController.text = codigo;
+      _codigoCancelado = null; // ← Limpiar por si el escáner lee explícitamente el mismo
+      _debounce?.cancel();
       await _validarCodigo(codigo);
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // VALIDAR CÓDIGO
+  // ═══════════════════════════════════════════════════════════════════
+
   Future<void> _validarCodigo(String codigo) async {
+    if (!mounted) return;
+
+    // ← Guard principal: no validar si hay diálogo o si es el código que se acaba de cancelar
+    if (_mostrandoDialogoAfiliacion || codigo == _codigoCancelado) {
+      debugPrint('⚠️ Validación ignorada: diálogo activo o código cancelado');
+      return;
+    }
+
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+      _validandoCodigo = true;
+      _errorCodigo = null;
       _codigoValidado = false;
     });
 
@@ -70,42 +174,68 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
       final producto =
           await _isar.obtenerProductoPorId(widget.lote.productoId);
       if (producto == null) {
+        if (!mounted) return;
         setState(() {
-          _errorMessage = 'Producto no encontrado';
-          _isLoading = false;
+          _errorCodigo = 'Producto no encontrado';
+          _validandoCodigo = false;
         });
         return;
       }
 
       if (producto.codigoBarras == codigo) {
+        if (!mounted) return;
         setState(() {
           _codigoValidado = true;
           _codigoValidadoTexto = codigo;
-          _isLoading = false;
+          _validandoCodigo = false;
         });
         return;
       }
 
       final alias = await _isar.obtenerAliasPorCodigo(codigo);
       if (alias != null && alias.productoId == widget.lote.productoId) {
+        if (!mounted) return;
         setState(() {
           _codigoValidado = true;
           _codigoValidadoTexto = codigo;
-          _isLoading = false;
+          _validandoCodigo = false;
         });
         return;
       }
 
-      if (alias == null) {
+      if (alias != null && alias.productoId != widget.lote.productoId) {
+        final otroProducto =
+            await _isar.obtenerProductoPorId(alias.productoId);
+        if (!mounted) return;
+        setState(() {
+          _errorCodigo =
+              'Este código pertenece a "${otroProducto?.nombre ?? 'otro producto'}"';
+          _validandoCodigo = false;
+        });
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() => _validandoCodigo = false);
+
+      _mostrandoDialogoAfiliacion = true;
+
+      try {
         final crearAlias = await showDialog<bool>(
-          // ignore: use_build_context_synchronously
           context: context,
+          barrierDismissible: false,
           builder: (ctx) => AlertDialog(
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20)),
-            title: const Text('Nuevo código de barras'),
+            title: const Row(
+              children: [
+                Icon(Icons.qr_code_2_rounded, color: _colorSuccess),
+                SizedBox(width: 10),
+                Text('Código no registrado'),
+              ],
+            ),
             content: Text(
-              'El código "$codigo" no está registrado.\n'
+              'El código "$codigo" no está asociado a ningún producto.\n\n'
               '¿Deseas asociarlo a "${producto.nombre}"?',
             ),
             actions: [
@@ -113,18 +243,24 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
                 onPressed: () => Navigator.pop(ctx, false),
                 child: const Text('Cancelar'),
               ),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: () => Navigator.pop(ctx, true),
+                icon: const Icon(Icons.link_rounded, size: 18),
+                label: const Text('Asociar'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _colorSuccess,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text('Asociar'),
               ),
             ],
           ),
         );
+
+        if (!mounted) return;
+
         if (crearAlias == true) {
+          _codigoCancelado = null; // ← Limpiar registro tras éxito
+          
           await _isar.guardarCodigoAlias(
             CodigoBarrasAliasEntity()
               ..codigo = codigo
@@ -135,11 +271,11 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
               ..observaciones = 'Creado desde verificación de lote'
               ..sincronizado = false,
           );
+
           if (!mounted) return;
           setState(() {
             _codigoValidado = true;
             _codigoValidadoTexto = codigo;
-            _isLoading = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -147,53 +283,51 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
               backgroundColor: _colorSuccess,
             ),
           );
-          return;
         } else {
+          if (!mounted) return;
           setState(() {
-            _errorMessage = 'Código no validado';
-            _isLoading = false;
+            _errorCodigo = 'Código no validado';
+            _codigoCancelado = codigo; // ← REGISTRAR el código cancelado explícitamente
           });
-          return;
         }
+      } finally {
+        _mostrandoDialogoAfiliacion = false;
       }
-
-      if (alias.productoId != widget.lote.productoId) {
-        final otroProducto =
-            await _isar.obtenerProductoPorId(alias.productoId);
-        setState(() {
-          _errorMessage =
-              'Pertenece a "${otroProducto?.nombre ?? 'otro producto'}"';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      setState(() {
-        _errorMessage = 'Error inesperado';
-        _isLoading = false;
-      });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _errorMessage = 'Error: $e';
-        _isLoading = false;
+        _errorCodigo = 'Error: $e';
+        _validandoCodigo = false;
       });
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // CONFIRMAR VERIFICACIÓN
+  // ═══════════════════════════════════════════════════════════════════
+
   Future<void> _confirmarVerificacion() async {
     if (!_codigoValidado) {
-      setState(() => _errorMessage = 'Escanea o ingresa un código válido');
-      return;
-    }
-    final cantidad = double.tryParse(_cantidadController.text);
-    if (cantidad == null ||
-        cantidad <= 0 ||
-        cantidad > widget.lote.cantidadInicial) {
-      setState(() => _errorMessage = 'Cantidad inválida');
+      setState(() => _errorCodigo = 'Debes validar un código primero');
       return;
     }
 
-    setState(() => _isLoading = true);
+    final cantidad = double.tryParse(_cantidadController.text);
+    if (cantidad == null || cantidad <= 0) {
+      setState(() => _errorCantidad = 'Ingresa una cantidad válida');
+      return;
+    }
+    if (cantidad > widget.lote.cantidadInicial) {
+      setState(() => _errorCantidad =
+          'No puede exceder la cantidad esperada (${widget.lote.cantidadInicial})');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorCantidad = null;
+    });
+
     try {
       final usuario = ref.read(usuarioActualProvider);
       if (usuario == null) throw Exception('Usuario no autenticado');
@@ -218,17 +352,21 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
         Navigator.pop(context, true);
       } else {
         setState(() {
-          _errorMessage = 'Error al activar el lote';
+          _errorCantidad = 'Error al activar el lote';
           _isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error: $e';
+        _errorCantidad = 'Error: $e';
         _isLoading = false;
       });
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // BUILD
+  // ═══════════════════════════════════════════════════════════════════
 
   @override
   Widget build(BuildContext context) {
@@ -237,7 +375,7 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
     final isDark = theme.brightness == Brightness.dark;
 
     return GlassDialog(
-      maxWidth: 500,
+      maxWidth: 520,
       maxHeightFactor: 0.85,
       scrollable: true,
       child: Padding(
@@ -249,12 +387,12 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
             const DialogHeader(
               icon: Icons.qr_code_scanner_rounded,
               title: 'Verificar Lote',
-              subtitle: 'Escanea el código y confirma la cantidad',
+              subtitle: 'Escanea o escribe el código y confirma la cantidad',
               color: _colorWarning,
             ),
             const SizedBox(height: 18),
 
-            // ===== INFO =====
+            // ===== INFO DEL PRODUCTO =====
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -269,9 +407,11 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Producto ID: ${widget.lote.productoId}',
+                    _productoNombre ?? 'Cargando producto...',
                     style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 13),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -284,7 +424,9 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
                   if (widget.lote.fechaVencimiento != null) ...[
                     const SizedBox(height: 2),
                     Text(
-                      'Vence: ${widget.lote.fechaVencimiento!.day}/${widget.lote.fechaVencimiento!.month}/${widget.lote.fechaVencimiento!.year}',
+                      'Vence: ${widget.lote.fechaVencimiento!.day}/'
+                      '${widget.lote.fechaVencimiento!.month}/'
+                      '${widget.lote.fechaVencimiento!.year}',
                       style: TextStyle(
                         fontSize: 12,
                         color: colorScheme.onSurfaceVariant,
@@ -296,19 +438,44 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
             ),
             const SizedBox(height: 16),
 
-            // ===== CÓDIGO =====
+            // ===== CÓDIGO DE BARRAS =====
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: TextField(
                     controller: _codigoController,
+                    focusNode: _codigoFocus,
+                    onChanged: _onCodigoChanged,
+                    enabled: !_mostrandoDialogoAfiliacion,
                     style: TextStyle(color: colorScheme.onSurface),
                     decoration: InputDecoration(
                       labelText: 'Código de barras *',
+                      hintText: 'Escribe o escanea el código',
                       labelStyle:
                           TextStyle(color: colorScheme.onSurfaceVariant),
-                      prefixIcon:
-                          const Icon(Icons.qr_code, color: _colorPrimary),
+                      prefixIcon: Icon(
+                        _codigoValidado
+                            ? Icons.check_circle_rounded
+                            : Icons.qr_code,
+                        color: _codigoValidado
+                            ? _colorSuccess
+                            : _colorPrimary,
+                      ),
+                      suffixIcon: _validandoCodigo
+                          ? Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: _colorPrimary,
+                                ),
+                              ),
+                            )
+                          : null,
+                      errorText: _errorCodigo,
                       filled: true,
                       fillColor: isDark
                           ? Colors.white.withValues(alpha: 0.04)
@@ -320,8 +487,11 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(
-                          color: colorScheme.outlineVariant
-                              .withValues(alpha: 0.5),
+                          color: _codigoValidado
+                              ? _colorSuccess.withValues(alpha: 0.5)
+                              : colorScheme.outlineVariant
+                                  .withValues(alpha: 0.5),
+                          width: _codigoValidado ? 1.5 : 1,
                         ),
                       ),
                       focusedBorder: OutlineInputBorder(
@@ -330,32 +500,30 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
                             const BorderSide(color: _colorPrimary, width: 2),
                       ),
                     ),
-                    onChanged: (value) {
-                      if (_codigoValidado) {
-                        setState(() {
-                          _codigoValidado = false;
-                          _codigoValidadoTexto = null;
-                        });
-                      }
-                      if (_errorMessage != null) {
-                        setState(() => _errorMessage = null);
-                      }
-                    },
                   ),
                 ),
                 const SizedBox(width: 8),
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: IconButton(
-                    onPressed: _isLoading ? null : _escanearCodigo,
-                    icon: const Icon(Icons.qr_code_scanner_rounded,
-                        size: 32, color: _colorSuccess),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: IconButton(
+                      onPressed: (_isLoading || _mostrandoDialogoAfiliacion)
+                          ? null
+                          : _escanearCodigo,
+                      icon: const Icon(
+                        Icons.qr_code_scanner_rounded,
+                        size: 32,
+                        color: _colorSuccess,
+                      ),
+                      tooltip: 'Escanear con la cámara',
+                    ),
                   ),
                 ),
               ],
             ),
 
-            // ===== VALIDACIÓN =====
+            // ===== BADGE DE VALIDACIÓN =====
             if (_codigoValidado) ...[
               const SizedBox(height: 10),
               Align(
@@ -373,14 +541,15 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
             // ===== CANTIDAD =====
             TextField(
               controller: _cantidadController,
-              keyboardType: TextInputType.number,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               style: TextStyle(color: colorScheme.onSurface),
               decoration: InputDecoration(
                 labelText: 'Cantidad recibida *',
                 labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                 prefixIcon:
                     const Icon(Icons.numbers, color: _colorPrimary),
-                errorText: _errorMessage,
+                errorText: _errorCantidad,
                 filled: true,
                 fillColor: isDark
                     ? Colors.white.withValues(alpha: 0.04)
@@ -392,15 +561,21 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(
-                    color:
-                        colorScheme.outlineVariant.withValues(alpha: 0.5),
+                    color: colorScheme.outlineVariant
+                        .withValues(alpha: 0.5),
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: _colorPrimary, width: 2),
+                  borderSide:
+                      const BorderSide(color: _colorPrimary, width: 2),
                 ),
               ),
+              onChanged: (_) {
+                if (_errorCantidad != null) {
+                  setState(() => _errorCantidad = null);
+                }
+              },
             ),
             const SizedBox(height: 24),
 
@@ -424,23 +599,30 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
                           ),
                         ),
                       ),
-                      child: const Text('Cancelar',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'Cancelar',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: MouseRegion(
-                    cursor: _isLoading
+                    cursor: _isLoading || !_codigoValidado
                         ? SystemMouseCursors.forbidden
                         : SystemMouseCursors.click,
                     child: ElevatedButton(
-                      onPressed:
-                          _isLoading ? null : _confirmarVerificacion,
+                      onPressed: _isLoading || !_codigoValidado
+                          ? null
+                          : _confirmarVerificacion,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _colorSuccess,
                         foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            colorScheme.surfaceContainerHighest,
+                        disabledForegroundColor:
+                            colorScheme.onSurfaceVariant,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -452,11 +634,14 @@ class _VerificarLoteDialogState extends ConsumerState<VerificarLoteDialog> {
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
-                          : const Text('Activar Lote',
-                              style:
-                                  TextStyle(fontWeight: FontWeight.bold)),
+                          : const Text(
+                              'Activar Lote',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
                     ),
                   ),
                 ),

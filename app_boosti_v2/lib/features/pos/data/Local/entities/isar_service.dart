@@ -40,6 +40,8 @@ import '../../../presentation/services/error_service.dart'; // ✅ NUEVO
 import 'horario_entity.dart';
 import 'nomina_pago_entity.dart';
 import 'pago_venta_entity.dart';
+import 'suscripcion_entity.dart';
+import 'plan_entity.dart';
 
 
 // ============================================================
@@ -145,6 +147,8 @@ Future<Isar> _initIsar({String? testDirectory}) async {
         CotizacionMayorEntitySchema,
         AutorizacionDescuentoEntitySchema,
         ConfigDescuentoMayoristaEntitySchema,
+        PlanEntitySchema,
+        SuscripcionEntitySchema,
       ],
       directory: dbPath,
       inspector: testDirectory == null,
@@ -194,6 +198,8 @@ Future<Isar> _initIsar({String? testDirectory}) async {
         CotizacionMayorEntitySchema,
         AutorizacionDescuentoEntitySchema,
         ConfigDescuentoMayoristaEntitySchema,
+        PlanEntitySchema,
+        SuscripcionEntitySchema,
       ],
       directory: fallbackPath,
       inspector: testDirectory == null,
@@ -285,10 +291,7 @@ Future<void> initForTesting(String directoryPath) async {
     
     // Traemos a los usuarios activos. Revisa si tu colección se llama 
     // usuarioEntitys o usuarios según lo haya generado Isar.
-    final usuarios = await isar.usuarioEntitys
-        .filter()
-        .activoEqualTo(true)
-        .findAll();
+    final usuarios = await isar.usuarioEntitys.where().findAll();
 
     for (final usuario in usuarios) {
       // 1. Verificamos si el PIN coincide usando el Hasher
@@ -514,8 +517,6 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
       final candidatos = await isar.usuarioEntitys
           .filter()
           .nombreEqualTo(nombreNormalizado, caseSensitive: false)
-          .and()
-          .activoEqualTo(true)
           .findAll();
 
       for (final usuario in candidatos) {
