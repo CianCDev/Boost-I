@@ -26,6 +26,7 @@ import '../widgets/catalog/product_card.dart';
 import '../widgets/catalog/product_card_skeleton.dart';
 import '../widgets/catalog/search_bar.dart';
 import '../widgets/catalog/cart/cart_sidebar.dart';
+import '../widgets/catalog/cart/cart_dialogs.dart';
 import '../widgets/catalog/cart/parked_carts_dialog.dart';
 import '../widgets/catalog/cart/save_cart_dialog.dart';
 import '../widgets/catalog/top_products_widget.dart';
@@ -55,7 +56,7 @@ class InventoryCatalogScreen extends ConsumerStatefulWidget {
 }
 
 class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
-    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+    with SingleTickerProviderStateMixin {
   final ScaleService _scaleService = ScaleService();
   final PanelProvider _panelProvider = PanelProvider();
   final PanelController _panelController = PanelController();
@@ -74,8 +75,17 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   static const _colorWarning = Color(0xFFF59E0B);
   static const _colorDanger = Color(0xFFEF4444);
 
-  @override
-  bool get wantKeepAlive => true;
+  // Se quitaron `AutomaticKeepAliveClientMixin` y `wantKeepAlive => true`.
+  //
+  // Eran INERTES y engañosos: la pantalla se abre con
+  // `MaterialPageRoute(builder: (_) => item.screenBuilder())`
+  // (`main_pos_screen.dart:1085`), y un route pushed no recibe
+  // `KeepAliveNotification`, que es lo unico que hace que el mixin acts.
+  // Flutter solo lo consulta dentro de un `PageView` o un `IndexedStack`.
+  //
+  // O sea que la pantalla SI se destruye al hacer pop y los timers y
+  // suscripciones del `dispose()` corren bien. Mantener el mixin hacia
+  // creer lo contrario y desincentivaba buscar fugas reales.
 
   @override
   void initState() {
@@ -156,7 +166,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     // Esc en el catálogo limpia el carrito (con confirmación).
     final cartState = ref.read(cartProvider);
     if (cartState.items.isNotEmpty) {
-      _confirmarLimpiarCarrito();
+      _limpiarCarritoConConfirmacion();
       return true;
     }
     return false;
@@ -208,7 +218,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   if (key == LogicalKeyboardKey.delete) {
     final cartState = ref.read(cartProvider);
     if (cartState.items.isNotEmpty) {
-      _confirmarLimpiarCarrito();
+      _limpiarCarritoConConfirmacion();
       return true;
     }
     return false;
@@ -390,7 +400,14 @@ bool get _hayTextFieldEnFoco {
       if (existingIndex != -1) {
         cartNotifier.sumarCantidad(existingIndex, 1.0);
       } else {
-        cartNotifier.agregarItem(item, 1.0);
+        // R.3: `entity` es el `ProductoEntity` original, así que de aquí sí
+        // sale la estación de preparación (KDS).
+        cartNotifier.agregarItem(
+          item,
+          1.0,
+          estacionId: entity.departamentoId,
+          imagenUrl: entity.imagenUrl,
+        );
       }
 
       _snack('$posicion → ${entity.nombre}', _colorSuccess);
@@ -410,34 +427,25 @@ bool get _hayTextFieldEnFoco {
     );
   }
 
-  void _confirmarLimpiarCarrito() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Limpiar carrito'),
-        content: const Text(
-            '¿Seguro que deseas eliminar todos los productos del carrito?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              ref.read(cartProvider.notifier).limpiarCarrito();
-              Navigator.pop(ctx);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _colorDanger,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Limpiar'),
-          ),
-        ],
-      ),
-    );
+  /// Limpia el carrito previa confirmación.
+  ///
+  /// Reusa `confirmarLimpiarCarrito` de `cart_dialogs.dart`, que es el
+  /// mismo diálogo que usan `cart_sidebar.dart` y `cart_bottom_sheet.dart`.
+  /// Antes esta pantalla tenía una copia propia del `AlertDialog`, con un
+  /// color distinto (`_colorDanger` en vez de `redError`) y sin
+  /// `barrierDismissible` explícito.
+  ///
+  /// ## Por qué es async y se llama sin await
+  /// `_manejarTecladoFisico` está registrado con
+  /// `HardwareKeyboard.addHandler`, que exige un handler SÍNCRONO
+  /// (`bool Function(KeyEvent)`): no admite `Future`. Por eso el `await`
+  /// vive acá adentro y los hotkeys lo invocan fire-and-forget, igual que
+  /// antes, cuando el diálogo tampoco se esperaba.
+  Future<void> _limpiarCarritoConConfirmacion() async {
+    final confirmado = await confirmarLimpiarCarrito(context);
+    if (confirmado != true) return;
+    if (!mounted) return;
+    ref.read(cartProvider.notifier).limpiarCarrito();
   }
 
   void _mostrarAyudaAtajos() {
@@ -558,7 +566,26 @@ bool get _hayTextFieldEnFoco {
           _snack('${producto.nombre} +${cantidad.toStringAsFixed(0)} unidades',
               mintLeaf);
         } else {
-          cartNotifier.agregarItem(producto as ProductItem, cantidad);
+          // `producto` es un `ProductoEntity` (lo devuelve
+          // `buscarProductoPorCodigo`), NO un `ProductItem`. Antes había un
+          // `producto as ProductItem` que era un TypeError garantizado en
+          // runtime: son clases sin relación. Ahora se construye el
+          // `ProductItem` explícito, igual que hace `CatalogActions`.
+          cartNotifier.agregarItem(
+            ProductItem(
+              id: producto.id.toString(),
+              codigoBarras: producto.codigoBarras,
+              nombre: producto.nombre,
+              precioUnidad: producto.precioUnidad,
+              esPesado: producto.esPesado,
+              categoria: producto.categoria,
+            ),
+            cantidad,
+            // R.3: destino de preparación del plato (KDS).
+            estacionId: producto.departamentoId,
+            // R.3.2: miniatura del plato en el KDS.
+            imagenUrl: producto.imagenUrl,
+          );
           _snack('${producto.nombre} agregado al carrito', mintLeaf);
         }
       }
@@ -612,7 +639,8 @@ bool get _hayTextFieldEnFoco {
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    // Sin `super.build(context)`: venía de `AutomaticKeepAliveClientMixin`,
+    // que se eliminó (ver la nota en la cabecera de la clase).
     return provider.MultiProvider(
       providers: [
         provider.ChangeNotifierProvider<PanelProvider>(

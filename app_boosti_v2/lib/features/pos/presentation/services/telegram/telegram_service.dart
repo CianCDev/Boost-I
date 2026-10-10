@@ -29,6 +29,14 @@ class TelegramService {
   final IsarService _isarService = IsarService();
   TelegramConfigEntity? _config;
   Timer? _pollingTimer;
+
+  /// `false` apenas se pide detener el polling.
+  ///
+  /// Cancelar el `Timer` no alcanza: si el loop está esperando dentro de
+  /// `_checkUpdates()` (que puede tardar 15 s), sigue Vivo y vuelve a
+  /// pedir el siguiente ciclo. Con esta bandera el loop se cierra solo en
+  /// la próxima vuelta.
+  bool _activo = false;
   int _lastUpdateId = 0;
 
   static const String _apiBase = 'https://api.telegram.org/bot';
@@ -75,6 +83,7 @@ class TelegramService {
   }
 
   Future<void> cambiarUsuario(int usuarioId) async {
+    _activo = false;
     _pollingTimer?.cancel();
     await inicializar(usuarioId: usuarioId);
   }
@@ -210,15 +219,36 @@ class TelegramService {
   // POLLING DE MENSAJES
   // ============================================================
 
+  /// Período de espera ENTRE polls, no duración del poll.
+  static const Duration _intervaloPolling = Duration(seconds: 3);
+
+  /// Loop secuencial en vez de `Timer.periodic`.
+  ///
+  /// ## Por qué
+  /// `getUpdates` se llama con `timeout=10` (long-polling) y el cliente
+  /// tiene timeout de 15 s. Con `Timer.periodic(3s)` el timer disparaba
+  /// cada 3 s **mientras el request anterior seguía en vuelo**, así que se
+  /// acumulaban 3-5 requests concurrentes de `getUpdates` de forma
+  /// permanente. Telegram además entrega cada update a un solo consumidor:
+  /// los duplicados se perdían igual.
+  ///
+  /// Ahora es un `while` con `await`: nunca hay dos requests a la vez, y el
+  /// intervalo se mide entre el fin de uno y el arranque del siguiente.
   void _startPolling() {
     _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      if (_config == null || !_config!.enabled) {
-        timer.cancel();
-        return;
-      }
-      await _checkUpdates();
+    _activo = true;
+    _pollingTimer = Timer(const Duration(milliseconds: 600), () {
+      _loopPolling();
     });
+  }
+
+  Future<void> _loopPolling() async {
+    while (_activo && _config != null && _config!.enabled) {
+      await _checkUpdates();
+      if (!_activo || _config == null || !_config!.enabled) break;
+      await Future.delayed(_intervaloPolling);
+    }
+    _pollingTimer = null;
   }
 
   Future<void> _checkUpdates() async {
@@ -517,6 +547,7 @@ $lista
       await actualizarComandosEnTelegram(_config!.comandosPermitidos);
       _startPolling();
     } else {
+      _activo = false;
       _pollingTimer?.cancel();
       debugPrint('⏹️ Bot de Telegram detenido');
     }
@@ -527,6 +558,7 @@ $lista
   // ============================================================
 
   void dispose() {
+    _activo = false;
     _pollingTimer?.cancel();
     _pollingTimer = null;
     _lastUpdateId = 0;

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/producto_entity.dart';
+import '../../providers/lotes_provider.dart';
 import '../../providers/marca_provider.dart';
 import '../../providers/themes/app_colors.dart';
+import '../../utils/expiry_utils.dart';
 import '../../utils/responsive_helper.dart';
 
 class ProductCard extends ConsumerStatefulWidget {
@@ -76,10 +78,28 @@ class _ProductCardState extends ConsumerState<ProductCard> {
     final double typeBadgeFontSize = widget.isMobile ? 9 : (isTablet ? 11 : 12);
     final double typeBadgePadding = widget.isMobile ? 4 : (isTablet ? 6 : 8);
 
-    // ✅ Obtener el nombre de la marca
-    final marcaNombreAsync = widget.producto.marcaSupabaseId != null
-        ? ref.watch(marcaNombrePorSupabaseIdProvider(widget.producto.marcaSupabaseId!))
+    // ✅ Nombre de la marca.
+    //
+    // Antes: `ref.watch(marcaNombrePorSupabaseIdProvider(...))`, una query
+    // a Isar POR CARD (~200 round-trips al abrir la grilla, cada una con su
+    // transición loading→data). Ahora es un único Map leído una vez y
+    // lookup O(1), sin rebuilds por card.
+    final marcaNombres =
+        ref.watch(marcaNombresPorSupabaseIdProvider).valueOrNull ??
+            const <String, String>{};
+    final marcaNombre = widget.producto.marcaSupabaseId != null
+        ? marcaNombres[widget.producto.marcaSupabaseId!]
         : null;
+
+    // ✅ Vencimiento más próximo del producto (derivado de los lotes).
+    // En móvil, cuando el stock ya está marcado, el label se acorta para
+    // que los dos badges no se solapen: "¡Stock bajo!" mide ~70px y la
+    // card ronda los 150px.
+    final vencimientos = ref.watch(vencimientosProvider);
+    final fechaVenc = vencimientos[widget.producto.id];
+    final expiryInfo = widget.isMobile && widget.stockBajo
+        ? ExpiryUtils.clasificarCompacto(fechaVenc)
+        : ExpiryUtils.clasificar(fechaVenc);
 
     return AnimatedBuilder(
       animation: widget.animationController,
@@ -215,6 +235,42 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                             ),
                           ),
                         ),
+                      // Badge de vencimiento (superior derecha).
+                      // Simetrico al de stock, que esta arriba-izquierda.
+                      // Va en el Stack de la imagen y no en la seccion de
+                      // datos porque esa region es Expanded(flex: 45) y ya
+                      // tiene 4 elementos: sumar un chip ahi le roba
+                      // altura al nombre, que hoy tiene maxLines: 2.
+                      if (expiryInfo != null)
+                        Positioned(
+                          top: widget.isMobile ? 8 : 10,
+                          right: widget.isMobile ? 8 : 10,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: badgePadding,
+                              vertical: badgePadding * 0.8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: expiryInfo.color,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              expiryInfo.label,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: badgeFontSize,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
                       // Badge de tipo (inferior derecha)
                       Positioned(
                         bottom: widget.isMobile ? 8 : 10,
@@ -296,34 +352,16 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         // Marca
-                        if (marcaNombreAsync != null)
-                          marcaNombreAsync.when(
-                            data: (nombre) => nombre != null
-                                ? Text(
-                                    'Marca: $nombre',
-                                    style: TextStyle(
-                                      fontSize: fontSizeMarca,
-                                      color: colorScheme.primary,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  )
-                                : const SizedBox.shrink(),
-                            loading: () => const SizedBox(
-                              height: 16,
-                              child: Center(
-                                child: SizedBox(
-                                  width: 12,
-                                  height: 12,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              ),
+                        if (marcaNombre != null)
+                          Text(
+                            'Marca: $marcaNombre',
+                            style: TextStyle(
+                              fontSize: fontSizeMarca,
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w500,
                             ),
-                            // ✅ Nombres descriptivos
-                            error: (err, stack) => const SizedBox.shrink(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           )
                         else
                           const SizedBox.shrink(),

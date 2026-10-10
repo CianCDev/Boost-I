@@ -15,6 +15,50 @@ class ProductosState {
   ProductosState copyWith({List<ProductoEntity>? items, bool? isLoading}) {
     return ProductosState(items: items ?? this.items, isLoading: isLoading ?? this.isLoading);
   }
+
+  /// Igualdad ESTRUCTURAL, no por identidad.
+  ///
+  /// ## Por qué importa
+  /// `catalogProvider` e `inventoryProvider` hacen
+  /// `ref.listen(productosProvider, ...)` y en cada disparo corren un
+  /// filtrado O(n) sobre TODOS los productos
+  /// (`catalog_provider.dart:139`, `inventory_provider.dart:113`).
+  ///
+  /// `items` es una lista freshly-allocated por `obtenerProductos()` en
+  /// cada llamada, así que comparar por identidad nunca daba igual. Sin
+  /// este `==`, cada `cargarProductos()` emitía DOS veces (loading true y
+  /// loading false) y las dos causaban los dos passes completos, aunque no
+  /// hubiera cambiado un solo producto.
+  ///
+  /// `InventoryState` y `CatalogState` ya tenían `==`; este faltaba y era
+  /// la pieza que hacía repetir el filtrado.
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! ProductosState) return false;
+    if (other.isLoading != isLoading) return false;
+    if (other.items.length != items.length) return false;
+    for (var i = 0; i < items.length; i++) {
+      final a = items[i];
+      final b = other.items[i];
+      if (a.id != b.id) return false;
+      if (a.stock != b.stock) return false;
+      if (a.nombre != b.nombre) return false;
+      if (a.precioUnidad != b.precioUnidad) return false;
+      if (a.categoria != b.categoria) return false;
+      if (a.imagenUrl != b.imagenUrl) return false;
+      if (a.stockMinimo != b.stockMinimo) return false;
+      if (a.esPesado != b.esPesado) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        isLoading,
+        items.length,
+        Object.hashAll(items.map((p) => p.id)),
+      );
 }
 
 class ProductosNotifier extends StateNotifier<ProductosState> {
@@ -27,31 +71,50 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
 
   Future<void> cargarProductos() async {
     // Si el provider fue destruido antes de empezar, abortamos
-    if (!mounted) return; 
-    state = state.copyWith(isLoading: true);
-    
+    if (!mounted) return;
+    // Solo emitir `isLoading: true` si veníamos de un estado estable.
+    // Repetirlo cuando ya estábamos cargando genera una emisión
+    // identica que igual dispara los `ref.listen` de catalog e inventory.
+    if (!state.isLoading) {
+      state = state.copyWith(isLoading: true);
+    }
+
     try {
       final productos = await _isar.obtenerProductos();
-      
+
       // 🔥 Validación crucial: Evita actualizar el estado si el widget/provider ya se cerró
-      if (!mounted) return; 
-      
+      if (!mounted) return;
+
       final currentItems = state.items;
-      
+
       // 🔥 Comparar antes de actualizar
       if (!_listasSonIguales(currentItems, productos)) {
         state = state.copyWith(items: productos, isLoading: false);
         debugPrint('🔄 [ProductosNotifier] Productos actualizados (${productos.length} items)');
-      } else {
-        state = state.copyWith(isLoading: false);
+      } else if (state.isLoading) {
+        // ⚠️ `else` sin emisión.
+        //
+        // Antes se hacía `state = state.copyWith(isLoading: false)` en
+        // TODOS los caminos. Cuando nada había cambiado eso emitía un
+        // estado nuevo e inequivalente, y con esto eso dispara los dos
+        // filtrados O(n) de `catalogProvider._aplicarFiltros` e
+        // `inventoryProvider.aplicarFiltros` de nuevo.
+        //
+        // Ahora, si ya estábamos en `isLoading: false` y la lista es
+        // igual, no se toca el estado: cero emisiones, cero filtrados.
         debugPrint('ℹ️ [ProductosNotifier] Sin cambios en productos');
       }
     } catch (e) {
       // 🔥 Verificar también en caso de error asíncrono
-      if (!mounted) return; 
+      if (!mounted) return;
       state = state.copyWith(isLoading: false);
       debugPrint('❌ [ProductosNotifier] Error: $e');
-      rethrow;
+      // Sin `rethrow`: el unico caller en el constructor
+      // (`ProductosNotifier()`) no captura nada, asi que relanzar
+      // producia una excepcion no manejada. Ademas el estado ya quedo
+      // en `isLoading: false` con los items previos, que es el mejor
+      // resultado posible: la UI sigue mostrando el ultimo catalogo
+      // conocido en vez de quedar en blanco.
     }
   }
 
@@ -93,15 +156,29 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
 
   /// Actualiza el stock de un producto.
 ///
-/// 🎯 FIX CRÍTICO: el stock NUNCA queda negativo.
+/// ⚠️ **DEPRECADADA.** No la uses.
 ///
-///   Aunque el caller pase un valor negativo por error (bug de cálculo,
-///   desincronización de la BD, condición de carrera), aquí se aplica
-///   `clamp(0, double.infinity)` antes de persistir.
+/// Acepta un `nuevoStock` a ciegas: escribe `producto.stock` sin mirar
+/// los lotes, que es exactamente el patrón que produjo la duplicación
+/// `producto.stock` ↔ `SUM(lotes.cantidad_restante)` y el salto de
+/// stock 165 → 175. No tiene ningún caller interno.
 ///
-///   Si el valor fue "corregido", se registra un `debugPrint` para
-///   auditoría y el movimiento de inventario refleja la diferencia
-///   REAL aplicada (no la solicitada).
+/// En su lugar, según la operación:
+///
+///  * Ajuste manual de inventario → mover `lotes.cantidadRestante` y
+///    llamar `IsarService.recalcularStockDe([productoId])`.
+///  * Cambio desde el editor de producto →
+///    `IsarService.ajustarStockDesdeEditor(productoId, stockObjetivo)`.
+///  * Tras una venta → nada: `VentaService.procesarVenta` ya recalcula
+///    al final.
+///
+/// Esta marca existe para que un refactor futuro no la reintroduzca.
+@Deprecated(
+  'Usar IsarService.recalcularStockDe(productoIds) tras mover los lotes, '
+  'o IsarService.ajustarStockDesdeEditor(productoId, stockObjetivo). '
+  'Esta API acepta stock ciego y puede reintroducir el bug de duplicación '
+  'producto.stock ↔ SUM(lotes).',
+)
 Future<void> actualizarStock(
   int productoId,
   double nuevoStock,
@@ -151,7 +228,20 @@ Future<void> actualizarStock(
     ..syncStatus = 'pending';
   await _isar.guardarMovimientoInventario(movimiento);
 
-  await _sync.sincronizarMovimientosInventario();
+  // ⚠️ Fase 1: NO sincronizar a la nube desde aquí.
+  //
+  //   Este ajuste de stock es local. La subida de movimientos (y el
+  //   RPC `ajustar_stock`) se dispara en Fase 2, al confirmar el
+  //   cobro, dentro de la transacción de `procesarVenta`.
+  //
+  //   Antes se llamaba `_sync.sincronizarMovimientosInventario()` aquí,
+  //   lo que hacía 2 cosas malas:
+  //     1. Introducía un `await` de red ANTES de `cargarProductos()`.
+  //        Si la red fallaba, el provider no refrescaba y la UI
+  //        mostraba stock viejo aunque Isar ya tuviera el valor
+  //        correcto.
+  //     2. Restaba stock en Supabase por ajustes que podían
+  //        revertirse (agregar/quitar del carrito).
   await cargarProductos();
 }
 
@@ -217,33 +307,17 @@ Future<void> actualizarStock(
     await cargarProductos();
   }
 
-  Future<void> registrarMovimientoManual(
-    int productoId,
-    double cantidad,
-    String tipo,
-    UsuarioEntity usuario,
-  ) async {
-    final producto = await _isar.obtenerProductoPorId(productoId);
-    if (producto == null) return;
-
-    final nuevoStock = producto.stock + cantidad;
-    producto.stock = nuevoStock;
-    await _isar.guardarProducto(producto);
-
-    final movimiento = MovimientoInventarioEntity()
-      ..productoId = producto.id
-      ..nombreProducto = producto.nombre
-      ..tipoMovimiento = tipo
-      ..cantidad = cantidad
-      ..stockResultante = nuevoStock
-      ..fecha = DateTime.now()
-      ..usuarioId = usuario.id
-      ..syncStatus = 'pending';
-    await _isar.guardarMovimientoInventario(movimiento);
-
-    await _sync.sincronizarMovimientosInventario();
-    await cargarProductos();
-  }
+  // ⚠️ `registrarMovimientoManual` fue eliminado (Lote C).
+  //
+  //   No tenía NINGÚN caller (verificado por grep en lib/: 0
+  //   referencias fuera de su propia definición) y escribía
+  //   `producto.stock = producto.stock + cantidad`, es decir una
+  //   aritmética ciega a los lotes. Con el modelo "lotes = fuente única
+  //   de verdad" ese patrón es exactamente lo que había que eliminar.
+  //
+  //   Si alguna vez hace falta un ajuste manual de stock, el camino
+  //   correcto es mover la cantidad en `lotes.cantidad_restante` y
+  //   llamar a `IsarService.recalcularStockDe([productoId])`.
 }
 
 final productosProvider = StateNotifierProvider<ProductosNotifier, ProductosState>((ref) {

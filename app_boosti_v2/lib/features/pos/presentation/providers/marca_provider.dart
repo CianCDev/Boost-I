@@ -263,6 +263,37 @@ final marcaNombrePorSupabaseIdProvider = FutureProvider.family<String?, String>(
   },
 );
 
+/// `supabaseId` de marca → nombre, en UN solo read.
+///
+/// ## Por qué existe
+/// `ProductCard` usaba `marcaNombrePorSupabaseIdProvider(...)`, un
+/// `FutureProvider.family` que hace **una query a Isar por card**. Con 200
+/// productos en la grilla eso son 200 providers, 200 round-trips y 200
+/// transiciones `loading → data`, o sea ~400 rebuilds de la card solo por
+/// el nombre de la marca, en cada apertura del catálogo.
+///
+/// Acá se lee la colección **una vez** y se indexa en memoria. La card
+/// hace un lookup O(1) y no produce transiciones de estado.
+///
+/// Se apoya en `marcasProvider` (un `StreamProvider` sobre la colección)
+/// para re-emitir solo cuando las marcas cambian de verdad, en vez de
+/// consultar Isar en cada rebuild del catálogo.
+final marcaNombresPorSupabaseIdProvider =
+    FutureProvider<Map<String, String>>((ref) async {
+  // `watch`: si cambia la colección de marcas, este provider se rehace.
+  final marcasAsync = ref.watch(marcasProvider);
+  final marcas = marcasAsync.valueOrNull ?? const <MarcaEntity>[];
+
+  final mapa = <String, String>{};
+  for (final m in marcas) {
+    final sb = m.supabaseId;
+    if (sb != null && sb.isNotEmpty) {
+      mapa[sb] = m.nombre;
+    }
+  }
+  return mapa;
+});
+
 // ============================================================
 // PROVIDER DEL SERVICIO DE SINCRONIZACIÓN
 // ============================================================
