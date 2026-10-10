@@ -158,12 +158,32 @@ void main() {
       expect(n.state.items.first.cantidad, 5.0);
     });
 
-    test('sumarCantidad con cantidad <= 0 no hace nada', () {
+    test('sumarCantidad con cantidad negativa reduce la cantidad', () {
+      final n = buildNotifier();
+      n.agregarProducto(product(), cantidad: 5);
+
+      n.sumarCantidad(0, -2.0);
+
+      expect(n.state.items.first.cantidad, 3.0);
+    });
+
+    test('sumarCantidad con cantidad negativa que llega a 0 elimina el item',
+        () {
       final n = buildNotifier();
       n.agregarProducto(product(), cantidad: 2);
-      n.sumarCantidad(0, 0);
-      n.sumarCantidad(0, -5);
-      expect(n.state.items.first.cantidad, 2.0);
+
+      n.sumarCantidad(0, -5.0);
+
+      expect(n.state.items, isEmpty);
+    });
+
+    test('sumarCantidad con cantidad 0 no hace nada', () {
+      final n = buildNotifier();
+      n.agregarProducto(product(), cantidad: 5);
+
+      n.sumarCantidad(0, 0.0);
+
+      expect(n.state.items.first.cantidad, 5.0);
     });
   });
 

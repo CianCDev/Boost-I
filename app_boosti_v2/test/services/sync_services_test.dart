@@ -19,20 +19,40 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory tempDir;
-  bool supabaseInitialized = false;
 
   /// Mock por defecto que responde OK a todo.
+  ///
+  /// ⚠️ Cada `Response` lleva `request: req` porque `postgrest_builder.dart:462`
+  /// hace `response.request!.method`. El `MockClient` propaga `response.request`
+  /// al `StreamedResponse` (`mock_client.dart:58`), y si el `Response` no lo
+  /// lleva, el SDK revienta con `Null check operator used on a null value`.
   MockClient defaultMock({void Function(http.Request req)? onRequest}) {
     return MockClient((req) async {
       onRequest?.call(req);
-      if (req.method == 'POST') return http.Response('[]', 201);
-      if (req.method == 'PATCH') return http.Response('[]', 200);
-      if (req.method == 'DELETE') return http.Response('', 204);
-      return http.Response('[]', 200);
+      if (req.method == 'POST') {
+        return http.Response('[]', 201, request: req);
+      }
+      if (req.method == 'PATCH') {
+        return http.Response('[]', 200, request: req);
+      }
+      if (req.method == 'DELETE') {
+        return http.Response('', 204, request: req);
+      }
+      return http.Response('[]', 200, request: req);
     });
   }
 
   setUpAll(() async {
+    // Inicializa el singleton UNA vez con un mock benigno, para que cualquier
+    // código que consulte `Supabase.instance.client` (p. ej. desde Isar) no
+    // reviente con `Null check operator used on a null value`. Los tests siguen
+    // usando su propio cliente inyectado vía `buildSync(httpClient: ...)`.
+    SharedPreferences.setMockInitialValues({});
+    await Supabase.initialize(
+      url: 'https://test.supabase.co',
+      publishableKey: 'test-anon-key',
+      httpClient: defaultMock(),
+    );
     tempDir = await setupIsarForTest();
   });
 
@@ -47,18 +67,6 @@ void main() {
     // Prefs mockeadas (lo pide Supabase.initialize)
     SharedPreferences.setMockInitialValues({});
   });
-
-  /// Reemplaza el cliente HTTP del singleton Supabase.
-  Future<void> reinitSupabase(MockClient mock) async {
-    if (!supabaseInitialized) {
-      await Supabase.initialize(
-        url: 'https://test.supabase.co',
-        publishableKey: 'test-anon-key',
-        httpClient: mock,
-      );
-      supabaseInitialized = true;
-    }
-  }
 
   // ════════════════════════════════════════════════════════════
   // BUILDERS
@@ -97,7 +105,27 @@ void main() {
       ..sincronizado = true;
   }
 
-  SyncService buildSync() => SyncService();
+  /// Construye el SyncService con un cliente HTTP aislado.
+  ///
+  /// ⚠️ Antes se inicializaba `Supabase.initialize(httpClient: mock)` una sola
+  /// vez (flag `supabaseInitialized`) y todos los tests compartían el primer
+  /// mock. Además `supabase_flutter` ignora `httpClient` si ya está
+  /// inicializado (`supabase.dart:104`), así que el 2.º mock nunca se aplicaba.
+  /// Inyectando el `SupabaseClient` por el constructor (`sync_service.dart:171`)
+  /// cada test queda completamente aislado.
+  SyncService buildSync({MockClient? httpClient}) {
+    if (httpClient == null) return SyncService();
+    final supaClient = SupabaseClient(
+      'https://test.supabase.co',
+      'test-anon-key',
+      httpClient: httpClient,
+      // Sin `accessToken`, el SDK cae en su `_getAccessToken` interno y hace
+      // `!` sobre una sesión inexistente al insertar. Con un token sintético
+      // se esquiva esa rama. El mock HTTP ignora el header Authorization.
+      accessToken: () async => 'test-jwt-token',
+    );
+    return SyncService(supabaseClient: supaClient);
+  }
 
   // ════════════════════════════════════════════════════════════
   // VENTAS PENDIENTES
@@ -105,14 +133,12 @@ void main() {
 
   group('SyncService — ventas pendientes', () {
     test('sin ventas pendientes: no hace requests y devuelve 0', () async {
-      await reinitSupabase(
-        MockClient((req) async {
+      var requestCount = 0;
+      final sync = buildSync(
+        httpClient: MockClient((req) async {
           fail('No debería hacer HTTP: ${req.url}');
         }),
       );
-
-      var requestCount = 0;
-      final sync = buildSync();
       final enviadas = await sync.sincronizarVentasPendientes();
 
       expect(enviadas, 0);
@@ -121,17 +147,18 @@ void main() {
 
     test('solo envía ventas con syncStatus="pending"', () async {
       final idsEnviados = <String>[];
-      await reinitSupabase(MockClient((req) async {
-        if (req.method == 'POST' && req.url.path.contains('/ventas')) {
-          final decoded = jsonDecode(req.body);
-          final rows = decoded is List ? decoded : [decoded];
-          for (final r in rows) {
-            final idStr = r['id'] as String?;
-            if (idStr != null) idsEnviados.add(idStr);
+      final sync = buildSync(
+        httpClient: MockClient((req) async {
+          if (req.method == 'POST' &&
+              req.url.path.contains('/rpc/sync_venta_completa')) {
+            final decoded = jsonDecode(req.body) as Map<String, dynamic>;
+            final pVenta = decoded['p_venta'] as Map<String, dynamic>?;
+            final id = pVenta?['id'] as String?;
+            if (id != null) idsEnviados.add(id);
           }
-        }
-        return http.Response('[]', 201);
-      }));
+          return http.Response('[]', 201, request: req);
+        }),
+      );
 
       final db = await IsarService().db;
       await db.writeTxn(() async {
@@ -142,7 +169,6 @@ void main() {
         ]);
       });
 
-      final sync = buildSync();
       await sync.sincronizarVentasPendientes();
 
       expect(idsEnviados, containsAll(['uuid-1', 'uuid-3']));
@@ -150,14 +176,13 @@ void main() {
     });
 
     test('marca syncStatus="synced" tras éxito', () async {
-      await reinitSupabase(defaultMock());
+      final sync = buildSync(httpClient: defaultMock());
 
       final db = await IsarService().db;
       await db.writeTxn(() async {
         await db.ventaEntitys.put(buildVenta(id: 1, idSupabase: 'uuid-1'));
       });
 
-      final sync = buildSync();
       await sync.sincronizarVentasPendientes();
 
       final venta = await db.ventaEntitys.get(1);
@@ -165,15 +190,17 @@ void main() {
     });
 
     test('marca syncStatus="failed" si el server responde 500', () async {
-      await reinitSupabase(MockClient((_) async =>
-          http.Response('boom', 500)));
+      final sync = buildSync(
+        httpClient: MockClient(
+          (req) async => http.Response('boom', 500, request: req),
+        ),
+      );
 
       final db = await IsarService().db;
       await db.writeTxn(() async {
         await db.ventaEntitys.put(buildVenta(id: 1, idSupabase: 'uuid-1'));
       });
 
-      final sync = buildSync();
       await sync.sincronizarVentasPendientes();
 
       final venta = await db.ventaEntitys.get(1);
@@ -182,16 +209,17 @@ void main() {
 
     test('si el server lanza excepción, marca "failed" sin crashear',
         () async {
-      await reinitSupabase(MockClient((_) async {
-        throw const SocketException('Sin conexión');
-      }));
+      final sync = buildSync(
+        httpClient: MockClient((_) async {
+          throw const SocketException('Sin conexión');
+        }),
+      );
 
       final db = await IsarService().db;
       await db.writeTxn(() async {
         await db.ventaEntitys.put(buildVenta(id: 1, idSupabase: 'uuid-1'));
       });
 
-      final sync = buildSync();
       await sync.sincronizarVentasPendientes();
 
       final venta = await db.ventaEntitys.get(1);
@@ -199,16 +227,20 @@ void main() {
     });
 
     test('si una venta falla, las demás se siguen enviando', () async {
-      await reinitSupabase(MockClient((req) async {
-        if (req.method == 'POST' && req.url.path.contains('/ventas')) {
-          final decoded = jsonDecode(req.body);
-          final rows = decoded is List ? decoded : [decoded];
-          if (rows.isNotEmpty && rows[0]['id'] == 'uuid-bad') {
-            return http.Response('err', 500);
+      final sync = buildSync(
+        httpClient: MockClient((req) async {
+          if (req.method == 'POST' &&
+              req.url.path.contains('/rpc/sync_venta_completa')) {
+            final decoded = jsonDecode(req.body) as Map<String, dynamic>;
+            final pVenta = decoded['p_venta'] as Map<String, dynamic>?;
+            final id = pVenta?['id'] as String?;
+            if (id == 'uuid-bad') {
+              return http.Response('err', 500, request: req);
+            }
           }
-        }
-        return http.Response('[]', 201);
-      }));
+          return http.Response('[]', 201, request: req);
+        }),
+      );
 
       final db = await IsarService().db;
       await db.writeTxn(() async {
@@ -219,7 +251,6 @@ void main() {
         ]);
       });
 
-      final sync = buildSync();
       await sync.sincronizarVentasPendientes();
 
       expect((await db.ventaEntitys.get(1))!.syncStatus, 'synced');
@@ -236,20 +267,19 @@ void main() {
     test('llamar dos veces no reenvía las ya sincronizadas', () async {
       var inserts = 0;
       final mock = MockClient((req) async {
-        if (req.method == 'POST' && req.url.path.contains('/ventas')) {
+        if (req.method == 'POST' &&
+            req.url.path.contains('/rpc/sync_venta_completa')) {
           inserts++;
         }
-        return http.Response('[]', 201);
+        return http.Response('[]', 201, request: req);
       });
-
-      await reinitSupabase(mock);
+      final sync = buildSync(httpClient: mock);
 
       final db = await IsarService().db;
       await db.writeTxn(() async {
         await db.ventaEntitys.put(buildVenta(id: 1, idSupabase: 'uuid-1'));
       });
 
-      final sync = buildSync();
       await sync.sincronizarVentasPendientes();
       await sync.sincronizarVentasPendientes();
 

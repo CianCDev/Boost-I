@@ -11,7 +11,6 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/venta_entity.dart
 import 'package:app_boosti_v2/features/pos/domain/models/product_item.dart';
 import 'package:app_boosti_v2/features/pos/presentation/controllers/cart_controller.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/venta_service.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 // ✅ Necesario para que QueryBuilder resuelva findAll/count/sortBy...
@@ -87,62 +86,44 @@ void main() {
     ..rol = 'cajero'
     ..activo = true;
 
-  /// Monta un MaterialApp con ProviderScope y expone el BuildContext.
+  /// Crea un ProviderContainer aislado para el test.
   ///
-  /// NO overrideamos printerProvider: el VentaService envuelve la
-  /// impresión en try/catch y traga cualquier error.
-  Future<(ProviderContainer, BuildContext)> mountApp(
-    WidgetTester tester,
-  ) async {
+  /// ⚠️ Ya no montamos widget tree. `VentaService.procesarVenta` acepta
+  /// `BuildContext? null`, así que no necesita UI real para persistir la
+  /// venta. Además, `testWidgets` corría dentro de `FakeAsync` y los `await`
+  /// a Isar se quedaban colgados para siempre. `test()` plano +
+  /// ProviderContainer es el patrón del repo (`descuento_receta_test.dart`,
+  /// `kds_fase_a_test.dart`).
+  ProviderContainer mountContainer() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
-
-    late BuildContext capturedContext;
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) {
-                capturedContext = context;
-                return const SizedBox();
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-    return (container, capturedContext);
+    return container;
   }
 
   // ════════════════════════════════════════════════════════════
   // PERSISTENCIA
   // ════════════════════════════════════════════════════════════
 
-  testWidgets('guarda 1 venta + N detalles en Isar', (tester) async {
+  test('guarda 1 venta + N detalles en Isar', () async {
     final p1 =
         await seedProducto(id: 1, nombre: 'Arroz', precio: 5.0, stock: 100);
     final p2 =
         await seedProducto(id: 2, nombre: 'Frijol', precio: 8.0, stock: 100);
 
-    final (container, context) = await mountApp(tester);
+    final container = mountContainer();
 
     container.read(cartProvider.notifier).agregarItem(p1, 2.0);
     container.read(cartProvider.notifier).agregarItem(p2, 1.0);
-    await tester.pump();
 
     final service = container.read(ventaServiceProvider);
     await service.procesarVenta(
-      context,
+      null,
       metodoPago: 'Efectivo',
       cambio: 0,
       recibido: 18.0,
       tasaActual: 36.5,
       usuarioLogueado: buildUsuario(),
     );
-    await tester.pump();
 
     final db = await IsarService().db;
     final ventas = await db.ventaEntitys.where().findAll();
@@ -157,18 +138,17 @@ void main() {
     expect(detalles.length, 2);
   });
 
-  testWidgets('carrito vacío: no guarda ninguna venta', (tester) async {
-    final (container, context) = await mountApp(tester);
+  test('carrito vacío: no guarda ninguna venta', () async {
+    final container = mountContainer();
 
     final service = container.read(ventaServiceProvider);
     await service.procesarVenta(
-      context,
+      null,
       metodoPago: 'Efectivo',
       cambio: 0,
       recibido: 0,
       tasaActual: 36.5,
     );
-    await tester.pump();
 
     final db = await IsarService().db;
     expect(await db.ventaEntitys.where().count(), 0);
@@ -178,30 +158,28 @@ void main() {
   // DESCUENTO DE STOCK Y LOTES
   // ════════════════════════════════════════════════════════════
 
-  testWidgets('descuenta stock del producto vendido', (tester) async {
+  test('descuenta stock del producto vendido', () async {
     final p = await seedProducto(id: 10, precio: 10.0, stock: 30);
 
-    final (container, context) = await mountApp(tester);
+    final container = mountContainer();
     container.read(cartProvider.notifier).agregarItem(p, 5.0);
-    await tester.pump();
 
     final service = container.read(ventaServiceProvider);
     await service.procesarVenta(
-      context,
+      null,
       metodoPago: 'Efectivo',
       cambio: 0,
       recibido: 50.0,
       tasaActual: 36.5,
     );
-    await tester.pump();
 
     final db = await IsarService().db;
     final actualizado = await db.productoEntitys.get(10);
     expect(actualizado!.stock, closeTo(25.0, 0.001));
   });
 
-  testWidgets('consume primero el lote con vencimiento más próximo',
-      (tester) async {
+  test('consume primero el lote con vencimiento más próximo',
+      () async {
     final p = await seedProducto(id: 20, precio: 10.0, stock: 10);
     final db = await IsarService().db;
 
@@ -226,19 +204,17 @@ void main() {
         ..estado = 'activo');
     });
 
-    final (container, context) = await mountApp(tester);
+    final container = mountContainer();
     container.read(cartProvider.notifier).agregarItem(p, 3.0);
-    await tester.pump();
 
     final service = container.read(ventaServiceProvider);
     await service.procesarVenta(
-      context,
+      null,
       metodoPago: 'Efectivo',
       cambio: 0,
       recibido: 30.0,
       tasaActual: 36.5,
     );
-    await tester.pump();
 
     final lotes =
         await db.loteEntitys.where().sortByFechaVencimiento().findAll();
@@ -248,18 +224,17 @@ void main() {
     expect(lotes.last.cantidadRestante, closeTo(5.0, 0.001));
   });
 
-  testWidgets('sin stock suficiente → lanza excepción y no guarda venta',
-      (tester) async {
+  test('sin stock suficiente → lanza excepción y no guarda venta',
+      () async {
     final p = await seedProducto(id: 30, precio: 10.0, stock: 2);
 
-    final (container, context) = await mountApp(tester);
+    final container = mountContainer();
     container.read(cartProvider.notifier).agregarItem(p, 5.0);
-    await tester.pump();
 
     final service = container.read(ventaServiceProvider);
     await expectLater(
       () => service.procesarVenta(
-        context,
+        null,
         metodoPago: 'Efectivo',
         cambio: 0,
         recibido: 50.0,
@@ -267,7 +242,6 @@ void main() {
       ),
       throwsA(isA<Exception>()),
     );
-    await tester.pump();
 
     final db = await IsarService().db;
     expect(await db.ventaEntitys.where().count(), 0);
@@ -277,8 +251,8 @@ void main() {
   // CLIENTE
   // ════════════════════════════════════════════════════════════
 
-  testWidgets('con cliente: actualiza estadísticas de fidelización',
-      (tester) async {
+  test('con cliente: actualiza estadísticas de fidelización',
+      () async {
     final p = await seedProducto(id: 40, precio: 30.0, stock: 10);
     final db = await IsarService().db;
 
@@ -294,20 +268,18 @@ void main() {
 
     await db.writeTxn(() async => db.clienteEntitys.put(cliente));
 
-    final (container, context) = await mountApp(tester);
+    final container = mountContainer();
     container.read(cartProvider.notifier).agregarItem(p, 2.0);
-    await tester.pump();
 
     final service = container.read(ventaServiceProvider);
     await service.procesarVenta(
-      context,
+      null,
       metodoPago: 'Efectivo',
       cambio: 0,
       recibido: 60.0,
       tasaActual: 36.5,
       cliente: cliente,
     );
-    await tester.pump();
 
     final actualizado = await db.clienteEntitys.get(1);
     expect(actualizado!.cantidadCompras, 1);
@@ -319,24 +291,22 @@ void main() {
   // POST-VENTA
   // ════════════════════════════════════════════════════════════
 
-  testWidgets('tras venta exitosa el carrito queda vacío', (tester) async {
+  test('tras venta exitosa el carrito queda vacío', () async {
     final p = await seedProducto(id: 50, precio: 10.0, stock: 10);
 
-    final (container, context) = await mountApp(tester);
+    final container = mountContainer();
     container.read(cartProvider.notifier).agregarItem(p, 1.0);
-    await tester.pump();
 
     expect(container.read(cartProvider).items, isNotEmpty);
 
     final service = container.read(ventaServiceProvider);
     await service.procesarVenta(
-      context,
+      null,
       metodoPago: 'Efectivo',
       cambio: 0,
       recibido: 10.0,
       tasaActual: 36.5,
     );
-    await tester.pump();
 
     expect(container.read(cartProvider).items, isEmpty);
   });

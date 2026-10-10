@@ -129,7 +129,11 @@ void main() {
     return fake;
   }
 
-  Finder nombreField() => find.byType(TextField);
+  // El diálogo tiene 2 TextField: el nombre del carrito (labelText:
+  // 'Nombre del carrito') y el buscador de cliente. Localizamos por
+  // labelText para desambiguar (save_cart_dialog.dart:100-122).
+  Finder nombreField() =>
+      find.widgetWithText(TextField, 'Nombre del carrito');
 
   /// Localiza SOLO el botón "Poner en espera" (no el título).
   Finder botonPonerEnEspera() => find.widgetWithText(
@@ -172,11 +176,12 @@ void main() {
     testWidgets('muestra chips de sugerencia', (tester) async {
       await pumpDialog(tester);
 
-      expect(find.text('Mesa 1'), findsOneWidget);
-      expect(find.text('Mesa 2'), findsOneWidget);
-      expect(find.text('Mesa 3'), findsOneWidget);
+      // Los 5 chips reales del widget (save_cart_dialog.dart:140-146).
+      expect(find.text('Mostrador'), findsOneWidget);
       expect(find.text('Para llevar'), findsOneWidget);
-      expect(find.text('Cliente'), findsOneWidget);
+      expect(find.text('Domicilio'), findsOneWidget);
+      expect(find.text('Mayorista'), findsOneWidget);
+      expect(find.text('Apartado'), findsOneWidget);
     });
   });
 
@@ -222,15 +227,15 @@ void main() {
   // ════════════════════════════════════════════════════════════
 
   group('SaveCartDialog — chips de sugerencia', () {
-    testWidgets('tocar "Mesa 3" cambia el nombre del campo',
+    testWidgets('tocar "Mostrador" cambia el nombre del campo',
         (tester) async {
       await pumpDialog(tester);
 
-      await tester.tap(find.text('Mesa 3'));
+      await tester.tap(find.text('Mostrador'));
       await tester.pump();
 
       final tf = tester.widget<TextField>(nombreField());
-      expect(tf.controller?.text, 'Mesa 3');
+      expect(tf.controller?.text, 'Mostrador');
     });
 
     testWidgets('tocar "Para llevar" cambia el nombre', (tester) async {
@@ -247,15 +252,15 @@ void main() {
         (tester) async {
       await pumpDialog(tester);
 
-      await tester.tap(find.text('Mesa 1'));
+      await tester.tap(find.text('Mostrador'));
       await tester.pump();
       var tf = tester.widget<TextField>(nombreField());
-      expect(tf.controller?.text, 'Mesa 1');
+      expect(tf.controller?.text, 'Mostrador');
 
-      await tester.tap(find.text('Mesa 2'));
+      await tester.tap(find.text('Domicilio'));
       await tester.pump();
       tf = tester.widget<TextField>(nombreField());
-      expect(tf.controller?.text, 'Mesa 2');
+      expect(tf.controller?.text, 'Domicilio');
     });
   });
 
@@ -291,7 +296,11 @@ void main() {
 
       expect(fake.parkCalls.length, 1);
       expect(fake.parkCalls.first.cliente?.nombre, 'Juan Pérez');
-      expect(fake.parkCalls.first.cliente?.documento, 'V-12345678');
+      // ⚠️ `ClienteEntity.documento` es `int?` (no String). El fake captura
+      // la entidad cruda, no la sesión formateada. Consistente con
+      // cobrar_dialog_test:767.
+      // Deuda: `CobrarDialog._confirmarPago` mezcla int con fallback String.
+      expect(fake.parkCalls.first.cliente?.documento, 12345678);
     });
 
     testWidgets('nombre vacío NO rompe el flujo', (tester) async {
@@ -303,10 +312,10 @@ void main() {
       await tester.tap(botonPonerEnEspera());
       await tester.pumpAndSettle();
 
-      // El diálogo igual llama al notifier con string vacío.
-      // El notifier real lo normaliza a 'Carrito'.
+      // El widget normaliza el nombre vacío a 'Carrito sin nombre'
+      // antes de llamar al notifier (save_cart_dialog.dart:737-739).
       expect(fake.parkCalls.length, 1);
-      expect(fake.parkCalls.first.nombre, '');
+      expect(fake.parkCalls.first.nombre, 'Carrito sin nombre');
     });
 
     testWidgets('con éxito, no muestra SnackBar de error', (tester) async {

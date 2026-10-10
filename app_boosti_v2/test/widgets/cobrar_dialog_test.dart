@@ -60,15 +60,24 @@ void main() {
       ..activo = true;
   }
 
+  /// Cliente de prueba.
+  ///
+  /// ⚠️ `ClienteEntity.documento` es `int?`, no `String`. La versión anterior
+  /// hacía `documento as int?` sobre un `String`, que siempre lanza
+  /// TypeError. Ahora el helper acepta el tipo real y deriva
+  /// `tipoDocumento` para que `documentoFormateado` siga devolviendo
+  /// `'V-12345678'` cuando se necesita.
   ClienteEntity buildCliente({
     int id = 1,
     String nombre = 'Juan Pérez',
-    String documento = 'V-12345678',
+    int documento = 12345678,
+    String tipoDocumento = 'V',
   }) {
     return ClienteEntity()
       ..id = id
       ..nombre = nombre
-      ..documento = documento as int?;
+      ..documento = documento
+      ..tipoDocumento = tipoDocumento;
   }
 
   /// Abre el CobrarDialog con overrides de dependencias.
@@ -110,6 +119,11 @@ void main() {
       ProviderScope(
         overrides: [
           tasasDisponiblesProvider.overrideWithValue({'USD': tasa}),
+          // `puedeCobrar` viene de `puedeConvertirProvider`, NO de
+          // `tasasDisponiblesProvider`. Sin este override, `bcvProvider` (que
+          // no se mockea) devuelve tasa 0 → `puedeOperar == false` →
+          // Confirmar queda deshabilitado aunque `pagoCompleto` sea true.
+          puedeConvertirProvider.overrideWithValue(true),
           clientesProvider.overrideWith(
             (ref) => FakeClientesNotifier(ref, initial: clientes),
           ),
@@ -512,7 +526,11 @@ void main() {
       expect(r['tasaUsada'], 36.5);
       expect(r['monedaUsada'], 'USD');
       expect(r['cliente'], isNull);
-      expect(r['documento'], 'V-00000000');
+      // Sin cliente en el pop, no hay documento. Contrato correcto:
+      // `_clienteSeleccionado?.documentoFormateado` es null por el `?.`.
+      // (Antes el pop devolvía el fallback sintético 'V-00000000', que no
+      // correspondía a ningún cliente real.)
+      expect(r['documento'], isNull);
     });
 
     testWidgets('pop con metodoPago "Pago Móvil"', (tester) async {
@@ -660,7 +678,7 @@ void main() {
     testWidgets('buscar cliente filtra por nombre', (tester) async {
       final clientes = [
         buildCliente(id: 1, nombre: 'Juan Pérez'),
-        buildCliente(id: 2, nombre: 'María González', documento: 'V-87654321'),
+        buildCliente(id: 2, nombre: 'María González', documento: 87654321),
       ];
 
       final getResult = await openDialog(tester, clientes: clientes);
@@ -744,6 +762,9 @@ void main() {
       final r = await getResult();
       expect(r!['cliente'], isNotNull);
       expect(r['cliente'].nombre, 'Juan Pérez');
+      // El pop devuelve el documento FORMATEADO con tipo ('V-12345678'),
+      // no el int crudo. Antes el pop mezclaba int con fallback String;
+      // ahora es coherente con `documentoFormateado` de `ClienteEntity`.
       expect(r['documento'], 'V-12345678');
     });
   });

@@ -154,8 +154,12 @@ void main() {
       await pumpDialog(tester);
 
       expect(find.text('No tienes carritos en espera'), findsOneWidget);
+      // El widget renderiza 'Agrega productos al carrito y presiona\n'
+      // '"Poner en espera" para atender a otro cliente'
+      // (parked_carts_dialog.dart:319). El find.text exacto no matchea por el
+      // \n y los añadidos; usamos textContaining.
       expect(
-        find.text('Agrega productos y presiona "Poner en espera"'),
+        find.textContaining('Agrega productos al carrito'),
         findsOneWidget,
       );
     });
@@ -280,8 +284,11 @@ void main() {
         ],
       );
 
-      expect(find.text('Renombrar'), findsOneWidget);
-      expect(find.text('Eliminar'), findsOneWidget);
+      // "Renombrar" y "Eliminar" viven en el `tooltip` de CardActionButton
+      // (parked_carts_dialog.dart:622, :630), no como Text. "Retomar" sí
+      // es un Text (:822).
+      expect(find.byTooltip('Renombrar'), findsOneWidget);
+      expect(find.byTooltip('Eliminar'), findsOneWidget);
       expect(find.text('Retomar'), findsOneWidget);
     });
   });
@@ -355,7 +362,9 @@ void main() {
       );
 
       expect(find.text('Abandonado'), findsOneWidget);
-      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+      // El widget renderiza warning_amber_rounded en el chip del filtro
+      // (parked_carts_dialog.dart:186) y en el badge de la tarjeta (:551).
+      expect(find.byIcon(Icons.warning_amber_rounded), findsAtLeastNWidgets(1));
     });
   });
 
@@ -401,7 +410,7 @@ void main() {
         ],
       );
 
-      await tester.tap(find.text('Renombrar'));
+      await tester.tap(find.byTooltip('Renombrar'));
       await tester.pumpAndSettle();
 
       expect(find.text('Renombrar carrito'), findsOneWidget);
@@ -430,7 +439,7 @@ void main() {
         ],
       );
 
-      await tester.tap(find.text('Eliminar'));
+      await tester.tap(find.byTooltip('Eliminar'));
       await tester.pumpAndSettle();
 
       expect(find.text('Eliminar carrito'), findsOneWidget);
@@ -459,7 +468,7 @@ void main() {
       // Debe aparecer
       expect(find.text('Mesa 3'), findsOneWidget);
 
-      await tester.tap(find.text('Eliminar'));
+      await tester.tap(find.byTooltip('Eliminar'));
       await tester.pumpAndSettle();
 
       // Confirmar

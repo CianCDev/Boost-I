@@ -74,8 +74,11 @@ void main() {
 
   group('sync_service tenant_id payload contract', () {
     test('sync_service payloads use tenant_id not local_id', () async {
+      // Path RELATIVO a la raíz del proyecto, que es el CWD de `flutter test`.
+      // El path absoluto hardcodeado de otra máquina rompía el test en
+      // cualquier otro equipo.
       final source = await File(
-              'c:\\Users\\torre\\app_gestion_m\\app_boosti_v2\\lib\\features\\pos\\presentation\\services\\sync_service.dart')
+              'lib/features/pos/presentation/services/sync_service.dart')
           .readAsString();
 
       expect(source.contains("'tenant_id': localUuid"), isTrue);

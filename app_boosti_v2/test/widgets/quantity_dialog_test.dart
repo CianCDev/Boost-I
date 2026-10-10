@@ -71,7 +71,9 @@ void main() {
     testWidgets('muestra el nombre del producto en el header',
         (tester) async {
       await openDialog(tester);
-      expect(find.text('Coca-Cola 2L'), findsOneWidget);
+      // El widget renderiza 'Agregar ${producto.nombre}' (quantity_dialog.dart:201),
+      // no solo el nombre. El finder tiene que reflejarlo.
+      expect(find.text('Agregar Coca-Cola 2L'), findsOneWidget);
       expect(find.text('Agregar al Carrito'), findsOneWidget);
     });
 
