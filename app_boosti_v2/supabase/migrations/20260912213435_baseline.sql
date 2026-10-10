@@ -2,7 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict Uyh8CwM8bq9F4rUKLNFQphxHnqoAXjY6SCD0C9wa1f3LYHlVPikaLDeuWFgUBbG
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 18.6
@@ -23,7 +22,7 @@ SET row_security = off;
 -- Name: public; Type: SCHEMA; Schema: -; Owner: -
 --
 
-CREATE SCHEMA public;
+CREATE SCHEMA IF NOT EXISTS public;
 
 
 --
@@ -37,52 +36,72 @@ COMMENT ON SCHEMA public IS 'standard public schema';
 -- Name: estado_caja; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.estado_caja AS ENUM (
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+                    WHERE t.typname = 'estado_caja' AND n.nspname = 'public') THEN
+        CREATE TYPE public.estado_caja AS ENUM (
     'abierta',
     'cerrada'
-);
+        );
+    END IF;
+END $$;
 
 
 --
 -- Name: estado_cajero; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.estado_cajero AS ENUM (
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+                    WHERE t.typname = 'estado_cajero' AND n.nspname = 'public') THEN
+        CREATE TYPE public.estado_cajero AS ENUM (
     'activo',
     'en_descanso',
     'desconectado',
     'inactivo'
-);
+        );
+    END IF;
+END $$;
 
 
 --
 -- Name: metodo_pago; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.metodo_pago AS ENUM (
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+                    WHERE t.typname = 'metodo_pago' AND n.nspname = 'public') THEN
+        CREATE TYPE public.metodo_pago AS ENUM (
     'efectivo',
     'tarjeta',
     'transferencia',
     'credito'
-);
+        );
+    END IF;
+END $$;
 
 
 --
 -- Name: tipo_movimiento; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.tipo_movimiento AS ENUM (
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+                    WHERE t.typname = 'tipo_movimiento' AND n.nspname = 'public') THEN
+        CREATE TYPE public.tipo_movimiento AS ENUM (
     'entrada',
     'salida',
     'ajuste'
-);
+        );
+    END IF;
+END $$;
 
 
 --
 -- Name: actualizar_estado_usuario(integer, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.actualizar_estado_usuario(p_id_isar integer, p_nuevo_estado text) RETURNS void
+CREATE OR REPLACE FUNCTION public.actualizar_estado_usuario(p_id_isar integer, p_nuevo_estado text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 BEGIN
@@ -103,7 +122,7 @@ $$;
 -- Name: actualizar_stock_producto(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.actualizar_stock_producto() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.actualizar_stock_producto() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -123,7 +142,7 @@ $$;
 -- Name: ajustar_stock(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.ajustar_stock(p_producto_id uuid, p_cantidad integer) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.ajustar_stock(p_producto_id uuid, p_cantidad integer) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -151,7 +170,7 @@ $$;
 -- Name: ajustar_stock(uuid, integer, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.ajustar_stock(p_producto_id uuid, p_cantidad integer, p_tipo_movimiento text) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.ajustar_stock(p_producto_id uuid, p_cantidad integer, p_tipo_movimiento text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -183,7 +202,7 @@ $$;
 -- Name: audit_trigger(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.audit_trigger() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.audit_trigger() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -207,7 +226,7 @@ END $$;
 -- Name: current_tenant_id(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.current_tenant_id() RETURNS uuid
+CREATE OR REPLACE FUNCTION public.current_tenant_id() RETURNS uuid
     LANGUAGE sql STABLE
     AS $$
   SELECT NULLIF(
@@ -221,7 +240,7 @@ $$;
 -- Name: custom_access_token_hook(jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.custom_access_token_hook(event jsonb) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb) RETURNS jsonb
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
@@ -291,7 +310,7 @@ END $$;
 -- Name: handle_new_user(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.handle_new_user() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -314,7 +333,7 @@ END $$;
 -- Name: is_tenant_admin(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_tenant_admin() RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_tenant_admin() RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -331,7 +350,7 @@ $$;
 -- Name: update_updated_at_column(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.update_updated_at_column() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.update_updated_at_column() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -349,7 +368,7 @@ SET default_table_access_method = heap;
 -- Name: audit_log; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.audit_log (
+CREATE TABLE IF NOT EXISTS public.audit_log (
     id bigint NOT NULL,
     tenant_id uuid NOT NULL,
     usuario_id uuid,
@@ -385,7 +404,7 @@ ALTER SEQUENCE public.audit_log_id_seq OWNED BY public.audit_log.id;
 -- Name: cajas; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.cajas (
+CREATE TABLE IF NOT EXISTS public.cajas (
     id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     nombre character varying(50) NOT NULL,
     estado public.estado_caja DEFAULT 'cerrada'::public.estado_caja,
@@ -398,7 +417,7 @@ CREATE TABLE public.cajas (
 -- Name: categorias; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.categorias (
+CREATE TABLE IF NOT EXISTS public.categorias (
     id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     nombre character varying(100) NOT NULL,
     descripcion text,
@@ -411,7 +430,7 @@ CREATE TABLE public.categorias (
 -- Name: clientes; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.clientes (
+CREATE TABLE IF NOT EXISTS public.clientes (
     id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     nombre character varying(150) NOT NULL,
     email character varying(100),
@@ -438,7 +457,7 @@ CREATE TABLE public.clientes (
 -- Name: codigos_barras_alias; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.codigos_barras_alias (
+CREATE TABLE IF NOT EXISTS public.codigos_barras_alias (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     id_isar integer NOT NULL,
     codigo text NOT NULL,
@@ -457,7 +476,7 @@ CREATE TABLE public.codigos_barras_alias (
 -- Name: departamentos; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.departamentos (
+CREATE TABLE IF NOT EXISTS public.departamentos (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid DEFAULT public.current_tenant_id() NOT NULL,
     nombre text NOT NULL,
@@ -477,7 +496,7 @@ CREATE TABLE public.departamentos (
 -- Name: detalle_ventas; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.detalle_ventas (
+CREATE TABLE IF NOT EXISTS public.detalle_ventas (
     id bigint NOT NULL,
     venta_id_tk uuid,
     nombre_producto text NOT NULL,
@@ -514,7 +533,7 @@ ALTER SEQUENCE public.detalle_ventas_id_seq OWNED BY public.detalle_ventas.id;
 -- Name: detalles_pedido; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.detalles_pedido (
+CREATE TABLE IF NOT EXISTS public.detalles_pedido (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     pedido_id uuid,
     producto_id bigint,
@@ -532,7 +551,7 @@ CREATE TABLE public.detalles_pedido (
 -- Name: entregas; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.entregas (
+CREATE TABLE IF NOT EXISTS public.entregas (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     pedido_id uuid,
     fecha_entrega timestamp with time zone DEFAULT now(),
@@ -549,7 +568,7 @@ CREATE TABLE public.entregas (
 -- Name: gastos; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.gastos (
+CREATE TABLE IF NOT EXISTS public.gastos (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     id_isar integer,
     descripcion text NOT NULL,
@@ -571,7 +590,7 @@ CREATE TABLE public.gastos (
 -- Name: locales; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.locales (
+CREATE TABLE IF NOT EXISTS public.locales (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     nombre text NOT NULL,
     direccion text,
@@ -592,7 +611,7 @@ CREATE TABLE public.locales (
 -- Name: lotes; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.lotes (
+CREATE TABLE IF NOT EXISTS public.lotes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     id_isar integer NOT NULL,
     codigo_lote_proveedor text,
@@ -616,7 +635,7 @@ CREATE TABLE public.lotes (
 -- Name: marcas; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.marcas (
+CREATE TABLE IF NOT EXISTS public.marcas (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     nombre text NOT NULL,
     descripcion text,
@@ -633,7 +652,7 @@ CREATE TABLE public.marcas (
 -- Name: movimientos_inventarios; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.movimientos_inventarios (
+CREATE TABLE IF NOT EXISTS public.movimientos_inventarios (
     id integer NOT NULL,
     producto_id bigint,
     nombre_producto text,
@@ -671,7 +690,7 @@ ALTER SEQUENCE public.movimientos_inventarios_id_seq OWNED BY public.movimientos
 -- Name: pagos; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.pagos (
+CREATE TABLE IF NOT EXISTS public.pagos (
     id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     metodo public.metodo_pago NOT NULL,
     monto numeric(10,2) NOT NULL,
@@ -685,7 +704,7 @@ CREATE TABLE public.pagos (
 -- Name: pedidos; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.pedidos (
+CREATE TABLE IF NOT EXISTS public.pedidos (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     cliente_nombre text,
     cliente_telefono text,
@@ -717,7 +736,7 @@ CREATE TABLE public.pedidos (
 -- Name: productos; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.productos (
+CREATE TABLE IF NOT EXISTS public.productos (
     id bigint NOT NULL,
     codigo_barras text NOT NULL,
     nombre text NOT NULL,
@@ -772,7 +791,7 @@ ALTER SEQUENCE public.productos_id_seq OWNED BY public.productos.id;
 -- Name: proveedores; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.proveedores (
+CREATE TABLE IF NOT EXISTS public.proveedores (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     nombre text NOT NULL,
     cedula text,
@@ -793,7 +812,7 @@ CREATE TABLE public.proveedores (
 -- Name: recepciones; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.recepciones (
+CREATE TABLE IF NOT EXISTS public.recepciones (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     pedido_id uuid,
     fecha_recepcion timestamp with time zone DEFAULT now(),
@@ -810,7 +829,7 @@ CREATE TABLE public.recepciones (
 -- Name: telegram_config; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.telegram_config (
+CREATE TABLE IF NOT EXISTS public.telegram_config (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     bot_token text NOT NULL,
     chat_id text NOT NULL,
@@ -838,7 +857,7 @@ CREATE TABLE public.telegram_config (
 -- Name: turnos; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.turnos (
+CREATE TABLE IF NOT EXISTS public.turnos (
     id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     caja_id uuid,
     usuario_id uuid,
@@ -859,7 +878,7 @@ CREATE TABLE public.turnos (
 -- Name: usuarios; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.usuarios (
+CREATE TABLE IF NOT EXISTS public.usuarios (
     id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
     nombre character varying(100) NOT NULL,
     rol character varying(50) NOT NULL,
@@ -886,7 +905,7 @@ ALTER TABLE ONLY public.usuarios REPLICA IDENTITY FULL;
 -- Name: usuarios_locales; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.usuarios_locales (
+CREATE TABLE IF NOT EXISTS public.usuarios_locales (
     usuario_id uuid NOT NULL,
     tenant_id uuid NOT NULL,
     rol text DEFAULT 'cajero'::text NOT NULL,
@@ -912,7 +931,7 @@ CREATE VIEW public.v_usuarios_publicos AS
 -- Name: ventas; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.ventas (
+CREATE TABLE IF NOT EXISTS public.ventas (
     id uuid NOT NULL,
     fecha timestamp with time zone DEFAULT now(),
     subtotal numeric(12,2) DEFAULT 0.00 NOT NULL,
@@ -984,6 +1003,7 @@ ALTER TABLE ONLY public.productos ALTER COLUMN id SET DEFAULT nextval('public.pr
 -- Name: audit_log audit_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE audit_log_pkey DROP CONSTRAINT IF EXISTS audit_log_pkey;
 ALTER TABLE ONLY public.audit_log
     ADD CONSTRAINT audit_log_pkey PRIMARY KEY (id);
 
@@ -992,6 +1012,7 @@ ALTER TABLE ONLY public.audit_log
 -- Name: cajas cajas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE cajas_pkey DROP CONSTRAINT IF EXISTS cajas_pkey;
 ALTER TABLE ONLY public.cajas
     ADD CONSTRAINT cajas_pkey PRIMARY KEY (id);
 
@@ -1000,6 +1021,7 @@ ALTER TABLE ONLY public.cajas
 -- Name: categorias categorias_nombre_tenant_uk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE categorias_nombre_tenant_uk DROP CONSTRAINT IF EXISTS categorias_nombre_tenant_uk;
 ALTER TABLE ONLY public.categorias
     ADD CONSTRAINT categorias_nombre_tenant_uk UNIQUE (tenant_id, nombre);
 
@@ -1008,6 +1030,7 @@ ALTER TABLE ONLY public.categorias
 -- Name: categorias categorias_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE categorias_pkey DROP CONSTRAINT IF EXISTS categorias_pkey;
 ALTER TABLE ONLY public.categorias
     ADD CONSTRAINT categorias_pkey PRIMARY KEY (id);
 
@@ -1016,6 +1039,7 @@ ALTER TABLE ONLY public.categorias
 -- Name: clientes clientes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE clientes_pkey DROP CONSTRAINT IF EXISTS clientes_pkey;
 ALTER TABLE ONLY public.clientes
     ADD CONSTRAINT clientes_pkey PRIMARY KEY (id);
 
@@ -1024,6 +1048,7 @@ ALTER TABLE ONLY public.clientes
 -- Name: codigos_barras_alias codigos_barras_alias_codigo_tenant_uk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE codigos_barras_alias_codigo_tenant_uk DROP CONSTRAINT IF EXISTS codigos_barras_alias_codigo_tenant_uk;
 ALTER TABLE ONLY public.codigos_barras_alias
     ADD CONSTRAINT codigos_barras_alias_codigo_tenant_uk UNIQUE (tenant_id, codigo);
 
@@ -1032,6 +1057,7 @@ ALTER TABLE ONLY public.codigos_barras_alias
 -- Name: codigos_barras_alias codigos_barras_alias_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE codigos_barras_alias_pkey DROP CONSTRAINT IF EXISTS codigos_barras_alias_pkey;
 ALTER TABLE ONLY public.codigos_barras_alias
     ADD CONSTRAINT codigos_barras_alias_pkey PRIMARY KEY (id);
 
@@ -1040,6 +1066,7 @@ ALTER TABLE ONLY public.codigos_barras_alias
 -- Name: departamentos departamentos_id_isar_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE departamentos_id_isar_unique DROP CONSTRAINT IF EXISTS departamentos_id_isar_unique;
 ALTER TABLE ONLY public.departamentos
     ADD CONSTRAINT departamentos_id_isar_unique UNIQUE (id_isar);
 
@@ -1048,6 +1075,7 @@ ALTER TABLE ONLY public.departamentos
 -- Name: departamentos departamentos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE departamentos_pkey DROP CONSTRAINT IF EXISTS departamentos_pkey;
 ALTER TABLE ONLY public.departamentos
     ADD CONSTRAINT departamentos_pkey PRIMARY KEY (id);
 
@@ -1056,6 +1084,7 @@ ALTER TABLE ONLY public.departamentos
 -- Name: detalle_ventas detalle_ventas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE detalle_ventas_pkey DROP CONSTRAINT IF EXISTS detalle_ventas_pkey;
 ALTER TABLE ONLY public.detalle_ventas
     ADD CONSTRAINT detalle_ventas_pkey PRIMARY KEY (id);
 
@@ -1064,6 +1093,7 @@ ALTER TABLE ONLY public.detalle_ventas
 -- Name: detalles_pedido detalles_pedido_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE detalles_pedido_pkey DROP CONSTRAINT IF EXISTS detalles_pedido_pkey;
 ALTER TABLE ONLY public.detalles_pedido
     ADD CONSTRAINT detalles_pedido_pkey PRIMARY KEY (id);
 
@@ -1072,6 +1102,7 @@ ALTER TABLE ONLY public.detalles_pedido
 -- Name: entregas entregas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE entregas_pkey DROP CONSTRAINT IF EXISTS entregas_pkey;
 ALTER TABLE ONLY public.entregas
     ADD CONSTRAINT entregas_pkey PRIMARY KEY (id);
 
@@ -1080,6 +1111,7 @@ ALTER TABLE ONLY public.entregas
 -- Name: gastos gastos_id_isar_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE gastos_id_isar_unique DROP CONSTRAINT IF EXISTS gastos_id_isar_unique;
 ALTER TABLE ONLY public.gastos
     ADD CONSTRAINT gastos_id_isar_unique UNIQUE (id_isar);
 
@@ -1088,6 +1120,7 @@ ALTER TABLE ONLY public.gastos
 -- Name: gastos gastos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE gastos_pkey DROP CONSTRAINT IF EXISTS gastos_pkey;
 ALTER TABLE ONLY public.gastos
     ADD CONSTRAINT gastos_pkey PRIMARY KEY (id);
 
@@ -1096,6 +1129,7 @@ ALTER TABLE ONLY public.gastos
 -- Name: locales locales_id_isar_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE locales_id_isar_unique DROP CONSTRAINT IF EXISTS locales_id_isar_unique;
 ALTER TABLE ONLY public.locales
     ADD CONSTRAINT locales_id_isar_unique UNIQUE (id_isar);
 
@@ -1104,6 +1138,7 @@ ALTER TABLE ONLY public.locales
 -- Name: locales locales_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE locales_pkey DROP CONSTRAINT IF EXISTS locales_pkey;
 ALTER TABLE ONLY public.locales
     ADD CONSTRAINT locales_pkey PRIMARY KEY (id);
 
@@ -1112,6 +1147,7 @@ ALTER TABLE ONLY public.locales
 -- Name: lotes lotes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE lotes_pkey DROP CONSTRAINT IF EXISTS lotes_pkey;
 ALTER TABLE ONLY public.lotes
     ADD CONSTRAINT lotes_pkey PRIMARY KEY (id);
 
@@ -1120,6 +1156,7 @@ ALTER TABLE ONLY public.lotes
 -- Name: marcas marcas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE marcas_pkey DROP CONSTRAINT IF EXISTS marcas_pkey;
 ALTER TABLE ONLY public.marcas
     ADD CONSTRAINT marcas_pkey PRIMARY KEY (id);
 
@@ -1128,6 +1165,7 @@ ALTER TABLE ONLY public.marcas
 -- Name: movimientos_inventarios movimientos_inventarios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE movimientos_inventarios_pkey DROP CONSTRAINT IF EXISTS movimientos_inventarios_pkey;
 ALTER TABLE ONLY public.movimientos_inventarios
     ADD CONSTRAINT movimientos_inventarios_pkey PRIMARY KEY (id);
 
@@ -1136,6 +1174,7 @@ ALTER TABLE ONLY public.movimientos_inventarios
 -- Name: pagos pagos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE pagos_pkey DROP CONSTRAINT IF EXISTS pagos_pkey;
 ALTER TABLE ONLY public.pagos
     ADD CONSTRAINT pagos_pkey PRIMARY KEY (id);
 
@@ -1144,6 +1183,7 @@ ALTER TABLE ONLY public.pagos
 -- Name: pedidos pedidos_id_tenant_uk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE pedidos_id_tenant_uk DROP CONSTRAINT IF EXISTS pedidos_id_tenant_uk;
 ALTER TABLE ONLY public.pedidos
     ADD CONSTRAINT pedidos_id_tenant_uk UNIQUE (id, tenant_id);
 
@@ -1152,6 +1192,7 @@ ALTER TABLE ONLY public.pedidos
 -- Name: pedidos pedidos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE pedidos_pkey DROP CONSTRAINT IF EXISTS pedidos_pkey;
 ALTER TABLE ONLY public.pedidos
     ADD CONSTRAINT pedidos_pkey PRIMARY KEY (id);
 
@@ -1160,6 +1201,7 @@ ALTER TABLE ONLY public.pedidos
 -- Name: productos productos_codigo_barras_tenant_uk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE productos_codigo_barras_tenant_uk DROP CONSTRAINT IF EXISTS productos_codigo_barras_tenant_uk;
 ALTER TABLE ONLY public.productos
     ADD CONSTRAINT productos_codigo_barras_tenant_uk UNIQUE (tenant_id, codigo_barras);
 
@@ -1168,6 +1210,7 @@ ALTER TABLE ONLY public.productos
 -- Name: productos productos_id_isar_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE productos_id_isar_unique DROP CONSTRAINT IF EXISTS productos_id_isar_unique;
 ALTER TABLE ONLY public.productos
     ADD CONSTRAINT productos_id_isar_unique UNIQUE (id_isar);
 
@@ -1176,6 +1219,7 @@ ALTER TABLE ONLY public.productos
 -- Name: productos productos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE productos_pkey DROP CONSTRAINT IF EXISTS productos_pkey;
 ALTER TABLE ONLY public.productos
     ADD CONSTRAINT productos_pkey PRIMARY KEY (id);
 
@@ -1184,6 +1228,7 @@ ALTER TABLE ONLY public.productos
 -- Name: productos productos_uuid_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE productos_uuid_unique DROP CONSTRAINT IF EXISTS productos_uuid_unique;
 ALTER TABLE ONLY public.productos
     ADD CONSTRAINT productos_uuid_unique UNIQUE (uuid);
 
@@ -1192,6 +1237,7 @@ ALTER TABLE ONLY public.productos
 -- Name: proveedores proveedores_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE proveedores_pkey DROP CONSTRAINT IF EXISTS proveedores_pkey;
 ALTER TABLE ONLY public.proveedores
     ADD CONSTRAINT proveedores_pkey PRIMARY KEY (id);
 
@@ -1200,6 +1246,7 @@ ALTER TABLE ONLY public.proveedores
 -- Name: recepciones recepciones_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE recepciones_pkey DROP CONSTRAINT IF EXISTS recepciones_pkey;
 ALTER TABLE ONLY public.recepciones
     ADD CONSTRAINT recepciones_pkey PRIMARY KEY (id);
 
@@ -1208,6 +1255,7 @@ ALTER TABLE ONLY public.recepciones
 -- Name: telegram_config telegram_config_id_isar_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE telegram_config_id_isar_unique DROP CONSTRAINT IF EXISTS telegram_config_id_isar_unique;
 ALTER TABLE ONLY public.telegram_config
     ADD CONSTRAINT telegram_config_id_isar_unique UNIQUE (id_isar);
 
@@ -1216,6 +1264,7 @@ ALTER TABLE ONLY public.telegram_config
 -- Name: telegram_config telegram_config_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE telegram_config_pkey DROP CONSTRAINT IF EXISTS telegram_config_pkey;
 ALTER TABLE ONLY public.telegram_config
     ADD CONSTRAINT telegram_config_pkey PRIMARY KEY (id);
 
@@ -1224,6 +1273,7 @@ ALTER TABLE ONLY public.telegram_config
 -- Name: telegram_config telegram_config_usuario_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE telegram_config_usuario_unique DROP CONSTRAINT IF EXISTS telegram_config_usuario_unique;
 ALTER TABLE ONLY public.telegram_config
     ADD CONSTRAINT telegram_config_usuario_unique UNIQUE (usuario_id);
 
@@ -1232,6 +1282,7 @@ ALTER TABLE ONLY public.telegram_config
 -- Name: turnos turno_cajas_id_isar_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE turno_cajas_id_isar_key DROP CONSTRAINT IF EXISTS turno_cajas_id_isar_key;
 ALTER TABLE ONLY public.turnos
     ADD CONSTRAINT turno_cajas_id_isar_key UNIQUE (id_isar);
 
@@ -1240,6 +1291,7 @@ ALTER TABLE ONLY public.turnos
 -- Name: turnos turno_cajas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE turno_cajas_pkey DROP CONSTRAINT IF EXISTS turno_cajas_pkey;
 ALTER TABLE ONLY public.turnos
     ADD CONSTRAINT turno_cajas_pkey PRIMARY KEY (id);
 
@@ -1248,6 +1300,7 @@ ALTER TABLE ONLY public.turnos
 -- Name: proveedores unique_id_isar; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE unique_id_isar DROP CONSTRAINT IF EXISTS unique_id_isar;
 ALTER TABLE ONLY public.proveedores
     ADD CONSTRAINT unique_id_isar UNIQUE (id_isar);
 
@@ -1256,6 +1309,7 @@ ALTER TABLE ONLY public.proveedores
 -- Name: usuarios usuarios_id_isar_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE usuarios_id_isar_unique DROP CONSTRAINT IF EXISTS usuarios_id_isar_unique;
 ALTER TABLE ONLY public.usuarios
     ADD CONSTRAINT usuarios_id_isar_unique UNIQUE (id_isar);
 
@@ -1264,6 +1318,7 @@ ALTER TABLE ONLY public.usuarios
 -- Name: usuarios_locales usuarios_locales_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE usuarios_locales_pkey DROP CONSTRAINT IF EXISTS usuarios_locales_pkey;
 ALTER TABLE ONLY public.usuarios_locales
     ADD CONSTRAINT usuarios_locales_pkey PRIMARY KEY (usuario_id, tenant_id);
 
@@ -1272,6 +1327,7 @@ ALTER TABLE ONLY public.usuarios_locales
 -- Name: usuarios usuarios_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE usuarios_pkey DROP CONSTRAINT IF EXISTS usuarios_pkey;
 ALTER TABLE ONLY public.usuarios
     ADD CONSTRAINT usuarios_pkey PRIMARY KEY (id);
 
@@ -1280,6 +1336,7 @@ ALTER TABLE ONLY public.usuarios
 -- Name: ventas ventas_id_tenant_uk; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE ventas_id_tenant_uk DROP CONSTRAINT IF EXISTS ventas_id_tenant_uk;
 ALTER TABLE ONLY public.ventas
     ADD CONSTRAINT ventas_id_tenant_uk UNIQUE (id, tenant_id);
 
@@ -1288,6 +1345,7 @@ ALTER TABLE ONLY public.ventas
 -- Name: ventas ventas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE ventas_pkey DROP CONSTRAINT IF EXISTS ventas_pkey;
 ALTER TABLE ONLY public.ventas
     ADD CONSTRAINT ventas_pkey PRIMARY KEY (id);
 
@@ -1296,398 +1354,399 @@ ALTER TABLE ONLY public.ventas
 -- Name: idx_audit_tabla; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_tabla ON public.audit_log USING btree (tabla, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_tabla ON public.audit_log USING btree (tabla, created_at DESC);
 
 
 --
 -- Name: idx_audit_tenant_fecha; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_tenant_fecha ON public.audit_log USING btree (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_tenant_fecha ON public.audit_log USING btree (tenant_id, created_at DESC);
 
 
 --
 -- Name: idx_audit_usuario; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_usuario ON public.audit_log USING btree (usuario_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_usuario ON public.audit_log USING btree (usuario_id, created_at DESC);
 
 
 --
 -- Name: idx_cajas_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cajas_tenant ON public.cajas USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_cajas_tenant ON public.cajas USING btree (tenant_id);
 
 
 --
 -- Name: idx_categorias_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_categorias_tenant ON public.categorias USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_categorias_tenant ON public.categorias USING btree (tenant_id);
 
 
 --
 -- Name: idx_clientes_documento; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clientes_documento ON public.clientes USING btree (documento);
+CREATE INDEX IF NOT EXISTS idx_clientes_documento ON public.clientes USING btree (documento);
 
 
 --
 -- Name: idx_clientes_telefono; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clientes_telefono ON public.clientes USING btree (telefono);
+CREATE INDEX IF NOT EXISTS idx_clientes_telefono ON public.clientes USING btree (telefono);
 
 
 --
 -- Name: idx_clientes_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clientes_tenant ON public.clientes USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_clientes_tenant ON public.clientes USING btree (tenant_id);
 
 
 --
 -- Name: idx_codigos_barras_alias_codigo; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_codigos_barras_alias_codigo ON public.codigos_barras_alias USING btree (codigo);
+CREATE INDEX IF NOT EXISTS idx_codigos_barras_alias_codigo ON public.codigos_barras_alias USING btree (codigo);
 
 
 --
 -- Name: idx_codigos_barras_alias_producto; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_codigos_barras_alias_producto ON public.codigos_barras_alias USING btree (producto_id_fk);
+CREATE INDEX IF NOT EXISTS idx_codigos_barras_alias_producto ON public.codigos_barras_alias USING btree (producto_id_fk);
 
 
 --
 -- Name: idx_codigos_barras_alias_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_codigos_barras_alias_tenant ON public.codigos_barras_alias USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_codigos_barras_alias_tenant ON public.codigos_barras_alias USING btree (tenant_id);
 
 
 --
 -- Name: idx_departamentos_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_departamentos_tenant ON public.departamentos USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_departamentos_tenant ON public.departamentos USING btree (tenant_id);
 
 
 --
 -- Name: idx_departamentos_usuario_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_departamentos_usuario_id ON public.departamentos USING btree (usuario_id);
+CREATE INDEX IF NOT EXISTS idx_departamentos_usuario_id ON public.departamentos USING btree (usuario_id);
 
 
 --
 -- Name: idx_detalle_ventas_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_detalle_ventas_tenant ON public.detalle_ventas USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_detalle_ventas_tenant ON public.detalle_ventas USING btree (tenant_id);
 
 
 --
 -- Name: idx_detalles_pedido_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_detalles_pedido_tenant ON public.detalles_pedido USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_detalles_pedido_tenant ON public.detalles_pedido USING btree (tenant_id);
 
 
 --
 -- Name: idx_entregas_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_entregas_tenant ON public.entregas USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_entregas_tenant ON public.entregas USING btree (tenant_id);
 
 
 --
 -- Name: idx_gastos_categoria; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_gastos_categoria ON public.gastos USING btree (categoria);
+CREATE INDEX IF NOT EXISTS idx_gastos_categoria ON public.gastos USING btree (categoria);
 
 
 --
 -- Name: idx_gastos_fecha; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_gastos_fecha ON public.gastos USING btree (fecha);
+CREATE INDEX IF NOT EXISTS idx_gastos_fecha ON public.gastos USING btree (fecha);
 
 
 --
 -- Name: idx_gastos_id_isar; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_gastos_id_isar ON public.gastos USING btree (id_isar);
+CREATE INDEX IF NOT EXISTS idx_gastos_id_isar ON public.gastos USING btree (id_isar);
 
 
 --
 -- Name: idx_gastos_sync; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_gastos_sync ON public.gastos USING btree (sync_status);
+CREATE INDEX IF NOT EXISTS idx_gastos_sync ON public.gastos USING btree (sync_status);
 
 
 --
 -- Name: idx_gastos_sync_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_gastos_sync_status ON public.gastos USING btree (sync_status);
+CREATE INDEX IF NOT EXISTS idx_gastos_sync_status ON public.gastos USING btree (sync_status);
 
 
 --
 -- Name: idx_gastos_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_gastos_tenant ON public.gastos USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_gastos_tenant ON public.gastos USING btree (tenant_id);
 
 
 --
 -- Name: idx_gastos_usuario; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_gastos_usuario ON public.gastos USING btree (usuario_id);
+CREATE INDEX IF NOT EXISTS idx_gastos_usuario ON public.gastos USING btree (usuario_id);
 
 
 --
 -- Name: idx_lotes_estado; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lotes_estado ON public.lotes USING btree (estado);
+CREATE INDEX IF NOT EXISTS idx_lotes_estado ON public.lotes USING btree (estado);
 
 
 --
 -- Name: idx_lotes_producto_id_fk; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lotes_producto_id_fk ON public.lotes USING btree (producto_id_fk);
+CREATE INDEX IF NOT EXISTS idx_lotes_producto_id_fk ON public.lotes USING btree (producto_id_fk);
 
 
 --
 -- Name: idx_lotes_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lotes_tenant ON public.lotes USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_lotes_tenant ON public.lotes USING btree (tenant_id);
 
 
 --
 -- Name: idx_marcas_nombre; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_marcas_nombre ON public.marcas USING btree (nombre);
+CREATE INDEX IF NOT EXISTS idx_marcas_nombre ON public.marcas USING btree (nombre);
 
 
 --
 -- Name: idx_marcas_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_marcas_tenant ON public.marcas USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_marcas_tenant ON public.marcas USING btree (tenant_id);
 
 
 --
 -- Name: idx_movimientos_inventarios_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_movimientos_inventarios_tenant ON public.movimientos_inventarios USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_movimientos_inventarios_tenant ON public.movimientos_inventarios USING btree (tenant_id);
 
 
 --
 -- Name: idx_pagos_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pagos_tenant ON public.pagos USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pagos_tenant ON public.pagos USING btree (tenant_id);
 
 
 --
 -- Name: idx_pedidos_estado; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pedidos_estado ON public.pedidos USING btree (estado);
+CREATE INDEX IF NOT EXISTS idx_pedidos_estado ON public.pedidos USING btree (estado);
 
 
 --
 -- Name: idx_pedidos_sync_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pedidos_sync_status ON public.pedidos USING btree (sync_status);
+CREATE INDEX IF NOT EXISTS idx_pedidos_sync_status ON public.pedidos USING btree (sync_status);
 
 
 --
 -- Name: idx_pedidos_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pedidos_tenant ON public.pedidos USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_pedidos_tenant ON public.pedidos USING btree (tenant_id);
 
 
 --
 -- Name: idx_pedidos_tipo; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pedidos_tipo ON public.pedidos USING btree (tipo_pedido);
+CREATE INDEX IF NOT EXISTS idx_pedidos_tipo ON public.pedidos USING btree (tipo_pedido);
 
 
 --
 -- Name: idx_productos_categoria; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_productos_categoria ON public.productos USING btree (categoria);
+CREATE INDEX IF NOT EXISTS idx_productos_categoria ON public.productos USING btree (categoria);
 
 
 --
 -- Name: idx_productos_codigo_barras; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_productos_codigo_barras ON public.productos USING btree (codigo_barras);
+CREATE INDEX IF NOT EXISTS idx_productos_codigo_barras ON public.productos USING btree (codigo_barras);
 
 
 --
 -- Name: idx_productos_marca_supabase_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_productos_marca_supabase_id ON public.productos USING btree (marca_supabase_id);
+CREATE INDEX IF NOT EXISTS idx_productos_marca_supabase_id ON public.productos USING btree (marca_supabase_id);
 
 
 --
 -- Name: idx_productos_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_productos_tenant ON public.productos USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_productos_tenant ON public.productos USING btree (tenant_id);
 
 
 --
 -- Name: idx_proveedores_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_proveedores_tenant ON public.proveedores USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_proveedores_tenant ON public.proveedores USING btree (tenant_id);
 
 
 --
 -- Name: idx_recepciones_pedido_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_recepciones_pedido_id ON public.recepciones USING btree (pedido_id);
+CREATE INDEX IF NOT EXISTS idx_recepciones_pedido_id ON public.recepciones USING btree (pedido_id);
 
 
 --
 -- Name: idx_recepciones_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_recepciones_tenant ON public.recepciones USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_recepciones_tenant ON public.recepciones USING btree (tenant_id);
 
 
 --
 -- Name: idx_telegram_config_enabled; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_telegram_config_enabled ON public.telegram_config USING btree (enabled);
+CREATE INDEX IF NOT EXISTS idx_telegram_config_enabled ON public.telegram_config USING btree (enabled);
 
 
 --
 -- Name: idx_telegram_config_id_isar; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_telegram_config_id_isar ON public.telegram_config USING btree (id_isar);
+CREATE INDEX IF NOT EXISTS idx_telegram_config_id_isar ON public.telegram_config USING btree (id_isar);
 
 
 --
 -- Name: idx_telegram_config_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_telegram_config_tenant ON public.telegram_config USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_telegram_config_tenant ON public.telegram_config USING btree (tenant_id);
 
 
 --
 -- Name: idx_telegram_config_usuario_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_telegram_config_usuario_id ON public.telegram_config USING btree (usuario_id);
+CREATE INDEX IF NOT EXISTS idx_telegram_config_usuario_id ON public.telegram_config USING btree (usuario_id);
 
 
 --
 -- Name: idx_turno_cajas_estado; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_turno_cajas_estado ON public.turnos USING btree (estado);
+CREATE INDEX IF NOT EXISTS idx_turno_cajas_estado ON public.turnos USING btree (estado);
 
 
 --
 -- Name: idx_turno_cajas_id_isar; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_turno_cajas_id_isar ON public.turnos USING btree (id_isar);
+CREATE INDEX IF NOT EXISTS idx_turno_cajas_id_isar ON public.turnos USING btree (id_isar);
 
 
 --
 -- Name: idx_turno_cajas_sync_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_turno_cajas_sync_status ON public.turnos USING btree (sync_status);
+CREATE INDEX IF NOT EXISTS idx_turno_cajas_sync_status ON public.turnos USING btree (sync_status);
 
 
 --
 -- Name: idx_turnos_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_turnos_tenant ON public.turnos USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_turnos_tenant ON public.turnos USING btree (tenant_id);
 
 
 --
 -- Name: idx_usuarios_id_isar; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_usuarios_id_isar ON public.usuarios USING btree (id_isar);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_id_isar ON public.usuarios USING btree (id_isar);
 
 
 --
 -- Name: idx_usuarios_locales_default_unico; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_usuarios_locales_default_unico ON public.usuarios_locales USING btree (usuario_id) WHERE (es_default = true);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_locales_default_unico ON public.usuarios_locales USING btree (usuario_id) WHERE (es_default = true);
 
 
 --
 -- Name: idx_usuarios_locales_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_usuarios_locales_tenant ON public.usuarios_locales USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_usuarios_locales_tenant ON public.usuarios_locales USING btree (tenant_id);
 
 
 --
 -- Name: idx_usuarios_locales_usuario; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_usuarios_locales_usuario ON public.usuarios_locales USING btree (usuario_id);
+CREATE INDEX IF NOT EXISTS idx_usuarios_locales_usuario ON public.usuarios_locales USING btree (usuario_id);
 
 
 --
 -- Name: idx_ventas_cliente_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ventas_cliente_id ON public.ventas USING btree (cliente_id);
+CREATE INDEX IF NOT EXISTS idx_ventas_cliente_id ON public.ventas USING btree (cliente_id);
 
 
 --
 -- Name: idx_ventas_empleado_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ventas_empleado_id ON public.ventas USING btree (empleado_id);
+CREATE INDEX IF NOT EXISTS idx_ventas_empleado_id ON public.ventas USING btree (empleado_id);
 
 
 --
 -- Name: idx_ventas_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_ventas_tenant ON public.ventas USING btree (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ventas_tenant ON public.ventas USING btree (tenant_id);
 
 
 --
 -- Name: cajas audit_cajas; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_cajas ON public.cajas CASCADE;
 CREATE TRIGGER audit_cajas AFTER INSERT OR DELETE OR UPDATE ON public.cajas FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1695,6 +1754,7 @@ CREATE TRIGGER audit_cajas AFTER INSERT OR DELETE OR UPDATE ON public.cajas FOR 
 -- Name: categorias audit_categorias; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_categorias ON public.categorias CASCADE;
 CREATE TRIGGER audit_categorias AFTER INSERT OR DELETE OR UPDATE ON public.categorias FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1702,6 +1762,7 @@ CREATE TRIGGER audit_categorias AFTER INSERT OR DELETE OR UPDATE ON public.categ
 -- Name: clientes audit_clientes; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_clientes ON public.clientes CASCADE;
 CREATE TRIGGER audit_clientes AFTER INSERT OR DELETE OR UPDATE ON public.clientes FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1709,6 +1770,7 @@ CREATE TRIGGER audit_clientes AFTER INSERT OR DELETE OR UPDATE ON public.cliente
 -- Name: gastos audit_gastos; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_gastos ON public.gastos CASCADE;
 CREATE TRIGGER audit_gastos AFTER INSERT OR DELETE OR UPDATE ON public.gastos FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1716,6 +1778,7 @@ CREATE TRIGGER audit_gastos AFTER INSERT OR DELETE OR UPDATE ON public.gastos FO
 -- Name: lotes audit_lotes; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_lotes ON public.lotes CASCADE;
 CREATE TRIGGER audit_lotes AFTER INSERT OR DELETE OR UPDATE ON public.lotes FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1723,6 +1786,7 @@ CREATE TRIGGER audit_lotes AFTER INSERT OR DELETE OR UPDATE ON public.lotes FOR 
 -- Name: marcas audit_marcas; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_marcas ON public.marcas CASCADE;
 CREATE TRIGGER audit_marcas AFTER INSERT OR DELETE OR UPDATE ON public.marcas FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1730,6 +1794,7 @@ CREATE TRIGGER audit_marcas AFTER INSERT OR DELETE OR UPDATE ON public.marcas FO
 -- Name: pagos audit_pagos; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_pagos ON public.pagos CASCADE;
 CREATE TRIGGER audit_pagos AFTER INSERT OR DELETE OR UPDATE ON public.pagos FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1737,6 +1802,7 @@ CREATE TRIGGER audit_pagos AFTER INSERT OR DELETE OR UPDATE ON public.pagos FOR 
 -- Name: pedidos audit_pedidos; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_pedidos ON public.pedidos CASCADE;
 CREATE TRIGGER audit_pedidos AFTER INSERT OR DELETE OR UPDATE ON public.pedidos FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1744,6 +1810,7 @@ CREATE TRIGGER audit_pedidos AFTER INSERT OR DELETE OR UPDATE ON public.pedidos 
 -- Name: productos audit_productos; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_productos ON public.productos CASCADE;
 CREATE TRIGGER audit_productos AFTER INSERT OR DELETE OR UPDATE ON public.productos FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1751,6 +1818,7 @@ CREATE TRIGGER audit_productos AFTER INSERT OR DELETE OR UPDATE ON public.produc
 -- Name: proveedores audit_proveedores; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_proveedores ON public.proveedores CASCADE;
 CREATE TRIGGER audit_proveedores AFTER INSERT OR DELETE OR UPDATE ON public.proveedores FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1758,6 +1826,7 @@ CREATE TRIGGER audit_proveedores AFTER INSERT OR DELETE OR UPDATE ON public.prov
 -- Name: turnos audit_turnos; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_turnos ON public.turnos CASCADE;
 CREATE TRIGGER audit_turnos AFTER INSERT OR DELETE OR UPDATE ON public.turnos FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1765,6 +1834,7 @@ CREATE TRIGGER audit_turnos AFTER INSERT OR DELETE OR UPDATE ON public.turnos FO
 -- Name: usuarios audit_usuarios; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_usuarios ON public.usuarios CASCADE;
 CREATE TRIGGER audit_usuarios AFTER INSERT OR DELETE OR UPDATE ON public.usuarios FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1772,6 +1842,7 @@ CREATE TRIGGER audit_usuarios AFTER INSERT OR DELETE OR UPDATE ON public.usuario
 -- Name: ventas audit_ventas; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_ventas ON public.ventas CASCADE;
 CREATE TRIGGER audit_ventas AFTER INSERT OR DELETE OR UPDATE ON public.ventas FOR EACH ROW EXECUTE FUNCTION public.audit_trigger();
 
 
@@ -1779,6 +1850,7 @@ CREATE TRIGGER audit_ventas AFTER INSERT OR DELETE OR UPDATE ON public.ventas FO
 -- Name: lotes trigger_actualizar_stock; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS trigger_actualizar_stock ON public.lotes CASCADE;
 CREATE TRIGGER trigger_actualizar_stock AFTER INSERT OR DELETE OR UPDATE ON public.lotes FOR EACH ROW EXECUTE FUNCTION public.actualizar_stock_producto();
 
 
@@ -1786,6 +1858,7 @@ CREATE TRIGGER trigger_actualizar_stock AFTER INSERT OR DELETE OR UPDATE ON publ
 -- Name: gastos update_gastos_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_gastos_updated_at ON public.gastos CASCADE;
 CREATE TRIGGER update_gastos_updated_at BEFORE UPDATE ON public.gastos FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -1793,6 +1866,7 @@ CREATE TRIGGER update_gastos_updated_at BEFORE UPDATE ON public.gastos FOR EACH 
 -- Name: marcas update_marcas_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_marcas_updated_at ON public.marcas CASCADE;
 CREATE TRIGGER update_marcas_updated_at BEFORE UPDATE ON public.marcas FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -1800,6 +1874,7 @@ CREATE TRIGGER update_marcas_updated_at BEFORE UPDATE ON public.marcas FOR EACH 
 -- Name: productos update_productos_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_productos_updated_at ON public.productos CASCADE;
 CREATE TRIGGER update_productos_updated_at BEFORE UPDATE ON public.productos FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -1807,6 +1882,7 @@ CREATE TRIGGER update_productos_updated_at BEFORE UPDATE ON public.productos FOR
 -- Name: usuarios update_usuarios_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_usuarios_updated_at ON public.usuarios CASCADE;
 CREATE TRIGGER update_usuarios_updated_at BEFORE UPDATE ON public.usuarios FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -1814,6 +1890,7 @@ CREATE TRIGGER update_usuarios_updated_at BEFORE UPDATE ON public.usuarios FOR E
 -- Name: audit_log audit_log_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE audit_log_tenant_id_fkey DROP CONSTRAINT IF EXISTS audit_log_tenant_id_fkey;
 ALTER TABLE ONLY public.audit_log
     ADD CONSTRAINT audit_log_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.locales(id);
 
@@ -1822,6 +1899,7 @@ ALTER TABLE ONLY public.audit_log
 -- Name: audit_log audit_log_usuario_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE audit_log_usuario_id_fkey DROP CONSTRAINT IF EXISTS audit_log_usuario_id_fkey;
 ALTER TABLE ONLY public.audit_log
     ADD CONSTRAINT audit_log_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id);
 
@@ -1830,6 +1908,7 @@ ALTER TABLE ONLY public.audit_log
 -- Name: cajas cajas_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE cajas_tenant_fk DROP CONSTRAINT IF EXISTS cajas_tenant_fk;
 ALTER TABLE ONLY public.cajas
     ADD CONSTRAINT cajas_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -1838,6 +1917,7 @@ ALTER TABLE ONLY public.cajas
 -- Name: categorias categorias_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE categorias_tenant_fk DROP CONSTRAINT IF EXISTS categorias_tenant_fk;
 ALTER TABLE ONLY public.categorias
     ADD CONSTRAINT categorias_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -1846,6 +1926,7 @@ ALTER TABLE ONLY public.categorias
 -- Name: clientes clientes_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE clientes_tenant_fk DROP CONSTRAINT IF EXISTS clientes_tenant_fk;
 ALTER TABLE ONLY public.clientes
     ADD CONSTRAINT clientes_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -1854,6 +1935,7 @@ ALTER TABLE ONLY public.clientes
 -- Name: codigos_barras_alias codigos_barras_alias_producto_id_fk_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE codigos_barras_alias_producto_id_fk_fkey DROP CONSTRAINT IF EXISTS codigos_barras_alias_producto_id_fk_fkey;
 ALTER TABLE ONLY public.codigos_barras_alias
     ADD CONSTRAINT codigos_barras_alias_producto_id_fk_fkey FOREIGN KEY (producto_id_fk) REFERENCES public.productos(id) ON DELETE CASCADE;
 
@@ -1862,6 +1944,7 @@ ALTER TABLE ONLY public.codigos_barras_alias
 -- Name: codigos_barras_alias codigos_barras_alias_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE codigos_barras_alias_tenant_fk DROP CONSTRAINT IF EXISTS codigos_barras_alias_tenant_fk;
 ALTER TABLE ONLY public.codigos_barras_alias
     ADD CONSTRAINT codigos_barras_alias_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -1870,6 +1953,7 @@ ALTER TABLE ONLY public.codigos_barras_alias
 -- Name: departamentos departamentos_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE departamentos_tenant_fk DROP CONSTRAINT IF EXISTS departamentos_tenant_fk;
 ALTER TABLE ONLY public.departamentos
     ADD CONSTRAINT departamentos_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -1878,6 +1962,7 @@ ALTER TABLE ONLY public.departamentos
 -- Name: detalle_ventas detalle_ventas_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE detalle_ventas_tenant_fk DROP CONSTRAINT IF EXISTS detalle_ventas_tenant_fk;
 ALTER TABLE ONLY public.detalle_ventas
     ADD CONSTRAINT detalle_ventas_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -1886,6 +1971,7 @@ ALTER TABLE ONLY public.detalle_ventas
 -- Name: detalle_ventas detalle_ventas_venta_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE detalle_ventas_venta_tenant_fk DROP CONSTRAINT IF EXISTS detalle_ventas_venta_tenant_fk;
 ALTER TABLE ONLY public.detalle_ventas
     ADD CONSTRAINT detalle_ventas_venta_tenant_fk FOREIGN KEY (venta_id_tk, tenant_id) REFERENCES public.ventas(id, tenant_id) ON DELETE CASCADE;
 
@@ -1894,6 +1980,7 @@ ALTER TABLE ONLY public.detalle_ventas
 -- Name: detalles_pedido detalles_pedido_pedido_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE detalles_pedido_pedido_tenant_fk DROP CONSTRAINT IF EXISTS detalles_pedido_pedido_tenant_fk;
 ALTER TABLE ONLY public.detalles_pedido
     ADD CONSTRAINT detalles_pedido_pedido_tenant_fk FOREIGN KEY (pedido_id, tenant_id) REFERENCES public.pedidos(id, tenant_id) ON DELETE CASCADE;
 
@@ -1902,6 +1989,7 @@ ALTER TABLE ONLY public.detalles_pedido
 -- Name: detalles_pedido detalles_pedido_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE detalles_pedido_tenant_fk DROP CONSTRAINT IF EXISTS detalles_pedido_tenant_fk;
 ALTER TABLE ONLY public.detalles_pedido
     ADD CONSTRAINT detalles_pedido_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -1910,6 +1998,7 @@ ALTER TABLE ONLY public.detalles_pedido
 -- Name: entregas entregas_pedido_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE entregas_pedido_id_fkey DROP CONSTRAINT IF EXISTS entregas_pedido_id_fkey;
 ALTER TABLE ONLY public.entregas
     ADD CONSTRAINT entregas_pedido_id_fkey FOREIGN KEY (pedido_id) REFERENCES public.pedidos(id) ON DELETE CASCADE;
 
@@ -1918,6 +2007,7 @@ ALTER TABLE ONLY public.entregas
 -- Name: entregas entregas_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE entregas_tenant_fk DROP CONSTRAINT IF EXISTS entregas_tenant_fk;
 ALTER TABLE ONLY public.entregas
     ADD CONSTRAINT entregas_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -1926,6 +2016,7 @@ ALTER TABLE ONLY public.entregas
 -- Name: detalles_pedido fk_detalles_pedido_producto; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE fk_detalles_pedido_producto DROP CONSTRAINT IF EXISTS fk_detalles_pedido_producto;
 ALTER TABLE ONLY public.detalles_pedido
     ADD CONSTRAINT fk_detalles_pedido_producto FOREIGN KEY (producto_id) REFERENCES public.productos(id);
 
@@ -1934,6 +2025,7 @@ ALTER TABLE ONLY public.detalles_pedido
 -- Name: detalles_pedido fk_detalles_pedido_producto_id_isar; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE fk_detalles_pedido_producto_id_isar DROP CONSTRAINT IF EXISTS fk_detalles_pedido_producto_id_isar;
 ALTER TABLE ONLY public.detalles_pedido
     ADD CONSTRAINT fk_detalles_pedido_producto_id_isar FOREIGN KEY (producto_id_isar) REFERENCES public.productos(id_isar);
 
@@ -1942,6 +2034,7 @@ ALTER TABLE ONLY public.detalles_pedido
 -- Name: entregas fk_entregas_usuario; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE fk_entregas_usuario DROP CONSTRAINT IF EXISTS fk_entregas_usuario;
 ALTER TABLE ONLY public.entregas
     ADD CONSTRAINT fk_entregas_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id);
 
@@ -1950,6 +2043,7 @@ ALTER TABLE ONLY public.entregas
 -- Name: gastos fk_gastos_usuario; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE fk_gastos_usuario DROP CONSTRAINT IF EXISTS fk_gastos_usuario;
 ALTER TABLE ONLY public.gastos
     ADD CONSTRAINT fk_gastos_usuario FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id);
 
@@ -1958,6 +2052,7 @@ ALTER TABLE ONLY public.gastos
 -- Name: productos fk_productos_marca_supabase_id; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE fk_productos_marca_supabase_id DROP CONSTRAINT IF EXISTS fk_productos_marca_supabase_id;
 ALTER TABLE ONLY public.productos
     ADD CONSTRAINT fk_productos_marca_supabase_id FOREIGN KEY (marca_supabase_id) REFERENCES public.marcas(id) ON DELETE SET NULL;
 
@@ -1966,6 +2061,7 @@ ALTER TABLE ONLY public.productos
 -- Name: ventas fk_ventas_usuario; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE fk_ventas_usuario DROP CONSTRAINT IF EXISTS fk_ventas_usuario;
 ALTER TABLE ONLY public.ventas
     ADD CONSTRAINT fk_ventas_usuario FOREIGN KEY (empleado_id) REFERENCES public.usuarios(id) ON DELETE SET NULL;
 
@@ -1974,6 +2070,7 @@ ALTER TABLE ONLY public.ventas
 -- Name: gastos gastos_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE gastos_tenant_fk DROP CONSTRAINT IF EXISTS gastos_tenant_fk;
 ALTER TABLE ONLY public.gastos
     ADD CONSTRAINT gastos_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -1982,6 +2079,7 @@ ALTER TABLE ONLY public.gastos
 -- Name: lotes lotes_producto_id_fk_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE lotes_producto_id_fk_fkey DROP CONSTRAINT IF EXISTS lotes_producto_id_fk_fkey;
 ALTER TABLE ONLY public.lotes
     ADD CONSTRAINT lotes_producto_id_fk_fkey FOREIGN KEY (producto_id_fk) REFERENCES public.productos(id_isar) ON DELETE SET NULL;
 
@@ -1990,6 +2088,7 @@ ALTER TABLE ONLY public.lotes
 -- Name: lotes lotes_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE lotes_tenant_fk DROP CONSTRAINT IF EXISTS lotes_tenant_fk;
 ALTER TABLE ONLY public.lotes
     ADD CONSTRAINT lotes_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -1998,6 +2097,7 @@ ALTER TABLE ONLY public.lotes
 -- Name: marcas marcas_proveedor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE marcas_proveedor_id_fkey DROP CONSTRAINT IF EXISTS marcas_proveedor_id_fkey;
 ALTER TABLE ONLY public.marcas
     ADD CONSTRAINT marcas_proveedor_id_fkey FOREIGN KEY (proveedor_id) REFERENCES public.proveedores(id) ON DELETE SET NULL;
 
@@ -2006,6 +2106,7 @@ ALTER TABLE ONLY public.marcas
 -- Name: marcas marcas_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE marcas_tenant_fk DROP CONSTRAINT IF EXISTS marcas_tenant_fk;
 ALTER TABLE ONLY public.marcas
     ADD CONSTRAINT marcas_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2014,6 +2115,7 @@ ALTER TABLE ONLY public.marcas
 -- Name: movimientos_inventarios movimientos_inventarios_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE movimientos_inventarios_tenant_fk DROP CONSTRAINT IF EXISTS movimientos_inventarios_tenant_fk;
 ALTER TABLE ONLY public.movimientos_inventarios
     ADD CONSTRAINT movimientos_inventarios_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2022,6 +2124,7 @@ ALTER TABLE ONLY public.movimientos_inventarios
 -- Name: pagos pagos_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE pagos_tenant_fk DROP CONSTRAINT IF EXISTS pagos_tenant_fk;
 ALTER TABLE ONLY public.pagos
     ADD CONSTRAINT pagos_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2030,6 +2133,7 @@ ALTER TABLE ONLY public.pagos
 -- Name: pagos pagos_venta_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE pagos_venta_tenant_fk DROP CONSTRAINT IF EXISTS pagos_venta_tenant_fk;
 ALTER TABLE ONLY public.pagos
     ADD CONSTRAINT pagos_venta_tenant_fk FOREIGN KEY (venta_id, tenant_id) REFERENCES public.ventas(id, tenant_id) ON DELETE CASCADE;
 
@@ -2038,6 +2142,7 @@ ALTER TABLE ONLY public.pagos
 -- Name: pedidos pedidos_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE pedidos_tenant_fk DROP CONSTRAINT IF EXISTS pedidos_tenant_fk;
 ALTER TABLE ONLY public.pedidos
     ADD CONSTRAINT pedidos_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2046,6 +2151,7 @@ ALTER TABLE ONLY public.pedidos
 -- Name: productos productos_proveedor_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE productos_proveedor_id_fkey DROP CONSTRAINT IF EXISTS productos_proveedor_id_fkey;
 ALTER TABLE ONLY public.productos
     ADD CONSTRAINT productos_proveedor_id_fkey FOREIGN KEY (proveedor_id) REFERENCES public.proveedores(id) ON DELETE SET NULL;
 
@@ -2054,6 +2160,7 @@ ALTER TABLE ONLY public.productos
 -- Name: productos productos_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE productos_tenant_fk DROP CONSTRAINT IF EXISTS productos_tenant_fk;
 ALTER TABLE ONLY public.productos
     ADD CONSTRAINT productos_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2062,6 +2169,7 @@ ALTER TABLE ONLY public.productos
 -- Name: proveedores proveedores_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE proveedores_tenant_fk DROP CONSTRAINT IF EXISTS proveedores_tenant_fk;
 ALTER TABLE ONLY public.proveedores
     ADD CONSTRAINT proveedores_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2070,6 +2178,7 @@ ALTER TABLE ONLY public.proveedores
 -- Name: recepciones recepciones_pedido_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE recepciones_pedido_id_fkey DROP CONSTRAINT IF EXISTS recepciones_pedido_id_fkey;
 ALTER TABLE ONLY public.recepciones
     ADD CONSTRAINT recepciones_pedido_id_fkey FOREIGN KEY (pedido_id) REFERENCES public.pedidos(id) ON DELETE CASCADE;
 
@@ -2078,6 +2187,7 @@ ALTER TABLE ONLY public.recepciones
 -- Name: recepciones recepciones_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE recepciones_tenant_fk DROP CONSTRAINT IF EXISTS recepciones_tenant_fk;
 ALTER TABLE ONLY public.recepciones
     ADD CONSTRAINT recepciones_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2086,6 +2196,7 @@ ALTER TABLE ONLY public.recepciones
 -- Name: telegram_config telegram_config_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE telegram_config_tenant_fk DROP CONSTRAINT IF EXISTS telegram_config_tenant_fk;
 ALTER TABLE ONLY public.telegram_config
     ADD CONSTRAINT telegram_config_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2094,6 +2205,7 @@ ALTER TABLE ONLY public.telegram_config
 -- Name: turnos turno_cajas_caja_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE turno_cajas_caja_id_fkey DROP CONSTRAINT IF EXISTS turno_cajas_caja_id_fkey;
 ALTER TABLE ONLY public.turnos
     ADD CONSTRAINT turno_cajas_caja_id_fkey FOREIGN KEY (caja_id) REFERENCES public.cajas(id) ON DELETE CASCADE;
 
@@ -2102,6 +2214,7 @@ ALTER TABLE ONLY public.turnos
 -- Name: turnos turno_cajas_usuario_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE turno_cajas_usuario_id_fkey DROP CONSTRAINT IF EXISTS turno_cajas_usuario_id_fkey;
 ALTER TABLE ONLY public.turnos
     ADD CONSTRAINT turno_cajas_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE RESTRICT;
 
@@ -2110,6 +2223,7 @@ ALTER TABLE ONLY public.turnos
 -- Name: turnos turnos_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE turnos_tenant_fk DROP CONSTRAINT IF EXISTS turnos_tenant_fk;
 ALTER TABLE ONLY public.turnos
     ADD CONSTRAINT turnos_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2118,6 +2232,7 @@ ALTER TABLE ONLY public.turnos
 -- Name: usuarios usuarios_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE usuarios_id_fkey DROP CONSTRAINT IF EXISTS usuarios_id_fkey;
 ALTER TABLE ONLY public.usuarios
     ADD CONSTRAINT usuarios_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
@@ -2126,6 +2241,7 @@ ALTER TABLE ONLY public.usuarios
 -- Name: usuarios_locales usuarios_locales_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE usuarios_locales_tenant_id_fkey DROP CONSTRAINT IF EXISTS usuarios_locales_tenant_id_fkey;
 ALTER TABLE ONLY public.usuarios_locales
     ADD CONSTRAINT usuarios_locales_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2134,6 +2250,7 @@ ALTER TABLE ONLY public.usuarios_locales
 -- Name: usuarios_locales usuarios_locales_usuario_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE usuarios_locales_usuario_id_fkey DROP CONSTRAINT IF EXISTS usuarios_locales_usuario_id_fkey;
 ALTER TABLE ONLY public.usuarios_locales
     ADD CONSTRAINT usuarios_locales_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE CASCADE;
 
@@ -2142,6 +2259,7 @@ ALTER TABLE ONLY public.usuarios_locales
 -- Name: usuarios usuarios_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE usuarios_tenant_fk DROP CONSTRAINT IF EXISTS usuarios_tenant_fk;
 ALTER TABLE ONLY public.usuarios
     ADD CONSTRAINT usuarios_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2150,6 +2268,7 @@ ALTER TABLE ONLY public.usuarios
 -- Name: ventas ventas_cliente_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE ventas_cliente_id_fkey DROP CONSTRAINT IF EXISTS ventas_cliente_id_fkey;
 ALTER TABLE ONLY public.ventas
     ADD CONSTRAINT ventas_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.clientes(id) ON DELETE SET NULL;
 
@@ -2158,6 +2277,7 @@ ALTER TABLE ONLY public.ventas
 -- Name: ventas ventas_tenant_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
+ALTER TABLE ventas_tenant_fk DROP CONSTRAINT IF EXISTS ventas_tenant_fk;
 ALTER TABLE ONLY public.ventas
     ADD CONSTRAINT ventas_tenant_fk FOREIGN KEY (tenant_id) REFERENCES public.locales(id) ON DELETE CASCADE;
 
@@ -2172,6 +2292,7 @@ ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 -- Name: audit_log audit_no_delete; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS audit_no_delete ON public.audit_log;
 CREATE POLICY audit_no_delete ON public.audit_log FOR DELETE TO authenticated USING (false);
 
 
@@ -2179,6 +2300,7 @@ CREATE POLICY audit_no_delete ON public.audit_log FOR DELETE TO authenticated US
 -- Name: audit_log audit_no_update; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS audit_no_update ON public.audit_log;
 CREATE POLICY audit_no_update ON public.audit_log FOR UPDATE TO authenticated USING (false);
 
 
@@ -2186,6 +2308,7 @@ CREATE POLICY audit_no_update ON public.audit_log FOR UPDATE TO authenticated US
 -- Name: audit_log audit_tenant_read; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS audit_tenant_read ON public.audit_log;
 CREATE POLICY audit_tenant_read ON public.audit_log FOR SELECT TO authenticated USING (((tenant_id = public.current_tenant_id()) AND public.is_tenant_admin()));
 
 
@@ -2253,6 +2376,7 @@ ALTER TABLE public.locales ENABLE ROW LEVEL SECURITY;
 -- Name: locales locales_tenant_select; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS locales_tenant_select ON public.locales;
 CREATE POLICY locales_tenant_select ON public.locales FOR SELECT TO authenticated USING ((id = public.current_tenant_id()));
 
 
@@ -2260,6 +2384,7 @@ CREATE POLICY locales_tenant_select ON public.locales FOR SELECT TO authenticate
 -- Name: locales locales_tenant_update; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS locales_tenant_update ON public.locales;
 CREATE POLICY locales_tenant_update ON public.locales FOR UPDATE TO authenticated USING ((id = public.current_tenant_id())) WITH CHECK ((id = public.current_tenant_id()));
 
 
@@ -2321,6 +2446,7 @@ ALTER TABLE public.telegram_config ENABLE ROW LEVEL SECURITY;
 -- Name: cajas tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.cajas;
 CREATE POLICY tenant_isolation ON public.cajas TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2328,6 +2454,7 @@ CREATE POLICY tenant_isolation ON public.cajas TO authenticated USING ((tenant_i
 -- Name: categorias tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.categorias;
 CREATE POLICY tenant_isolation ON public.categorias TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2335,6 +2462,7 @@ CREATE POLICY tenant_isolation ON public.categorias TO authenticated USING ((ten
 -- Name: clientes tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.clientes;
 CREATE POLICY tenant_isolation ON public.clientes TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2342,6 +2470,7 @@ CREATE POLICY tenant_isolation ON public.clientes TO authenticated USING ((tenan
 -- Name: codigos_barras_alias tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.codigos_barras_alias;
 CREATE POLICY tenant_isolation ON public.codigos_barras_alias TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2349,6 +2478,7 @@ CREATE POLICY tenant_isolation ON public.codigos_barras_alias TO authenticated U
 -- Name: departamentos tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.departamentos;
 CREATE POLICY tenant_isolation ON public.departamentos TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2356,6 +2486,7 @@ CREATE POLICY tenant_isolation ON public.departamentos TO authenticated USING ((
 -- Name: detalle_ventas tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.detalle_ventas;
 CREATE POLICY tenant_isolation ON public.detalle_ventas TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2363,6 +2494,7 @@ CREATE POLICY tenant_isolation ON public.detalle_ventas TO authenticated USING (
 -- Name: detalles_pedido tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.detalles_pedido;
 CREATE POLICY tenant_isolation ON public.detalles_pedido TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2370,6 +2502,7 @@ CREATE POLICY tenant_isolation ON public.detalles_pedido TO authenticated USING 
 -- Name: entregas tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.entregas;
 CREATE POLICY tenant_isolation ON public.entregas TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2377,6 +2510,7 @@ CREATE POLICY tenant_isolation ON public.entregas TO authenticated USING ((tenan
 -- Name: gastos tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.gastos;
 CREATE POLICY tenant_isolation ON public.gastos TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2384,6 +2518,7 @@ CREATE POLICY tenant_isolation ON public.gastos TO authenticated USING ((tenant_
 -- Name: lotes tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.lotes;
 CREATE POLICY tenant_isolation ON public.lotes TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2391,6 +2526,7 @@ CREATE POLICY tenant_isolation ON public.lotes TO authenticated USING ((tenant_i
 -- Name: marcas tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.marcas;
 CREATE POLICY tenant_isolation ON public.marcas TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2398,6 +2534,7 @@ CREATE POLICY tenant_isolation ON public.marcas TO authenticated USING ((tenant_
 -- Name: movimientos_inventarios tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.movimientos_inventarios;
 CREATE POLICY tenant_isolation ON public.movimientos_inventarios TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2405,6 +2542,7 @@ CREATE POLICY tenant_isolation ON public.movimientos_inventarios TO authenticate
 -- Name: pagos tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.pagos;
 CREATE POLICY tenant_isolation ON public.pagos TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2412,6 +2550,7 @@ CREATE POLICY tenant_isolation ON public.pagos TO authenticated USING ((tenant_i
 -- Name: pedidos tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.pedidos;
 CREATE POLICY tenant_isolation ON public.pedidos TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2419,6 +2558,7 @@ CREATE POLICY tenant_isolation ON public.pedidos TO authenticated USING ((tenant
 -- Name: productos tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.productos;
 CREATE POLICY tenant_isolation ON public.productos TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2426,6 +2566,7 @@ CREATE POLICY tenant_isolation ON public.productos TO authenticated USING ((tena
 -- Name: proveedores tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.proveedores;
 CREATE POLICY tenant_isolation ON public.proveedores TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2433,6 +2574,7 @@ CREATE POLICY tenant_isolation ON public.proveedores TO authenticated USING ((te
 -- Name: recepciones tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.recepciones;
 CREATE POLICY tenant_isolation ON public.recepciones TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2440,6 +2582,7 @@ CREATE POLICY tenant_isolation ON public.recepciones TO authenticated USING ((te
 -- Name: telegram_config tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.telegram_config;
 CREATE POLICY tenant_isolation ON public.telegram_config TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2447,6 +2590,7 @@ CREATE POLICY tenant_isolation ON public.telegram_config TO authenticated USING 
 -- Name: turnos tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.turnos;
 CREATE POLICY tenant_isolation ON public.turnos TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2454,6 +2598,7 @@ CREATE POLICY tenant_isolation ON public.turnos TO authenticated USING ((tenant_
 -- Name: ventas tenant_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS tenant_isolation ON public.ventas;
 CREATE POLICY tenant_isolation ON public.ventas TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2479,6 +2624,7 @@ ALTER TABLE public.usuarios_locales ENABLE ROW LEVEL SECURITY;
 -- Name: usuarios_locales usuarios_locales_admin; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS usuarios_locales_admin ON public.usuarios_locales;
 CREATE POLICY usuarios_locales_admin ON public.usuarios_locales TO authenticated USING (((tenant_id = public.current_tenant_id()) AND public.is_tenant_admin())) WITH CHECK (((tenant_id = public.current_tenant_id()) AND public.is_tenant_admin()));
 
 
@@ -2486,6 +2632,7 @@ CREATE POLICY usuarios_locales_admin ON public.usuarios_locales TO authenticated
 -- Name: usuarios_locales usuarios_locales_self; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS usuarios_locales_self ON public.usuarios_locales;
 CREATE POLICY usuarios_locales_self ON public.usuarios_locales FOR SELECT TO authenticated USING ((usuario_id = auth.uid()));
 
 
@@ -2493,6 +2640,7 @@ CREATE POLICY usuarios_locales_self ON public.usuarios_locales FOR SELECT TO aut
 -- Name: usuarios usuarios_self_select; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS usuarios_self_select ON public.usuarios;
 CREATE POLICY usuarios_self_select ON public.usuarios FOR SELECT TO authenticated USING ((id = auth.uid()));
 
 
@@ -2500,6 +2648,7 @@ CREATE POLICY usuarios_self_select ON public.usuarios FOR SELECT TO authenticate
 -- Name: usuarios usuarios_tenant_insert; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS usuarios_tenant_insert ON public.usuarios;
 CREATE POLICY usuarios_tenant_insert ON public.usuarios FOR INSERT TO authenticated WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2507,6 +2656,7 @@ CREATE POLICY usuarios_tenant_insert ON public.usuarios FOR INSERT TO authentica
 -- Name: usuarios usuarios_tenant_select; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS usuarios_tenant_select ON public.usuarios;
 CREATE POLICY usuarios_tenant_select ON public.usuarios FOR SELECT TO authenticated USING ((tenant_id = public.current_tenant_id()));
 
 
@@ -2514,6 +2664,7 @@ CREATE POLICY usuarios_tenant_select ON public.usuarios FOR SELECT TO authentica
 -- Name: usuarios usuarios_tenant_update; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS usuarios_tenant_update ON public.usuarios;
 CREATE POLICY usuarios_tenant_update ON public.usuarios FOR UPDATE TO authenticated USING ((tenant_id = public.current_tenant_id())) WITH CHECK ((tenant_id = public.current_tenant_id()));
 
 
@@ -2527,5 +2678,4 @@ ALTER TABLE public.ventas ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Uyh8CwM8bq9F4rUKLNFQphxHnqoAXjY6SCD0C9wa1f3LYHlVPikaLDeuWFgUBbG
 

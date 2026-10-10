@@ -1,0 +1,14 @@
+# Raiz del monorepo `app_gestion_m`.
+# Antes no habia un .gitignore en este nivel: lo que hay abajo afectaba solo a
+# `app_boosti_v2/` y dejaba pasar archivos sueltos de la raiz.
+
+# Backups de refactor. Son copias de archivos que se estan moviendo; si se
+# versionan, el repo los muestra como codigo vivo y nadie los borra despues.
+*.bak
+
+# SQL de trabajo temporal, generado a mano para probar consultas.
+_tmp_*.sql
+
+# Artefactos del CLI de Supabase. Son del entorno local, no del proyecto:
+# guardan el project-ref y el pooler-url de la maquina que los genero.
+supabase/.temp/
