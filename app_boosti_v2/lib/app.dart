@@ -1,223 +1,54 @@
-// lib/main.dart
-import 'dart:async';
-import 'dart:io';
+// lib/app.dart
+//
+// 🎯 Widget raíz de la aplicación.
+// Los entry points oficiales son:
+//   - lib/main_client.dart (flavor client)
+//   - lib/main_admin.dart (flavor admin)
+//
+// La lógica de inicialización está en lib/core/bootstrap.dart.
 
-import 'package:device_preview/device_preview.dart';
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as sb;
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show Supabase, Session, AuthChangeEvent;
 
-// 🔥 Configuración de Supabase compilada
-import 'core/config/supabase_config.dart';
-
-// Entities & Services
+import 'core/config/app_mode.dart';
 import 'features/pos/data/Local/entities/isar_service.dart';
 import 'features/pos/domain/permissions/roles.dart';
 import 'features/pos/domain/services/jwt_service.dart';
-
-// Providers
 import 'features/pos/presentation/providers/lock_provider.dart';
 import 'features/pos/presentation/providers/sync_provider.dart';
 import 'features/pos/presentation/providers/tenant_provider.dart';
 import 'features/pos/presentation/providers/themes/theme.dart';
 import 'features/pos/presentation/providers/themes/theme_provider.dart';
 import 'features/pos/presentation/providers/usuario_provider.dart';
-
-// Screens
-// 🎯 ELIMINADO: import de configuracion_empresa_screen.dart (ya no existe)
 import 'features/pos/presentation/screens/empleados/employees_screen.dart';
 import 'features/pos/presentation/screens/login_screen.dart';
 import 'features/pos/presentation/screens/main_pos_screen.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
 import 'features/pos/presentation/screens/splash_screen.dart';
-
-// Services
-import 'features/pos/presentation/services/backup_service.dart';
-import 'features/pos/presentation/services/error_service.dart';
-import 'features/pos/presentation/services/ota_update_service.dart';
-
-// Widgets
+import 'features/pos/presentation/utils/tenant_utils.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
-import 'package:sentry_flutter/sentry_flutter.dart';
-
-
-// ════════════════════════════════════════════════════════════════════
-// MAIN
-// ════════════════════════════════════════════════════════════════════
-
-void main() async {
-  if (kDebugMode) {
-    debugPrint('🚀 BoostiPOS iniciando — ${DateTime.now()}');
-    debugPrint('🔍 SupabaseConfig.estaConfigurado: ${SupabaseConfig.estaConfigurado}');
-    debugPrint('🔍 URL: "${SupabaseConfig.url}"');
-    debugPrint('🔍 Key length: ${SupabaseConfig.publishableKey.length}');
-  }
-
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // ── 1. Inicializaciones en paralelo ──
-  final prefs = await SharedPreferences.getInstance();
-
-  final results = await Future.wait([
-    ErrorService.init().catchError((e) {
-      debugPrint('⚠️ ErrorService.init falló: $e');
-    }),
-    _inicializarSupabase(prefs),
-    _inicializarIsar(),
-  ]);
-
-  final supabaseInitialized = results[1] as bool;
-
-  // ── 2. Tareas en background (no bloquean el arranque) ──
-  try {
-    BackupService.register();
-  } catch (e) {
-    debugPrint('⚠️ BackupService.register falló: $e');
-  }
-
-  try {
-    OtaUpdateService.checkForUpdateSilently();
-  } catch (e) {
-    debugPrint('⚠️ OTA check falló: $e');
-  }
-
-  // ── 3. Metadatos de la app (para Sentry release dinámico) ──
-  String release = 'unknown';
-  try {
-    final packageInfo = await PackageInfo.fromPlatform();
-    release = '${packageInfo.version}+${packageInfo.buildNumber}';
-    debugPrint('📦 App release: $release');
-  } catch (e) {
-    debugPrint('⚠️ No se pudo obtener PackageInfo: $e');
-  }
-
-  // ── 4. Sentry ──
-  await SentryFlutter.init(
-    (options) {
-      options.dsn =
-          'https://d6ba391e37a1ea64b67002541041c94d@o4512161811922944.ingest.us.sentry.io/4512164794793984';
-
-      options.environment = kReleaseMode ? 'production' : 'development';
-      options.release = release;
-      options.tracesSampleRate = kReleaseMode ? 0.1 : 1.0;
-      options.profilesSampleRate = kReleaseMode ? 0.1 : 1.0;
-      options.attachStacktrace = true;
-      options.attachScreenshot = false;
-
-      options.beforeSend = (event, hint) {
-        final throwable = event.throwable;
-
-        if (throwable is SocketException) return null;
-        if (throwable is TimeoutException) return null;
-
-        final msg = throwable?.toString() ?? '';
-        if (msg.contains('SocketException') ||
-            msg.contains('Failed host lookup') ||
-            msg.contains('Connection refused') ||
-            msg.contains('Connection closed')) {
-          return null;
-        }
-
-        return event;
-      };
-
-      if (kDebugMode) {
-        options.debug = true;
-      }
-    },
-    appRunner: () => runApp(
-      SentryWidget(
-        child: DevicePreview(
-          enabled: !kReleaseMode,
-          builder: (_) => ProviderScope(
-            child: BoostiPOS(supabaseInitialized: supabaseInitialized),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-// ════════════════════════════════════════════════════════════════════
-// HELPERS DE INICIALIZACIÓN
-// ════════════════════════════════════════════════════════════════════
-
-/// Inicializa Supabase usando EXCLUSIVAMENTE las credenciales
-/// compiladas vía `--dart-define-from-file=env.json`.
-///
-/// 🎯 SEGURIDAD: Se eliminó el fallback a SharedPreferences. La app
-/// nunca acepta credenciales ingresadas por el usuario final.
-/// Si `env.json` no se pasó al compilar, la app muestra una pantalla
-/// de error en vez del formulario de configuración.
-Future<bool> _inicializarSupabase(SharedPreferences prefs) async {
-  // ── Única fuente de credenciales: env.json ──
-  if (!SupabaseConfig.estaConfigurado) {
-    debugPrint(
-      '🚨 SEGURIDAD: App compilada SIN env.json. '
-      'No hay forma de conectarse a Supabase. '
-      'Compila con --dart-define-from-file=env.json',
-    );
-    return false;
-  }
-
-  var url = SupabaseConfig.url;
-  final anonKey = SupabaseConfig.publishableKey;
-
-  debugPrint('✅ Usando credenciales de env.json (hardcoded en el binario)');
-
-  // Normalizar URL (quitar barra final, rutas extras)
-  if (url.endsWith('/')) url = url.substring(0, url.length - 1);
-  final uri = Uri.tryParse(url);
-  if (uri != null) {
-    url = '${uri.scheme}://${uri.host}';
-  }
-
-  try {
-    await Supabase.initialize(
-      url: url,
-      publishableKey: anonKey,
-      authOptions: const FlutterAuthClientOptions(
-        authFlowType: AuthFlowType.implicit,
-      ),
-    );
-
-    // Persistimos para que otros servicios que leen prefs sigan funcionando
-    await prefs.setString('supabase_url', url);
-    await prefs.setString('supabase_anon_key', anonKey);
-
-    debugPrint('✅ Supabase inicializado → $url');
-    return true;
-  } catch (e) {
-    debugPrint('🚨 Error inicializando Supabase: $e');
-    return false;
-  }
-}
-
-Future<void> _inicializarIsar() async {
-  try {
-    final isarService = IsarService();
-    await isarService.migrarStockExistenteALotes();
-
-    final actualizados = await isarService.asignarSupabaseIdsAFaltantes();
-    if (actualizados > 0) {
-      debugPrint('✅ supabaseId asignados: $actualizados productos');
-    }
-  } catch (e) {
-    debugPrint('❌ Error en inicialización de Isar: $e');
-  }
-}
 
 // ════════════════════════════════════════════════════════════════════
 // APP ROOT
 // ════════════════════════════════════════════════════════════════════
 
+// appModeProvider está definido en core/config/app_mode.dart
+
 class BoostiPOS extends ConsumerStatefulWidget {
   final bool supabaseInitialized;
+  final AppMode mode;
 
-  const BoostiPOS({super.key, required this.supabaseInitialized});
+  const BoostiPOS({
+    super.key,
+    required this.supabaseInitialized,
+    this.mode = AppMode.client,
+  });
 
   @override
   ConsumerState<BoostiPOS> createState() => _BoostiPOSState();
@@ -226,7 +57,7 @@ class BoostiPOS extends ConsumerStatefulWidget {
 class _BoostiPOSState extends ConsumerState<BoostiPOS> {
   bool _syncStarted = false;
   bool _bootstrapDone = false;
-  StreamSubscription<AuthState>? _authStateSubscription;
+  StreamSubscription<sb.AuthState>? _authStateSubscription;
 
   final _navigatorObserver = SentryNavigatorObserver();
 
@@ -274,6 +105,48 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
 
     ref.read(tenantActualProvider);
     await _cargarTenantDesdeSesion();
+
+    // 🎯 FIX: validar coherencia entre JWT y LocalEntity.activo al arrancar.
+    try {
+      final tenantJwt = getTenantIdFromJWT();
+      if (tenantJwt != null && tenantJwt.isNotEmpty) {
+        final isar = IsarService();
+        final local = await isar.obtenerLocalPorSupabaseId(tenantJwt);
+
+        if (local != null) {
+          if (!local.activo) {
+            debugPrint(
+              '🔧 [Bootstrap] Local "${local.nombre}" del JWT estaba inactivo. '
+              'Reactivando.',
+            );
+            await isar.marcarLocalComoActivo(local.id);
+          }
+
+          // ⚠️ NO forzar "dejar solo un local activo" aquí.
+          //
+          // El modelo es MULTI-LOCAL: varios locales de un mismo tenant
+          // pueden estar activos a la vez. `activo` significa "este local
+          // está habilitado", NO "es el actual".
+          //
+          // El local actual vive en `prefs['localActualId']` y en el estado
+          // de `localActualProvider`. Esta rama se eliminó porque su
+          // intención original (dejar uno solo) era incorrecta y, con la
+          // semántica nueva, solo generaba un log engañoso en cada arranque.
+
+          debugPrint(
+            '✅ [Bootstrap] Local validado: "${local.nombre}" '
+            '(supabaseId=$tenantJwt)',
+          );
+        } else {
+          debugPrint(
+            '⚠️ [Bootstrap] Sin LocalEntity para tenant $tenantJwt. '
+            'La app usará el fallback de prefs.',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [Bootstrap] Error validando local activo: $e');
+    }
 
     if (widget.supabaseInitialized && !_syncStarted) {
       _syncStarted = true;
@@ -394,12 +267,6 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
     }
   }
 
-  /// Determina la pantalla inicial.
-  ///
-  /// 🎯 SEGURIDAD: si Supabase no está configurado (falta env.json),
-  /// mostramos una pantalla de error en vez del formulario de
-  /// configuración. Esto evita que usuarios finales ingresen
-  /// credenciales arbitrarias.
   Widget _homeInicial() {
     if (!widget.supabaseInitialized) {
       return const _SupabaseNoConfiguradoScreen();
@@ -416,7 +283,6 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
       return const MainPosScreen();
     }
 
-    // Sin usuario local → Splash valida y redirige a Welcome/Login
     return const SplashScreen();
   }
 
@@ -426,14 +292,13 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
     final themeMode = ref.watch(themeProvider);
 
     return MaterialApp(
-      title: 'BoostI POS - JAH Lab',
+      title: widget.mode.isAdmin ? 'TuApp Admin' : 'TuApp',
       debugShowCheckedModeBanner: false,
       theme: lightTheme(),
       darkTheme: darkTheme(),
       themeMode: themeMode,
       navigatorObservers: [_navigatorObserver],
       home: _homeInicial(),
-      // 🎯 ELIMINADA la ruta '/configuracion'
       routes: {
         '/login': (_) => const LoginScreen(),
         '/main': (_) => const MainPosScreen(),
@@ -456,10 +321,6 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
 // ════════════════════════════════════════════════════════════════════
 // PANTALLA DE ERROR: SUPABASE NO CONFIGURADO
 // ════════════════════════════════════════════════════════════════════
-//
-// 🎯 SEGURIDAD: esta pantalla se muestra SOLO si la app se compiló
-// sin el archivo env.json. No permite ninguna interacción con
-// credenciales. El usuario final debe contactar al proveedor.
 
 class _SupabaseNoConfiguradoScreen extends StatelessWidget {
   const _SupabaseNoConfiguradoScreen();
@@ -508,3 +369,4 @@ class _SupabaseNoConfiguradoScreen extends StatelessWidget {
     );
   }
 }
+
