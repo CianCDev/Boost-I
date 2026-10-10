@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Client (debug)",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_client.dart",
+            "flavor": "client",
+            "args": [
+                "--dart-define-from-file=env.json"
+            ]
+        },
+        {
+            "name": "Admin (debug)",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_admin.dart",
+            "flavor": "admin",
+            "args": [
+                "--dart-define-from-file=env.json"
+            ]
+        }
+    ]
+}
