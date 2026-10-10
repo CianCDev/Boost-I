@@ -212,6 +212,121 @@ class PrinterService {
   }
 
   // =========================================================
+  // BYTES CRUDOS (R.3.3 · ticket de cocina)
+  // =========================================================
+
+  /// Envía [bytes] YA GENERADOS a la impresora, sin pasar por
+  /// [TicketGenerator].
+  ///
+  /// Existe porque el ticket de cocina tiene su propio formato (sin
+  /// precios) y [printTicket] genera los bytes internamente desde
+  /// `TicketItem`, que además exige `precio`. Meter un ticket de cocina
+  /// por ahí imprimiría `$0.00` por línea o, peor, obligaría a tocar
+  /// `_buildItemRow` y arriesgar el ticket de venta.
+  ///
+  /// Aditivo: no cambia el comportamiento de ningún método existente.
+  /// [printTicket] sigue igual; quien tiene su formato propio genera sus
+  /// bytes y entra por aquí.
+  ///
+  /// Reutiliza la MISMA conexión que [printViaNetwork] y
+  /// [printViaBluetooth] —mismos reintentos, mismo descubrimiento de
+  /// característica bluetooth, mismos errores— para que un ticket de
+  /// cocina y uno de venta se comporten igual de bien o de mal.
+  ///
+  /// NO sustituye a [printTicket]: es la vía "cruda", para callers que ya
+  /// generan sus propios bytes. Hoy el único es `TicketCocinaService`.
+  Future<PrintResult> imprimirBytes({
+    required PrinterDevice printer,
+    required List<int> bytes,
+    int maxRetries = 2,
+  }) async {
+    if (bytes.isEmpty) {
+      return PrintResult.failure(
+        PrinterError.unknown,
+        'No hay nada que imprimir',
+      );
+    }
+
+    _log('📨 R.3.3 · ${bytes.length} bytes en ${printer.type.name}');
+
+    int attempts = 0;
+    PrintResult? lastResult;
+
+    while (attempts < maxRetries) {
+      attempts++;
+
+      try {
+        if (printer.type == PrinterType.network) {
+          final profile = await CapabilityProfile.load();
+          final networkPrinter =
+              NetworkPrinter(PaperSize.mm58, profile);
+
+          final connectResult = await networkPrinter.connect(
+            printer.address,
+            port: printer.port ?? 9100,
+          );
+
+          if (connectResult != PosPrintResult.success) {
+            lastResult = PrintResult.failure(
+              PrinterError.notConnected,
+              'Error de conexión: ${connectResult.msg}',
+            );
+            continue;
+          }
+
+          networkPrinter.rawBytes(bytes);
+          networkPrinter.disconnect();
+
+          _log('✅ R.3.3 · red OK en intento $attempts');
+          return PrintResult.success();
+        }
+
+        // Bluetooth: mismo descubrimiento de characteristic que
+        // printViaBluetooth.
+        final device = BluetoothDevice.fromId(printer.address);
+        await device.connect();
+
+        final services = await device.discoverServices();
+        BluetoothCharacteristic? characteristic;
+        for (final service in services) {
+          for (final char in service.characteristics) {
+            final uuid = char.uuid.toString().toLowerCase();
+            if (uuid.contains('ffe1') || uuid.contains('abf1')) {
+              characteristic = char;
+              break;
+            }
+          }
+          if (characteristic != null) break;
+        }
+
+        if (characteristic == null) {
+          await device.disconnect();
+          lastResult = PrintResult.failure(
+            PrinterError.unknown,
+            'Característica de impresión no encontrada',
+          );
+          continue;
+        }
+
+        await characteristic.write(bytes, withoutResponse: true);
+        await device.disconnect();
+
+        _log('✅ R.3.3 · bluetooth OK en intento $attempts');
+        return PrintResult.success();
+      } catch (e) {
+        _log('❌ R.3.3 · error en intento $attempts: $e');
+        lastResult = PrintResult.failure(PrinterError.unknown, e.toString());
+        if (attempts < maxRetries) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      }
+    }
+
+    return lastResult ??
+        PrintResult.failure(PrinterError.unknown, 'Falló la impresión');
+  }
+
+  // =========================================================
   // MÉTODO UNIFICADO PARA TICKETS
   // =========================================================
   Future<PrintResult> printTicket({

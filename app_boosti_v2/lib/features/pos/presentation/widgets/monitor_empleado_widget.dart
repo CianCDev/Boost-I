@@ -84,38 +84,18 @@ Future<void> _cargarUsuarios() async {
   }
 }
 
-  // ignore: unused_element
-  Future<void> _actualizarEstadosDesdeNube() async {
-    try {
-      final nubeUsuarios = await _syncService.obtenerUsuariosDesdeSupabase();
-      if (nubeUsuarios.isEmpty) return;
-
-      final Map<int, String> estadosNube = {};
-      for (var row in nubeUsuarios) {
-        // ✅ Acepta id_isar como int o String (PostgREST bigint)
-        final raw = row['id_isar'];
-        final id = raw is int ? raw : int.tryParse(raw?.toString() ?? '');
-        if (id != null && id > 0) {
-          estadosNube[id] = (row['estado'] as String? ?? 'inactivo');
-        }
-      }
-
-      final locales = await _isarService.obtenerUsuarios();
-      for (var local in locales) {
-        if (estadosNube.containsKey(local.id)) {
-          final estadoNube = estadosNube[local.id]!;
-          if (local.estado != estadoNube) {
-            await _isarService.actualizarEstadoUsuario(local.id, estadoNube);
-            debugPrint(
-                '🔄 Monitor: ${local.nombre} → $estadoNube');
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('⚠️ Error actualizando estados desde nube: $e');
-    }
-  }
-
+  // PASO 2.2 · P1 · Eliminado `_actualizarEstadosDesdeNube()`.
+  //
+  // Ya estaba muerto: marcado con `// ignore: unused_element` y sin ningún
+  // llamador. Era una segunda pasada que re-leía `obtenerUsuariosDesdeSupabase()`
+  // para escribir `estado`, pero `sincronizarUsuariosDesdeSupabase()` YA
+  // escribe ese campo (sync_service.dart, bloque "Estado", dentro del dirty
+  // tracking del usuario existente). Se eliminaba trabajo doble.
+  //
+  // NO se toca el gemelo de `providers/empleados/monitor_empleados_provider.dart`:
+  // ese sí está vivo (lo consume `employees_screen.dart`) y su segunda pasada
+  // normaliza con `.toLowerCase().trim()`, algo que el sync no hace.
+  //
   /// Lee los usuarios de Isar y aplica los filtros activos.
 ///
 /// ⚠️ FIX: NO auto-seleccionamos el primer departamento. Antes se

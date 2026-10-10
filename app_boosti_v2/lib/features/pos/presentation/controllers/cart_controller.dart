@@ -1,7 +1,9 @@
 // lib/features/pos/presentation/controllers/cart_controller.dart
 // ignore_for_file: unrelated_type_equality_checks
 
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/Local/entities/producto_entity.dart';
 import '../../domain/models/cart_item.dart';
 import '../../domain/models/product_item.dart';
 
@@ -76,21 +78,47 @@ class CartState {
     int get cantidadItems => items.length;
 
   // ═══════════════════════════════════════════════════════════════════
-  // 🎯 NUEVO: ¿Hay algún item con cantidad <= 0?
+  // 🎯 ¿Hay algún item que no se pueda vender?
   //
-  //   Se usa para bloquear el botón "Cobrar Orden" cuando el carrito
-  //   tiene items que no se pueden vender (cantidad 0 o negativa).
+  //   Un item es invendible si:
+  //     1. su cantidad es <= 0, o
+  //     2. el producto ya no existe en el catálogo, o
+  //     3. pide MÁS cantidad que el stock disponible.
   //
-  //   El usuario debe eliminar manualmente esos items desde la lista
-  //   del carrito antes de poder cobrar.
+  //   El caso 3 es el que faltaba antes: el getter antiguo solo miraba
+  //   `cantidad <= 0`, así que un item con cantidad 5 y stock 2 pasaba
+  //   el filtro y el cobro fallaba más tarde, en `procesarVenta`.
+  //
+  //   ⚠️ Disponible = `producto.stock`, sin restar la cantidad ya
+  //   reservada en el carrito. Es correcto porque el carrito NO
+  //   descuenta stock (rediseño Fase 1): el stock físico baja recién al
+  //   confirmar el cobro, en `VentaService.procesarVenta`.
+  //
+  //   Recibe la lista de productos para no acoplar este controlador a
+  //   Riverpod ni a `productosProvider`. El caller debe pasarla.
   // ═══════════════════════════════════════════════════════════════════
-  bool get hayItemsSinStock {
-    return items.any((item) => item.cantidad <= 0);
+  bool hayItemsSinStock(List<ProductoEntity> productos) {
+    for (final item in items) {
+      if (item.cantidad <= 0) return true;
+      final producto = productos
+          .firstWhereOrNull((p) => p.id.toString() == item.producto.id);
+      if (producto == null) return true;
+      if (item.cantidad > producto.stock) return true;
+    }
+    return false;
   }
 
-  // Lista de items con problema (para mostrar en el diálogo)
-  List<CartItem> get itemsSinStock {
-    return items.where((item) => item.cantidad <= 0).toList();
+  /// Lista de items invendibles, con el mismo criterio que
+  /// [hayItemsSinStock]. Alimenta el diálogo de problemas del carrito,
+  /// para que muestre la lista real y no una vacía.
+  List<CartItem> itemsSinStock(List<ProductoEntity> productos) {
+    return items.where((item) {
+      if (item.cantidad <= 0) return true;
+      final producto = productos
+          .firstWhereOrNull((p) => p.id.toString() == item.producto.id);
+      if (producto == null) return true;
+      return item.cantidad > producto.stock;
+    }).toList();
   }
 
   static double _redondearDosDecimales(double valor) {
@@ -142,10 +170,18 @@ class CartNotifier extends StateNotifier<CartState> {
     );
   }
 
+  /// R.3 · `estacionId` es ADITIVO a propósito.
+  ///
+  /// `ProductItem` (el dominio) tiene prohibido llevar `departamentoId`,
+  /// así que la estación se pasa desde el caller, que sí tiene el
+  /// `ProductoEntity`. Omitirlo deja la línea en `null` = venta directa,
+  /// que es el comportamiento correcto en retail.
   void agregarProducto(
     ProductItem producto, {
     double cantidad = 1.0,
     double? stockMaximo,
+    int? estacionId,
+    String? imagenUrl,
   }) {
     if (cantidad <= 0) return;
 
@@ -165,6 +201,7 @@ class CartNotifier extends StateNotifier<CartState> {
 
       itemsActualizados[indexExistente] = itemExistente.copyWith(
         cantidad: nuevaCantidad,
+        imagenUrl: imagenUrl,
       );
 
       state = state.copyWith(items: itemsActualizados);
@@ -181,23 +218,53 @@ class CartNotifier extends StateNotifier<CartState> {
         cantidad: cantidadInicial,
         precioOriginal: producto.precioUnidad,
         esDescuentoEspecial: false,
+        estacionId: estacionId,
+        imagenUrl: imagenUrl,
       );
       state = state.copyWith(items: [...state.items, nuevoItem]);
     }
   }
 
+  /// Alias de [agregarProducto] que existía desde antes de R.3.
+  ///
+  /// Reenvía `estacionId` e `imagenUrl` para que los callers que usan este
+  /// atajo también propaguen la estación y la miniatura (KDS).
   void agregarItem(ProductItem producto, double cantidad,
-      {double? stockMaximo}) {
-    agregarProducto(producto, cantidad: cantidad, stockMaximo: stockMaximo);
+      {double? stockMaximo, int? estacionId, String? imagenUrl}) {
+    agregarProducto(
+      producto,
+      cantidad: cantidad,
+      stockMaximo: stockMaximo,
+      estacionId: estacionId,
+      imagenUrl: imagenUrl,
+    );
   }
 
+  /// Busca el índice del item cuyo producto tiene ese `productoId`.
+  ///
+  /// ⚠️ `ProductItem.id` es `String` (`domain/models/product_item.dart`),
+  /// así que el `productoId` entrante se convierte a String antes de
+  /// comparar. Antes se comparaba `String == int`, lo que es siempre
+  /// `false`: este método devolvía `-1` sin excepción y los callers
+  /// (`inventory_catalog_screen.dart`) caían siempre en la rama de
+  /// "agregar item nuevo" en vez de sumar al existente.
   int buscarItemIndex(int productoId) {
-    return state.items.indexWhere((item) => item.producto.id == productoId);
+    final idStr = productoId.toString();
+    return state.items.indexWhere((item) => item.producto.id == idStr);
   }
 
+  /// Suma `cantidad` (positivo o negativo) al item en [index].
+  ///
+  /// Acepta deltas negativos para restar: el `−` del stepper de cantidad
+  /// usa este método en lugar de llamar `actualizarCantidad` directo, de
+  /// modo que la API es simétrica.
+  ///
+  /// Un delta de `0` se ignora por ser un no-op. Si el resultado queda
+  /// en `<= 0` el item se elimina, y el clamp contra [stockMaximo]
+  /// también los resuelve `actualizarCantidad`, así que no se duplica.
   void sumarCantidad(int index, double cantidad, {double? stockMaximo}) {
     if (index < 0 || index >= state.items.length) return;
-    if (cantidad <= 0) return;
+    if (cantidad == 0) return;
 
     final itemActual = state.items[index];
     final double nuevaCantidad = itemActual.cantidad + cantidad;

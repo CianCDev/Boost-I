@@ -19,6 +19,8 @@ import '../../../data/Local/entities/proveedor_entity.dart';
 import '../../../data/Local/entities/usuario_entity.dart';
 import '../../../data/Local/entities/marca_entity.dart';
 import '../../../data/Local/entities/isar_service.dart';
+import '../../../data/Local/entities/receta_entity.dart';
+import '../../providers/local_actual_provider.dart';
 import '../../providers/productos_provider.dart';
 import '../../services/sync_service.dart';
 import '../../utils/responsive_helper.dart';
@@ -31,6 +33,7 @@ import 'product_data_tab.dart';
 import 'product_detail_dialog.dart';
 import 'product_proveedor_tab.dart';
 
+// ignore: constant_identifier_names
 const String _DRAFT_KEY = 'product_form_draft';
 
 class ProductFormDialog extends ConsumerStatefulWidget {
@@ -75,6 +78,10 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   // State
   int? _categoriaIdSel;
   String _categoriaSel = 'General';
+
+  /// R.3.2 · Estación de preparación (KDS). Paralelo a `_categoriaIdSel`.
+  /// `null` = venta directa, sin pasar por cocina.
+  int? _departamentoIdSel;
   bool _esPesado = false;
   bool _activo = true;
   bool _permiteVentaMayor = false;
@@ -83,6 +90,49 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   bool _subiendoImagen = false;
   bool _guardando = false;
   bool _generandoCodigo = false;
+
+  // ── G.2 · Presentación: ingrediente y unidad ──
+  //
+  /// ⚠️ `_esIngredienteSel` es `bool` y NO `bool?`, aunque
+  /// `ProductoEntity.esIngrediente` sí sea `bool?`. Eso es una decisión
+  /// consciente (deliberación del usuario): en la UI solo hay dos
+  /// posiciones, así que un producto que en BD nunca se revisó aparece como
+  /// "No es ingrediente" y **al guardar sin tocarlo se materializa en
+  /// `false`**. La distinción "nunca mirado" vs "mirado y descartado" se
+  /// pierde la primera vez que alguien abre el form.
+  ///
+  /// Se acepta porque el único consumidor de `true` es
+  /// `IsarService.obtenerIngredientes`, que filtra por `== true` y no
+  /// distingue el `null`. Si algún día lo necesita, el sitio del tri-estado
+  /// es este campo.
+  bool _esIngredienteSel = false;
+
+  /// Unidad base para medir este producto como ingrediente.
+  ///
+  /// NO reemplaza a [_esPesado]: `esPesado` es "se vende a granel al
+  /// cliente final" (afecta precio y ticket) y `unidad` es "en qué se
+  /// mide dentro de una receta" (afecta el consumo de stock en G.3).
+  /// Coexisten por diseño.
+  String _unidadSel = 'unidad';
+
+  // ── G.2 · Receta ──
+
+  /// La receta tal como se leyó de Isar al abrir el form.
+  ///
+  /// Se guarda para 2 cosas: reusar la instancia al actualizar (conserva
+  /// `id`, `createdAt` y `supabaseId`) y saber si el producto **tenía**
+  /// receta, que es lo que dispara el guardado cuando el usuario deja la
+  /// lista vacía.
+  RecetaEntity? _recetaOriginal;
+
+  /// Productos marcados como ingrediente, para el selector de la receta.
+  List<ProductoEntity> _ingredientesDisponibles = [];
+  bool _cargandoIngredientes = false;
+
+  /// Ingredientes en edición. `List.from` al cargar, porque
+  /// `RecetaEntity.items` es la lista viva del objeto de Isar y mutarla
+  /// directamente modificaría la entidad cacheada sin guardar.
+  List<RecetaItemEntity> _itemsReceta = [];
 
   ProveedorEntity? _proveedorSel;
   List<ProveedorEntity> _proveedores = [];
@@ -101,6 +151,10 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     _tabController = TabController(length: 2, vsync: this);
     _cargarInicial();
     _cargarProveedores();
+    // Sin await, igual que `_cargarProveedores()`: la receta llega después
+    // del primer frame y la UI se actualiza con `setState` al recibirla.
+    _cargarReceta();
+    _cargarIngredientes();
   }
 
   @override
@@ -134,9 +188,16 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
 
     _categoriaIdSel = p?.categoriaId;
     _categoriaSel = p?.categoria ?? 'General';
+    _departamentoIdSel = p?.departamentoId;
     _esPesado = p?.esPesado ?? false;
     _activo = p?.activo ?? true;
     _imagenUrlPreview = p?.imagenUrl ?? '';
+
+    // G.2 · `esIngrediente` llega de BD como `bool?` y aquí se aplana a
+    // `bool` (ver la nota del campo): un producto nunca revisado se ve
+    // como "no es ingrediente".
+    _esIngredienteSel = p?.esIngrediente ?? false;
+    _unidadSel = p?.unidad ?? 'unidad';
 
     _permiteVentaMayor = p?.permiteVentaMayor ?? false;
     _precioMayorCtrl.text = p?.precioMayor?.toString() ?? '';
@@ -164,6 +225,88 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     if (widget.producto != null) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_DRAFT_KEY, '{}');
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // G.2 · RECETA
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Carga la receta del producto en edición.
+  ///
+  /// ⚠️ Sin carga para producto NUEVO: una receta necesita `productoId`, y
+  /// un producto recién creado todavía no tiene id hasta que se guarda. Se
+  /// creará vacía en el primer `_guardar()` que se haga con items.
+  ///
+  /// ⚠️ `esDuplicado` SÍ carga: en duplicado, `_guardar()` reinicia el id
+  /// a `Isar.autoIncrement` (`:496`) para que sea un producto nuevo, pero
+  /// `widget.producto` sigue siendo el original con id real. Así que
+  /// duplicar un producto **copia su receta** al nuevo. Es el
+  /// comportamiento deseado (un duplicado es "lo mismo pero otro
+  /// artículo"), pero no es automático: viene de que la guarda mira
+  /// `widget.producto`, no `p.id`.
+  Future<void> _cargarReceta() async {
+    final producto = widget.producto;
+    if (producto == null) return;
+    if (producto.id == Isar.autoIncrement) return;
+
+    // Sin local no hay receta coherente: `obtenerRecetaPorProducto`
+    // compara `localId`, así que con `null` no habría forma de encontrarla
+    // después. Es el mismo motivo por el que `_guardar()` no inventa un 0.
+    final localId = ref.read(localActualProvider);
+    if (localId == null) return;
+
+    try {
+      final receta = await IsarService().obtenerRecetaPorProducto(
+        localId,
+        producto.id,
+      );
+      if (!mounted) return;
+      if (receta == null) return;
+
+      setState(() {
+        _recetaOriginal = receta;
+        // Copia defensiva: `receta.items` es la lista viva de la entidad
+        // cacheada. Si la UI la mutara, se modificaría sin guardar.
+        _itemsReceta = List<RecetaItemEntity>.from(receta.items);
+      });
+    } catch (e) {
+      // El form debe seguir abriéndose aunque Isar falle al leer la
+      // receta: perder la receta es malo, no poder editar el producto es
+      // peor. `_guardar()` no tocará la receta porque
+      // `_recetaOriginal` sigue en null.
+      debugPrint('[G.2] No se pudo leer la receta: $e');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // G.2 · INGREDIENTES DISPONIBLES
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Productos marcados como ingrediente, para el selector de la receta.
+  ///
+  /// ⚠️ `obtenerIngredientes(localId)` NO filtra por local: recibe el id y
+  /// lo ignora, porque `ProductoEntity` no tiene `localId`. La lista
+  /// incluye ingredientes de todas las sucursales. Se acepta en G.2 (un
+  /// "Arroz" es el mismo arroz en cualquier local) y está anotado en
+  /// `docs/TODO.md` junto al resto de la limitación.
+  Future<void> _cargarIngredientes() async {
+    final localId = ref.read(localActualProvider);
+    if (localId == null) return;
+
+    setState(() => _cargandoIngredientes = true);
+    try {
+      final lista = await IsarService().obtenerIngredientes(localId);
+      if (!mounted) return;
+      setState(() {
+        _ingredientesDisponibles = lista;
+        _cargandoIngredientes = false;
+      });
+    } catch (e) {
+      debugPrint('[G.2] Error al cargar ingredientes: $e');
+      // El form sigue siendo utilizable: el selector de ingredientes
+      // mostrará el empty state explicando que no hay ninguno marcado.
+      if (mounted) setState(() => _cargandoIngredientes = false);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -486,9 +629,13 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       }
 
       final p = widget.producto ?? ProductoEntity();
+      // El valor tipeado en el textbox. NO se escribe en `p.stock`: con
+      // el modelo "lotes = fuente única de verdad", `producto.stock` es
+      // un cache derivado. Se aplica DESPUÉS de `onGuardar`, cuando
+      // `p.id` ya es válido.
+      final stockIngresado = _parseDouble(_stockCtrl.text) ?? 0.0;
       if (widget.esDuplicado) {
         p.id = Isar.autoIncrement;
-        p.stock = 0.0;
       }
       p.codigoBarras = _codigoCtrl.text.trim();
       p.nombre = _nombreCtrl.text.trim();
@@ -496,12 +643,18 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       p.marca = _marcaSel?.nombre ?? '';
       p.imagenUrl = imagenUrlFinal;
       p.precioUnidad = _parseDouble(_precioCtrl.text) ?? 0.0;
-      p.stock = _parseDouble(_stockCtrl.text) ?? 0.0;
       p.stockMinimo = _parseDouble(_stockMinCtrl.text) ?? 5.0;
       p.categoriaId = _categoriaIdSel;
       p.categoria = _categoriaSel;
+      // R.3.2: estación de preparación (KDS). Local-only, no se sincroniza.
+      p.departamentoId = _departamentoIdSel;
       p.esPesado = _esPesado;
       p.activo = _activo;
+      // G.2 · Local-only, no se sincronizan (mismo criterio que
+      // `departamentoId`): las columnas `es_ingrediente` y `unidad` no
+      // existen en Supabase. Ver `docs/TODO.md`.
+      p.esIngrediente = _esIngredienteSel;
+      p.unidad = _unidadSel;
       p.proveedorId = _proveedorSel?.id;
       p.proveedorNombre = _proveedorSel?.nombre ?? '';
       p.proveedorTelefono = _proveedorSel?.telefono ?? '';
@@ -528,6 +681,78 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       }
 
       await widget.onGuardar(p);
+
+      // ── Stock: ajuste sobre LOTES, nunca escritura directa ──
+      //
+      // Va DESPUÉS de `onGuardar` por la misma razón que la receta de
+      // abajo: `p.id` solo vale cuando el producto ya está en Isar.
+      //
+      // En duplicado el stock arranca en 0 (el producto es nuevo y sus
+      // lotes no existen), así que el ajuste lo crea. En creación o
+      // edición, `ajustarStockDesdeEditor` calcula el delta contra
+      // `SUM(lotes)` y lo reparte entre lotes FEFO.
+      if (stockIngresado > 0 || !widget.esDuplicado) {
+        final isar = IsarService();
+        final ok = await isar.ajustarStockDesdeEditor(p.id, stockIngresado);
+        if (!ok) {
+          debugPrint(
+              '⚠️ [ProductFormDialog] Stock insuficiente para el ajuste de '
+              '"${p.nombre}" (pedido: $stockIngresado)');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Stock insuficiente para bajar el stock de "${p.nombre}". '
+                  'El ajuste quedó parcial.',
+                ),
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+            );
+          }
+        }
+        await ref.read(productosProvider.notifier).cargarProductos();
+      }
+
+      // ── G.2 · Receta (después del producto, nunca antes) ──
+      //
+      // Va DESPUÉS de `onGuardar` por dos razones:
+      //
+      //   1. `p.id` solo vale cuando el producto ya está en Isar. En un
+      //      producto nuevo vale `Isar.autoIncrement` justo hasta que
+      //      `guardarProducto` hace el `put()`, y ese `put` muta ESTA
+      //      misma instancia (`isar_service.dart:876`), no una copia.
+      //   2. Si el producto falla, no tiene sentido haber creado una receta
+      //      apuntando a un id que no existe.
+      //
+      // ⚠️ Sin atomicidad: son dos `writeTxn` distintos. Si `guardarReceta`
+      // falla, el producto queda guardado sin receta y el `catch` de más
+      // abajo muestra un error genérico. Se acepta en G.2 (reintentar
+      // guardando otra vez lo arregla); una transacción conjunta
+      // necesitaría un método en `IsarService` que escriviera ambos.
+      final localId = ref.read(localActualProvider);
+
+      if (localId == null) {
+        // Sin local no hay receta recuperable: `obtenerRecetaPorProducto`
+        // compara por `localId`, así que guardarla con 0 la dejaría
+        // inalcanzable. Se avisa por consola en vez de inventar un local.
+        if (_itemsReceta.isNotEmpty) {
+          debugPrint(
+            '[G.2] Receta NO guardada: no hay local activo',
+          );
+        }
+      } else if (_itemsReceta.isNotEmpty || _recetaOriginal != null) {
+        // Reusa la instancia original para conservar `id`, `createdAt` y
+        // `supabaseId`. Con lista vacía y receta previa, guarda una receta
+        // vacía en vez de borrar: borrar es una acción explícita (G.2.2
+        // parte 2), no una consecuencia de abrir el form y vaciarlo.
+        final receta = _recetaOriginal ?? RecetaEntity();
+        receta.productoId = p.id;
+        receta.nombrePlato = p.nombre;
+        receta.localId = localId;
+        receta.items = _itemsReceta;
+        receta.activo = true;
+        await IsarService().guardarReceta(receta);
+      }
 
       if (mounted) {
         _mostrarDialogoExito(
@@ -732,6 +957,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
                       subiendoImagen: _subiendoImagen,
                       categoriaIdSeleccionada: _categoriaIdSel,
                       categoriaSeleccionada: _categoriaSel,
+                      // R.3.2 · Estación de preparación (KDS).
+                      departamentoIdSeleccionado: _departamentoIdSel,
                       marcaSeleccionada: _marcaSel,
                       imagenUrlPreview: _imagenUrlPreview,
                       imagenSeleccionada: _imagenSel,
@@ -752,6 +979,21 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
                           }
                         });
                       },
+                      onDepartamentoChanged: (id) =>
+                          setState(() => _departamentoIdSel = id),
+                      // G.2 · Presentación: ingrediente y unidad.
+                      esIngredienteSeleccionado: _esIngredienteSel,
+                      onEsIngredienteChanged: (v) =>
+                          setState(() => _esIngredienteSel = v),
+                      unidadSeleccionada: _unidadSel,
+                      onUnidadChanged: (v) =>
+                          setState(() => _unidadSel = v),
+                      // G.2 · Receta.
+                      itemsReceta: _itemsReceta,
+                      onRecetaChanged: (items) =>
+                          setState(() => _itemsReceta = items),
+                      ingredientesDisponibles: _ingredientesDisponibles,
+                      cargandoIngredientes: _cargandoIngredientes,
                       onGenerarCodigo: _generarCodigo,
                       onEscanear: _escanearCodigo,
                       onPickImage: _pickImage,

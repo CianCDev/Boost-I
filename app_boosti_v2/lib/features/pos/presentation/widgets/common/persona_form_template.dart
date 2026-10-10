@@ -34,20 +34,69 @@ import 'package:flutter/services.dart';
 // CONSTANTES COMPARTIDAS
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Tipos de documento soportados (Venezuela).
+/// Tipos de documento soportados.
+///
+/// Solo V/E/J: son las únicas entidades que realizan compras en el sistema.
+/// G (gubernamental), P (pasaporte) y C (comuna) fueron removidos por decisión
+/// de negocio.
+///
+/// ⚠️ Este mapa es el vocabulario de CLIENTES/PROVEEDORES. NO es el mismo
+/// que `enum TipoDocumento` (domain/enums/tipo_documento.dart), que es para
+/// usuarios/empleados del sistema. Son dominios distintos.
+///
 /// `key` → valor que se guarda. `value` → tooltip / label largo.
 const kTiposDocumento = <String, String>{
   'V': 'Venezolano',
   'E': 'Extranjero',
   'J': 'Jurídico (RIF)',
-  'G': 'Gubernamental',
-  'P': 'Pasaporte',
-  'C': 'Comuna',
 };
 
 /// Validación de RIF venezolano: `J-12345678-9`.
 /// Acepta 6 a 10 dígitos, con o sin dígito verificador final.
-final kRifRegex = RegExp(r'^[VEJGP]-\d{6,10}(-\d)?$');
+final kRifRegex = RegExp(r'^[VEJ]-\d{6,10}(-\d)?$');
+
+/// Valida el número de documento según su tipo.
+///
+/// - V/E → 6 a 9 dígitos.
+/// - J   → 9 a 10 dígitos (RIF sin prefijo).
+/// - Tipo null o vacío → no valida (permite dejar sin documento).
+String? validarNumeroDocumento(String? tipo, String? numero) {
+  final n = numero?.trim() ?? '';
+  if (n.isEmpty) return null; // documento opcional
+  if (tipo == null || tipo.isEmpty) return null;
+  final soloDigitos = RegExp(r'^\d+$');
+  if (!soloDigitos.hasMatch(n)) {
+    return 'Solo se permiten números';
+  }
+  switch (tipo.toUpperCase()) {
+    case 'V':
+    case 'E':
+      if (n.length < 6 || n.length > 9) {
+        return 'V/E: entre 6 y 9 dígitos';
+      }
+      return null;
+    case 'J':
+      if (n.length < 9 || n.length > 10) {
+        return 'J: entre 9 y 10 dígitos';
+      }
+      return null;
+    default:
+      return 'Tipo de documento no reconocido';
+  }
+}
+
+/// Valida que exista tipo de documento cuando se ha ingresado un número.
+///
+/// Regla de negocio: si hay número, el tipo es obligatorio. Sin tipo,
+/// `documentoFormateado` pierde el prefijo y el documento queda huérfano
+/// ('12345678' en vez de 'V-12345678').
+///
+/// Contrato: retorna `null` si es válido, mensaje si no.
+String? validarTipoDocumentoSiHayNumero(String? tipo, String? numero) {
+  if (tipo != null && tipo.isNotEmpty) return null;
+  if (numero == null || numero.trim().isEmpty) return null;
+  return 'Selecciona el tipo de documento';
+}
 
 /// Formateador de RIF: convierte "J12345678" o "J-12345678-9" al
 /// formato canónico con guiones. Uppercase automático.
@@ -209,6 +258,11 @@ class DocumentoIdentidadField extends StatelessWidget {
 
   final Color accentColor;
   final String? Function(String?)? numeroValidator;
+
+  /// Validador para el dropdown de tipo. Mismo contrato que [numeroValidator].
+  /// Se ejecuta al llamar `Form.validate()`.
+  final String? Function(String?)? tipoValidator;
+
   final bool enabled;
 
   /// Ancho del dropdown de tipo. Default 110.
@@ -220,6 +274,7 @@ class DocumentoIdentidadField extends StatelessWidget {
     required this.onTipoDocumentoChanged,
     required this.numeroController,
     required this.accentColor,
+    this.tipoValidator,
     this.numeroValidator,
     this.enabled = true,
     this.dropdownWidth = 110,
@@ -237,6 +292,7 @@ class DocumentoIdentidadField extends StatelessWidget {
           child: DropdownButtonFormField<String>(
             initialValue: tipoDocumento,
             isExpanded: true,
+            validator: tipoValidator,
             decoration: buildInputDecoration(
               label: 'Tipo',
               icon: Icons.badge_outlined,

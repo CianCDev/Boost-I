@@ -1,10 +1,14 @@
 // lib/features/pos/presentation/widgets/catalog/product_list_tile.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/producto_entity.dart';
+import '../../providers/lotes_provider.dart';
 import '../../providers/themes/app_colors.dart';
+import '../../utils/expiry_utils.dart';
 import '../../utils/responsive_helper.dart';
+import '../common/status_badge.dart';
 
-class ProductListTile extends StatefulWidget {
+class ProductListTile extends ConsumerStatefulWidget {
   final ProductoEntity producto;
   final bool stockBajo;
   final VoidCallback onTap;
@@ -19,10 +23,10 @@ class ProductListTile extends StatefulWidget {
   });
 
   @override
-  State<ProductListTile> createState() => _ProductListTileState();
+  ConsumerState<ProductListTile> createState() => _ProductListTileState();
 }
 
-class _ProductListTileState extends State<ProductListTile> {
+class _ProductListTileState extends ConsumerState<ProductListTile> {
   bool _isHovered = false;
 
   @override
@@ -31,6 +35,14 @@ class _ProductListTileState extends State<ProductListTile> {
     final colorScheme = Theme.of(context).colorScheme;
     final isMobile = ResponsiveHelper.isMobile(context);
     final imageSize = isMobile ? 50.0 : 70.0;
+
+    // Vencimiento más próximo del producto (derivado de los lotes).
+    // Mismo criterio que `product_card.dart`: en móvil, cuando el stock
+    // ya está marcado, el label se acorta.
+    final vencimientos = ref.watch(vencimientosProvider);
+    final expiryInfo = isMobile && widget.stockBajo
+        ? ExpiryUtils.clasificarCompacto(vencimientos[widget.producto.id])
+        : ExpiryUtils.clasificar(vencimientos[widget.producto.id]);
 
     final cardBackground = isDark ? cardDark : cardLight;
     final borderColor = widget.stockBajo
@@ -205,6 +217,16 @@ class _ProductListTileState extends State<ProductListTile> {
                                 color: isDark ? Colors.white60 : textMuted,
                               ),
                             ),
+                          // Badge de vencimiento, a la derecha del stock.
+                          if (expiryInfo != null) ...[
+                            const SizedBox(width: 8),
+                            StatusBadge(
+                              label: expiryInfo.label,
+                              color: expiryInfo.color,
+                              icon: Icons.event_available_rounded,
+                              size: StatusBadgeSize.small,
+                            ),
+                          ],
                         ],
                       ),
                     ],

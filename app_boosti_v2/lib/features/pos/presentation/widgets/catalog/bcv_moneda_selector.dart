@@ -205,11 +205,29 @@ class _BcvMonedaSelectorDialogState
                           const SizedBox(height: 16),
                           _buildPaisInfo(bcv, isDark, colorScheme),
 
-                          // Indicador de caché
-                          if (bcv.desdeCache) ...[
-                            const SizedBox(height: 12),
-                            _buildCacheWarning(),
-                          ],
+                          // Aviso de estado de la tasa.
+                          //
+                          // Antes mostraba "Sin conexión..." con
+                          // `bcv.desdeCache`, que incluía `cacheReciente`:
+                          // como `main_pos_screen` no re-consulta si la
+                          // caché tiene menos de 6 h, ese era el estado
+                          // normal y el aviso mentía. Ahora hay tres
+                          // mensajes distintos según lo que pasó de verdad.
+                          if (bcv.desdeCache)
+                            ..._buildAviso(
+                              texto: 'Sin conexión. La tasa tiene más de '
+                                  '${BcvController.maxEdadCache.inHours} h '
+                                  'y podría estar desactualizada.',
+                              icono: Icons.cloud_off_rounded,
+                              color: const Color(0xFFF59E0B),
+                            )
+                          else if (bcv.tasaEsManual)
+                            ..._buildAviso(
+                              texto: 'Tasa ingresada manualmente. '
+                                  'Verifica antes de cobrar.',
+                              icono: Icons.edit_note_rounded,
+                              color: const Color(0xFF6366F1),
+                            ),
                         ],
                       ),
                     ),
@@ -280,9 +298,11 @@ class _BcvMonedaSelectorDialogState
                   ),
                 ),
                 Text(
-                  bcv.desdeCache
-                      ? 'Última actualización: ${bcv.ultimaActualizacion}'
-                      : 'Actualizado: ${bcv.ultimaActualizacion}',
+                  // `desdeCache` ya no incluye `cacheReciente`, así que
+                  // el matiz va en los avisos de abajo y no acá. La
+                  // etiqueta nombra la FECHA DE LA TASA, que puede ser de
+                  // ayer aunque la app la haya leído hace un minuto.
+                  'Tasa BCV: ${bcv.ultimaActualizacion}',
                   style: TextStyle(
                     fontSize: 11,
                     color: colorScheme.onSurfaceVariant,
@@ -410,45 +430,51 @@ class _BcvMonedaSelectorDialogState
     );
   }
 
-  // ─────────────── CACHE WARNING ───────────────
-  Widget _buildCacheWarning() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.cloud_off_rounded,
-                size: 14,
-                color: Color(0xFFF59E0B),
+  // ─────────────── AVISOS DE ESTADO ───────────────
+  //
+  // Devuelve [separador, widget] para poder hacer spread en la lista de
+  // `children` sin anidar un `if` por cada aviso.
+  List<Widget> _buildAviso({
+    required String texto,
+    required IconData icono,
+    required Color color,
+  }) {
+    return [
+      const SizedBox(height: 12),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: color.withValues(alpha: 0.35),
+                width: 1,
               ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Sin conexión. Mostrando los últimos valores guardados.',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: const Color(0xFFF59E0B),
-                    fontWeight: FontWeight.w500,
+            ),
+            child: Row(
+              children: [
+                Icon(icono, size: 14, color: color),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    texto,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: color,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    );
+    ];
   }
 
   // ─────────────── FOOTER ───────────────

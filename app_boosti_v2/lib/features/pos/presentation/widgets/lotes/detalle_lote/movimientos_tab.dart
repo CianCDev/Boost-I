@@ -372,7 +372,12 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
         return _colorSuccess;
       case 'venta':
         return _colorInfo;
+      // 'traspaso' queda por los movimientos historicos escritos con
+      // ese valor. Los nuevos usan 'baja' (ver
+      // `traspaso_lote_dialog.dart`): es lo mismo, una salida de
+      // unidades del lote.
       case 'traspaso':
+      case 'baja':
         return _colorWarning;
       case 'devolucion':
         return _colorPrimary;
@@ -388,7 +393,8 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
       case 'venta':
         return Icons.shopping_cart_rounded;
       case 'traspaso':
-        return Icons.swap_horiz_rounded;
+      case 'baja':
+        return Icons.remove_shopping_cart_rounded;
       case 'devolucion':
         return Icons.undo_rounded;
       default:
@@ -402,6 +408,8 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
         return 'Activación';
       case 'venta':
         return 'Venta';
+      case 'baja':
+        return 'Baja de inventario';
       case 'traspaso':
         return 'Traspaso';
       case 'devolucion':

@@ -14,6 +14,7 @@ import 'package:app_boosti_v2/features/pos/presentation/widgets/proveedores/prov
 import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/common/local_actual_badge.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/common/glass_search_bar.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/common/segmented_toggle.dart';
 
@@ -317,6 +318,7 @@ class _ProveedoresScreenState extends ConsumerState<ProveedoresScreen> {
         showBackButton: true,
         centerTitle: false,
         actions: [
+          const LocalActualBadge(compact: true),
           MouseRegion(
             cursor: _isSyncing
                 ? SystemMouseCursors.forbidden

@@ -882,7 +882,7 @@ class _WholesaleSaleDetailScreenState
           nombre: d.nombreProducto,
           precio: d.precioUnidad,
           cantidad: d.cantidad,
-          esPesado: false,
+          esPesado: d.esPesado,
           tipoPrecio: d.tipoPrecio,
           descuentoPorcentaje: d.descuentoPorcentajeLinea,
           precioDetalOriginal: d.precioDetalOriginal,

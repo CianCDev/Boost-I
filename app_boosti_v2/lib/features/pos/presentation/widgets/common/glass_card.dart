@@ -7,6 +7,10 @@ import 'package:flutter/material.dart';
 class GlassCard extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
+
+  /// Presión larga. Opcional (R.2, para editar mesa sin abrir la comanda).
+  final VoidCallback? onLongPress;
+
   final EdgeInsets padding;
 
   /// Si true, muestra la barra lateral de color (indicador de estado).
@@ -28,6 +32,7 @@ class GlassCard extends StatefulWidget {
     super.key,
     required this.child,
     this.onTap,
+    this.onLongPress,
     this.padding = const EdgeInsets.all(16),
     this.showStatusBar = false,
     this.statusColor = const Color(0xFF10B981),
@@ -109,6 +114,7 @@ class _GlassCardState extends State<GlassCard> {
             color: Colors.transparent,
             child: InkWell(
               onTap: widget.onTap,
+              onLongPress: widget.onLongPress,
               borderRadius: BorderRadius.circular(16),
               child: Padding(
                 padding: widget.padding,

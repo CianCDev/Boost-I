@@ -36,6 +36,7 @@ class VentaCalculator {
         ..cantidad = cartItem.cantidad.toDouble()
         ..subtotal =
             cartItem.cantidad.toDouble() * cartItem.producto.precioUnidad
+        ..esPesado = cartItem.producto.esPesado
         ..syncStatus = 'pending'
         ..ventaIdFk = ventaIdFk;
     }).toList();

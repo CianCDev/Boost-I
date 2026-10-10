@@ -8,9 +8,9 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/pedido_entity.dart';
 import '../../providers/pedidos_provider.dart';
 import '../../providers/locales_provider.dart';
-import '../../providers/local_actual_provider.dart';
 import '../../widgets/appbar.dart';
-import '../../../data/Local/entities/local_entity.dart';
+import '../../widgets/common/local_actual_badge.dart';
+import '../../widgets/common/module_gate.dart';
 import '../../widgets/pedidos/pedido_filtro.dart';
 
 class PedidosProveedorScreen extends ConsumerStatefulWidget {
@@ -25,12 +25,10 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
     with SingleTickerProviderStateMixin {
   EstadoFiltroPedido _estadoFiltro = EstadoFiltroPedido.todos;
   PeriodoPedido _periodo = PeriodoPedido.todas;
-  String? _localDestinoUuid;
 
   late AnimationController _animationController;
 
   static const _colorPrimary = Color(0xFF8B5CF6);
-  static const _colorSuccess = Color(0xFF10B981);
   static const _colorDanger = Color(0xFFEF4444);
 
   @override
@@ -106,20 +104,33 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
+    // ⚠️ El local sale de `localActualProvider`, NO de un campo propio.
+    // Antes esta pantalla tenía `_localDestinoUuid` y un
+    // `PopupMenuButton` que hacía su propio `setLocalActual`, pudiendo
+    // desincronizarse del diálogo de crear pedido (que sí usaba
+    // `localActualProvider`): la lista filtraba por un local y el alta
+    // usaba otro.
+    //
+    // Ahora el cambio de local vive solo en la pantalla de Locales y en
+    // `local_selector_dialog.dart`.
+    final localUuid = ref.watch(localActualUuidProvider).valueOrNull;
+
+    return ModuleGate(
+      moduleName: 'Pedidos a proveedores',
+      child: Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: CustomAppBar(
         title: 'Pedidos a Proveedores',
         showBackButton: true,
         centerTitle: false,
         actions: [
-          _buildLocalSelector(),
+          const LocalActualBadge(),
           MouseRegion(
             cursor: SystemMouseCursors.click,
             child: IconButton(
               onPressed: () {
-                if (_localDestinoUuid != null) {
-                  ref.invalidate(pedidosListProvider(_localDestinoUuid!));
+                if (localUuid != null) {
+                  ref.invalidate(pedidosListProvider(localUuid));
                   setState(() {});
                   _animationController.forward(from: 0.0);
                 }
@@ -137,9 +148,9 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (_localDestinoUuid != null) _buildFiltrosSection(),
+              if (localUuid != null) _buildFiltrosSection(localUuid),
               const SizedBox(height: 12),
-              Expanded(child: _buildPedidosList(colorScheme)),
+              Expanded(child: _buildPedidosList(colorScheme, localUuid)),
             ],
           ),
         ),
@@ -153,8 +164,8 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
               builder: (_) => const CrearPedidoDialog(),
             );
             if (result == true) {
-              if (_localDestinoUuid != null) {
-                ref.invalidate(pedidosListProvider(_localDestinoUuid!));
+              if (localUuid != null) {
+                ref.invalidate(pedidosListProvider(localUuid));
               }
               setState(() {});
               _animationController.forward(from: 0.0);
@@ -168,89 +179,15 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
           child: const Icon(Icons.add_rounded, size: 32),
         ),
       ),
-    );
-  }
-
-  // ============================================================
-  // SELECTOR DE LOCAL
-  // ============================================================
-  Widget _buildLocalSelector() {
-    return Consumer(
-      builder: (context, ref, child) {
-        final localesAsync = ref.watch(localesProvider);
-        return localesAsync.when(
-          data: (locales) {
-            if (locales.isEmpty) {
-              return const Icon(Icons.storefront_rounded,
-                  color: Colors.white);
-            }
-            if (_localDestinoUuid == null && locales.isNotEmpty) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  setState(() => _localDestinoUuid = locales.first.supabaseId);
-                }
-              });
-            }
-            return PopupMenuButton<String>(
-              icon: const Icon(Icons.storefront_rounded, color: Colors.white),
-              tooltip: 'Seleccionar local',
-              onSelected: (value) async {
-                setState(() => _localDestinoUuid = value);
-                ref.invalidate(pedidosListProvider(value));
-
-                final localEncontrado = locales.firstWhere(
-                  (l) => l.supabaseId == value,
-                  orElse: () => LocalEntity(),
-                );
-                if (localEncontrado.id != 0) {
-                  await ref
-                      .read(localActualProvider.notifier)
-                      .setLocalActual(localEncontrado.id);
-                }
-              },
-              itemBuilder: (context) {
-                return locales.map((local) {
-                  final isSelected = _localDestinoUuid == local.supabaseId;
-                  return PopupMenuItem<String>(
-                    value: local.supabaseId,
-                    child: Row(
-                      children: [
-                        if (isSelected)
-                          const Icon(Icons.check_circle_rounded,
-                              color: _colorSuccess, size: 16),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(local.nombre)),
-                      ],
-                    ),
-                  );
-                }).toList();
-              },
-            );
-          },
-          loading: () => const SizedBox(
-            width: 40,
-            height: 40,
-            child: Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
-              ),
-            ),
-          ),
-          error: (_, __) =>
-              const Icon(Icons.error_outline, color: Colors.white),
-        );
-      },
+      ),
     );
   }
 
   // ============================================================
   // SECCIÓN DE FILTROS + MÉTRICAS
   // ============================================================
-  Widget _buildFiltrosSection() {
-    final pedidosAsync = ref.watch(pedidosListProvider(_localDestinoUuid!));
+  Widget _buildFiltrosSection(String localUuid) {
+    final pedidosAsync = ref.watch(pedidosListProvider(localUuid));
 
     return pedidosAsync.when(
       data: (todos) {
@@ -289,17 +226,36 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
   // ============================================================
   // LISTA DE PEDIDOS
   // ============================================================
-  Widget _buildPedidosList(ColorScheme colorScheme) {
-    if (_localDestinoUuid == null) {
-      return _buildEmptyState(
-        titulo: 'Selecciona un local',
-        subtitulo: 'Elige un local para ver sus pedidos',
-        icono: Icons.storefront_rounded,
-        colorScheme: colorScheme,
+  Widget _buildPedidosList(ColorScheme colorScheme, String? localUuid) {
+    // `localUuid == null` ya NO significa "elegí un local": el local se
+    // deriva de `localActualProvider` y no se elige desde acá. Ahora solo
+    // significa que aún no se resolvió el UUID (`localActualUuidProvider`
+    // es un FutureProvider, y `localActualProvider` arranca en null hasta
+    // leer prefs). Por eso un spinner, no un formulario de selección.
+    if (localUuid == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Cargando local…',
+              style: TextStyle(
+                fontSize: 14,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    final pedidosAsync = ref.watch(pedidosListProvider(_localDestinoUuid!));
+    final pedidosAsync = ref.watch(pedidosListProvider(localUuid));
 
     return pedidosAsync.when(
       data: (todos) {
@@ -329,7 +285,7 @@ class _PedidosProveedorScreenState extends ConsumerState<PedidosProveedorScreen>
 
         return RefreshIndicator(
           onRefresh: () async {
-            ref.invalidate(pedidosListProvider(_localDestinoUuid!));
+            ref.invalidate(pedidosListProvider(localUuid));
             await Future.delayed(const Duration(milliseconds: 300));
             if (mounted) {
               setState(() {});

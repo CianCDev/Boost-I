@@ -2,11 +2,12 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../data/Local/entities/isar_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/local_actual_provider.dart';
 import '../../providers/tenant_provider.dart';
 
 /// Diálogo para cambiar de local (tenant) activo.
@@ -64,59 +65,65 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
   }
 
   Future<void> _cambiarLocal(String tenantId) async {
+    // Guardar el messenger ANTES del pop: después de cerrar el diálogo,
+    // este `context` queda sin mounted y no sirve.
+    final messenger = ScaffoldMessenger.of(context);
+
     if (mounted) Navigator.of(context).pop();
 
-    final ok = await ref.read(authProvider.notifier).cambiarLocal(tenantId);
+    // El `tenantId` de la nube NO es el `id` de Isar. `setLocalActual`
+    // espera el id local, así que hay que resolverlo.
+    final isar = IsarService();
+    final local = await isar.obtenerLocalPorSupabaseId(tenantId);
 
-    if (!mounted) return;
-
-    if (ok) {
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => PopScope(
-          canPop: false,
-          child: AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: const Row(
-              children: [
-                Icon(Icons.restart_alt_rounded, color: Color(0xFF10B981)),
-                SizedBox(width: 8),
-                Text('Local cambiado'),
-              ],
-            ),
-            content: const Text(
-              'Se cambió al nuevo local. La aplicación se reiniciará '
-              'para aplicar los cambios correctamente.\n\n'
-              'Vuelve a iniciar sesión con tu PIN.',
-              style: TextStyle(height: 1.4),
-            ),
-            actions: [
-              ElevatedButton.icon(
-                onPressed: () {
-                  SystemNavigator.pop();
-                },
-                icon: const Icon(Icons.restart_alt_rounded, size: 18),
-                label: const Text('Reiniciar ahora'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+    if (local == null) {
+      messenger.showSnackBar(
         const SnackBar(
-          content: Text('No se pudo cambiar de local'),
-          backgroundColor: Colors.red,
+          content: Text(
+            'El local seleccionado no está disponible en este '
+            'dispositivo. Sincroniza los locales e inténtalo de nuevo.',
+          ),
+          backgroundColor: Color(0xFFEF4444),
+          duration: Duration(seconds: 5),
         ),
       );
+      return;
     }
+
+    // 🎯 FIX: usar `setLocalActual`, que ya llama a `cambiarLocal` por
+    //    dentro, marca el activo en Isar, invalida los 20 providers
+    //    dependientes y fija el estado. Antes este diálogo solo
+    //    invalidaba y exigía reiniciar la app.
+    final notifier = ref.read(localActualProvider.notifier);
+    await notifier.setLocalActual(local.id);
+
+    // `setLocalActual` deja el motivo en `ultimoError`; si es null, fue bien.
+    final error = notifier.ultimoError;
+
+    // ⚠️ SIN RECARGA VISUAL MANUAL (quitada a propósito).
+    //
+    // Antes aquí había un `navigator.popUntil((r) => r.isFirst)` para forzar
+    // el refresco. Producía dos síntomas graves:
+    //   1. "Queda en blanco": `popUntil`+$rebuild se peleaban con el
+    //      diálogo que se acababa de cerrar.
+    //   2. "Recarga infinita": al rehacerse la pila, los widgets que
+    //     Kpisan el local volvían a pedir el cambio.
+    //
+    // No hace falta: `setLocalActual` ya invalida los 21 providers
+    // dependientes, y `mesasProvider`/`lotesProvider` tienen un
+    // `ref.listen(localActualProvider)` que los recarga solos.
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          error ?? '✅ Local cambiado a "${local.nombre}" correctamente',
+        ),
+        backgroundColor: error != null
+            ? const Color(0xFFEF4444)
+            : const Color(0xFF10B981),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   // ============================================================

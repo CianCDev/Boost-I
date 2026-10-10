@@ -1,18 +1,23 @@
 // lib/features/pos/presentation/widgets/catalog/cart_sidebar.dart
 import 'dart:ui';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/common/glass_dialog.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../controllers/cart_controller.dart';
 import '../../../controllers/cart_sessions_controller.dart';
 import '../../../providers/bcv_provider.dart';
+import '../../../providers/productos_provider.dart';
 import '../../../providers/themes/app_colors.dart';
 import '../../../utils/responsive_helper.dart';
 import '../iva_toggle_button.dart';
 import '../cart/parked_carts_dialog.dart';
 import '../cart/save_cart_dialog.dart';
+import 'cart_dialogs.dart';
 import 'cart_header_action.dart';
+import 'cart_item_tile.dart';
+import 'cart_quantity_sheet.dart';
+import 'mesa_chip.dart';
 
 
 class CartSidebar extends ConsumerWidget {
@@ -178,12 +183,24 @@ class CartSidebar extends ConsumerWidget {
                           tooltip: 'Limpiar carrito',
                           color: redError,
                           compact: true,
-                          onPressed: onLimpiar,
+                          onPressed: () async {
+                            // Confirmación explícita antes de vaciar. Antes
+                            // el botón llamaba `onLimpiar` directo, así que
+                            // en desktop (sidebar) se borraba sin preguntar.
+                            // El bottom sheet sí confirmaba.
+                            final confirmado =
+                                await confirmarLimpiarCarrito(context);
+                            if (confirmado == true) onLimpiar();
+                          },
                         ),
                       ),
                   ],
                 ),
               ),
+
+              // ── R.2 Fase 1 · chip de mesa ──
+              // En retail devuelve SizedBox.shrink() y no altera nada.
+              const MesaChip(margin: EdgeInsets.fromLTRB(14, 2, 14, 8)),
 
               // ═══════════════════════════════════════════════════════
               // LISTA DE ITEMS
@@ -219,177 +236,18 @@ class CartSidebar extends ConsumerWidget {
                             const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final item = cartState.items[index];
-                          final subtotal =
-                              item.producto.precioUnidad * item.cantidad;
-                          final key = '${item.producto.id}_$index';
-                          final tieneDescuento = item.esDescuentoEspecial;
-
-                          return Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              border:
-                                  Border.all(color: borderColor, width: 1),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(9),
-                              child: Dismissible(
-                                key: ValueKey(key),
-                                direction: DismissDirection.endToStart,
-                                background: Container(
-                                  alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.only(right: 16),
-                                  color: redError,
-                                  child: const Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.white,
-                                    size: 22,
-                                  ),
-                                ),
-                                confirmDismiss: (direction) async {
-                                  HapticFeedback.lightImpact();
-                                  return await _confirmarEliminarProducto(
-                                    context,
-                                    item.producto.nombre,
-                                  );
-                                },
-                                onDismissed: (direction) {
-                                  ref
-                                      .read(cartProvider.notifier)
-                                      .eliminarItem(index);
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(10),
-                                  color: itemBgColor,
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Flexible(
-                                                  child: Text(
-                                                    item.producto.nombre,
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      fontSize:
-                                                          isTablet ? 15 : 13,
-                                                      color: textColor,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow
-                                                        .ellipsis,
-                                                  ),
-                                                ),
-                                                if (tieneDescuento) ...[
-                                                  const SizedBox(width: 4),
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets
-                                                            .symmetric(
-                                                            horizontal: 4,
-                                                            vertical: 1),
-                                                    decoration: BoxDecoration(
-                                                      color: const Color(
-                                                              0xFFF59E0B)
-                                                          .withValues(
-                                                              alpha: 0.2),
-                                                      borderRadius:
-                                                          BorderRadius
-                                                              .circular(3),
-                                                    ),
-                                                    child: const Text(
-                                                      'Dscto.',
-                                                      style: TextStyle(
-                                                        fontSize: 9,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: Color(
-                                                            0xFFF59E0B),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Row(
-                                              children: [
-                                                if (tieneDescuento) ...[
-                                                  Text(
-                                                    '\$${item.precioOriginal.toStringAsFixed(2)}',
-                                                    style: TextStyle(
-                                                      fontSize: 11,
-                                                      color: textSecondaryColor
-                                                          .withValues(
-                                                              alpha: 0.5),
-                                                      decoration:
-                                                          TextDecoration
-                                                              .lineThrough,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                ],
-                                                Text(
-                                                  '${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)} x \$${item.producto.precioUnidad.toStringAsFixed(2)}',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: tieneDescuento
-                                                        ? const Color(
-                                                            0xFFF59E0B)
-                                                        : textSecondaryColor,
-                                                    fontWeight: tieneDescuento
-                                                        ? FontWeight.w600
-                                                        : FontWeight.normal,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        '\$${subtotal.toStringAsFixed(2)}',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: isTablet ? 16 : 14,
-                                          color: tieneDescuento
-                                              ? const Color(0xFFF59E0B)
-                                              : primaryGreen,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.close_rounded,
-                                          color: redError,
-                                          size: 18,
-                                        ),
-                                        onPressed: () async {
-                                          HapticFeedback.lightImpact();
-                                          final confirmado =
-                                              await _confirmarEliminarProducto(
-                                            context,
-                                            item.producto.nombre,
-                                          );
-                                          if (confirmado == true) {
-                                            ref
-                                                .read(cartProvider.notifier)
-                                                .eliminarItem(index);
-                                          }
-                                        },
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
+                          return CartItemTile(
+                            item: item,
+                            isTablet: isTablet,
+                            textColor: textColor,
+                            textSecondaryColor: textSecondaryColor,
+                            borderColor: borderColor,
+                            itemBgColor: itemBgColor,
+                            onTap: () =>
+                                CartQuantitySheet.mostrar(context, ref, item),
+                            onDelete: () => ref
+                                .read(cartProvider.notifier)
+                                .eliminarItemPorId(item.producto.id),
                           );
                         },
                       ),
@@ -565,10 +423,16 @@ class CartSidebar extends ConsumerWidget {
                             ? null
                             : () {
                                 // 🎯 FIX: bloquear cobro si hay items sin stock
-                                if (cartState.hayItemsSinStock) {
+                                // `ref.read` (no `watch`): esto corre al
+                                // hacer tap, fuera del build. `watch` solo
+                                // es válido durante el build.
+                                final productos =
+                                    ref.read(productosProvider).items;
+                                if (cartState.hayItemsSinStock(productos)) {
                                   _mostrarDialogoCarritoConProblemas(
                                     context,
                                     cartState,
+                                    productos,
                                   );
                                   return;
                                 }
@@ -617,8 +481,9 @@ class CartSidebar extends ConsumerWidget {
   void _mostrarDialogoCarritoConProblemas(
     BuildContext context,
     CartState cartState,
+    List<ProductoEntity> productos,
   ) {
-    final itemsConProblema = cartState.itemsSinStock;
+    final itemsConProblema = cartState.itemsSinStock(productos);
 
     showDialog<void>(
       context: context,
@@ -742,41 +607,6 @@ class CartSidebar extends ConsumerWidget {
           ),
         ),
       ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // DIÁLOGO: CONFIRMAR ELIMINACIÓN
-  // ═══════════════════════════════════════════════════════════════════
-
-  Future<bool?> _confirmarEliminarProducto(
-    BuildContext context,
-    String nombre,
-  ) {
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Eliminar producto'),
-          content: Text('¿Seguro que deseas eliminar "$nombre" del carrito?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              style: TextButton.styleFrom(
-                foregroundColor:
-                    Theme.of(dialogContext).colorScheme.onSurfaceVariant,
-              ),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(foregroundColor: redError),
-              child: const Text('Eliminar'),
-            ),
-          ],
-        );
-      },
     );
   }
 }

@@ -802,6 +802,7 @@ class DetalleProveedorDialog extends ConsumerWidget {
     }
 
     final seleccionados = await showDialog<List<ProductoEntity>>(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (_) => MultiSelectDialog(
         items: productosSinProveedor,

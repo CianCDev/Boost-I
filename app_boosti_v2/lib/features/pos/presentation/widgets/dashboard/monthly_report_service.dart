@@ -49,6 +49,7 @@ class ReporteGenerado {
 /// Reporte mensual en CSV con estructura en 4 secciones visuales.
 ///
 /// Los archivos se guardan en:
+// ignore: unintended_html_in_doc_comment
 ///   <Documents>/Tickets_POS/Reportes/reporte_YYYY_MM.csv
 class MonthlyReportService {
   final IsarService _isarService;

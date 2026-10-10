@@ -1,107 +1,260 @@
 // lib/features/pos/presentation/providers/local_actual_provider.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:restart_app/restart_app.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/auth_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/business_mode_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/suscripcion_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/catalog_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/inventory_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/productos_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/categorias_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/marca_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/proveedores_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/clientes/clientes_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/pedidos_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/dashboard_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/pos_menu_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/cash_closing_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/departamentos_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/empleados/empleados_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/telegram_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/bcv_provider.dart';
+import '../utils/tenant_utils.dart';
 
 class LocalActualNotifier extends StateNotifier<int?> {
   final Ref _ref;
-  LocalActualNotifier(this._ref) : super(null);
 
-  /// Carga el local actual desde SharedPreferences.
-  /// Si no hay, elige el primer local activo y lo guarda.
+  /// Isar inyectable.
+  ///
+  /// Antes se llamaba a `IsarService()` dentro de cada método, lo que hacía
+  /// la clase **imposible de testear**: los mocks no se podían inyectar
+  /// porque no pasaba por ningún provider. Ahora se puede pasar una
+  /// instancia falsa desde los tests.
+  final IsarService _isar;
+
+  LocalActualNotifier(this._ref, {IsarService? isar})
+      : _isar = isar ?? IsarService(),
+        super(null);
+
+  /// Último error de `setLocalActual`, o `null` si el último intento
+  /// funcionó (o si aún no se intentó nada).
+  ///
+  /// Existe para que la UI pueda avisar al usuario en vez de dejar que
+  /// el fallo se pierda en un `debugPrint`.
+  String? _ultimoError;
+
+  String? get ultimoError => _ultimoError;
+
+  void limpiarError() => _ultimoError = null;
+
+  /// Carga el local actual.
+  ///
+  /// Prioridad (de mayor a menor):
+  ///   1. El local cuyo `id` coincide con `prefs['localActualId']`.
+  ///   1. El local cuyo `supabaseId` coincide con el `tenant_id` del JWT.
+  ///   2. El local cuyo `supabaseId` coincide con el `tenant_id` del JWT.
+  ///   3. El primer local `activo = true`.
+  ///
+  /// ⚠️ POR QUÉ `prefs` GANA AL JWT (fix del hot-switch):
+  ///
+  /// El claim `tenant_id` del JWT se genera en `custom_access_token_hook`
+  /// (Supabase), que lo lee de la COLUMNA `usuarios.tenant_id`. Ese valor
+  /// es fijo y el RPC `set_active_tenant` NO lo toca: solo mueve
+  /// `usuarios_locales.es_default`.
+  ///
+  /// Consecuencia: `refreshSession()` SIEMPRE devuelve el tenant con el
+  /// que se hizo login, nunca el que el usuario eligió después. Si el JWT
+  /// tuviera prioridad, reiniciar la app devolvería al usuario al local
+  /// original.
+  ///
+  /// Por eso la ELECCIÓN EXPLÍCITA del usuario (`prefs['localActualId']`,
+  /// escrita por `setLocalActual`) tiene prioridad sobre el claim.
+  ///
+  /// ⚠️ Cada rama hace `await` sobre Isar, así que el notifier puede
+  /// haberse disposed cuando la respuesta llega (hot-switch encadenado,
+  /// logout, o un `ProviderContainer` que se cierra al final de un test).
+  /// Escribir `state` después de `dispose()` lanza. Por eso hay un
+  /// `if (!mounted) return;` antes de CADA asignación.
   Future<void> cargarLocalActual() async {
     final prefs = await SharedPreferences.getInstance();
-    final id = prefs.getInt('localActualId');
 
-    if (id != null) {
-      final isar = IsarService();
-      final local = await isar.obtenerLocalPorId(id);
+    // ── Prioridad 1: prefs (elección explícita del usuario) ──
+    final idPreferido = prefs.getInt('localActualId');
+    if (idPreferido != null) {
+      final local = await _isar.obtenerLocalPorId(idPreferido);
+      if (!mounted) return;
       if (local != null && local.activo) {
-        state = id;
+        state = idPreferido;
         return;
       }
     }
 
-    // No hay local guardado o no existe → buscar el primero activo
-    final isar = IsarService();
-    final locales = await isar.obtenerLocales(soloActivos: true);
+    // ── Prioridad 2: JWT ──
+    final tenantJwt = getTenantIdFromJWT();
+    if (tenantJwt != null && tenantJwt.isNotEmpty) {
+      final local = await _isar.obtenerLocalPorSupabaseId(tenantJwt);
+      if (!mounted) return;
+      if (local != null && local.activo) {
+        state = local.id;
+        await prefs.setInt('localActualId', local.id);
+        return;
+      }
+    }
+
+    // ── Prioridad 3: primer activo ──
+    final locales = await _isar.obtenerLocales(soloActivos: true);
+    if (!mounted) return;
     if (locales.isNotEmpty) {
       state = locales.first.id;
-      await prefs.setInt('localActualId', state!);
-      debugPrint(
-          '✅ Local actual guardado automáticamente: ${locales.first.nombre} (ID: $state)');
+      // Usa el valor local, no `state!`: si el notifier se disposed entre
+      // la asignación y este await, `state` puede ser null.
+      await prefs.setInt('localActualId', locales.first.id);
     } else {
       state = null;
     }
   }
 
-  /// Cambia el local activo.
+  /// Cambia el local activo SIN reiniciar la app (hot-switch).
   ///
-  /// IMPORTANTE: este método hace el cambio REAL del tenant en Supabase
-  /// (JWT + es_default + hook) y luego reinicia la app de forma nativa.
-  /// Es la única forma segura de cambiar de local, porque Isar abre una
-  /// base por tenant.
+  /// Secuencia:
+  ///   1. Guardar el nuevo localId en prefs.
+  ///   2. Cambiar el tenant en Supabase (JWT + es_default).
+  ///   3. Marcar el nuevo local como activo en Isar.
+  ///   4. Invalidar providers dependientes del local.
+  ///   5. Actualizar el estado del provider.
   ///
-  /// Los callers NO necesitan hacer nada más: este método maneja todo.
+  /// 🎯 FIX: eliminado el reinicio de app. La app sigue viva tras el cambio.
   Future<void> setLocalActual(int id) async {
-    final isar = IsarService();
-    final local = await isar.obtenerLocalPorId(id);
+    debugPrint('🔄 [Hot-switch] Iniciando cambio de local...');
+    _ultimoError = null;
+
+    final local = await _isar.obtenerLocalPorId(id);
 
     if (local == null || !local.activo) {
-      debugPrint('⚠️ No se puede seleccionar un local inactivo o inexistente.');
+      const msg = 'El local seleccionado no está disponible en este '
+          'dispositivo o está inactivo.';
+      debugPrint('⚠️ [Hot-switch] $msg');
+      _ultimoError = msg;
       return;
     }
 
     final supabaseId = local.supabaseId;
     if (supabaseId == null || supabaseId.isEmpty) {
-      debugPrint(
-          '⚠️ El local "${local.nombre}" no tiene supabaseId. No se puede cambiar.');
+      final msg = 'El local "${local.nombre}" no está sincronizado con la '
+          'nube. Sincroniza e inténtalo de nuevo.';
+      debugPrint('⚠️ [Hot-switch] $msg');
+      _ultimoError = msg;
       return;
     }
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('localActualId', id);
+    debugPrint('✅ [Hot-switch] localActualId guardado en prefs: $id');
 
+    // ── Paso 1: Cambiar tenant en Supabase ──
     try {
       final ok =
           await _ref.read(authProvider.notifier).cambiarLocal(supabaseId);
 
       if (!ok) {
-        debugPrint('❌ No se pudo cambiar el tenant en Supabase.');
+        final msg = 'No se pudo cambiar el tenant en Supabase.';
+        debugPrint('❌ [Hot-switch] $msg');
+        _ultimoError = msg;
         return;
       }
+      debugPrint('✅ [Hot-switch] Tenant cambiado en Supabase: $supabaseId');
     } catch (e) {
-      debugPrint('❌ Error al cambiar de local: $e');
+      final msg = 'Error cambiando el tenant: $e';
+      debugPrint('❌ [Hot-switch] $msg');
+      _ultimoError = msg;
       return;
     }
 
-    await prefs.reload();
-    if (prefs.getString('tenantId') != supabaseId) {
-      debugPrint('⚠️ Forzando persistencia de tenant...');
-      await prefs.setString('tenantId', supabaseId);
-      await prefs.reload();
-      if (prefs.getString('tenantId') != supabaseId) {
-        debugPrint(
-            '❌ CRÍTICO: no se pudo persistir tenant. Abortando reinicio.');
-        return;
-      }
+    // ── Paso 2: Marcar el nuevo local como activo en Isar ──
+    try {
+      await _isar.marcarLocalComoActivo(id);
+      debugPrint('✅ [Hot-switch] Isar actualizado: local $id es el único activo');
+    } catch (e) {
+      final msg = 'No se pudo actualizar el local en la base local: $e';
+      debugPrint('⚠️ [Hot-switch] $msg');
+      _ultimoError = msg;
+      return;
     }
 
-    debugPrint('✅ Tenant verificado en disco: ${prefs.getString('tenantId')}');
-    debugPrint(
-        '✅ Tenant cambiado a "${local.nombre}" ($supabaseId). Reiniciando app...');
+    // ── Paso 3: Actualizar el estado del provider ──
+    //
+    // ⚠️ ESTE ORDEN ES CRÍTICO Y NO SE DEBE INVERTIR.
+    //
+    // `state = id` va ANTES de cualquier `_ref.invalidate(...)`.
+    // `invalidate` provoca que los providers recreados se construyan y
+    // lean `localActualProvider` en su constructor/factory. Si el estado
+    // todavía fuera el viejo, leerían el local anterior.
+    //
+    // Sintoma observado antes de este fix: `LotesNotifier` se creaba con
+    // "Cargando lotes para localId: 2" cuando se acababa de cambiar a 1.
+    //
+    // ⚠️ Hay dos `await` antes de aquí (`setLocalActual` y
+    // `marcarLocalComoActivo`), así que el notifier puede haberse
+    // disposed mientras tanto.
+    if (!mounted) return;
+    state = id;
+    debugPrint('✅ [Hot-switch] Estado actualizado: localId=$id');
 
-    await Future.delayed(const Duration(milliseconds: 800));
+    _ultimoError = null;
 
-    final result = await Restart.restartApp(forceKill: true);
-    if (!result.success) {
-      debugPrint('❌ Falló reinicio: [${result.code}] ${result.message}');
-    } else {
-      debugPrint('🔁 Reinicio lanzado (mode: ${result.mode}).');
-    }
+    // ── Paso 4: Invalidar los providers dependientes del local ──
+    //
+    // ⚠️ `lotesProvider` y `mesasProvider` NO se invalidan aquí aunque
+    // dependan del local: ambos tienen un `ref.listen(localActualProvider)`
+    // en su propio constructor que los recarga cuando el estado cambia.
+    // Invalidarlos desde fuera creaba un CICLO en el grafo de Riverpod
+    // (`_debugAssertCanDependOn` recorre las suscripciones de `listen`, no
+    // solo los `watch`) y disparaba `CircularDependencyError` en debug. En
+    // release los asserts se eliminan, pero el ciclo provocaba doble carga
+    // (una por `listen`, otra por `invalidate`).
+    //
+    // Patrón a seguir: si un provider necesita reaccionar al cambio de local,
+    // que se suscriba con `ref.listen` desde dentro. No que le invaliden desde
+    // fuera. `comandasProviderConIsar` ya lo hace así
+    // (comanda_provider.dart:282).
+    //
+    // Catálogo y productos
+    _ref.invalidate(catalogProvider);
+    _ref.invalidate(productosProvider);
+    _ref.invalidate(categoriasProvider);
+    _ref.invalidate(marcasProvider);
+    _ref.invalidate(proveedoresProvider);
+
+    // Inventario y ventas
+    _ref.invalidate(inventoryProvider);
+    _ref.invalidate(pedidosListProvider);
+
+    // Clientes y dashboard
+    _ref.invalidate(clientesProvider);
+    _ref.invalidate(dashboardProvider);
+
+    // Configuración y menú
+    _ref.invalidate(posMenuProvider);
+    _ref.invalidate(cashClosingProvider);
+    _ref.invalidate(departamentosProvider);
+    _ref.invalidate(empleadosProvider);
+    _ref.invalidate(telegramConfigProvider);
+    _ref.invalidate(bcvProvider);
+
+    // Negocio y suscripción
+    _ref.invalidate(businessModeProvider);
+    _ref.invalidate(suscripcionProvider);
+
+    debugPrint('✅ [Hot-switch] TODOS los providers invalidados');
+
+    // ── Paso 5: Resetear navegación a Home/Dashboard ──
+    // Nota: La navegación se resetea desde el widget que llama a setLocalActual
+    // usando Navigator.pushAndRemoveUntil o similar. Esto evita que el usuario
+    // quede en una pantalla con datos del local anterior.
+    debugPrint('✅ [Hot-switch] Navegación debe resetearse desde el caller');
+    debugPrint('🎉 [Hot-switch] Completado: "${local.nombre}" ($supabaseId)');
   }
 }
 

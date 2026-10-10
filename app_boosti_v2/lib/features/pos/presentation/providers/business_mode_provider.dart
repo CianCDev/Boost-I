@@ -12,8 +12,14 @@ import 'suscripcion_provider.dart';
 // ══════════════════════════════════════════════════════════════════
 
 enum BusinessMode {
-  mercado(
-    id: 'mercado',
+  /// Minorista, abarrotes, farmacia, bodega.
+  ///
+  /// El identificador técnico es `retail` porque es el valor persistido en
+  /// `locales.business_mode` (Supabase) y en `LocalEntity.businessMode`
+  /// (Isar). Antes era `mercado`, valor que ya no existe en ningún plan
+  /// de la base de datos. La etiqueta visible sigue siendo "Mercado".
+  retail(
+    id: 'retail',
     label: 'Mercado',
     description: 'Retail, abarrotes, farmacia, bodega',
     icon: Icons.storefront_rounded,
@@ -48,10 +54,16 @@ enum BusinessMode {
     required this.color,
   });
 
+  /// Resuelve un identificador persistido a su valor del enum.
+  ///
+  /// Acepta también el valor legacy `'mercado'` por locales creados antes
+  /// del renombrado a `retail`.
   static BusinessMode fromId(String id) {
+    final normalizado = id.trim().toLowerCase();
+    if (normalizado == 'mercado') return BusinessMode.retail;
     return BusinessMode.values.firstWhere(
-      (m) => m.id == id,
-      orElse: () => BusinessMode.mercado,
+      (m) => m.id == normalizado,
+      orElse: () => BusinessMode.retail,
     );
   }
 }
@@ -68,7 +80,7 @@ final businessModeProvider =
 class BusinessModeNotifier extends StateNotifier<BusinessMode> {
   final Ref ref;
 
-  BusinessModeNotifier(this.ref) : super(BusinessMode.mercado) {
+  BusinessModeNotifier(this.ref) : super(BusinessMode.retail) {
     _cargarModoDelLocalActivo();
   }
 
@@ -77,15 +89,37 @@ class BusinessModeNotifier extends StateNotifier<BusinessMode> {
     try {
       final local = await IsarService().obtenerLocalActivo();
       if (local == null) {
-        debugPrint('ℹ️ [BusinessMode] Sin local activo → mercado por default');
-        state = BusinessMode.mercado;
+        debugPrint('ℹ️ [BusinessMode] Sin local activo → retail por default');
+        // Guarda estándar: el notifier puede haberse dispuesto durante el
+        // await.
+        if (!mounted) return;
+        state = BusinessMode.retail;
         return;
       }
+
+      // TODO(R.0): migración legacy `mercado` → `retail`.
+      // Los locales creados antes del renombrado guardan 'mercado' en Isar,
+      // valor que ya no existe en ningún plan de Supabase. Se coacciona en
+      // memoria y se marca `sincronizado = false` para que `SyncService`
+      // suba el valor correcto a `locales.business_mode`.
+      // Eliminar este bloque en R.2, cuando ya ningún local tenga 'mercado'.
+      if (local.businessMode == 'mercado') {
+        debugPrint('⚠️ [BusinessMode] Migrando legacy mercado → retail');
+        local.businessMode = 'retail';
+        local.sincronizado = false;
+        final isar = await IsarService().db;
+        await isar.writeTxn(() async {
+          await isar.localEntitys.put(local);
+        });
+      }
+
+      if (!mounted) return;
       state = BusinessMode.fromId(local.businessMode);
       debugPrint('✅ [BusinessMode] Modo cargado: ${state.id}');
     } catch (e) {
       debugPrint('⚠️ [BusinessMode] Error cargando modo: $e');
-      state = BusinessMode.mercado;
+      if (!mounted) return;
+      state = BusinessMode.retail;
     }
   }
 
@@ -158,45 +192,111 @@ class FeatureFlags {
 
   // ── Helpers privados ──
 
-  bool _plan(String feature) =>
-      planActivo && featuresHabilitadas.contains(feature);
+  /// Evalúa una feature del plan.
+  ///
+  /// Las features que existen como columna/clave real en `planes.features`
+  /// usan `defaultVisible: false`: si el jsonb no trae la clave, la feature
+  /// queda oculta (el plan no la contrató).
+  ///
+  /// Las features HUÉRFANAS —sin clave posible en `planes.features` porque
+  /// la base de datos nunca las definio— usan `defaultVisible: true`: no hay
+  /// forma de que un plan las "*no* contrate", así que arrancan visibles
+  /// para que el menú no esconda pantallas que ya funcionan.
+  ///
+  /// TODO(R.0): cuando se agreguen las claves correspondientes a
+  /// `planes.features`, cambiar estos `defaultVisible: true` por `false`.
+  bool _plan(String feature, {bool defaultVisible = false}) =>
+      planActivo && (featuresHabilitadas.contains(feature) || defaultVisible);
 
   // ── Modos ──
 
-  bool get esMercado => mode == BusinessMode.mercado;
+  bool get esRetail => mode == BusinessMode.retail;
   bool get esRestaurante => mode == BusinessMode.restaurante;
   bool get esServicios => mode == BusinessMode.servicios;
 
+  /// ¿El modo actual permite ventas al mayor (B2B)?
+  ///
+  /// Retail sí: es su caso de uso central (precios por volumen, lista de
+  /// clientes mayoristas). Restaurante y servicios no: la venta es por
+  /// mesa/comanda o por servicio, y no hay lista de precios por cliente
+  /// mayorista que aplicar.
+  ///
+  /// ⚠️ Vive AQUÍ y no como condición compuesta en `menu_config.dart` a
+  /// propósito: el día que restaurante acepte mayor, o que servicios lo
+  /// quiera, se cambia esta línea y el menú se entera solo.
+  bool get modoPermiteVentasMayor => esRetail;
+
   // ── POS ──
 
-  bool get ventasAlMayor => _plan('ventas_mayor');
+  // TODO(R.0): huérfana — no hay clave `ventas_mayor` en `planes.features`.
+  // La pantalla `WholesaleScreen` ya está implementada y no depende de
+  // backend adicional, por eso arranca visible.
+  bool get ventasAlMayor => _plan('ventas_mayor', defaultVisible: true);
+
+  // Sin uso en la UI. Se mantiene oculta hasta que exista la pantalla de
+  // carritos múltiples (fuera del alcance de Modo Restaurante).
   bool get multicarrito => _plan('multicarrito');
 
   // ── Inventario ──
 
-  bool get lotes => _plan('lotes');
-  bool get pedidosProveedores => _plan('pedidos_proveedores');
+  // TODO(R.0): huérfanas — sin clave en `planes.features`.
+  // `LotesScreen` + `DiagnosticoLotesDialog` ya funcionan con datos locales.
+  bool get lotes => _plan('lotes', defaultVisible: true);
+  bool get pedidosProveedores =>
+      _plan('pedidos_proveedores', defaultVisible: true);
 
   // ── Organización ──
 
-  bool get departamentos => _plan('departamentos');
+  // TODO(R.0): huérfanas — sin clave en `planes.features`.
+  // `DepartamentosScreen`, `EmployeeMonitorDialog` y el selector de local
+  // ya funcionan.
+  bool get departamentos => _plan('departamentos', defaultVisible: true);
+
+  /// Única feature de organización con clave REAL en `plans.features`.
   bool get multiLocal => _plan('multi_local');
-  bool get monitorEmpleados => _plan('monitor_empleados');
+
+  bool get monitorEmpleados => _plan('monitor_empleados', defaultVisible: true);
 
   // ── Reportes ──
 
-  bool get dashboard => _plan('dashboard');
-  bool get historialVentas => _plan('historial_ventas');
-  bool get historialGastos => _plan('historial_gastos');
+  // TODO(R.0): huérfanas — sin clave en `plans.features`.
+  // `DashboardScreen`, `SalesHistoryScreen` y `GastosScreen` ya funcionan.
+  bool get dashboard => _plan('dashboard', defaultVisible: true);
+  bool get historialVentas => _plan('historial_ventas', defaultVisible: true);
+  bool get historialGastos => _plan('historial_gastos', defaultVisible: true);
+
+  // Sin uso en la UI.
   bool get estadisticasAdmin => _plan('estadisticas_admin');
 
   // ── Configuración ──
 
-  bool get telegram => _plan('telegram');
+  /// Telegram: decisión de producto. Hoy visible para todos los planes
+  /// porque se usa activamente en retail.
+  ///
+  /// No es una feature del plan: la clave `telegram` no existe en
+  /// `plans.features` y no se va a añadir. El único gate real es el rol
+  /// (`Permissions.canManageTelegram`, solo admin) vía `menu_config.dart`.
+  ///
+  /// TODO(PASO-R.9): gatear por modo (ocultar en restaurante) cuando el
+  /// onboarding de token + chat_id por usuario esté listo.
+  bool get telegram => true;
+
+  // Sin uso en la UI.
   bool get personalizacionTickets => _plan('personalizacion_tickets');
   bool get modulosCustom => _plan('modulos_custom');
   bool get betaChannel => _plan('beta_channel');
-  bool get soportePrioritario => _plan('soporte_prioritario');
+
+  /// Lee la clave REAL `priority_support` de `plans.features`.
+  ///
+  /// Antes leía el nombre en español con guiones bajos, clave que no
+  /// existe en la base de datos: el flag nunca se activaba.
+  bool get soportePrioritario => _plan('priority_support');
+
+  /// Lee la clave REAL `offline` de `plans.features`.
+  bool get modoOffline => _plan('offline');
+
+  /// Lee la clave REAL `reports` de `plans.features`.
+  bool get reportes => _plan('reports');
 
   // ── Combinaciones modo+plan ──
 
@@ -207,7 +307,7 @@ class FeatureFlags {
   bool get mostrarProfesionales => esServicios;
   bool get mostrarInventario => !esServicios;
   bool get mostrarLotes => !esServicios && lotes;
-  bool get mostrarCodigoBarras => esMercado;
+  bool get mostrarCodigoBarras => esRetail;
   bool get requiereMesa => esRestaurante;
   bool get usaCitas => esServicios;
 }
@@ -216,13 +316,38 @@ class FeatureFlags {
 final featureFlagsProvider = Provider<FeatureFlags>((ref) {
   final mode = ref.watch(businessModeProvider);
   final suscripcionAsync = ref.watch(suscripcionProvider);
+  final cachePlanActivo = ref.watch(planActivoCacheProvider);
 
   final suscripcion = suscripcionAsync.valueOrNull;
 
-  if (suscripcion == null || !suscripcion.activa) {
+  // ⚠️ Mientras el fetch no terminó (`valueOrNull == null` y sigue
+  // cargando) NO aplicamos el fallback. `planActivoCacheProvider` puede
+  // no estar hidratado todavía, y gatear con un `false` provisional
+  // haría parpadear los módulos.
+  if (suscripcionAsync.isLoading) {
     return FeatureFlags(
       mode: mode,
       planActivo: false,
+      planId: null,
+      featuresHabilitadas: const {},
+    );
+  }
+
+  if (suscripcion == null || !suscripcion.activa) {
+    // Fallback ante fallo de red: `suscripcionProvider` deja
+    // `planActivoCacheProvider` con el último valor conocido cuando el
+    // fetch falla (timeout/error). `null` = nunca se pudo determinar, y
+    // ahí se deniega (fail-closed), igual que antes de este cambio.
+    final planActivo = cachePlanActivo ?? false;
+    if (suscripcion == null && cachePlanActivo != null) {
+      debugPrint(
+        '📦 [featureFlags] Suscripción no disponible. Usando cache: '
+        'planActivo=$planActivo',
+      );
+    }
+    return FeatureFlags(
+      mode: mode,
+      planActivo: planActivo,
       planId: null,
       featuresHabilitadas: const {},
     );

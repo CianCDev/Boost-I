@@ -317,8 +317,11 @@ class _AsignarCodigoLoteDialogState
 
       final producto = await _isar.obtenerProductoPorId(lote.productoId);
       if (producto != null) {
-        producto.stock += cantidad;
-        await _isar.guardarProducto(producto);
+        // El stock del producto se deriva de los lotes (fuente única de
+        // verdad). Antes se hacía `producto.stock += cantidad` sobre un
+        // lote que además acababa de recibir `cantidadRestante =
+        // cantidad`, así que la cantidad se contaba dos veces.
+        await _isar.recalcularStockDe([lote.productoId]);
       }
 
       ref.read(invalidationProvider).invalidarStock();

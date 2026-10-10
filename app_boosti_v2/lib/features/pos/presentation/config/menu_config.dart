@@ -14,7 +14,9 @@ import '../screens/locales/locales_screen.dart';
 import '../screens/lotes_screen.dart';
 import '../screens/pedido/pedidos_screen.dart';
 import '../screens/proveedores/proveedores_screen.dart';
+import '../screens/restaurante/kds_screen.dart';
 import '../screens/sales_history_screen.dart';
+import '../screens/salon/salon_screen.dart';
 import '../screens/telegram/telegram_config_screen.dart';
 import '../screens/user_settings_screen.dart';
 import '../screens/wholesale/wholesale_screen.dart';
@@ -36,6 +38,23 @@ class MenuOption {
   final Color color;
   final VoidCallback onTap;
 
+  /// R.3.2 · Contador de la esquina (KDS).
+  ///
+  /// `null` = sin badge. `0` tampoco se dibuja: `PosMenuCard` exige
+  /// `> 0` (`pos_menu_card.dart:178` y `:227`), así que una opción con
+  /// 0 plazas libres queda visualmente idéntica a una sin contador.
+  ///
+  /// ⚠️ Es un `int?` y no un callback a propósito: `buildSections` es
+  /// `static` y se ejecuta una vez por reconstrucción, no por frame.
+  /// Quien lo pinta (el `Badge` del KDS) lo lee del provider.
+  final int? badge;
+
+  /// Color del badge. Si es `null`, `PosMenuCard` usa [color].
+  ///
+  /// Existe para que el KDS pueda ser verde (su color de sección) y aun
+  /// así mostrar el contador en rojo de alerta.
+  final Color? badgeColor;
+
   const MenuOption({
     required this.id,
     required this.icon,
@@ -43,6 +62,8 @@ class MenuOption {
     required this.subtitle,
     required this.color,
     required this.onTap,
+    this.badge,
+    this.badgeColor,
   });
 }
 
@@ -108,6 +129,9 @@ class MenuBuilder {
       'perfil' => true,
       'sync' => !Permissions.isEmployeesOnlyRole(role),
       'ventas_mayor' => Permissions.canAccessWholesale(role),
+      'punto_venta' => Permissions.canAccessPos(role),
+      'mesas' => Permissions.canAccessPos(role),
+      'kds' => Permissions.canAccessPos(role),
       _ => true,
     };
   }
@@ -119,7 +143,24 @@ class MenuBuilder {
   static bool _flagPermite(String opcionId, FeatureFlags flags) {
     return switch (opcionId) {
       // ── POS / Operación ──
-      'ventas_mayor' => flags.ventasAlMayor,
+      // Ventas al Mayor es un módulo B2B de retail. En restaurante la
+      // venta es por mesa/comanda, sin lista mayorista que aplicar, así
+      // que la pantalla se deja entera (tarifa,andas, descuentos por
+      // cliente) sin nada que orchestrar.
+      //
+      // El criterio de QUÉ MODO lo admite vive en
+      // `FeatureFlags.modoPermiteVentasMayor`, no como condición compuesta
+      // aquí: así se puede cambiar sin volver a tocar el menú.
+      'ventas_mayor' =>
+        flags.ventasAlMayor && flags.modoPermiteVentasMayor,
+
+      // Salón: solo tiene sentido en modo restaurante. El flag sale de
+      // `FeatureFlags.requiereMesa`, que es `esRestaurante`.
+      'mesas' => flags.requiereMesa,
+
+      // KDS: misma puerta que el salón. En retail no hay comandas por
+      // mesa, así que la pantalla no tendría nada que mostrar.
+      'kds' => flags.requiereMesa,
 
       // ── Inventario ──
       'inventario' => flags.mostrarInventario,
@@ -162,8 +203,42 @@ class MenuBuilder {
     required Future<void> Function() onCrearBackup,
     required Future<void> Function() onSincronizar,
     required int ventasPendientesSync,
+
+    /// R.3.2 · Platos en cola de cocina, para el badge de la opción
+    /// `'kds'`.
+    ///
+    /// ⚠️ Llega como `int?` y NO como provider: `buildSections` es
+    /// `static` y no tiene `ref`. Quien lo lee es `PosMenuScreen`, con
+    /// `comandasProvider.select((s) => s.totalItemsEnKds)` (devuelve
+    /// `int` a propósito para que Riverpod no re-dispare en bucle).
+    int? kdsBadge,
   }) {
     return [
+      // ─────────────────────────────────────────────────────────────
+      // INICIO
+      //
+      // Va primero a propósito: el POS es la acción que más se usa, y
+      // antes no existía forma de volver a él desde este menú.
+      //
+      // `PosMenuScreen` se empuja con `Navigator.push` SOBRE el POS
+      // (`catalog_app_bar.dart:174` y `main_pos_screen.dart:1569`), así
+      // que `Navigator.pop()` devuelve al POS sin crear una ruta nueva.
+      // Es la opción menos invasiva: no toca la pila de navegación.
+      // ─────────────────────────────────────────────────────────────
+      MenuSection(
+        title: 'INICIO',
+        color: const Color(0xFF10B981),
+        options: [
+          MenuOption(
+            id: 'punto_venta',
+            icon: Icons.point_of_sale_rounded,
+            title: 'Punto de venta',
+            subtitle: 'Vender productos y cobrar',
+            color: const Color(0xFF10B981),
+            onTap: () => Navigator.pop(context),
+          ),
+        ],
+      ),
       // ─────────────────────────────────────────────────────────────
       // OPERACIÓN
       // ─────────────────────────────────────────────────────────────
@@ -171,6 +246,34 @@ class MenuBuilder {
         title: 'OPERACIÓN',
         color: const Color(0xFF3B82F6),
         options: [
+          MenuOption(
+            id: 'mesas',
+            icon: Icons.table_restaurant_rounded,
+            title: 'Salón',
+            subtitle: 'Mesas, estados y uniones',
+            color: const Color(0xFF10B981),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SalonScreen()),
+            ),
+          ),
+          // R.3.2 · KDS. Va pegado a "Salón" porque son las dos caras de
+          // lo mismo: el salón mira la mesa, la cocina mira el plato.
+          MenuOption(
+            id: 'kds',
+            icon: Icons.soup_kitchen_rounded,
+            title: 'Estaciones',
+            subtitle: 'Áreas de preparación',
+            color: const Color(0xFF10B981),
+            badge: kdsBadge,
+            // El contador va en rojo aunque la opción sea verde: es una
+            // alerta de trabajo pendiente, no un adorno de la sección.
+            badgeColor: const Color(0xFFEF4444),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const KdsScreen()),
+            ),
+          ),
           MenuOption(
             id: 'ventas_mayor',
             icon: Icons.warehouse_rounded,

@@ -27,6 +27,34 @@ class BcvController extends ChangeNotifier {
   static const Duration maxEdadCache = Duration(hours: 24);
 
   // ══════════════════════════════════════════════════════════════
+  // CICLO DE VIDA
+  // ══════════════════════════════════════════════════════════════
+
+  /// `true` desde que el controller se dispone.
+  ///
+  /// ⚠️ `ChangeNotifier` NO tiene `mounted` (eso es de `StateNotifier`), así que
+  /// hace falta esta bandera. `init()` se lanza desde el factory del provider
+  /// sin `await` (`bcv_provider.dart:12`), de modo que su `await` puede
+  /// resolverse DESPUÉS de que el container se haya cerrado y
+  /// `notifyListeners()` lanzaría "was used after being disposed".
+  ///
+  /// La guarda se aplica dentro de [_notifyIfChanged], que es el ÚNICO punto
+  /// del archivo que llama a `notifyListeners()`.
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    // `ChangeNotifier.dispose()` NO es idempotente: la segunda llamada entra en
+    // el assert de Flutter y lanza en debug. Con el hot-switch el controller
+    // se invalida y luego el container se dispone, así que `dispose()` puede
+    // llegar dos veces. La guarda evita el crash y es inocua: tras la primera
+    // llamada, `super.dispose()` ya limpió los listeners.
+    if (_disposed) return;
+    _disposed = true;
+    super.dispose();
+  }
+
+  // ══════════════════════════════════════════════════════════════
   // ESTADO
   // ══════════════════════════════════════════════════════════════
   double _tasaDolar = 0.0;
@@ -70,10 +98,26 @@ class BcvController extends ChangeNotifier {
 
   bool get puedeOperar => tieneTasa;
 
-  bool get desdeCache =>
-      _estadoTasa == EstadoTasa.cacheReciente ||
-      _estadoTasa == EstadoTasa.cacheObsoleta ||
-      _estadoTasa == EstadoTasa.manual;
+  /// `true` si la tasa mostrada NO viene de la red en este momento.
+  ///
+  /// ## Solo `cacheObsoleta`
+  /// Antes incluía `cacheReciente` y `manual`, y eso hacía que el selector
+  /// mostrara "Sin conexión. Mostrando los últimos valores guardados."
+  /// con una tasa de 20 minutos. Peor: `main_pos_screen._ensureFreshBcvRate`
+  /// NO consulta si la caché tiene menos de 6 h, así que `cacheReciente`
+  /// era el estado NORMAL tras abrir la app, no una señal de fallo. El
+  /// aviso era un falso positivo que enseñaba al cajero a ignorar el
+  /// indicador.
+  ///
+  /// Ahora solo se marca cuando la tasa tiene más de [maxEdadCache]. La
+  /// tasa manual se informa aparte con [tasaEsManual], porque es otra
+  /// cosa: no es que no pudimos leerla, es que el usuario la puso.
+  bool get desdeCache => _estadoTasa == EstadoTasa.cacheObsoleta;
+
+  /// `true` si la tasa la ingressó el usuario manualmente.
+  ///
+  /// No es un fallo de conexión: es una decisión suya.
+  bool get tasaEsManual => _estadoTasa == EstadoTasa.manual;
 
   String? get mensajeAdvertencia {
     switch (_estadoTasa) {
@@ -94,12 +138,21 @@ class BcvController extends ChangeNotifier {
     }
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // SINGLETON
-  // ══════════════════════════════════════════════════════════════
-  static final BcvController _instance = BcvController._internal();
-  factory BcvController() => _instance;
-  BcvController._internal();
+  /// Constructor por instancia. NO es singleton.
+  ///
+  /// ⚠️ Antes era `factory BcvController() => _instance` con un
+  /// `static final _instance`. El singleton era incompatible con el
+  /// ciclo de vida que Riverpod da al notifier: `runOnDispose` llama
+  /// `notifier.dispose()` cuando el `ProviderScope` muere, y con un
+  /// singleton esa marca de "disposed" es permanente en todo el isolate.
+  /// El siguiente `create` recibía el mismo objeto muerto y `addListener`
+  /// reventaba con "was used after being disposed".
+  ///
+  /// No había ningún motivo para el singleton: `BcvController()` se
+  /// invocaba una sola vez en lib/ (dentro de `bcv_provider.dart`) y
+  /// cero veces en test/. Todos los consumidores acceden vía
+  /// `ref.watch(bcvProvider)` / `ref.read(bcvProvider)`.
+  BcvController();
 
   // ══════════════════════════════════════════════════════════════
   // SNAPSHOT Y NOTIFICACIÓN
@@ -115,6 +168,10 @@ class BcvController extends ChangeNotifier {
       );
 
   void _notifyIfChanged(_BcvSnapshot before, {required String reason}) {
+    // Guarda estándar: el controller puede haberse dispuesto durante un await.
+    // Va AQUÍ y no en cada llamante porque este es el único punto del
+    // archivo que llega a `notifyListeners()`.
+    if (_disposed) return;
     final current = _snapshot();
     if (current == before) return;
     if (kDebugMode) {
@@ -144,7 +201,10 @@ class BcvController extends ChangeNotifier {
       final timestampStr = prefs.getString(_prefsKeyTimestamp);
       if (timestampStr != null && timestampStr.isNotEmpty) {
         _ultimoUpdateRemoto = DateTime.tryParse(timestampStr);
-        _ultimaActualizacion = _formatearHora(_ultimoUpdateRemoto);
+        // `_formatearFecha` y no `_formatearHora`: lo que se persiste es
+        // la fecha de la TASA, que puede ser de ayer. Mostrar solo la
+        // hora hacía ver como fresco un valor de la madrugada anterior.
+        _ultimaActualizacion = _formatearFecha(_ultimoUpdateRemoto);
       }
 
       final tasaGuardada = prefs.getDouble(_prefsKeyTasaDolar);
@@ -200,19 +260,31 @@ class BcvController extends ChangeNotifier {
     var fetchOk = false;
 
     try {
-      final nuevaTasaDolar = await BcvService.obtenerTasaDolarDelPais(_config);
-      if (nuevaTasaDolar > 0) _tasaDolar = nuevaTasaDolar;
+      final nuevoUsd =
+          await BcvService.obtenerTasaDolarConFecha(_config);
+      if (nuevoUsd.tasa > 0) _tasaDolar = nuevoUsd.tasa;
 
       if (_config.manejaEuro) {
-        final nuevaTasaEuro = await BcvService.obtenerTasaEuroDelPais(_config);
-        if (nuevaTasaEuro > 0) _tasaEuro = nuevaTasaEuro;
+        final nuevoEur =
+            await BcvService.obtenerTasaEuroConFecha(_config);
+        if (nuevoEur.tasa > 0) _tasaEuro = nuevoEur.tasa;
       }
 
       fetchOk = _tasaDolar > 0;
 
       if (fetchOk) {
-        _ultimoUpdateRemoto = DateTime.now();
-        _ultimaActualizacion = _formatearHora(_ultimoUpdateRemoto);
+        // 📅 La fecha de la TASA, no la del fetch.
+        //
+        // La BCV publica una vez por día (medianoche, -04:00). Guardar
+        // `DateTime.now()` acá hacía que una tasa de la madrugada
+        // pareciera de la tarde: hasta 24 h de frescura inventada, que es
+        // justo lo que el usuario necesita saber para decidir si cobra
+        // con ella.
+        //
+        // Si la API no trae fecha, caemos a `now()`: es peor que nada,
+        // pero es el comportamiento anterior y no rompe el flujo.
+        _ultimoUpdateRemoto = nuevoUsd.fecha ?? DateTime.now();
+        _ultimaActualizacion = _formatearFecha(_ultimoUpdateRemoto);
         _estadoTasa = EstadoTasa.online;
 
         final cambioUsd = (_tasaDolar - usdAntes).abs() >= _epsilonTasa;
@@ -329,6 +401,20 @@ class BcvController extends ChangeNotifier {
     final local = fecha.toLocal();
     return '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Fecha + hora de la tasa.
+  ///
+  /// Se usa cuando la fecha viene de la API y por lo tanto puede ser de
+  /// HACE DÍAS, no de hace minutos. Mostrar solo "21:22" de una tasa de
+  /// ayer al mediodía es indistinguible de una tasa fresca.
+  String _formatearFecha(DateTime? fecha) {
+    if (fecha == null) return 'Nunca';
+    final local = fecha.toLocal();
+    final dia = local.day.toString().padLeft(2, '0');
+    final mes = local.month.toString().padLeft(2, '0');
+    final anio = local.year.toString().padLeft(4, '0');
+    return '$dia/$mes/$anio ${_formatearHora(fecha)}';
   }
 
   @override

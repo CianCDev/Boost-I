@@ -214,6 +214,8 @@ class VentaMayorService {
       final lotService = WholesaleLotService(isarService: isar);
       final detalles = <DetalleVentaEntity>[];
       final lotesAfectados = <String, List<AsignacionLote>>{};
+      // Productos cuyo `stock` se recalcula al final desde los lotes.
+      final productosAfectados = <int>{};
 
       for (final item in cartState.items) {
         // 2.1 Planificar FEFO
@@ -251,17 +253,17 @@ class VentaMayorService {
         // 2.5 Crear movimiento de inventario consolidado
         final producto = await isar.obtenerProductoPorId(item.producto.id);
         if (producto != null) {
-          final stockTotal =
-              await isar.obtenerStockTotalPorProducto(item.producto.id);
-          producto.stock = stockTotal;
-          await isar.guardarProducto(producto);
+          // El stock se recalcula al final, en batch, con el helper
+          // canónico (los lotes son la fuente única de verdad).
+          productosAfectados.add(item.producto.id);
 
           final movInventario = MovimientoInventarioEntity()
             ..productoId = item.producto.id
             ..nombreProducto = item.producto.nombre
             ..tipoMovimiento = 'Venta al mayor'
             ..cantidad = -item.cantidad.toDouble()
-            ..stockResultante = stockTotal
+            ..stockResultante = await isar
+                .obtenerStockTotalPorProducto(item.producto.id)
             ..fecha = ahora
             ..usuarioId = usuario?.id ?? 0
             ..syncStatus = 'pending';
@@ -270,6 +272,10 @@ class VentaMayorService {
           warnings.add('No se encontró el producto "${item.producto.nombre}"');
         }
       }
+
+      // Stock de todos los productos tocados, derivado de los lotes
+      // (fuente única de verdad). Una sola llamada en batch.
+      await isar.recalcularStockDe(productosAfectados.toList());
 
       // ── 3. Construir VentaEntity ──
       final tieneDescuento = cartState.montoDescuentoGlobal > 0 ||

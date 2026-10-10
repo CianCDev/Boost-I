@@ -9,6 +9,7 @@ import '../../data/Local/entities/turno_entity.dart';
 import '../../domain/permissions/roles.dart';
 import '../config/menu_config.dart';
 import '../providers/auth_provider.dart';
+import '../providers/comanda_provider.dart';
 import '../providers/isar_provider.dart';
 import '../providers/lock_provider.dart';
 import '../providers/sync_provider.dart';
@@ -385,6 +386,14 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     // Construir secciones desde el config
     final flags = ref.watch(featureFlagsProvider);
 
+    // R.3.2 · Badge del KDS.
+    //
+    // `select` con un `int` es lo que evita el bucle de reconstrucción:
+    // `totalItemsEnKds` ya es `int` a propósito (comanda_provider.dart:153).
+    final kdsBadge = ref.watch(
+      comandasProvider.select((s) => s.totalItemsEnKds),
+    );
+
     // Construir secciones desde el config
     final todasLasSecciones = MenuBuilder.buildSections(
       usuario: usuario,
@@ -393,6 +402,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       onCrearBackup: _crearBackup,
       onSincronizar: _sincronizarConProgreso,
       ventasPendientesSync: _ventasPendientesSync,
+      kdsBadge: kdsBadge,
     );
 
     // Filtrar por permisos + feature flags
@@ -842,6 +852,8 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         icon: singleOpt.icon,
         color: singleOpt.color,
         onTap: singleOpt.onTap,
+        badge: singleOpt.badge,
+        badgeColor: singleOpt.badgeColor,
         compactMode: isMobile,
       );
     }
@@ -875,6 +887,8 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           icon: opt.icon,
           color: opt.color,
           onTap: opt.onTap,
+          badge: opt.badge,
+          badgeColor: opt.badgeColor,
           // ✅ En mobile no mostramos subtitle (cards limpias)
           compactMode: isMobile,
         );

@@ -57,7 +57,7 @@ class InventoryState {
           other.seleccionMultiple == seleccionMultiple &&
           other.isLoading == isLoading &&
           _mismoSet(other.productosSeleccionados, productosSeleccionados) &&
-          _mismaL3istaProductos(other.productosFiltrados, productosFiltrados);
+          _mismaListaProductos(other.productosFiltrados, productosFiltrados);
 
   @override
   int get hashCode => Object.hash(
@@ -76,7 +76,7 @@ class InventoryState {
     return a.containsAll(b);
   }
 
-  static bool _mismaL3istaProductos(
+  static bool _mismaListaProductos(
     List<ProductoEntity> a,
     List<ProductoEntity> b,
   ) {

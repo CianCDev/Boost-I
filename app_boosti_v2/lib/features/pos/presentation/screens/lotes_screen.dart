@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/lotes_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/common/local_actual_badge.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/lotes/lotes_card.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/lotes/detalle_lote_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/lotes/verificar_lote_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/lotes/traspaso_lote_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/common/module_gate.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/categorias_provider.dart';
@@ -53,12 +55,15 @@ class _LotesScreenState extends ConsumerState<LotesScreen>
     final isMobile = ResponsiveHelper.isMobile(context);
     final categoriasAsync = ref.watch(categoriasProvider);
 
-    return Scaffold(
+    return ModuleGate(
+      moduleName: 'Gestión de Lotes',
+      child: Scaffold(
       backgroundColor: colorScheme.surfaceContainerLow,
       appBar: CustomAppBar(
         title: isMobile ? 'Lotes' : 'Gestión de Lotes',
         showBackButton: true,
         actions: [
+          const LocalActualBadge(compact: true),
           // 🔥 Dropdown de categorías en la AppBar (sin conflicto icon/child)
           _buildCategoryDropdown(categoriasAsync, state.categoriaFiltro, notifier),
           const SizedBox(width: 8),
@@ -137,6 +142,7 @@ class _LotesScreenState extends ConsumerState<LotesScreen>
             ],
           ),
         ),
+      ),
       ),
     );
   }

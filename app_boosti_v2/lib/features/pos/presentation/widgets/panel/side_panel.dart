@@ -309,9 +309,25 @@ class _SidePanelState extends ConsumerState<SidePanel>
 
     final categories = <_Category>[
       // ============================================================
-      // LOCAL — solo si multi-local está habilitado por el plan
+      // LOCAL — escape hatch del hot-switch
       // ============================================================
-      if (_numLocales > 1 && flags.multiLocal)
+      //
+      // DELIBERADAMENTE SIN `flags.multiLocal`.
+      //
+      // Este botón SOLO se mostraba con plan que incluye `multi_local`,
+      // que es exactamente el flag que se apaga al cambiar a un local sin
+      // plan. Resultado: al cambiar a un local "básico" desaparecían a la
+      // vez la entrada "Locales" del menú y este botón, y no había forma
+      // de volver al local con plan sin cerrar sesión.
+      //
+      // Cambiar de local es navegación, no un módulo de negocio: no debe
+      // estar gateado por el plan del local de DESTINO. El plan decide
+      // cuántos locales se pueden crear y qué módulos se abren, no si
+      // podés volver al anterior.
+      //
+      // El conteo viene de `obtenerMisLocales()` (`_cargarNumLocales`),
+      // que ya es la fuente correcta y no pasa por el plan.
+      if (_numLocales > 1)
         _Category(
           title: 'Local',
           icon: Icons.business_rounded,

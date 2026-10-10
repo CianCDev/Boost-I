@@ -44,6 +44,8 @@ class PosMenuNotifier extends StateNotifier<PosMenuState> {
 
   Future<void> cargarEstadoSync() async {
     final pendientes = await _isarService.obtenerVentasPendientesSync();
+    // Guarda estándar: el notifier puede haberse dispuesto durante el await.
+    if (!mounted) return;
     state = state.copyWith(ventasPendientesSync: pendientes.length);
   }
 
@@ -60,7 +62,13 @@ class PosMenuNotifier extends StateNotifier<PosMenuState> {
       await _syncService.sincronizarTodo();
       await cargarEstadoSync();
     } finally {
-      state = state.copyWith(sincronizando: false);
+      // Un `return` dentro de `finally` descarta cualquier excepción en
+      // vuelo, así que el `if (!mounted) return;` silenciaba el error que
+      // lanzara `_syncService.sincronizarTodo()`. Se sustituye por un
+      // `if (mounted)` que solo actualiza el estado si el notifier sigue vivo.
+      if (mounted) {
+        state = state.copyWith(sincronizando: false);
+      }
     }
   }
 
@@ -119,6 +127,7 @@ class PosMenuNotifier extends StateNotifier<PosMenuState> {
   // Cargar turno específico para un usuario
   Future<void> cargarTurnoUsuario(int usuarioId) async {
     final turno = await _isarService.obtenerTurnoAbiertoPorUsuario(usuarioId);
+    if (!mounted) return;
     state = state.copyWith(turnoAbierto: turno);
   }
 

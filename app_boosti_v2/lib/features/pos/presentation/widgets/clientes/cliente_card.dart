@@ -138,10 +138,9 @@ class _ClienteCardState extends State<ClienteCard> {
                                 widget.cliente.documento != null)
                               const SizedBox(width: 12),
                            if (widget.cliente.documentoFormateado.isNotEmpty)
-                           Text(widget.cliente.documentoDisplay),
                               _buildInfoRow(
                                   Icons.badge_rounded,
-                                  'CI/RIF: ${widget.cliente.documento}',
+                                  'Doc: ${widget.cliente.documentoDisplay}',
                                   colorScheme),
                           ],
                         ),

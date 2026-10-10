@@ -44,9 +44,10 @@ class LotesState {
   }) {
     return LotesState(
       lotes: lotes ?? this.lotes,
-      categoriasPorProducto: categoriasPorProducto ?? this.categoriasPorProducto,
+      categoriasPorProducto:
+          categoriasPorProducto ?? this.categoriasPorProducto,
       isLoading: isLoading ?? this.isLoading,
-      error: error,
+      error: error ?? this.error,
       searchQuery: searchQuery ?? this.searchQuery,
       estadoFiltro: estadoFiltro ?? this.estadoFiltro,
       categoriaFiltro: categoriaFiltro ?? this.categoriaFiltro,
@@ -95,9 +96,16 @@ class LotesState {
     return activos;
   }
 
+  /// Lotes activos con fecha de vencimiento, ordenados por fecha ASC.
+  ///
+  /// Filtra `cantidadRestante > 0`: un lote ya agotado que vence manana no
+  /// es una urgencia, es ruido. Mismo criterio que
+  /// `IsarService.obtenerLotesActivos` y que `vencimientosProvider`.
   List<LoteEntity> get lotesProximosAVencer {
     final proximos = _baseFiltrados.where((l) {
-      return l.estado == 'activo' && l.fechaVencimiento != null;
+      return l.estado == 'activo' &&
+          l.fechaVencimiento != null &&
+          l.cantidadRestante > 0;
     }).toList();
     proximos.sort((a, b) => a.fechaVencimiento!.compareTo(b.fechaVencimiento!));
     final sinVencimiento = _baseFiltrados.where((l) {
@@ -149,6 +157,7 @@ class LotesNotifier extends StateNotifier<LotesState> {
   }
 
   Future<void> _cargarLotes() async {
+    if (!mounted) return;
     state = state.copyWith(isLoading: true, error: null);
     try {
       final localId = _ref.read(localActualProvider);
@@ -160,10 +169,19 @@ class LotesNotifier extends StateNotifier<LotesState> {
       } else {
         todos = await _isar.obtenerTodosLosLotes();
       }
+
+      // ⚠️ Guard tras el primer await: `dispose()` puede haber corrido.
+      // Escribir `state` después de destruirse lanza.
+      if (!mounted) return;
+
       debugPrint('📦 Lotes obtenidos: ${todos.length}');
 
       // Obtener nombres y categorías de productos
       final productos = await _isar.obtenerProductos();
+
+      // ⚠️ Segundo await: mismo riesgo.
+      if (!mounted) return;
+
       final Map<int, String> categoriasMap = {};
       final Map<int, String> productosMap = {};
       for (var p in productos) {
@@ -200,12 +218,16 @@ class LotesNotifier extends StateNotifier<LotesState> {
 
       debugPrint('✅ Estado actualizado con ${state.lotes.length} lotes.');
     } catch (e) {
+      if (!mounted) return;
       debugPrint('❌ Error cargando lotes: $e');
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  Future<void> recargar() async => _cargarLotes();
+  Future<void> recargar() async {
+    if (!mounted) return;
+    return _cargarLotes();
+  }
 
   void setTab(int index) => state = state.copyWith(tabIndex: index);
   void setFiltro(String filtro) => state = state.copyWith(estadoFiltro: filtro);
@@ -218,4 +240,49 @@ class LotesNotifier extends StateNotifier<LotesState> {
 // ============================================================
 final lotesProvider = StateNotifierProvider<LotesNotifier, LotesState>((ref) {
   return LotesNotifier(ref);
+});
+
+/// Mapa `productoId → DateTime` con el vencimiento más próximo por producto,
+/// derivado de `lotesProvider.state.lotes`.
+///
+/// ## Reglas de filtrado
+/// - `estado == 'activo'`: excluye `agotado`, `vencido` y `pendiente`.
+/// - `cantidadRestante > 0`: un lote con 0 unidades que vence mañana no es
+///   una urgencia, es ruido. Mismo criterio que
+///   `IsarService.obtenerLotesActivos` (`isar_service.dart:4139`).
+/// - `fechaVencimiento != null`.
+///
+/// Si un producto tiene 3 lotes y solo 1 con fecha, se usa esa. Si ninguno
+/// tiene fecha, el producto no aparece en el map.
+///
+/// ## Coste
+/// Una sola pasada O(n) sobre los lotes, memoizada por Riverpod. Las N
+/// cards del catálogo hacen N lookups O(1) sobre el mismo Map, asi que el
+/// costo no crece con el tamano del catalogo visible.
+///
+/// ## ⚠️ Invalidación
+/// Se invalida solo cuando `lotesProvider` emite estado, y eso ocurre
+/// unicamente en `LotesNotifier.recargar()` o al cambiar de local
+/// (vía `_localSubscription`).
+///
+/// `TraspasoLoteDialog` llama a `invalidationProvider.invalidarStock()` y
+/// **no** a `lotesProvider.recargar()`, asi que despues de una baja de lote
+/// este map queda viejo hasta que el usuario entre a la pantalla de lotes.
+/// PENDIENTE: agregar el `recargar()` ahi o colgar este provider de
+/// `invalidationProvider`.
+final vencimientosProvider = Provider<Map<int, DateTime>>((ref) {
+  final lotes = ref.watch(lotesProvider).lotes;
+  final Map<int, DateTime> resultado = {};
+  for (final lote in lotes) {
+    if (lote.estado != 'activo') continue;
+    if (lote.cantidadRestante <= 0) continue;
+    final fecha = lote.fechaVencimiento;
+    if (fecha == null) continue;
+
+    final actual = resultado[lote.productoId];
+    if (actual == null || fecha.isBefore(actual)) {
+      resultado[lote.productoId] = fecha;
+    }
+  }
+  return resultado;
 });

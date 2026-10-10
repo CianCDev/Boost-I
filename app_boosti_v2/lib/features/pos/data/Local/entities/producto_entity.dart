@@ -7,7 +7,16 @@ class ProductoEntity {
   // ──────────────── ID y claves ────────────────
   Id id = Isar.autoIncrement; // ID local (auto incremental)
 
-  @Index(unique: true, replace: true)
+  /// Código de barras del producto.
+  ///
+  /// ⚠️ `replace: false` (Capa 2 de 2, antes `true`): con `replace: true`, un
+  /// valor duplicado no daba error, BORRABA el producto anterior sin dejar
+  /// rastro — y `''` era un valor muy fácil de duplicar porque lo generaba
+  /// el constructor, `fromJson` y el `sync_service`. Ahora el conflicto salta
+  /// como `IsarUniqueViolationError`. El hueco de `''` lo cubre el guard de
+  /// `IsarService.guardarProducto`, que deriva una clave única antes de
+  /// escribir. Dejar `unique: true` mantiene el aviso de "código repetido".
+  @Index(unique: true, replace: false)
   String codigoBarras;
 
   // ──────────────── Datos del producto ────────────────
@@ -20,6 +29,66 @@ class ProductoEntity {
   // ──────────────── Categoría ────────────────
   String categoria = 'General';
   int? categoriaId; // Relación con CategoriaEntity (local, int)
+
+  // ──────────────── KDS · Departamento destino (R.3) ────────────────
+
+  /// Departamento (estación) donde se prepara este producto: Cocina, Barra,
+  /// Postres, etc. Relación con `DepartamentoEntity` (id local de Isar).
+  ///
+  /// `null` significa que el producto NO requiere preparación: se cobra
+  /// directo, sin pasar por el KDS. Es el caso normal en retail.
+  ///
+  /// ⚠️ LOCAL-ONLY por decisión D2a: este campo NO está en `toJson()` ni en
+  /// `fromJson()`, así que no viaja a Supabase. Cuando exista la columna
+  /// `departamento_id` en `productos` (R.1b), se añade al par. Until then,
+  /// tocar el sync de productos escribiría una clave inexistente y
+  /// rompería el push.
+  ///
+  /// OJO: la relación producto-departamento es por id; el hack de
+  /// `IsarService.contarProductosPorDepartamento()` que compara
+  /// `categoria` contra `departamento.nombre` como texto sigue siendo la
+  /// vía que usa la UI de departamentos. Ver `docs/TODO.md`.
+  int? departamentoId;
+
+  // ──────────────── R.4 · Recetas ────────────────
+  //
+  // ⚠️ LOCAL-ONLY por la misma razón que `departamentoId` (D2a): ni
+  // `toJson()` ni `fromJson()`. Las columnas `es_ingrediente` y `unidad`
+  // no existen en Supabase; escribirlas rompería el push de productos.
+  // Cuando existan, se añaden al par.
+
+  /// Marca el producto como ingrediente de recetas.
+  ///
+  /// `null` → comportamiento actual: el producto es vendible y no forma
+  /// parte de ninguna receta. `true` → es ingrediente. `false` →
+  /// explícitamente NO es ingrediente.
+  ///
+  /// Es `bool?` y no `bool` a propósito: con `bool` el default `false`
+  /// sería indistinguible de un "lo marcaron como no-ingrediente", y no
+  /// habría forma de distinguir "nunca lo miraron" de "lo miraron y no
+  /// es". Hoy esa diferencia no importa, pero en G.2 la UI va a querer
+  /// offercer el filtro "ver solo ingredientes" y un default implícito
+  /// contaminationaría ese filtro con los ~500 productos de retail.
+  ///
+  /// Un producto PUEDE ser las dos cosas: el queso se vende en el mostrador
+  /// y además es ingrediente de la pizza.
+  bool? esIngrediente;
+
+  /// Unidad de medida base: `'kg'`, `'g'`, `'lt'`, `'ml'`, `'unidad'`.
+  ///
+  /// Default `'unidad'` porque es lo que asume hoy todo el sistema: la
+  /// venta por cantidad (`CartSessionItem.cantidad`) no tiene unidad, así
+  /// que un producto sin esto significa "contable en unidades".
+  ///
+  /// Unidad base para medir ingredientes en recetas.
+  ///
+  /// NO reemplaza a [esPesado]:
+  ///   - `esPesado`: "se vende a granel al cliente final" (precio, ticket).
+  ///   - `unidad`:   "unidad de medida en recetas" (stock interno).
+  /// Coexisten por diseño. Un producto puede ser pesado Y medirse en
+  /// gramos dentro de una receta; los dos datos se usan en sitios
+  /// distintos y no se derivan uno del otro.
+  String unidad = 'unidad';
 
   // ──────────────── Marca ────────────────
   String marca = ''; // Legacy (texto libre)
@@ -95,6 +164,7 @@ class ProductoEntity {
     this.esPesado = false,
     this.categoria = 'General',
     this.categoriaId,
+    this.departamentoId,
     this.marca = '',
     this.marcaSupabaseId,
     this.proveedorId,
@@ -123,6 +193,8 @@ class ProductoEntity {
     this.cantidadMinimaMedioMayor,
     this.unidadesPorBulto = 1,
     this.costoUnitarioPromedio,
+    this.esIngrediente,
+    this.unidad = 'unidad',
   });
 
   // ──────────────── Helpers privados ────────────────

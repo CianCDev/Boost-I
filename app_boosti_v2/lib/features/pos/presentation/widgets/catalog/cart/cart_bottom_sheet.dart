@@ -1,19 +1,24 @@
 // lib/features/pos/presentation/widgets/catalog/cart_bottom_sheet.dart
 import 'dart:ui';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/common/glass_dialog.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../controllers/cart_controller.dart';
 import '../../../controllers/cart_sessions_controller.dart';
 import '../../../providers/bcv_provider.dart';
+import '../../../providers/productos_provider.dart';
 import '../../../providers/themes/app_colors.dart';
 import '../../../utils/responsive_helper.dart';
 import '../../../controllers/bcv_controller.dart';
 import '../iva_toggle_button.dart';
+import 'cart_dialogs.dart';
+import 'cart_header_action.dart';
+import 'cart_item_tile.dart';
+import 'cart_quantity_sheet.dart';
+import 'mesa_chip.dart';
 import 'parked_carts_dialog.dart';
 import 'save_cart_dialog.dart';
-import 'cart_header_action.dart';
 
 class CartBottomSheet extends ConsumerWidget {
   final VoidCallback onCobrar;
@@ -81,6 +86,9 @@ class CartBottomSheet extends ConsumerWidget {
                         context, ref, hasItems, isTablet, colorScheme),
                     const Divider(thickness: 1),
                     const SizedBox(height: 12),
+                    // ── R.2 Fase 1 · chip de mesa ──
+                    // En retail devuelve SizedBox.shrink().
+                    const MesaChip(),
                     Expanded(
                       child: cartState.items.isEmpty
                           ? _buildEmptyState(colorScheme)
@@ -91,7 +99,7 @@ class CartBottomSheet extends ConsumerWidget {
                     const SizedBox(height: 8),
                     // ✅ Firma actualizada
                     _buildTotals(cartState, bcvController, hasItems, isTablet,
-                        colorScheme, context),
+                        colorScheme, context, ref),
                   ],
                 ),
               ),
@@ -185,7 +193,14 @@ class CartBottomSheet extends ConsumerWidget {
               label: 'Limpiar',
               tooltip: 'Limpiar carrito',
               color: redError,
-              onPressed: () => _confirmarLimpiar(context, ref),
+              onPressed: () async {
+                final confirmado = await confirmarLimpiarCarrito(context);
+                if (confirmado != true) return;
+                if (!context.mounted) return;
+                ref.read(cartProvider.notifier).limpiarCarrito();
+                // En el bottom sheet, además, cerramos el sheet.
+                Navigator.of(context).pop();
+              },
             ),
 
           // Cerrar
@@ -231,169 +246,21 @@ class CartBottomSheet extends ConsumerWidget {
       itemCount: cartItems.length,
       itemBuilder: (context, index) {
         final item = cartItems[index];
-        final subtotal = item.producto.precioUnidad * item.cantidad;
-        final tieneDescuento = item.esDescuentoEspecial;
-
-        return Dismissible(
-          key: ValueKey(item.producto.id),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 20),
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: redError,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(
-              Icons.delete_outline,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-          confirmDismiss: (direction) async {
-            HapticFeedback.lightImpact();
-            return await _confirmarEliminarProducto(
-              context,
-              item.producto.nombre,
-            );
-          },
-          onDismissed: (direction) {
-            ref
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: CartItemTile(
+            item: item,
+            isTablet: isTablet,
+            textColor: colorScheme.onSurface,
+            textSecondaryColor: colorScheme.onSurfaceVariant,
+            borderColor:
+                colorScheme.outlineVariant.withValues(alpha: 0.5),
+            itemBgColor:
+                colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
+            onTap: () => CartQuantitySheet.mostrar(context, ref, item),
+            onDelete: () => ref
                 .read(cartProvider.notifier)
-                .eliminarItemPorId(item.producto.id.toString());
-            _mostrarDialogoEliminado(context, item.producto.nombre);
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: EdgeInsets.all(isTablet ? 20 : 14),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest
-                  .withValues(alpha: 0.55),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              item.producto.nombre,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: isTablet ? 20 : 15,
-                                color: colorScheme.onSurface,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (tieneDescuento) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF59E0B)
-                                    .withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'Dscto.',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFF59E0B),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          if (tieneDescuento) ...[
-                            Text(
-                              '\$${item.precioOriginal.toStringAsFixed(2)}',
-                              style: TextStyle(
-                                fontSize: isTablet ? 14 : 12,
-                                color: colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.5),
-                                decoration: TextDecoration.lineThrough,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                          ],
-                          Text(
-                            '${item.cantidad.toStringAsFixed(item.producto.esPesado ? 3 : 0)} x \$${item.producto.precioUnidad.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              color: tieneDescuento
-                                  ? const Color(0xFFF59E0B)
-                                  : colorScheme.onSurfaceVariant,
-                              fontSize: isTablet ? 16 : 13,
-                              fontWeight: tieneDescuento
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Flexible(
-                  flex: 2,
-                  child: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(
-                      '\$${subtotal.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: isTablet ? 20 : 16,
-                        color: tieneDescuento
-                            ? const Color(0xFFF59E0B)
-                            : primaryGreen,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.close_rounded, size: isTablet ? 28 : 22),
-                  color: redError,
-                  hoverColor: Colors.red.withValues(alpha: 0.1),
-                  splashColor: Colors.red.withValues(alpha: 0.2),
-                  tooltip: 'Eliminar producto',
-                  onPressed: () async {
-                    HapticFeedback.lightImpact();
-                    final confirmado = await _confirmarEliminarProducto(
-                      context,
-                      item.producto.nombre,
-                    );
-                    if (confirmado == true) {
-                      ref
-                          .read(cartProvider.notifier)
-                          .eliminarItemPorId(item.producto.id.toString());
-                      if (context.mounted) {
-                        _mostrarDialogoEliminado(
-                            context, item.producto.nombre);
-                      }
-                    }
-                  },
-                ),
-              ],
-            ),
+                .eliminarItemPorId(item.producto.id),
           ),
         );
       },
@@ -408,6 +275,7 @@ class CartBottomSheet extends ConsumerWidget {
     bool isTablet,
     ColorScheme colorScheme,
     BuildContext context,
+    WidgetRef ref,
   ) {
     return Column(
       children: [
@@ -617,8 +485,11 @@ class CartBottomSheet extends ConsumerWidget {
         // ═══════════════════════════════════════════════════════════
         // 🎯 FIX: bloquear cobro si hay items sin stock
         // ═══════════════════════════════════════════════════════════
-        if (cartState.hayItemsSinStock) {
-          _mostrarDialogoCarritoConProblemas(context, cartState);
+        // `ref.read` (no `watch`): esto corre al hacer tap, fuera del
+        // build. `watch` solo es válido durante el build.
+        final productos = ref.read(productosProvider).items;
+        if (cartState.hayItemsSinStock(productos)) {
+          _mostrarDialogoCarritoConProblemas(context, cartState, productos);
           return;
         }
         Navigator.of(context).pop();
@@ -649,94 +520,6 @@ class CartBottomSheet extends ConsumerWidget {
     );
   }
 
-  // ---------- DIÁLOGOS ----------
-  void _confirmarLimpiar(BuildContext parentContext, WidgetRef ref) {
-    showDialog(
-      context: parentContext,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Limpiar carrito'),
-          content:
-              const Text('¿Seguro que deseas eliminar todos los productos?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              style: TextButton.styleFrom(
-                foregroundColor:
-                    Theme.of(dialogContext).colorScheme.onSurfaceVariant,
-              ),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () {
-                ref.read(cartProvider.notifier).limpiarCarrito();
-                Navigator.of(dialogContext).pop();
-                if (parentContext.mounted) {
-                  Navigator.of(parentContext).pop();
-                }
-              },
-              style: TextButton.styleFrom(foregroundColor: redError),
-              child: const Text('Limpiar'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<bool?> _confirmarEliminarProducto(
-    BuildContext parentContext,
-    String nombre,
-  ) {
-    return showDialog<bool>(
-      context: parentContext,
-      barrierDismissible: true,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Eliminar producto'),
-          content: Text('¿Seguro que deseas eliminar "$nombre" del carrito?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              style: TextButton.styleFrom(
-                foregroundColor:
-                    Theme.of(dialogContext).colorScheme.onSurfaceVariant,
-              ),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(foregroundColor: redError),
-              child: const Text('Eliminar'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _mostrarDialogoEliminado(BuildContext context, String nombre) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Producto eliminado'),
-          content: Text('Se ha eliminado "$nombre" del carrito.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              style: TextButton.styleFrom(
-                foregroundColor:
-                    Theme.of(dialogContext).colorScheme.primary,
-              ),
-              child: const Text('Aceptar'),
-            ),
-          ],
-        );
-      },
-    );
-  }
 }
 /// Diálogo que bloquea el cobro cuando hay items sin stock en el carrito.
 ///
@@ -745,8 +528,9 @@ class CartBottomSheet extends ConsumerWidget {
 void _mostrarDialogoCarritoConProblemas(
   BuildContext context,
   CartState cartState,
+  List<ProductoEntity> productos,
 ) {
-  final itemsConProblema = cartState.itemsSinStock;
+  final itemsConProblema = cartState.itemsSinStock(productos);
 
   showDialog<void>(
     context: context,

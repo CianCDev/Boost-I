@@ -6,9 +6,11 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/departamentos_
 import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/departamento_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/departamentos/crear_departamento_dialog.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/departamentos/asignar_por_categoria_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/departamentos/detalle_departamento_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/departamentos/departamento_card.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/appbar.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/common/local_actual_badge.dart';
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/common/glass_search_bar.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/common/segmented_toggle.dart';
@@ -58,6 +60,17 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
         showBackButton: true,
         centerTitle: false,
         actions: [
+          const LocalActualBadge(compact: true),
+          // R.3.2 · Onboarding del KDS: asignar estaciones a todos los
+          // productos de una categoría de golpe.
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: IconButton(
+              onPressed: _abrirAsignarPorCategoria,
+              icon: const Icon(Icons.category_outlined, color: Colors.white),
+              tooltip: 'Asignar estaciones por categoría',
+            ),
+          ),
           MouseRegion(
             cursor: SystemMouseCursors.click,
             child: IconButton(
@@ -383,6 +396,19 @@ class _DepartamentosScreenState extends ConsumerState<DepartamentosScreen> {
       builder: (_) => const CrearDepartamentoDialog(
         localIdPreseleccionado: null,
       ),
+    ).then((result) {
+      if (result == true && mounted) {
+        _invalidarLista();
+        setState(() {});
+      }
+    });
+  }
+
+  /// R.3.2 · Abre el bulk "asignar estaciones por categoría".
+  void _abrirAsignarPorCategoria() {
+    showDialog<bool>(
+      context: context,
+      builder: (_) => const AsignarPorCategoriaDialog(),
     ).then((result) {
       if (result == true && mounted) {
         _invalidarLista();

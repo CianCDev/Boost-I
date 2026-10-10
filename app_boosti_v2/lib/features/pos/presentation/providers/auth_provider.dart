@@ -12,6 +12,7 @@ import '../services/sync_service.dart';
 import '../services/error_service.dart';
 import 'usuario_provider.dart';
 import 'tenant_provider.dart';
+import 'local_actual_provider.dart';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   return AuthNotifier(ref);
@@ -235,7 +236,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         ..rol = rolJwt ?? data['rol'] ?? 'cajero'
         ..pin = ''
         ..email = email
-        ..activo = true;
+        ..activo = true
+        // 🎯 FIX: mapear is_superadmin para el Control Center.
+        ..isSuperadmin = data['is_superadmin'] == true;
 
       final deviceId = await DeviceInfoService().getDeviceId();
       await supabase
@@ -415,10 +418,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
 
       final jwt = session.accessToken;
-      final tenantId = JwtService.extraerTenantId(jwt);
+
+      // 🎯 FIX: usar el PARÁMETRO, no el claim del JWT.
+      //
+      // El bug: `extraerTenantId(jwt)` devolvía el tenant ANTERIOR porque
+      // `refreshSession()` hadn't picking up the new claim yet (o el RPC
+      // no lo emite). Con eso, todo lo de abajo —`setTenant()`,
+      // `obtenerLocalPorSupabaseId()` y el `state = local.id`— usaba el
+      // local viejo y pisaba lo que `setLocalActual` ya había fijado.
+      //
+      // `supabaseId` es lo que el usuario pidió explícitamente, así que es
+      // la única fuente de verdad aquí.
+      //
+      // El ROL sigue saliendo del JWT: cambiar de local no cambia el rol.
+      final tenantId = supabaseId;
       final rolJwt = JwtService.extraerRol(jwt);
 
-      if (tenantId == null || tenantId.isEmpty) {
+      if (tenantId.isEmpty) {
         state = state.copyWith(
           isLoading: false,
           errorMessage: 'JWT sin tenant_id tras el cambio',
@@ -441,6 +457,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
         return false;
       }
       debugPrint('✅ auth.cambiarLocal: tenant persistido → $verificado');
+
+      // 🎯 FIX: sincronizar las 3 fuentes de verdad.
+      //    1. TenantNotifier (ya hecho arriba).
+      //    2. LocalActualNotifier + prefs localActualId.
+      //    3. LocalEntity.activo en Isar (solo uno activo a la vez).
+      try {
+        final isar = IsarService();
+        final local = await isar.obtenerLocalPorSupabaseId(tenantId);
+
+        if (local != null) {
+          await isar.marcarLocalComoActivo(local.id);
+          _ref.read(localActualProvider.notifier).state = local.id;
+
+          debugPrint(
+            '✅ [AuthProvider.cambiarLocal] Fuentes alineadas: '
+            'tenant=$tenantId, localId=${local.id}',
+          );
+        } else {
+          debugPrint(
+            '⚠️ [AuthProvider.cambiarLocal] No se encontró LocalEntity '
+            'con supabaseId=$tenantId. Fuente 3 no actualizada.',
+          );
+        }
+      } catch (e) {
+        debugPrint(
+          '⚠️ [AuthProvider.cambiarLocal] Error sincronizando fuentes: $e',
+        );
+      }
 
       state = state.copyWith(isLoading: false, errorMessage: null);
       return true;

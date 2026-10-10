@@ -28,33 +28,38 @@ const MovimientoInventarioEntitySchema = CollectionSchema(
       name: r'fecha',
       type: IsarType.dateTime,
     ),
-    r'nombreProducto': PropertySchema(
+    r'localId': PropertySchema(
       id: 2,
+      name: r'localId',
+      type: IsarType.long,
+    ),
+    r'nombreProducto': PropertySchema(
+      id: 3,
       name: r'nombreProducto',
       type: IsarType.string,
     ),
     r'productoId': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'productoId',
       type: IsarType.long,
     ),
     r'stockResultante': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'stockResultante',
       type: IsarType.double,
     ),
     r'syncStatus': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'syncStatus',
       type: IsarType.string,
     ),
     r'tipoMovimiento': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'tipoMovimiento',
       type: IsarType.string,
     ),
     r'usuarioId': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'usuarioId',
       type: IsarType.long,
     )
@@ -64,7 +69,21 @@ const MovimientoInventarioEntitySchema = CollectionSchema(
   deserialize: _movimientoInventarioEntityDeserialize,
   deserializeProp: _movimientoInventarioEntityDeserializeProp,
   idName: r'id',
-  indexes: {},
+  indexes: {
+    r'localId': IndexSchema(
+      id: 1199848425898359622,
+      name: r'localId',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'localId',
+          type: IndexType.value,
+          caseSensitive: false,
+        )
+      ],
+    )
+  },
   links: {},
   embeddedSchemas: {},
   getId: _movimientoInventarioEntityGetId,
@@ -93,12 +112,13 @@ void _movimientoInventarioEntitySerialize(
 ) {
   writer.writeDouble(offsets[0], object.cantidad);
   writer.writeDateTime(offsets[1], object.fecha);
-  writer.writeString(offsets[2], object.nombreProducto);
-  writer.writeLong(offsets[3], object.productoId);
-  writer.writeDouble(offsets[4], object.stockResultante);
-  writer.writeString(offsets[5], object.syncStatus);
-  writer.writeString(offsets[6], object.tipoMovimiento);
-  writer.writeLong(offsets[7], object.usuarioId);
+  writer.writeLong(offsets[2], object.localId);
+  writer.writeString(offsets[3], object.nombreProducto);
+  writer.writeLong(offsets[4], object.productoId);
+  writer.writeDouble(offsets[5], object.stockResultante);
+  writer.writeString(offsets[6], object.syncStatus);
+  writer.writeString(offsets[7], object.tipoMovimiento);
+  writer.writeLong(offsets[8], object.usuarioId);
 }
 
 MovimientoInventarioEntity _movimientoInventarioEntityDeserialize(
@@ -111,12 +131,13 @@ MovimientoInventarioEntity _movimientoInventarioEntityDeserialize(
   object.cantidad = reader.readDouble(offsets[0]);
   object.fecha = reader.readDateTime(offsets[1]);
   object.id = id;
-  object.nombreProducto = reader.readString(offsets[2]);
-  object.productoId = reader.readLong(offsets[3]);
-  object.stockResultante = reader.readDouble(offsets[4]);
-  object.syncStatus = reader.readString(offsets[5]);
-  object.tipoMovimiento = reader.readString(offsets[6]);
-  object.usuarioId = reader.readLong(offsets[7]);
+  object.localId = reader.readLong(offsets[2]);
+  object.nombreProducto = reader.readString(offsets[3]);
+  object.productoId = reader.readLong(offsets[4]);
+  object.stockResultante = reader.readDouble(offsets[5]);
+  object.syncStatus = reader.readString(offsets[6]);
+  object.tipoMovimiento = reader.readString(offsets[7]);
+  object.usuarioId = reader.readLong(offsets[8]);
   return object;
 }
 
@@ -132,16 +153,18 @@ P _movimientoInventarioEntityDeserializeProp<P>(
     case 1:
       return (reader.readDateTime(offset)) as P;
     case 2:
-      return (reader.readString(offset)) as P;
-    case 3:
       return (reader.readLong(offset)) as P;
-    case 4:
-      return (reader.readDouble(offset)) as P;
-    case 5:
+    case 3:
       return (reader.readString(offset)) as P;
+    case 4:
+      return (reader.readLong(offset)) as P;
+    case 5:
+      return (reader.readDouble(offset)) as P;
     case 6:
       return (reader.readString(offset)) as P;
     case 7:
+      return (reader.readString(offset)) as P;
+    case 8:
       return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -168,6 +191,15 @@ extension MovimientoInventarioEntityQueryWhereSort on QueryBuilder<
       QAfterWhere> anyId() {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(const IdWhereClause.any());
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterWhere> anyLocalId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(
+        const IndexWhereClause.any(indexName: r'localId'),
+      );
     });
   }
 }
@@ -237,6 +269,99 @@ extension MovimientoInventarioEntityQueryWhere on QueryBuilder<
         lower: lowerId,
         includeLower: includeLower,
         upper: upperId,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterWhereClause> localIdEqualTo(int localId) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'localId',
+        value: [localId],
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterWhereClause> localIdNotEqualTo(int localId) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localId',
+              lower: [],
+              upper: [localId],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localId',
+              lower: [localId],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localId',
+              lower: [localId],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'localId',
+              lower: [],
+              upper: [localId],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterWhereClause> localIdGreaterThan(
+    int localId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'localId',
+        lower: [localId],
+        includeLower: include,
+        upper: [],
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterWhereClause> localIdLessThan(
+    int localId, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'localId',
+        lower: [],
+        upper: [localId],
+        includeUpper: include,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterWhereClause> localIdBetween(
+    int lowerLocalId,
+    int upperLocalId, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'localId',
+        lower: [lowerLocalId],
+        includeLower: includeLower,
+        upper: [upperLocalId],
         includeUpper: includeUpper,
       ));
     });
@@ -415,6 +540,62 @@ extension MovimientoInventarioEntityQueryFilter on QueryBuilder<
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
         property: r'id',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> localIdEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'localId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> localIdGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'localId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> localIdLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'localId',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterFilterCondition> localIdBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'localId',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -1053,6 +1234,20 @@ extension MovimientoInventarioEntityQuerySortBy on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterSortBy> sortByLocalId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterSortBy> sortByLocalIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterSortBy> sortByNombreProducto() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombreProducto', Sort.asc);
@@ -1182,6 +1377,20 @@ extension MovimientoInventarioEntityQuerySortThenBy on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterSortBy> thenByLocalId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QAfterSortBy> thenByLocalIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'localId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QAfterSortBy> thenByNombreProducto() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'nombreProducto', Sort.asc);
@@ -1283,6 +1492,13 @@ extension MovimientoInventarioEntityQueryWhereDistinct on QueryBuilder<
   }
 
   QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
+      QDistinct> distinctByLocalId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'localId');
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, MovimientoInventarioEntity,
       QDistinct> distinctByNombreProducto({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'nombreProducto',
@@ -1346,6 +1562,13 @@ extension MovimientoInventarioEntityQueryProperty on QueryBuilder<
       fechaProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'fecha');
+    });
+  }
+
+  QueryBuilder<MovimientoInventarioEntity, int, QQueryOperations>
+      localIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'localId');
     });
   }
 

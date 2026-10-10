@@ -1,12 +1,18 @@
 // lib/features/pos/domain/enums/tipo_documento.dart
 
-/// Tipo de documento de identidad.
+/// Tipo de documento de identidad para usuarios/empleados del sistema.
 ///
 /// - V = Venezolano
 /// - E = Extranjero
 /// - J = Jurídico (empresas — no aplica a usuarios, sí a proveedores)
 /// - P = Pasaporte (futuro)
-/// - G = Gobierno (futuro)
+///
+/// ⚠️ Este enum es para `UsuarioEntity`. NO es el mismo vocabulario que
+/// `kTiposDocumento` (persona_form_template.dart), que es para clientes y
+/// proveedores externos. Son dominios distintos y no deben forzarse a coincidir.
+///
+/// Además, `P` no se puede quitar sin regenerar `usuario_entity.g.dart`
+/// (`_UsuarioEntitytipoDocumentoValueEnumMap` referencia `TipoDocumento.p`).
 enum TipoDocumento {
   v('V', 'Venezolano'),
   e('E', 'Extranjero'),

@@ -86,8 +86,16 @@ class _TopProductsWidgetState extends ConsumerState<TopProductsWidget>
                 categoria: prodEntidad.categoria,
               );
 
-              // Usamos la referencia segura que guardamos arriba
-              cartNotifier.agregarItem(itemParaCarrito, cantidad);
+              // Usamos la referencia segura que guardamos arriba.
+              // R.3: `prodEntidad` es el `ProductoEntity` que entrega
+              // `QuantityDialog.onAgregar`, así que de aquí sale la
+              // estación de preparación (KDS).
+              cartNotifier.agregarItem(
+                itemParaCarrito,
+                cantidad,
+                estacionId: prodEntidad.departamentoId,
+                imagenUrl: prodEntidad.imagenUrl,
+              );
               
               ScaffoldMessenger.of(navigatorContext).showSnackBar(
                 SnackBar(

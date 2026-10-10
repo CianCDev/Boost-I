@@ -723,7 +723,12 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
                     },
                     displayStringForOption: (id) {
                       final producto = productosOrdenados.firstWhere((p) => p.id == id);
-                      return '${producto.nombre} (Stock: ${producto.stock})';
+                      // Solo el nombre. Antes agregaba "(Stock: 298.0)", que
+                      // en un pedido a proveedor es ruido: el stock local
+                      // no es lo que se esta pidiendo, y el `Autocomplete`
+                      // muestra este mismo texto en el campo una vez
+                      // elegida la opcion.
+                      return producto.nombre;
                     },
                     onSelected: (id) {
                       setState(() {
@@ -768,176 +773,199 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Modo de compra
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment<bool>(
-                        value: false,
-                        label: Text('Unidades'),
-                        icon: Icon(Icons.square_outlined),
-                      ),
-                      ButtonSegment<bool>(
-                        value: true,
-                        label: Text('Bultos / Paquetes'),
-                        icon: Icon(Icons.inventory_2_outlined),
-                      ),
-                    ],
-                    selected: {_modoBultos},
-                    onSelectionChanged: (Set<bool> newSelection) {
-                      setState(() {
-                        _modoBultos = newSelection.first;
-                        _actualizarCantidadControllerPrincipal();
-                      });
-                    },
-                    style: SegmentedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      selectedBackgroundColor: const Color(0xFF8B5CF6),
-                      selectedForegroundColor: Colors.white,
-                      foregroundColor: isDark ? Colors.white70 : Colors.black54,
-                      backgroundColor: Colors.transparent,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Campos dinámicos
-                  if (!_modoBultos) ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextField(
-                            controller: _unidadesCantidadController,
-                            keyboardType: TextInputType.number,
-                            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                            decoration: _inputDecor('Cantidad (Unidades)', Icons.numbers, isDark),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 3,
-                          child: TextField(
-                            controller: _unidadesPrecioController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                            decoration: _inputDecor('Costo Unitario (USD)', Icons.attach_money, isDark),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (totalUnidades > 0 && costoUnitario > 0)
-                      _buildTotalPagar(isDark, subtotalProducto),
-                  ] else ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _bultosCantidadController,
-                            keyboardType: TextInputType.number,
-                            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                            decoration: _inputDecor('N° de Bultos', Icons.inventory_2_outlined, isDark),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _bultosUnidadesPorBultoController,
-                            keyboardType: TextInputType.number,
-                            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                            decoration: _inputDecor('Unidades / Bulto', Icons.fork_right, isDark),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: TextField(
-                            controller: _bultosPrecioPorBultoController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                            decoration: _inputDecor('Costo por Bulto (USD)', Icons.attach_money, isDark),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 2,
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF8B5CF6).withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.2)),
+                  // ------------------------------------------------------------
+                  // Campos de cantidad/costo + boton Agregar.
+                  //
+                  // Solo se muestran con un producto seleccionado. Antes
+                  // aparecian siempre, con los valores por defecto 1.0 y
+                  // 0.00, lo que hacia creer que el producto ya tenia
+                  // cantidad y costo cargados antes de elegirlo.
+                  //
+                  // El Autocomplete de arriba y la lista de productos
+                  // agregados quedan FUERA de este bloque: el buscador
+                  // tiene que verse siempre para poder elegir, y la
+                  // lista muestra lo ya confirmado.
+                  // ------------------------------------------------------------
+                  if (_productoSeleccionadoId != null)
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.topCenter,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SegmentedButton<bool>(
+                            segments: const [
+                              ButtonSegment<bool>(
+                                value: false,
+                                label: Text('Unidades'),
+                                icon: Icon(Icons.square_outlined),
+                              ),
+                              ButtonSegment<bool>(
+                                value: true,
+                                label: Text('Bultos / Paquetes'),
+                                icon: Icon(Icons.inventory_2_outlined),
+                              ),
+                            ],
+                            selected: {_modoBultos},
+                            onSelectionChanged: (Set<bool> newSelection) {
+                              setState(() {
+                                _modoBultos = newSelection.first;
+                                _actualizarCantidadControllerPrincipal();
+                              });
+                            },
+                            style: SegmentedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              selectedBackgroundColor: const Color(0xFF8B5CF6),
+                              selectedForegroundColor: Colors.white,
+                              foregroundColor: isDark ? Colors.white70 : Colors.black54,
+                              backgroundColor: Colors.transparent,
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          ),
+                          const SizedBox(height: 12),
+        
+                          // Campos dinámicos
+                          if (!_modoBultos) ...[
+                            Row(
                               children: [
-                                Text(
-                                  'Total Unidades',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: isDark ? Colors.white54 : Colors.black54,
+                                Expanded(
+                                  flex: 2,
+                                  child: TextField(
+                                    controller: _unidadesCantidadController,
+                                    keyboardType: TextInputType.number,
+                                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                                    decoration: _inputDecor('Cantidad (Unidades)', Icons.numbers, isDark),
                                   ),
                                 ),
-                                Text(
-                                  '${totalUnidades.toStringAsFixed(0)} und',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    color: Color(0xFF8B5CF6),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  flex: 3,
+                                  child: TextField(
+                                    controller: _unidadesPrecioController,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                                    decoration: _inputDecor('Costo Unitario (USD)', Icons.attach_money, isDark),
                                   ),
                                 ),
-                                if (totalUnidades > 0 && costoUnitario > 0)
-                                  Text(
-                                    'Costo unitario: \$${costoUnitario.toStringAsFixed(4)}',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: isDark ? Colors.white54 : Colors.black54,
-                                    ),
-                                  ),
                               ],
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (totalUnidades > 0 && costoUnitario > 0)
-                      _buildTotalPagar(isDark, subtotalProducto),
-                  ],
-                  const SizedBox(height: 12),
-
-                  // Botón Agregar
-                  Row(
-                    children: [
-                      const Spacer(),
-                      ElevatedButton(
-                        onPressed: _proveedorSeleccionado == null || _productoSeleccionadoId == null
-                            ? null
-                            : _agregarProducto,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8B5CF6),
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isMobile ? 12 : 16,
-                            vertical: isMobile ? 8 : 10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.add_rounded, size: 18),
-                            const SizedBox(width: 4),
-                            const Text('Agregar'),
+                            if (totalUnidades > 0 && costoUnitario > 0)
+                              _buildTotalPagar(isDark, subtotalProducto),
+                          ] else ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _bultosCantidadController,
+                                    keyboardType: TextInputType.number,
+                                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                                    decoration: _inputDecor('N° de Bultos', Icons.inventory_2_outlined, isDark),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _bultosUnidadesPorBultoController,
+                                    keyboardType: TextInputType.number,
+                                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                                    decoration: _inputDecor('Unidades / Bulto', Icons.fork_right, isDark),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: TextField(
+                                    controller: _bultosPrecioPorBultoController,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                                    decoration: _inputDecor('Costo por Bulto (USD)', Icons.attach_money, isDark),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  flex: 2,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.2)),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Total Unidades',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: isDark ? Colors.white54 : Colors.black54,
+                                          ),
+                                        ),
+                                        Text(
+                                          '${totalUnidades.toStringAsFixed(0)} und',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                            color: Color(0xFF8B5CF6),
+                                          ),
+                                        ),
+                                        if (totalUnidades > 0 && costoUnitario > 0)
+                                          Text(
+                                            'Costo unitario: \$${costoUnitario.toStringAsFixed(4)}',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: isDark ? Colors.white54 : Colors.black54,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (totalUnidades > 0 && costoUnitario > 0)
+                              _buildTotalPagar(isDark, subtotalProducto),
                           ],
-                        ),
+                          const SizedBox(height: 12),
+        
+                          // Botón Agregar
+                          Row(
+                            children: [
+                              const Spacer(),
+                              ElevatedButton(
+                                onPressed: _proveedorSeleccionado == null || _productoSeleccionadoId == null
+                                    ? null
+                                    : _agregarProducto,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF8B5CF6),
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 12 : 16,
+                                    vertical: isMobile ? 8 : 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.add_rounded, size: 18),
+                                    const SizedBox(width: 4),
+                                    const Text('Agregar'),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
                   const SizedBox(height: 8),
 
                   // Lista de productos agregados

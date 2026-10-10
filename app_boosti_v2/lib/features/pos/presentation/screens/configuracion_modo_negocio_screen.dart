@@ -172,7 +172,7 @@ class _ConfiguracionModoNegocioScreenState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildHeader(modoActual, isMobile),
+              _buildHeader(modoActual, isMobile, suscripcion: suscripcionAsync.valueOrNull),
               const SizedBox(height: 24),
               _buildBody(
                 suscripcionAsync,
@@ -187,7 +187,7 @@ class _ConfiguracionModoNegocioScreenState
     );
   }
 
-  Widget _buildHeader(BusinessMode modoActual, bool isMobile) {
+  Widget _buildHeader(BusinessMode modoActual, bool isMobile, {SuscripcionEntity? suscripcion}) {
     return Row(
       children: [
         Container(
@@ -243,7 +243,53 @@ class _ConfiguracionModoNegocioScreenState
             ],
           ),
         ),
+        // 🎯 NUEVO: badge del plan actual
+        if (suscripcion != null) ...[
+          const SizedBox(width: 12),
+          _buildPlanBadge(suscripcion),
+        ],
       ],
+    );
+  }
+
+  Widget _buildPlanBadge(SuscripcionEntity s) {
+    final esTrial = s.estado == 'trial';
+    final esActiva = s.estado == 'activa';
+    final color = esActiva
+        ? const Color(0xFF10B981)
+        : esTrial
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFFEF4444);
+
+    final label = esTrial
+        ? '${s.planId.toUpperCase()} · Trial'
+        : esActiva
+            ? s.planId.toUpperCase()
+            : s.estado.toUpperCase();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.workspace_premium_rounded, size: 12, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -273,7 +319,8 @@ class _ConfiguracionModoNegocioScreenState
         modosDisponibles.addAll(planActual.modosHabilitados);
       }
     } else {
-      modosDisponibles.add('mercado');
+      // Sin suscripción activa se permite únicamente el modo minorista.
+      modosDisponibles.add('retail');
     }
 
     final hayCambio = _seleccionado != null && _seleccionado != modoActual;

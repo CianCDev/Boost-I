@@ -8,15 +8,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import '../../../presentation/utils/pin_hasher.dart';
+import '../../../presentation/utils/tenant_utils.dart';
 
 // Entidades
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import 'autorizacion_descuento_entity.dart';
 import 'cart_session_entity.dart';
 import 'cliente_entity.dart';
+import 'estado_plato.dart';
 import '../entities/turno_entity.dart';
 import '../entities/log_entity.dart';
 import '../entities/venta_entity.dart';
+import 'venta_anulada_entity.dart';
+import 'gasto_anulado_entity.dart';
 import '../entities/detalle_venta_entity.dart';
 import '../entities/detalle_pedido_entity.dart';
 import '../entities/producto_entity.dart';
@@ -24,11 +28,13 @@ import '../entities/usuario_entity.dart';
 import '../entities/pedido_entity.dart';
 import '../entities/proveedor_entity.dart';
 import '../entities/movimiento_inventario_entity.dart';
+import 'receta_entity.dart';
 import '../entities/recepcion_entity.dart';
 import 'categoria_entity.dart';
 import 'codigo_barra_alia_entity.dart';
 import '../entities/lote_entity.dart';
 import '../entities/departamento_entity.dart';
+import '../entities/mesa_entity.dart';
 import '../entities/telegram_config_entity.dart';
 import 'config_descuento_mayorista_entity.dart';
 import 'cotizacion_mayor_entity.dart';
@@ -149,6 +155,10 @@ Future<Isar> _initIsar({String? testDirectory}) async {
         ConfigDescuentoMayoristaEntitySchema,
         PlanEntitySchema,
         SuscripcionEntitySchema,
+        VentaAnuladaEntitySchema,
+        GastoAnuladoEntitySchema,
+        MesaEntitySchema,
+        RecetaEntitySchema,
       ],
       directory: dbPath,
       inspector: testDirectory == null,
@@ -200,6 +210,10 @@ Future<Isar> _initIsar({String? testDirectory}) async {
         ConfigDescuentoMayoristaEntitySchema,
         PlanEntitySchema,
         SuscripcionEntitySchema,
+        VentaAnuladaEntitySchema,
+        GastoAnuladoEntitySchema,
+        MesaEntitySchema,
+        RecetaEntitySchema,
       ],
       directory: fallbackPath,
       inspector: testDirectory == null,
@@ -857,6 +871,27 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
 
   Future<void> guardarProducto(ProductoEntity producto) async {
     try {
+      // ⚠️ GUARD DE CÓDIGO VACÍO (Capa 1 de 2).
+      //
+      // `codigoBarras` está en un `@Index(unique: true)`. El constructor de
+      // `ProductoEntity` lo deja en `''`, y tanto `ProductoEntity.fromJson`
+      // como `sync_service` colapsan un `codigo_barras` nulo a `''`. Con dos
+      // productos así, el segundo `put()` violaba el índice y —mientras el
+      // índice tuvo `replace: true`— BORRABA al primero sin error ni aviso.
+      //
+      // Se deriva aquí una clave única en vez de dejar el hueco. Con el
+      // `replace: false` de la Capa 2, un duplicado real que se colara por
+      // otro camino da `IsarUniqueViolationError`, que sí se ve.
+      //
+      // El `trim()` cubre el caso "   " (espacios), que `isEmpty` no pilla.
+      if (producto.codigoBarras.trim().isEmpty) {
+        final uuid = producto.supabaseId;
+        producto.codigoBarras = (uuid != null && uuid.isNotEmpty)
+            ? 'SB-$uuid'
+            : 'AUTO-${DateTime.now().microsecondsSinceEpoch}-'
+                '${producto.nombre.hashCode.abs()}';
+      }
+
       final isar = await db;
       await isar.writeTxn(() async {
         await isar.productoEntitys.put(producto);
@@ -895,25 +930,15 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
     }
   }
 
-  Future<void> actualizarStockProducto(
-      int idProducto, double nuevoStock) async {
-    try {
-      final isar = await db;
-      await isar.writeTxn(() async {
-        final producto = await isar.productoEntitys.get(idProducto);
-        if (producto != null) {
-          producto.stock = nuevoStock < 0 ? 0.0 : nuevoStock;
-          await isar.productoEntitys.put(producto);
-        }
-      });
-    } catch (e, stack) {
-      ErrorService.captureError(e,
-          stack: stack,
-          hint: 'actualizarStockProducto_fallo',
-          extras: {'idProducto': idProducto, 'nuevoStock': nuevoStock});
-      rethrow;
-    }
-  }
+  // ⚠️ `actualizarStockProducto` fue eliminado (Lote C).
+  //
+  //   No tenía NINGÚN caller (0 referencias fuera de su definición) y
+  //   escribía `producto.stock` sin mirar los lotes. Era uno de los 11
+  //   escritores ciegos que rompían la igualdad
+  //   `producto.stock == SUM(lotes.cantidad_restante)`.
+  //
+  //   Para cambiar stock, usar `recalcularStockDe([id])` después de
+  //   mover la cantidad en los lotes.
 
   Future<ProductoEntity?> obtenerProductoPorCodigoBarrasExacto(
       String codigo) async {
@@ -982,7 +1007,7 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
       final detallesList = detalles ?? venta.items.toList();
 
       await isar.writeTxn(() async {
-        venta.syncStatus = venta.syncStatus =
+        venta.syncStatus =
             (venta.syncStatus?.isEmpty ?? true) ? 'pending' : venta.syncStatus;
         await isar.ventaEntitys.put(venta);
 
@@ -1176,6 +1201,68 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // ANULACIONES DE VENTA
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Registra la anulación de una venta.
+  ///
+  /// NO modifica la venta original. Solo inserta un registro nuevo.
+ /* Future<void> guardarVentaAnulada(VentaAnuladaEntity anulacion) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.ventaAnuladaEntitys.put(anulacion);
+    });
+  }
+
+  /// Devuelve la anulación de una venta específica (si existe).
+  Future<VentaAnuladaEntity?> obtenerAnulacionDeVenta(String ventaIdOriginal) async {
+    final isar = await db;
+    return isar.ventaAnuladaEntitys
+        .filter()
+        .ventaIdOriginalEqualTo(ventaIdOriginal)
+        .findFirst();
+  }
+
+  /// Lista de todas las anulaciones del tenant.
+  Future<List<VentaAnuladaEntity>> obtenerVentasAnuladas(String tenantId) async {
+    final isar = await db;
+    return isar.ventaAnuladaEntitys
+        .filter()
+        .tenantIdEqualTo(tenantId)
+        .sortByFechaAnulacionDesc()
+        .findAll();
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ANULACIONES DE GASTO
+  // ═══════════════════════════════════════════════════════════════
+
+  Future<void> guardarGastoAnulado(GastoAnuladoEntity anulacion) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.gastoAnuladoEntitys.put(anulacion);
+    });
+  }
+
+  Future<GastoAnuladoEntity?> obtenerAnulacionDeGasto(int gastoIdOriginal) async {
+    final isar = await db;
+    return isar.gastoAnuladoEntitys
+        .filter()
+        .gastoIdOriginalEqualTo(gastoIdOriginal)
+        .findFirst();
+  }
+
+  /// Devuelve los IDs de gastos anulados del tenant (para filtrar en UI).
+  Future<Set<int>> obtenerIdsGastosAnulados(String tenantId) async {
+    final isar = await db;
+    final lista = await isar.gastoAnuladoEntitys
+        .filter()
+        .tenantIdEqualTo(tenantId)
+        .findAll();
+    return lista.map((a) => a.gastoIdOriginal).toSet();
+  }
+*/
   Future<VentaEntity?> obtenerVentaPorIdString(String ventaIdString) async {
     try {
       final isar = await db;
@@ -1218,9 +1305,18 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
 
    // ==================== CARRITOS EN ESPERA (PARK SALE) ====================
 
-  /// Devuelve todas las sesiones en espera de un usuario.
-  /// NO incluye sesiones abandonadas automáticamente (se marcan visualmente).
-  Future<List<CartSessionEntity>> obtenerSesionesDeUsuario(int usuarioId) async {
+  /// Devuelve los CARRITOS APARCADOS de retail de un usuario.
+  ///
+  /// ⚠️ R.2: excluye las comandas de restaurante (`mesaId != null`). Se
+  /// filtran en Dart y no con una segunda condición de Isar porque los
+  /// métodos generados (`mesaIdIsNull()`) solo viven sobre la extensión
+  /// `QFilterCondition`, y no se pueden encadenar dos condiciones.
+  /// El volumen es pequeño, así que el coste es irrelevante.
+  ///
+  /// Las comandas se leen con `obtenerComandasDeLocal` o
+  /// `obtenerComandaPorSessionId`.
+  Future<List<CartSessionEntity>> obtenerSesionesDeUsuario(
+      int usuarioId) async {
     try {
       final isar = await db;
       final sesiones = await isar.cartSessionEntitys
@@ -1230,13 +1326,393 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
 
       // Ordenar: primero las más recientes
       sesiones.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return sesiones;
+      return sesiones.where((s) => s.mesaId == null).toList();
     } catch (e, stack) {
       ErrorService.captureError(e,
           stack: stack,
           hint: 'obtenerSesionesDeUsuario_fallo',
           extras: {'usuarioId': usuarioId});
       return [];
+    }
+  }
+
+  // ============================================================
+  // COMANDAS (restaurante · R.2)
+  //
+  // `CartSessionEntity` NO tiene campo `localId`: una comanda se ancla a
+  // una MESA, y el local se deduce de esa mesa. Por eso el filtro por
+  // local se resuelve en dos pasos (mesas del local → mesaIds).
+  // ============================================================
+
+  /// Comandas vivas (abiertas o enviadas) de las mesas de un local.
+  ///
+  /// Las comandas `cerrada` y `cancelada` se conservan en Isar (histórico)
+  /// pero no se devuelven aquí.
+  Future<List<CartSessionEntity>> obtenerComandasDeLocal(int localId) async {
+    try {
+      final mesas = await obtenerMesasDelLocal(localId);
+      if (mesas.isEmpty) return [];
+
+      final mesaIds = mesas.map((m) => m.id).toSet();
+
+      final isar = await db;
+      final comandas = await isar.cartSessionEntitys
+          .filter()
+          .mesaIdIsNotNull()
+          .findAll();
+
+      return comandas
+          .where((c) => mesaIds.contains(c.mesaId))
+          .where((c) =>
+              c.comandaEstado == ComandaEstado.abierta ||
+              c.comandaEstado == ComandaEstado.enviada)
+          .toList();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerComandasDeLocal_fallo',
+          extras: {'localId': localId});
+      return [];
+    }
+  }
+
+  /// Busca una comanda por su `sessionId` determinístico (`mesa:<id>`).
+  ///
+  /// Devuelve null si no existe O si ya no está viva (cerrada/cancelada).
+  Future<CartSessionEntity?> obtenerComandaPorSessionId(
+      String sessionId) async {
+    try {
+      final isar = await db;
+      final comanda = await isar.cartSessionEntitys
+          .filter()
+          .sessionIdEqualTo(sessionId)
+          .findFirst();
+      if (comanda == null) return null;
+      if (comanda.comandaEstado == ComandaEstado.cerrada ||
+          comanda.comandaEstado == ComandaEstado.cancelada) {
+        return null;
+      }
+      return comanda;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerComandaPorSessionId_fallo',
+          extras: {'sessionId': sessionId});
+      return null;
+    }
+  }
+
+  /// Lee una comanda por su id de Isar, sea cual sea su estado.
+  ///
+  /// A diferencia de `obtenerComandaPorSessionId`, NO filtra comandas
+  /// cerradas ni canceladas: el KDS necesita leer el histórico para
+  /// validar transiciones. Quien decide si una comanda viva es
+  /// `ComandasNotifier._avanzarEstado`.
+  Future<CartSessionEntity?> obtenerComandaPorId(int id) async {
+    try {
+      final isar = await db;
+      return await isar.cartSessionEntitys.get(id);
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerComandaPorId_fallo',
+          extras: {'id': id});
+      return null;
+    }
+  }
+
+  /// Guarda o actualiza una comanda.
+  Future<int> guardarComanda(CartSessionEntity comanda) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn<int>(() async {
+        comanda.updatedAt = DateTime.now();
+        // ⚠️ NO usar `createdAt ??= ...` aquí: en `CartSessionEntity` ese
+        // campo es `DateTime` NO-nullable (con default `DateTime.now()`), a
+        // diferencia de `DepartamentoEntity` donde sí es `DateTime?`.
+        // Aquí el `??=` sería código muerto.
+        return await isar.cartSessionEntitys.put(comanda);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'guardarComanda_fallo',
+          extras: {
+            'comandaId': comanda.id,
+            'sessionId': comanda.sessionId
+          });
+      rethrow;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // R.3 · KDS — ciclo de estados de los platos
+  //
+  // ⚠️ PATRÓN OBLIGATORIO PARA MODIFICAR UN ITEM:
+  //
+  // `CartSessionItem` es `@embedded`, NO una colección. Isar no puede
+  // filtrar ni escribir un item suelto: hay que LEER la comanda entera,
+  // mutar el array `items` en memoria y hacer `put()` de la comanda
+  // COMPLETA dentro de un `writeTxn`. Por eso todos estos métodos
+  // reciben (o devuelven) la comanda, nunca un item suelto.
+  //
+  // No existe `where().estadoPlatoEqualTo(...)`: `obtenerComandasConItemsEnCola`
+  // filtra y ordena EN DART.
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Estados en los que un plato sigue vivo en el KDS.
+  static const estadosVisiblesEnKds = <EstadoPlato>{
+    EstadoPlato.enCola,
+    EstadoPlato.enPreparacion,
+    EstadoPlato.listo,
+  };
+
+  /// Comandas del local con al menos un plato visible en el KDS.
+  ///
+  /// Orden FIFO: por el `enviadoACocinaAt` MÁS ANTIGUO de cada comanda
+  /// (no por el de la comanda), que es lo que el cocinero necesita ver.
+  ///
+  /// ⚠️ `CartSessionEntity` NO tiene `localId`: la comanda se ancla a la
+  /// MESA, así que el aislamiento por local se hace vía ids de mesas
+  /// (`obtenerComandasDeLocal`), igual que en R.2. Y los items son
+  /// `@embedded`, así que el filtro de `estadoPlato` va en DART: no
+  /// existe `where().estadoPlatoEqualTo(...)`.
+  Future<List<CartSessionEntity>> obtenerComandasConItemsEnCola(
+      int localId) async {
+    try {
+      final comandas = await obtenerComandasDeLocal(localId);
+
+      final conCola = comandas
+          .where((c) => c.items
+              .any((i) => estadosVisiblesEnKds.contains(i.estadoPlato)))
+          .toList();
+
+      conCola.sort(_compararPorColaAntigua);
+
+      return conCola;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerComandasConItemsEnCola_fallo',
+          extras: {'localId': localId});
+      return [];
+    }
+  }
+
+  /// FIFO: comanda cuya cola es más antigua primero.
+  ///
+  /// Las comandas sin `enviadoACocinaAt` (nunca enviadas) van al final, y
+  /// a igual timestamp la más antigua por `createdAt`.
+  static int _compararPorColaAntigua(
+      CartSessionEntity a, CartSessionEntity b) {
+    DateTime? masAntiguo(CartSessionEntity c) {
+      DateTime? mejor;
+      for (final i in c.items) {
+        if (!estadosVisiblesEnKds.contains(i.estadoPlato)) continue;
+        final t = i.enviadoACocinaAt;
+        if (t == null) continue;
+        if (mejor == null || t.isBefore(mejor)) mejor = t;
+      }
+      return mejor;
+    }
+
+    final ta = masAntiguo(a);
+    final tb = masAntiguo(b);
+
+    if (ta == null && tb == null) return a.createdAt.compareTo(b.createdAt);
+    if (ta == null) return 1;
+    if (tb == null) return -1;
+
+    final cmp = ta.compareTo(tb);
+    return cmp != 0 ? cmp : a.createdAt.compareTo(b.createdAt);
+  }
+
+  /// Cambia el `estadoPlato` de UN item y sella su timestamp.
+  ///
+  /// Devuelve `comandaId` si se escribió, o `-1` si falló (comanda ausente
+  /// o `itemIndex` fuera de rango).
+  ///
+  /// ⚠️ NO valida la transición: eso es responsabilidad de
+  /// `ComandasNotifier.transicionValida`. Aquí solo se ejecuta.
+  Future<int> actualizarItemDeComanda(
+    int comandaId,
+    int itemIndex,
+    EstadoPlato nuevo, {
+    DateTime? timestamp,
+  }) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn<int>(() async {
+        final comanda = await isar.cartSessionEntitys.get(comandaId);
+        if (comanda == null) return -1;
+        if (itemIndex < 0 || itemIndex >= comanda.items.length) return -1;
+
+        final item = comanda.items[itemIndex];
+        item.estadoPlato = nuevo;
+
+        final cuando = timestamp ?? DateTime.now();
+        switch (nuevo) {
+          case EstadoPlato.pendiente:
+            item.enviadoACocinaAt = null;
+            item.preparacionIniciadaAt = null;
+            item.listoAt = null;
+            item.entregadoAt = null;
+          case EstadoPlato.enCola:
+            item.enviadoACocinaAt = cuando;
+          case EstadoPlato.enPreparacion:
+            item.preparacionIniciadaAt = cuando;
+          case EstadoPlato.listo:
+            item.listoAt = cuando;
+          case EstadoPlato.entregado:
+            item.entregadoAt = cuando;
+          case EstadoPlato.cancelado:
+            // Cancelar no sella ningún timestamp de cocina.
+            break;
+        }
+
+        comanda.updatedAt = DateTime.now();
+        await isar.cartSessionEntitys.put(comanda);
+        return comanda.id;
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'actualizarItemDeComanda_fallo',
+          extras: {
+            'comandaId': comandaId,
+            'itemIndex': itemIndex,
+            'estado': nuevo.name,
+          });
+      return -1;
+    }
+  }
+
+  /// Cambia la pausa de UN item, SIN tocar su `estadoPlato`.
+  ///
+  /// R.3.2. Deliberadamente separado de `actualizarItemDeComanda`:
+  /// pausar y avanzar son ejes ortogonales (un plato puede estar
+  /// `enPreparacion` Y pausado), así que un método único con 8
+  /// parámetros opcionales sería imposible de leer.
+  ///
+  /// Al pausar (`pausado: true`) sella `pausadoEn`. Al reanudar limpia
+  /// los tres campos de pausa.
+  ///
+  /// Devuelve `comandaId` si escribió, `-1` si falló.
+  Future<int> actualizarPausaItem(
+    int comandaId,
+    int itemIndex, {
+    required bool pausado,
+    String? motivo,
+  }) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn<int>(() async {
+        final comanda = await isar.cartSessionEntitys.get(comandaId);
+        if (comanda == null) return -1;
+        if (itemIndex < 0 || itemIndex >= comanda.items.length) return -1;
+
+        final item = comanda.items[itemIndex];
+        item.pausado = pausado;
+
+        if (pausado) {
+          item.pausadoEn = DateTime.now();
+          item.motivoPausa = (motivo != null && motivo.trim().isNotEmpty)
+              ? motivo.trim()
+              : null;
+        } else {
+          item.pausadoEn = null;
+          item.motivoPausa = null;
+        }
+
+        comanda.updatedAt = DateTime.now();
+        await isar.cartSessionEntitys.put(comanda);
+        return comanda.id;
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'actualizarPausaItem_fallo',
+          extras: {
+            'comandaId': comandaId,
+            'itemIndex': itemIndex,
+            'pausado': pausado,
+          });
+      return -1;
+    }
+  }
+
+  /// Manda a la cola del KDS los platos que siguen `pendiente`.
+  ///
+  /// Idempotente por diseño: si no hay pendientes, no escribe nada.
+  /// Devuelve cuántos platos entraron.
+  Future<int> marcarPendientesComoEnCola(
+      int comandaId, DateTime cuando) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn<int>(() async {
+        final comanda = await isar.cartSessionEntitys.get(comandaId);
+        if (comanda == null) return 0;
+
+        var marcados = 0;
+        for (final item in comanda.items) {
+          if (item.estadoPlato != EstadoPlato.pendiente) continue;
+          item.estadoPlato = EstadoPlato.enCola;
+          item.enviadoACocinaAt = cuando;
+          marcados++;
+        }
+
+        if (marcados == 0) return 0;
+
+        comanda.updatedAt = DateTime.now();
+        await isar.cartSessionEntitys.put(comanda);
+        return marcados;
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'marcarPendientesComoEnCola_fallo',
+          extras: {'comandaId': comandaId});
+      return 0;
+    }
+  }
+
+  /// Elimina una comanda por id.
+  ///
+  /// R.2 no lo usa en el flujo normal (cancelar CONSERVA la comanda como
+  /// histórico). Queda para limpieza futura.
+  Future<bool> eliminarComanda(int id) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn(() async {
+        return await isar.cartSessionEntitys.delete(id);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'eliminarComanda_fallo', extras: {'id': id});
+      return false;
+    }
+  }
+
+  /// Marca el estado de sync de una comanda. Lo usa R.1b.
+  Future<void> actualizarSyncStatusComanda(
+      int id, bool sincronizado) async {
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        final comanda = await isar.cartSessionEntitys.get(id);
+        if (comanda != null) {
+          comanda.sincronizado = sincronizado;
+          comanda.fechaSincronizacion =
+              sincronizado ? DateTime.now() : null;
+          comanda.updatedAt = DateTime.now();
+          await isar.cartSessionEntitys.put(comanda);
+        }
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'actualizarSyncStatusComanda_fallo',
+          extras: {'id': id});
     }
   }
 
@@ -2432,26 +2908,136 @@ Future<List<ClienteEntity>> buscarClientes(
     }
   }
 
+  /// Devuelve el local activo del tenant actual.
+  ///
+  /// Prioridad (de mayor a menor):
+  ///   1. El local cuyo `id` coincide con `prefs['localActualId']`.
+  ///      Es la ELECCIÓN EXPLÍCITA del usuario (hot-switch) y la fuente
+  ///      más fresca: `local_actual_provider.setLocalActual` la escribe
+  ///      ANTES de pedir el cambio de tenant en Supabase.
+  ///   2. El local cuyo `supabaseId` coincide con el `tenant_id` del JWT.
+  ///   3. El primer local `activo = true`.
+  ///
+  /// ⚠️ Por qué prefs va PRIMERO y no el JWT
+  /// El hot-switch escribe prefs en `local_actual_provider.dart:152` y
+  /// recién después refresca el tenant (`:159`). Durante esa ventana el
+  /// JWT todavía apunta al local ANTERIOR. Con el orden inverso (JWT
+  /// primero), este método devolvía el local viejo y además lo
+  /// reactivaba con `local.activo = true`, resucitando justo el local
+  /// que `marcarLocalComoActivo` acababa de desactivar. Resultado: dos
+  /// locales activos y pedidos/lotes asignados al que el usuario dejó.
+  ///
+  /// 🎯 FIX previo: antes se usaba `sortByFechaSincronizacionDesc()`, que
+  ///    era no determinístico entre syncs y no respetaba el tenant.
   Future<LocalEntity?> obtenerLocalActivo() async {
     try {
       final isar = await db;
-      final localSincronizado = await isar.localEntitys
-          .filter()
-          .activoEqualTo(true)
-          .sincronizadoEqualTo(true)
-          .supabaseIdIsNotNull()
-          .sortByFechaSincronizacionDesc()
-          .findFirst();
+      final prefs = await SharedPreferences.getInstance();
 
-      if (localSincronizado != null) {
-        return localSincronizado;
+      // ── Prioridad 1: prefs['localActualId'] ──
+      final idPrefs = prefs.getInt('localActualId');
+      if (idPrefs != null && idPrefs > 0) {
+        final local = await isar.localEntitys.get(idPrefs);
+        if (local != null && local.activo) {
+          return local;
+        }
+        debugPrint(
+          '⚠️ [obtenerLocalActivo] localActualId=$idPrefs no válido. '
+          'Cayendo a JWT.',
+        );
       }
 
-      return await isar.localEntitys.filter().activoEqualTo(true).findFirst();
+      // ── Prioridad 2: el tenant del JWT ──
+      final tenantJwt = getTenantIdFromJWT();
+      if (tenantJwt != null && tenantJwt.isNotEmpty) {
+        final local = await isar.localEntitys
+            .filter()
+            .supabaseIdEqualTo(tenantJwt)
+            .findFirst();
+
+        if (local != null) {
+          if (!local.activo) {
+            debugPrint(
+              '⚠️ [obtenerLocalActivo] Local "${local.nombre}" del JWT '
+              'estaba inactivo. Reactivando.',
+            );
+            local.activo = true;
+            await isar.writeTxn(() async {
+              await isar.localEntitys.put(local);
+            });
+          }
+          return local;
+        }
+
+        debugPrint(
+          '⚠️ [obtenerLocalActivo] Sin local para tenant JWT $tenantJwt. '
+          'Cayendo a primer activo.',
+        );
+      }
+
+      // ── Prioridad 3: primer activo ──
+      final fallback = await isar.localEntitys
+          .filter()
+          .activoEqualTo(true)
+          .findFirst();
+
+      if (fallback != null) {
+        await prefs.setInt('localActualId', fallback.id);
+        debugPrint(
+          '⚠️ [obtenerLocalActivo] Fallback a "${fallback.nombre}" '
+          '(id=${fallback.id})',
+        );
+      }
+
+      return fallback;
     } catch (e, stack) {
       ErrorService.captureError(e,
           stack: stack, hint: 'obtenerLocalActivo_fallo');
       return null;
+    }
+  }
+
+  /// Marca un local como el único activo en Isar.
+  ///
+  /// Desactiva todos los demás locales y activa solo el indicado.
+  /// Persiste el ID en `prefs['localActualId']` para coherencia.
+  ///
+  /// 🎯 FIX: antes no existía restricción unique en `LocalEntity.activo`,
+  ///    así que podía haber 2+ locales con `activo = true` a la vez.
+  /// Marca un local como activo.
+  ///
+  /// ⚠️ MULTI-LOCAL: desde el fix del hot-switch, esto **NO desactiva** los
+  /// demás locales. Varios locales de un mismo tenant pueden estar activos
+  /// a la vez.
+  ///
+  /// Antes este método dejaba un único local activo, lo que hacía desaparecer
+  /// locales de la pestaña "Activos" cada vez que se cambiaba de local.
+  /// `activo` significa "este local está habilitado", no "es el actual".
+  ///
+  /// El "local actual" vive en `LocalEntity.prefs['localActualId']` y en el
+  /// estado de `localActualProvider`.
+  Future<void> marcarLocalComoActivo(int id) async {
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        final local = await isar.localEntitys.get(id);
+        if (local != null && !local.activo) {
+          local.activo = true;
+          local.updatedAt = DateTime.now();
+          await isar.localEntitys.put(local);
+        }
+      });
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('localActualId', id);
+
+      debugPrint('✅ [IsarService] Local $id marcado como activo.');
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'marcarLocalComoActivo_fallo',
+          extras: {'localId': id});
+      rethrow;
     }
   }
 
@@ -2476,7 +3062,109 @@ Future<List<ClienteEntity>> buscarClientes(
     }
   }
 
-  Future<bool> eliminarLocal(int id) async {
+  /// Asigna `departamentoId` a varios productos en un SOLO `writeTxn`.
+///
+/// R.3.2 · Onboarding del KDS: en vez de editar 200 productos uno a uno, se
+/// dice "Bebidas → Barra" y se resuelve de golpe.
+///
+/// Por defecto SOLO toca los que tienen `departamentoId == null`, para no
+/// pisar un trabajo previo. [sobrescribir] fuerza el reemplazo de todos.
+///
+/// `departamentoId` es `int?` a propósito: pasar `null` desasigna (deja el
+/// producto como venta directa, fuera del KDS).
+///
+/// El filtro por `departamentoIdIsNull()` va DENTRO del método, y no en el
+/// caller, para que la operación sea atómica: si el caller filtrara por su
+/// cuenta, otro proceso podría cambiar un producto entre el filtro y el
+/// `put()`.
+///
+/// Devuelve cuántos productos se modificaron.
+Future<int> asignarDepartamentoAProductos(
+  List<int> productoIds,
+  int? departamentoId, {
+  bool sobrescribir = false,
+}) async {
+  if (productoIds.isEmpty) return 0;
+
+  try {
+    final isar = await db;
+    return await isar.writeTxn<int>(() async {
+      var modificados = 0;
+
+      for (final id in productoIds) {
+        final producto = await isar.productoEntitys.get(id);
+        if (producto == null) continue;
+        if (!sobrescribir && producto.departamentoId != null) continue;
+
+        producto.departamentoId = departamentoId;
+        producto.updatedAt = DateTime.now();
+        // ⚠️ `sincronizado = false` fuerza que el `SyncService` lo reevalúe
+        // en el próximo push. El campo es local-only (no va en `toJson`),
+        // así que hoy no sale nada, pero si R.1b añade la columna a Supabase
+        // esto ya está preparado.
+        producto.sincronizado = false;
+        await isar.productoEntitys.put(producto);
+        modificados++;
+      }
+
+      return modificados;
+    });
+  } catch (e, stack) {
+    ErrorService.captureError(e,
+        stack: stack,
+        hint: 'asignarDepartamentoAProductos_fallo',
+        extras: {
+          'cantidad': productoIds.length,
+          'departamentoId': departamentoId,
+          'sobrescribir': sobrescribir,
+        });
+    return 0;
+  }
+}
+
+/// Productos de una categoría concreta.
+///
+/// R.3.2 · Sostiene al bulk "asignar estaciones por categoría". Usa el filtro
+/// generado (`categoriaIdEqualTo`), no Dart: `categoriaId` es un campo real
+/// de `ProductoEntity`, así que la query es indexable.
+Future<List<ProductoEntity>> obtenerProductosPorCategoriaId(
+  int categoriaId,
+) async {
+  try {
+    final isar = await db;
+    return await isar.productoEntitys
+        .filter()
+        .categoriaIdEqualTo(categoriaId)
+        .findAll();
+  } catch (e, stack) {
+    ErrorService.captureError(e,
+        stack: stack,
+        hint: 'obtenerProductosPorCategoriaId_fallo',
+        extras: {'categoriaId': categoriaId});
+    return [];
+  }
+}
+
+/// Productos que aún NO tienen estación de preparación asignada.
+///
+/// R.3.2 · Sirve para que el KDS y el formulario de producto digan cuántos
+/// quedan por configurar en vez de dejar al usuario adivinarlo.
+Future<int> contarProductosSinEstacion() async {
+  try {
+    final isar = await db;
+    return await isar.productoEntitys
+        .filter()
+        .departamentoIdIsNull()
+        .count();
+  } catch (e, stack) {
+    ErrorService.captureError(e,
+        stack: stack,
+        hint: 'contarProductosSinEstacion_fallo');
+    return 0;
+  }
+}
+
+Future<bool> eliminarLocal(int id) async {
     try {
       final isar = await db;
       final pedidos = await isar.pedidoEntitys
@@ -2637,6 +3325,258 @@ Future<List<ClienteEntity>> buscarClientes(
       ErrorService.captureError(e,
           stack: stack, hint: 'eliminarDepartamento_fallo', extras: {'id': id});
       return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // MESAS (restaurante · R.1)
+  //
+  // R.1b añadirá `obtenerMesasPendientesSync()` junto a los métodos de
+  // subida/bajada a Supabase. Aquí solo hay CRUD local.
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Guarda o actualiza una mesa.
+  ///
+  /// recalcula `claveUnica` antes de persistir: es el índice único que
+  /// impide "Mesa 1" duplicada dentro del mismo local. Si el provider ya
+  /// lo hizo, se vuelve a calcular aquí igual (es idempotente).
+  Future<int> guardarMesa(MesaEntity mesa) async {
+    try {
+      final isar = await db;
+      mesa.recalcularClaveUnica();
+      return await isar.writeTxn<int>(() async {
+        mesa.updatedAt = DateTime.now();
+        mesa.createdAt ??= DateTime.now();
+        return await isar.mesaEntitys.put(mesa);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'guardarMesa_fallo',
+          extras: {'mesaId': mesa.id, 'nombre': mesa.nombre});
+      rethrow;
+    }
+  }
+
+  Future<MesaEntity?> obtenerMesaPorId(int id) async {
+    try {
+      final isar = await db;
+      return await isar.mesaEntitys.get(id);
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerMesaPorId_fallo', extras: {'id': id});
+      return null;
+    }
+  }
+
+  /// Mesas del local, ordenadas por `ordenGrid` y luego por nombre.
+  Future<List<MesaEntity>> obtenerMesasDelLocal(int localId) async {
+    try {
+      final isar = await db;
+      final mesas = await isar.mesaEntitys
+          .filter()
+          .localIdEqualTo(localId)
+          .sortByOrdenGrid()
+          .thenByNombre()
+          .findAll();
+      return mesas;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerMesasDelLocal_fallo',
+          extras: {'localId': localId});
+      return [];
+    }
+  }
+
+  /// true si el local ya tiene una mesa con ese `claveUnica`.
+  ///
+  /// `excluirId` permite editar una mesa sin que choque consigo misma.
+  Future<bool> existeMesaConClave(String claveUnica, {int? excluirId}) async {
+    try {
+      final isar = await db;
+      final existentes = await isar.mesaEntitys
+          .filter()
+          .claveUnicaEqualTo(claveUnica)
+          .findAll();
+      if (excluirId == null) return existentes.isNotEmpty;
+      return existentes.any((m) => m.id != excluirId);
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'existeMesaConClave_fallo',
+          extras: {'claveUnica': claveUnica});
+      // Ante duda, bloquear: es preferible un falso positivo que dejar
+      // pasar dos mesas con el mismo nombre.
+      return true;
+    }
+  }
+
+  /// Elimina una mesa por id.
+  ///
+  /// La regla "solo si está libre" vive en `MesasProvider`, que es quien
+  /// conoce el estado; aquí solo se ejecuta el borrado.
+  Future<bool> eliminarMesa(int id) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn(() async {
+        return await isar.mesaEntitys.delete(id);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'eliminarMesa_fallo', extras: {'id': id});
+      return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // R.4 · RECETAS
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Guarda o actualiza una receta.
+  ///
+  /// El sello `createdAt`/`updatedAt` se pone aquí (no en la UI) para que
+  /// sea imposible guardar una receta sin auditar. Mismo criterio que
+  /// `guardarMesa`.
+  Future<int> guardarReceta(RecetaEntity receta) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn<int>(() async {
+        receta.updatedAt = DateTime.now();
+        receta.createdAt ??= DateTime.now();
+        return await isar.recetaEntitys.put(receta);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'guardarReceta_fallo',
+          extras: {
+            'recetaId': receta.id,
+            'localId': receta.localId,
+            'productoId': receta.productoId,
+          });
+      rethrow;
+    }
+  }
+
+  /// Receta del producto en ESTE local, o `null`.
+  ///
+  /// ⚠️ El filtro por `localId` va en DART a propósito. Isar 3 no compone
+  /// índices, así que la alternativa sería un índice único sobre
+  /// `productoId`, que está descartado: los ids de producto son locales a
+  /// cada base y dos sucursales pueden tener el producto 7 con recetas
+  /// distintas. El coste es traer todas las recetas del producto y quedarse
+  /// con la del local: un producto tiene poquísimas recetas (una), así que
+  /// la lista es de tamaño 1–2 en el caso normal.
+  Future<RecetaEntity?> obtenerRecetaPorProducto(
+    int localId,
+    int productoId,
+  ) async {
+    try {
+      final isar = await db;
+      final candidatas = await isar.recetaEntitys
+          .filter()
+          .productoIdEqualTo(productoId)
+          .findAll();
+
+      for (final receta in candidatas) {
+        if (receta.localId == localId) return receta;
+      }
+      return null;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerRecetaPorProducto_fallo',
+          extras: {'localId': localId, 'productoId': productoId});
+      return null;
+    }
+  }
+
+  /// Todas las recetas del local, por nombre de plato.
+  ///
+  /// Se filtran solo las ACTIVAS. La UI de G.2 quiere las activas; las
+  /// inactivas se consultan por `obtenerRecetaPorProducto` si alguna vez
+  /// hay que editarlas.
+  Future<List<RecetaEntity>> obtenerRecetasDelLocal(int localId) async {
+    try {
+      final isar = await db;
+      return await isar.recetaEntitys
+          .filter()
+          .localIdEqualTo(localId)
+          .activoEqualTo(true)
+          .sortByNombrePlato()
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerRecetasDelLocal_fallo',
+          extras: {'localId': localId});
+      return [];
+    }
+  }
+
+  /// Elimina una receta por id.
+  ///
+  /// Devuelve `false` si no existía o si Isar falló, en vez de tragarse el
+  /// error: el caller tiene que poder distinguir "no había nada" de "no se
+  /// pudo borrar" para no mostrar un "borrado" que no ocurrió.
+  Future<bool> eliminarReceta(int id) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn(() async {
+        return await isar.recetaEntitys.delete(id);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'eliminarReceta_fallo', extras: {'id': id});
+      return false;
+    }
+  }
+
+  /// Productos marcados como ingrediente en este local.
+  ///
+  /// Solo `esIngrediente == true`: los `null` (nunca revisados) y los
+  /// `false` (revisados y descartados) quedan fuera, que es justo lo que
+  /// hace útil `esIngrediente` como `bool?` en vez de `bool`.
+  ///
+  /// ⚠️ `ProductoEntity` NO tiene `localId`: el aislamiento por local se
+  /// hace igual que en `obtenerComandasDeLocal`, vía el filtro de la UI. Por
+  /// eso este método recibe el id pero no lo usa en la query.
+  Future<List<ProductoEntity>> obtenerIngredientes(int localId) async {
+    try {
+      final isar = await db;
+      return await isar.productoEntitys
+          .filter()
+          .esIngredienteEqualTo(true)
+          .activoEqualTo(true)
+          .sortByNombre()
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerIngredientes_fallo',
+          extras: {'localId': localId});
+      return [];
+    }
+  }
+
+  Future<void> actualizarSyncStatusMesa(int id, bool sincronizado) async {
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        final mesa = await isar.mesaEntitys.get(id);
+        if (mesa != null) {
+          mesa.sincronizado = sincronizado;
+          mesa.fechaSincronizacion = sincronizado ? DateTime.now() : null;
+          mesa.updatedAt = DateTime.now();
+          await isar.mesaEntitys.put(mesa);
+        }
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'actualizarSyncStatusMesa_fallo',
+          extras: {'id': id});
     }
   }
 
@@ -3148,6 +4088,48 @@ Future<List<ClienteEntity>> buscarClientes(
     }
   }
 
+  /// Recalcula `producto.stock` de cada id como `SUM(lotes activos)`.
+  ///
+  /// **Modelo: lotes es la fuente única de verdad.** `producto.stock` es
+  /// un cache derivado. TODO cambio de `lotes.cantidad_restante` debe
+  /// terminar llamando a este método para los productos afectados.
+  ///
+  /// Antes cada sitio hacía su propio `producto.stock = ...` a ciegas y
+  /// había 14 escritores distintos, 11 de los cuales ignoraban los
+  /// lotes. Eso producía dos verdades en conflicto: la UI muestra
+  /// `producto.stock` mientras la validación de venta usa
+  /// `SUM(lotes)`.
+  ///
+  /// Un solo `writeTxn` para todos los ids: si algo falla, no hay
+  /// actualización parcial.
+  Future<void> recalcularStockDe(List<int> productoIds) async {
+    if (productoIds.isEmpty) return;
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        for (final id in productoIds) {
+          final lotes = await isar.loteEntitys
+              .filter()
+              .productoIdEqualTo(id)
+              .estadoEqualTo('activo')
+              .findAll();
+          final nuevoStock = lotes.fold<double>(
+              0.0, (sum, lote) => sum + lote.cantidadRestante);
+          final producto = await isar.productoEntitys.get(id);
+          if (producto == null) continue;
+          if (producto.stock == nuevoStock) continue;
+          producto.stock = nuevoStock;
+          await isar.productoEntitys.put(producto);
+        }
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'recalcularStockDe_fallo',
+          extras: {'productoIds': productoIds});
+    }
+  }
+
   Future<List<LoteEntity>> obtenerLotesPorProducto(int productoId) async {
     if (productoId <= 0) return [];
     final isar = await db;
@@ -3214,6 +4196,201 @@ Future<List<ClienteEntity>> buscarClientes(
           hint: 'descontarLote_fallo',
           extras: {'loteId': loteId});
       return false;
+    }
+  }
+
+  /// Ajusta el stock TOTAL de un producto al valor `stockObjetivo`,
+  /// distribuyendo el delta entre lotes activos.
+  ///
+  /// Modelo: lotes = fuente única de verdad. Existe para que el editor
+  /// de productos (el textbox de stock) NO escriba `producto.stock`
+  /// directo: convierte el valor deseado en operaciones sobre lotes.
+  ///
+  /// - delta > 0 → suma al lote activo más antiguo, o crea uno si no hay.
+  /// - delta < 0 → descuenta lotes en orden FEFO. Falla si no alcanza.
+  /// - Al final recalcula el cache derivado (`producto.stock`).
+  ///
+  /// Retorna `true` si el ajuste se aplicó, `false` si el descuento no
+  /// alcanzó o si hubo un error.
+  ///
+  /// ⚠️ `LoteEntityQuerySortBy` no expone `sortById()` (Isar no genera
+  /// un ordenador para el `Id` implícito), así que ambos caminos
+  /// ordenan en Dart.
+  Future<bool> ajustarStockDesdeEditor(
+      int productoId, double stockObjetivo) async {
+    try {
+      final stockActual = await obtenerStockTotalPorProducto(productoId);
+      final delta = stockObjetivo - stockActual;
+
+      // Tolerancia para errores de coma flotante (0.1 + 0.2 != 0.3).
+      if (delta.abs() < 0.0001) {
+        return true;
+      }
+
+      // El lote necesita `localId` para que, al subirlo,
+      // `sincronizarLotesPendientes` resuelva el `tenant_id`. Sin esto
+      // el lote se crearía con `localId = null` → `tenant_id = null` al
+      // subir → RLS lo rechaza y el ajuste de inventario se pierde
+      // silenciosamente en la nube.
+      final localActivo = await obtenerLocalActivo();
+      final int? localIdActivo = localActivo?.id;
+
+      if (delta > 0) {
+        // Sumar al primer lote activo (orden estable por id), o crear
+        // uno si el producto no tiene lotes todavía.
+        final isar = await db;
+        await isar.writeTxn(() async {
+          final lotes = await isar.loteEntitys
+              .filter()
+              .productoIdEqualTo(productoId)
+              .estadoEqualTo('activo')
+              .findAll();
+          lotes.sort((a, b) => a.id.compareTo(b.id));
+
+          if (lotes.isEmpty) {
+            final lote = LoteEntity()
+              ..productoId = productoId
+              ..cantidadInicial = delta
+              ..cantidadRestante = delta
+              ..estado = 'activo'
+              ..codigoLoteProveedor =
+                  'EDIT-${DateTime.now().millisecondsSinceEpoch}'
+              ..localId = localIdActivo
+              ..sincronizado = false;
+            await isar.loteEntitys.put(lote);
+          } else {
+            final lote = lotes.first;
+            lote.cantidadRestante += delta;
+            lote.sincronizado = false;
+            await isar.loteEntitys.put(lote);
+          }
+        });
+      } else {
+        // delta < 0 → descontar FEFO.
+        double restante = -delta;
+        final isar = await db;
+        final lotes = await isar.loteEntitys
+            .filter()
+            .productoIdEqualTo(productoId)
+            .estadoEqualTo('activo')
+            .findAll();
+
+        // Orden FEFO manual: vencimiento más próximo primero, nulos al
+        // final, desempate por id.
+        lotes.sort((a, b) {
+          final fa = a.fechaVencimiento;
+          final fb = b.fechaVencimiento;
+          if (fa == null && fb == null) return a.id.compareTo(b.id);
+          if (fa == null) return 1;
+          if (fb == null) return -1;
+          final cmp = fa.compareTo(fb);
+          return cmp != 0 ? cmp : a.id.compareTo(b.id);
+        });
+
+        for (final lote in lotes) {
+          if (restante <= 0.0001) break;
+          final descontar = restante < lote.cantidadRestante
+              ? restante
+              : lote.cantidadRestante;
+          if (descontar <= 0) continue;
+          final ok = await descontarLote(lote.id, descontar);
+          if (!ok) return false;
+          restante -= descontar;
+        }
+
+        if (restante > 0.0001) {
+          // Stock insuficiente. Los lotes ya descontados NO se revierten:
+          // el ajuste queda parcial, y `recalcularStockDe` de abajo lo
+          // refleja para que la UI no mienta.
+          await recalcularStockDe([productoId]);
+          return false;
+        }
+      }
+
+      await recalcularStockDe([productoId]);
+      return true;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'ajustarStockDesdeEditor_fallo',
+          extras: {'productoId': productoId, 'stockObjetivo': stockObjetivo});
+      return false;
+    }
+  }
+
+  /// ⚠️ `hardResetInventario` fue eliminado (Bloque G, PASO 3).
+  ///
+  ///   Era un borrado masivo de lotes + movimientos + stock, usado por
+  ///   un one-shot de bootstrap durante la fase de pruebas. El one-shot
+  ///   ya se había eliminado (Bloque F, F5) y este método quedó con 0
+  ///   callers: era un borrado destructivo latente en una clase de
+  ///   servicio, con el riesgo de que alguien lo invocara por error.
+  ///
+  ///   Si hay que rehacer el reset de inventario, la forma correcta es
+  ///   el script `supabase/migrations/20261009000005_reset_inventario_pruebas.sql`
+  ///   contra la nube + la descarga normal, no un borrado local.
+
+  /// Suma `cantidad` a un lote existente. Si estaba agotado, lo reactiva.
+  ///
+  /// Usado por la anulación de ventas para devolver la mercadería al
+  /// lote que se consumió. Con el modelo "lotes = fuente única de
+  /// verdad" la devolución va al LOTE, nunca a `producto.stock`.
+  Future<void> devolverALote(int loteId, double cantidad) async {
+    if (cantidad <= 0) return;
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        final lote = await isar.loteEntitys.get(loteId);
+        if (lote == null) return;
+        lote.cantidadRestante += cantidad;
+        if (lote.cantidadRestante > 0 && lote.estado == 'agotado') {
+          lote.estado = 'activo';
+        }
+        lote.sincronizado = false;
+        await isar.loteEntitys.put(lote);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'devolverALote_fallo',
+          extras: {'loteId': loteId, 'cantidad': cantidad});
+    }
+  }
+
+  /// Crea un lote de devolución.
+  ///
+  /// Se usa cuando el detalle de la venta NO registró el lote original:
+  /// el retail (`VentaService.procesarVenta`) descuenta lotes con un
+  /// bucle FEFO que no guarda qué lotes tocó, así que `loteIdIsar` llega
+  /// `null`. El mayorista sí lo registra (`venta_mayor_service:432`).
+  ///
+  /// ⚠️ La trazabilidad FEFO se degrada: la unidad devuelta entra como
+  /// la más antigua del producto y se consumirá antes que la mercancía
+  /// con fecha de vencimiento real. Es un compromiso consciente para no
+  /// perder unidades.
+  Future<void> crearLoteDevolucion({
+    required int productoId,
+    required double cantidad,
+    required String nota,
+  }) async {
+    if (cantidad <= 0) return;
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        final lote = LoteEntity()
+          ..productoId = productoId
+          ..cantidadInicial = cantidad
+          ..cantidadRestante = cantidad
+          ..estado = 'activo'
+          ..codigoLoteProveedor = nota
+          ..sincronizado = false;
+        await isar.loteEntitys.put(lote);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'crearLoteDevolucion_fallo',
+          extras: {'productoId': productoId, 'cantidad': cantidad});
     }
   }
 
@@ -3581,7 +4758,11 @@ Future<List<ClienteEntity>> buscarClientes(
   }) async {
     try {
       final isar = await db;
-      return await isar.writeTxn(() async {
+      // El `productoId` se captura fuera del closure para poder recalcular
+      // el stock DESPUÉS: `recalcularStockDe` abre su propio `writeTxn` y
+      // Isar no admite transacciones anidadas.
+      int? productoIdAfectado;
+      final ok = await isar.writeTxn(() async {
         final lote = await isar.loteEntitys.get(loteId);
         if (lote == null) return false;
         if (lote.estado != 'pendiente') return false;
@@ -3602,14 +4783,19 @@ Future<List<ClienteEntity>> buscarClientes(
           ..sincronizado = false;
         await isar.movimientoLoteEntitys.put(movimiento);
 
-        final producto = await isar.productoEntitys.get(lote.productoId);
-        if (producto != null) {
-          producto.stock += cantidadRecibida;
-          await isar.productoEntitys.put(producto);
-        }
+        productoIdAfectado = lote.productoId;
 
         return true;
       });
+
+      if (ok && productoIdAfectado != null) {
+        // Lotes = fuente única de verdad. Antes se hacía
+        // `producto.stock += cantidadRecibida` sobre un lote que acababa
+        // de recibir `cantidadRestante = cantidadRecibida`: doble conteo.
+        await recalcularStockDe([productoIdAfectado!]);
+      }
+
+      return ok;
     } catch (e, stack) {
       ErrorService.captureError(e,
           stack: stack,
@@ -4199,5 +5385,73 @@ Future<List<ClienteEntity>> buscarClientes(
           extras: {'periodo': periodo});
       return [];
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ANULACIONES DE VENTA
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Registra la anulación de una venta.
+  ///
+  /// NO modifica la venta original. Solo inserta un registro nuevo.
+  Future<void> guardarVentaAnulada(VentaAnuladaEntity anulacion) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.ventaAnuladaEntitys.put(anulacion);
+    });
+  }
+
+  /// Devuelve la anulación de una venta específica (si existe).
+  Future<VentaAnuladaEntity?> obtenerAnulacionDeVenta(
+      String ventaIdOriginal) async {
+    if (ventaIdOriginal.isEmpty) return null;
+    final isar = await db;
+    return isar.ventaAnuladaEntitys
+        .filter()
+        .ventaIdOriginalEqualTo(ventaIdOriginal)
+        .findFirst();
+  }
+
+  /// Lista de todas las anulaciones del tenant.
+  Future<List<VentaAnuladaEntity>> obtenerVentasAnuladas(
+      String tenantId) async {
+    if (tenantId.isEmpty) return [];
+    final isar = await db;
+    return isar.ventaAnuladaEntitys
+        .filter()
+        .tenantIdEqualTo(tenantId)
+        .sortByFechaAnulacionDesc()
+        .findAll();
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ANULACIONES DE GASTO
+  // ═══════════════════════════════════════════════════════════════
+
+  Future<void> guardarGastoAnulado(GastoAnuladoEntity anulacion) async {
+    final isar = await db;
+    await isar.writeTxn(() async {
+      await isar.gastoAnuladoEntitys.put(anulacion);
+    });
+  }
+
+  Future<GastoAnuladoEntity?> obtenerAnulacionDeGasto(
+      int gastoIdOriginal) async {
+    final isar = await db;
+    return isar.gastoAnuladoEntitys
+        .filter()
+        .gastoIdOriginalEqualTo(gastoIdOriginal)
+        .findFirst();
+  }
+
+  /// Devuelve los IDs de gastos anulados del tenant (para filtrar en UI).
+  Future<Set<int>> obtenerIdsGastosAnulados(String tenantId) async {
+    if (tenantId.isEmpty) return {};
+    final isar = await db;
+    final lista = await isar.gastoAnuladoEntitys
+        .filter()
+        .tenantIdEqualTo(tenantId)
+        .findAll();
+    return lista.map((a) => a.gastoIdOriginal).toSet();
   }
 }

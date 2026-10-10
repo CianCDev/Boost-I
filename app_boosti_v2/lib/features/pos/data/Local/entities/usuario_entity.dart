@@ -53,6 +53,10 @@ class UsuarioEntity {
   bool sincronizado = false;
   DateTime? fechaSincronizacion;
 
+  // ==================== SUPER ADMIN ====================
+  /// Indica si el usuario es super admin (acceso al Control Center).
+  bool isSuperadmin = false;
+
 
 
 /// Tipo de documento: V (Venezolano) o E (Extranjero).

@@ -22,7 +22,10 @@ class PlanEntity {
   double precioMensual = 0.0;
   double? precioAnual;
 
-  /// Modos habilitados: ['mercado'], ['mercado','restaurante'], etc.
+  /// Modos habilitados: ['retail'], ['retail','restaurante'], etc.
+  ///
+  /// OJO: los 4 planes de Supabase ya guardan `retail`, nunca `mercado`.
+  /// El default de abajo es solo para cuando la API no envía la columna.
   List<String> modosHabilitados = [];
 
   /// Features serializadas como JSON string.
@@ -62,7 +65,7 @@ class PlanEntity {
       ..modosHabilitados = (json['modos_habilitados'] as List?)
               ?.map((e) => e.toString())
               .toList() ??
-          ['mercado']
+          ['retail']
       ..featuresJson = jsonEncode(json['features'] ?? {})
       ..orden = (json['orden'] as num?)?.toInt() ?? 0
       ..updatedAt = json['updated_at'] != null

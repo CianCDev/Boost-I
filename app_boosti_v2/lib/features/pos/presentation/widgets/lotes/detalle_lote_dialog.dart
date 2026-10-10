@@ -441,8 +441,11 @@ class _DetalleLoteDialogState extends ConsumerState<DetalleLoteDialog> {
         return Icons.play_arrow_rounded;
       case 'venta':
         return Icons.shopping_cart_rounded;
+      // 'traspaso' queda por los movimientos historicos. Los nuevos
+      // usan 'baja' (ver `traspaso_lote_dialog.dart`).
       case 'traspaso':
-        return Icons.swap_horiz_rounded;
+      case 'baja':
+        return Icons.remove_shopping_cart_rounded;
       case 'devolucion':
         return Icons.undo_rounded;
       default:
@@ -457,6 +460,7 @@ class _DetalleLoteDialogState extends ConsumerState<DetalleLoteDialog> {
       case 'venta':
         return _colorInfo;
       case 'traspaso':
+      case 'baja':
         return _colorWarning;
       case 'devolucion':
         return _colorPrimary;

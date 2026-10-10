@@ -43,68 +43,73 @@ const DetalleVentaEntitySchema = CollectionSchema(
       name: r'esDescuentoEspecial',
       type: IsarType.bool,
     ),
-    r'loteIdIsar': PropertySchema(
+    r'esPesado': PropertySchema(
       id: 5,
+      name: r'esPesado',
+      type: IsarType.bool,
+    ),
+    r'loteIdIsar': PropertySchema(
+      id: 6,
       name: r'loteIdIsar',
       type: IsarType.long,
     ),
     r'nombreProducto': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'nombreProducto',
       type: IsarType.string,
     ),
     r'precioDetalOriginal': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'precioDetalOriginal',
       type: IsarType.double,
     ),
     r'precioMayorAplicado': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'precioMayorAplicado',
       type: IsarType.double,
     ),
     r'precioOriginal': PropertySchema(
-      id: 9,
+      id: 10,
       name: r'precioOriginal',
       type: IsarType.double,
     ),
     r'precioUnidad': PropertySchema(
-      id: 10,
+      id: 11,
       name: r'precioUnidad',
       type: IsarType.double,
     ),
     r'productoId': PropertySchema(
-      id: 11,
+      id: 12,
       name: r'productoId',
       type: IsarType.long,
     ),
     r'subtotal': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'subtotal',
       type: IsarType.double,
     ),
     r'syncStatus': PropertySchema(
-      id: 13,
+      id: 14,
       name: r'syncStatus',
       type: IsarType.string,
     ),
     r'tipoPrecio': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'tipoPrecio',
       type: IsarType.string,
     ),
     r'unidadEmpaque': PropertySchema(
-      id: 15,
+      id: 16,
       name: r'unidadEmpaque',
       type: IsarType.string,
     ),
     r'unidadesPorEmpaque': PropertySchema(
-      id: 16,
+      id: 17,
       name: r'unidadesPorEmpaque',
       type: IsarType.long,
     ),
     r'ventaIdFk': PropertySchema(
-      id: 17,
+      id: 18,
       name: r'ventaIdFk',
       type: IsarType.string,
     )
@@ -169,19 +174,20 @@ void _detalleVentaEntitySerialize(
   writer.writeDouble(offsets[2], object.costoUnitarioSnapshot);
   writer.writeDouble(offsets[3], object.descuentoPorcentajeLinea);
   writer.writeBool(offsets[4], object.esDescuentoEspecial);
-  writer.writeLong(offsets[5], object.loteIdIsar);
-  writer.writeString(offsets[6], object.nombreProducto);
-  writer.writeDouble(offsets[7], object.precioDetalOriginal);
-  writer.writeDouble(offsets[8], object.precioMayorAplicado);
-  writer.writeDouble(offsets[9], object.precioOriginal);
-  writer.writeDouble(offsets[10], object.precioUnidad);
-  writer.writeLong(offsets[11], object.productoId);
-  writer.writeDouble(offsets[12], object.subtotal);
-  writer.writeString(offsets[13], object.syncStatus);
-  writer.writeString(offsets[14], object.tipoPrecio);
-  writer.writeString(offsets[15], object.unidadEmpaque);
-  writer.writeLong(offsets[16], object.unidadesPorEmpaque);
-  writer.writeString(offsets[17], object.ventaIdFk);
+  writer.writeBool(offsets[5], object.esPesado);
+  writer.writeLong(offsets[6], object.loteIdIsar);
+  writer.writeString(offsets[7], object.nombreProducto);
+  writer.writeDouble(offsets[8], object.precioDetalOriginal);
+  writer.writeDouble(offsets[9], object.precioMayorAplicado);
+  writer.writeDouble(offsets[10], object.precioOriginal);
+  writer.writeDouble(offsets[11], object.precioUnidad);
+  writer.writeLong(offsets[12], object.productoId);
+  writer.writeDouble(offsets[13], object.subtotal);
+  writer.writeString(offsets[14], object.syncStatus);
+  writer.writeString(offsets[15], object.tipoPrecio);
+  writer.writeString(offsets[16], object.unidadEmpaque);
+  writer.writeLong(offsets[17], object.unidadesPorEmpaque);
+  writer.writeString(offsets[18], object.ventaIdFk);
 }
 
 DetalleVentaEntity _detalleVentaEntityDeserialize(
@@ -196,20 +202,21 @@ DetalleVentaEntity _detalleVentaEntityDeserialize(
   object.costoUnitarioSnapshot = reader.readDoubleOrNull(offsets[2]);
   object.descuentoPorcentajeLinea = reader.readDouble(offsets[3]);
   object.esDescuentoEspecial = reader.readBoolOrNull(offsets[4]);
+  object.esPesado = reader.readBool(offsets[5]);
   object.id = id;
-  object.loteIdIsar = reader.readLongOrNull(offsets[5]);
-  object.nombreProducto = reader.readString(offsets[6]);
-  object.precioDetalOriginal = reader.readDoubleOrNull(offsets[7]);
-  object.precioMayorAplicado = reader.readDoubleOrNull(offsets[8]);
-  object.precioOriginal = reader.readDoubleOrNull(offsets[9]);
-  object.precioUnidad = reader.readDouble(offsets[10]);
-  object.productoId = reader.readLongOrNull(offsets[11]);
-  object.subtotal = reader.readDouble(offsets[12]);
-  object.syncStatus = reader.readStringOrNull(offsets[13]);
-  object.tipoPrecio = reader.readStringOrNull(offsets[14]);
-  object.unidadEmpaque = reader.readString(offsets[15]);
-  object.unidadesPorEmpaque = reader.readLong(offsets[16]);
-  object.ventaIdFk = reader.readStringOrNull(offsets[17]);
+  object.loteIdIsar = reader.readLongOrNull(offsets[6]);
+  object.nombreProducto = reader.readString(offsets[7]);
+  object.precioDetalOriginal = reader.readDoubleOrNull(offsets[8]);
+  object.precioMayorAplicado = reader.readDoubleOrNull(offsets[9]);
+  object.precioOriginal = reader.readDoubleOrNull(offsets[10]);
+  object.precioUnidad = reader.readDouble(offsets[11]);
+  object.productoId = reader.readLongOrNull(offsets[12]);
+  object.subtotal = reader.readDouble(offsets[13]);
+  object.syncStatus = reader.readStringOrNull(offsets[14]);
+  object.tipoPrecio = reader.readStringOrNull(offsets[15]);
+  object.unidadEmpaque = reader.readString(offsets[16]);
+  object.unidadesPorEmpaque = reader.readLong(offsets[17]);
+  object.ventaIdFk = reader.readStringOrNull(offsets[18]);
   return object;
 }
 
@@ -231,30 +238,32 @@ P _detalleVentaEntityDeserializeProp<P>(
     case 4:
       return (reader.readBoolOrNull(offset)) as P;
     case 5:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 6:
-      return (reader.readString(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 7:
-      return (reader.readDoubleOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 8:
       return (reader.readDoubleOrNull(offset)) as P;
     case 9:
       return (reader.readDoubleOrNull(offset)) as P;
     case 10:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 11:
-      return (reader.readLongOrNull(offset)) as P;
-    case 12:
       return (reader.readDouble(offset)) as P;
+    case 12:
+      return (reader.readLongOrNull(offset)) as P;
     case 13:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDouble(offset)) as P;
     case 14:
       return (reader.readStringOrNull(offset)) as P;
     case 15:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 16:
-      return (reader.readLong(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 17:
+      return (reader.readLong(offset)) as P;
+    case 18:
       return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -750,6 +759,16 @@ extension DetalleVentaEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'esDescuentoEspecial',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterFilterCondition>
+      esPesadoEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'esPesado',
         value: value,
       ));
     });
@@ -2213,6 +2232,20 @@ extension DetalleVentaEntityQuerySortBy
   }
 
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByEsPesado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'esPesado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      sortByEsPesadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'esPesado', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
       sortByLoteIdIsar() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'loteIdIsar', Sort.asc);
@@ -2468,6 +2501,20 @@ extension DetalleVentaEntityQuerySortThenBy
   }
 
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByEsPesado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'esPesado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
+      thenByEsPesadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'esPesado', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QAfterSortBy>
       thenById() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.asc);
@@ -2703,6 +2750,13 @@ extension DetalleVentaEntityQueryWhereDistinct
   }
 
   QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
+      distinctByEsPesado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'esPesado');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, DetalleVentaEntity, QDistinct>
       distinctByLoteIdIsar() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'loteIdIsar');
@@ -2836,6 +2890,12 @@ extension DetalleVentaEntityQueryProperty
       esDescuentoEspecialProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'esDescuentoEspecial');
+    });
+  }
+
+  QueryBuilder<DetalleVentaEntity, bool, QQueryOperations> esPesadoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'esPesado');
     });
   }
 

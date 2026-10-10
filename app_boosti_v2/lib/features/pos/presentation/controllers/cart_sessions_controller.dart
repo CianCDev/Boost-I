@@ -286,7 +286,12 @@ class CartSessionsNotifier extends StateNotifier<CartSessionsState> {
       ..precioOriginal = item.precioOriginal
       ..cantidad = item.cantidad
       ..esPesado = item.producto.esPesado
-      ..esDescuentoEspecial = item.esDescuentoEspecial;
+      ..esDescuentoEspecial = item.esDescuentoEspecial
+      // R.3: estación de preparación (KDS). Ver `CartItem.estacionId`.
+      ..estacionId = item.estacionId
+      // R.3.2: snapshot de la imagen, para que ComandaScreen y el KDS
+      // pinten miniatura sin consultar `ProductoEntity`.
+      ..imagenUrl = item.imagenUrl;
   }
 
   CartItem _sessionItemToCartItem(CartSessionItem s) {
@@ -304,6 +309,10 @@ class CartSessionsNotifier extends StateNotifier<CartSessionsState> {
       cantidad: s.cantidad,
       precioOriginal: s.precioOriginal,
       esDescuentoEspecial: s.esDescuentoEspecial,
+      // R.3: viaje de vuelta a la comanda sin perder la estación.
+      estacionId: s.estacionId,
+      // R.3.2: la imagen también sobrevive al viaje de ida y vuelta.
+      imagenUrl: s.imagenUrl,
     );
   }
 }

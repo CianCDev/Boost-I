@@ -275,10 +275,22 @@ class _SeleccionarModoNegocioScreenState
     AsyncValue<SuscripcionEntity?> suscripcionAsync,
     AsyncValue<List<PlanEntity>> planesAsync,
     bool isMobile,
+
+    
   ) {
-    if (suscripcionAsync.isLoading || planesAsync.isLoading) {
-      return _buildLoading();
-    }
+      // ⚠️ TEMPORAL QA
+  debugPrint('🔍 [QA] susc: '
+      'loading=${suscripcionAsync.isLoading} '
+      'error=${suscripcionAsync.hasError} '
+      'value=${suscripcionAsync.valueOrNull}');
+  debugPrint('🔍 [QA] planes: '
+      'loading=${planesAsync.isLoading} '
+      'error=${planesAsync.hasError} '
+      'count=${planesAsync.valueOrNull?.length}');
+
+  if (suscripcionAsync.isLoading || planesAsync.isLoading) {
+    return _buildLoading();
+     }
     if (suscripcionAsync.hasError) {
       return _buildError(suscripcionAsync.error!);
     }
@@ -294,12 +306,13 @@ class _SeleccionarModoNegocioScreenState
         modosDisponibles.addAll(planActual.modosHabilitados);
       }
     } else {
-      modosDisponibles.add('mercado');
+      // Sin suscripción activa se permite únicamente el modo minorista.
+      modosDisponibles.add('retail');
     }
 
     _seleccionado ??= BusinessMode.values.firstWhere(
       (m) => modosDisponibles.contains(m.id),
-      orElse: () => BusinessMode.mercado,
+      orElse: () => BusinessMode.retail,
     );
 
     return Column(

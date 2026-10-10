@@ -74,6 +74,7 @@ class CatalogActions {
     }
 
     final productoSeleccionado = await showDialog<ProductoEntity>(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Seleccionar Producto'),
@@ -252,20 +253,22 @@ class CatalogActions {
         }
       }
 
-      // ── Calcular nuevo stock (NUNCA negativo) ──
-      final nuevoStock =
-          (stockTotal - cantidadFinal).clamp(0.0, double.infinity);
-
-      // ── Descontar stock ──
-      final productosNotifier = _ref.read(productosProvider.notifier);
-      await productosNotifier.actualizarStock(
-        producto.id,
-        nuevoStock,
-        usuario,
-        motivo: 'Venta',
-      );
-
-      // ── Agregar al carrito ──
+      // ── Agregar al carrito (Fase 1: SIN descontar stock) ──
+      //
+      //   El carrito NO es una venta. Agregar un producto solo lo anota
+      //   en la lista; el stock se descuenta al confirmar el cobro
+      //   (Fase 2, dentro de la transacción de `procesarVenta`).
+      //
+      //   Antes se llamaba `actualizarStock()` aquí, lo que producía
+      //   3 fallos encadenados:
+      //     1. El stock se perdía para siempre: `eliminarItem()` del
+      //        carrito no tiene forma de devolverlo.
+      //     2. Generaba un `MovimientoInventarioEntity` con
+      //        `motivo: 'Venta'` y lo sincronizaba a Supabase al
+      //        instante, aunque la venta nunca se cobrara.
+      //     3. `obtenerStockTotalPorProducto()` devuelve el stock de
+      //        LOTES, no `productos.stock`, así que el campo quedaba
+      //        sobrescrito con el valor de otro origen.
       HapticFeedback.lightImpact();
       final productItem = ProductItem(
         id: producto.id.toString(),
@@ -278,7 +281,14 @@ class CatalogActions {
       _ref.read(cartProvider.notifier).agregarProducto(
             productItem,
             cantidad: cantidadFinal,
-            stockMaximo: nuevoStock,
+            stockMaximo: stockTotal,
+            // R.3: destino de preparación del plato (KDS). `null` si el
+            // producto no requiere preparación.
+            estacionId: producto.departamentoId,
+            // R.3.2: foto del producto, para la miniatura del KDS y de la
+            // comanda. `ProductoEntity` es el único punto donde vive la
+            // URL, así que hay que copiarla aquí.
+            imagenUrl: producto.imagenUrl,
           );
 
       if (context.mounted) {
@@ -398,17 +408,29 @@ class CatalogActions {
   // COBRO
   // ═══════════════════════════════════════════════════════════════════
 
-  Future<void> mostrarModalCobro(
+  /// Abre el diálogo de cobro y procesa la venta.
+///
+/// R.2: devuelve `true` si `procesarVenta` completó sin lanzar. Es un
+/// cambio ADITIVO: los callers existentes hacen `await` e ignoran el
+/// retorno, así que no se rompen.
+///
+/// Lo usa `ComandaScreen` para decidir si cerrar la comanda.
+Future<bool> mostrarModalCobro(
     BuildContext context,
     UsuarioEntity? usuarioLogueado,
   ) async {
     final cartState = _ref.read(cartProvider);
-    if (cartState.total <= 0) return;
+    if (cartState.total <= 0) return false;
 
     // 🎯 Guard extra: aunque el botón ya está deshabilitado,
     //    defendemos aquí por si el estado se modificó por otra vía.
-    if (cartState.hayItemsSinStock) {
-      return;
+    //
+    //    `hayItemsSinStock` recibe los productos porque el carrito no
+    //    descuenta stock (Fase 1): el disponible real es
+    //    `producto.stock`, no `producto.stock - cantidadEnCarrito`.
+    final productos = _ref.read(productosProvider).items;
+    if (cartState.hayItemsSinStock(productos)) {
+      return false;
     }
 
     HapticFeedback.mediumImpact();
@@ -441,7 +463,11 @@ class CatalogActions {
         tasaActual: tasaActual,
         usuarioLogueado: usuarioLogueado,
       );
+      return true;
     }
+
+    // El usuario cerró el diálogo sin cobrar.
+    return false;
   }
 }
 

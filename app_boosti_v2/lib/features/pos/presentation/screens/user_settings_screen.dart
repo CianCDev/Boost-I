@@ -1,13 +1,17 @@
 // lib/features/pos/presentation/screens/user_settings_screen.dart
 
 import 'dart:ui';
+import 'package:app_boosti_v2/features/admin_console/presentation/screens/control_center_screen.dart';
+import 'package:app_boosti_v2/features/admin_console/providers/admin_access_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/suscripcion_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/auth_provider.dart';
 import '../providers/business_mode_provider.dart';
+import '../providers/suscripcion_provider.dart';
 import '../providers/themes/theme_provider.dart';
 import '../providers/usuario_provider.dart';
 import '../utils/responsive_helper.dart';
@@ -35,6 +39,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
   bool _editandoNombre = false;
   bool _guardandoNombre = false;
   late AnimationController _themeAnimationController;
+  SuscripcionEntity? _suscripcionActual;
 
   @override
   void initState() {
@@ -42,6 +47,36 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
     _themeAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
+    );
+    _cargarSuscripcion();
+  }
+
+  Future<void> _cargarSuscripcion() async {
+    final susc = await ref.read(suscripcionProvider.future);
+    if (mounted) setState(() => _suscripcionActual = susc);
+  }
+
+  Widget _buildPlanChip(SuscripcionEntity s) {
+    final esTrial = s.estado == 'trial';
+    final color = esTrial ? const Color(0xFFF59E0B) : const Color(0xFF10B981);
+    final label = esTrial ? 'TRIAL' : s.planId.toUpperCase();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.5,
+        ),
+      ),
     );
   }
 
@@ -351,6 +386,49 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                           theme,
                         ),
                       ),
+
+                      SizedBox(height: sectionSpacing),
+
+                      // ═══ CONTROL CENTER (solo super admin) ═══
+                      if (ref.watch(hasAdminAccessProvider))
+                        _StaggeredEntry(
+                          index: 2,
+                          child: _buildInteractiveCard(
+                            isDark: isDark,
+                            entryIndex: 2,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ControlCenterScreen(),
+                                ),
+                              );
+                            },
+                            accentColor: const Color(0xFF8B5CF6),
+                            enabled: true,
+                            child: ListTile(
+                              leading: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.admin_panel_settings,
+                                  color: Color(0xFF8B5CF6),
+                                ),
+                              ),
+                              title: const Text(
+                                'Control Center',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              subtitle: const Text(
+                                'Gestión de clientes, planes y métricas',
+                              ),
+                              trailing: const Icon(Icons.chevron_right),
+                            ),
+                          ),
+                        ),
 
                       SizedBox(height: sectionSpacing),
 
@@ -870,6 +948,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                         letterSpacing: -0.2,
                       ),
                     ),
+                    // 🎯 NUEVO: badge del plan
+                    if (_suscripcionActual != null) ...[
+                      const SizedBox(width: 8),
+                      _buildPlanChip(_suscripcionActual!),
+                    ],
                     if (!esAdmin) ...[
                       const SizedBox(width: 8),
                       Icon(

@@ -46,8 +46,12 @@ class CategoriasNotifier extends StateNotifier<List<CategoriaEntity>> {
   Future<void> _cargarCategorias({bool isInit = false}) async {
     try {
       final isar = ref.read(isarServiceProvider);
-      final lista = await isar.obtenerCategorias(soloActivas: true);
-      
+      final lista = await isar.obtenerCategorias(soloActivas: false);
+
+      // El notifier gestiona TODAS las categorías (activas + inactivas),
+      // porque es la fuente de las pantallas de admin. Antes leía solo
+      // activas pero invalidaba `todasLasCategoriasProvider`, lo que dejaba
+      // ese provider con datos stale tras un CRUD.
       if (!mounted) return;
       state = lista;
 

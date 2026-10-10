@@ -66,6 +66,11 @@ class ClienteEntity {
 
   /// Devuelve "V-12345678" o "12345678" si no hay tipo.
   /// Cadena vacía si no hay documento.
+  ///
+  /// `@ignore`: es un getter derivado, no un campo persistido. Sin la
+  /// anotación, Isar lo trata como propiedad de la colección y lo
+  /// incluye en `cliente_entity.g.dart`.
+  @ignore
   String get documentoFormateado {
     if (documento == null) return '';
     if (tipoDocumento == null || tipoDocumento!.isEmpty) {
@@ -75,12 +80,14 @@ class ClienteEntity {
   }
 
   /// Devuelve el tipo de documento normalizado en mayúscula.
+  @ignore
   String get tipoDocumentoLabel {
     if (tipoDocumento == null || tipoDocumento!.isEmpty) return '';
     return tipoDocumento!.toUpperCase();
   }
 
   /// Texto completo listo para UI: "V-12345678" o "Sin documento".
+  @ignore
   String get documentoDisplay =>
       documentoFormateado.isEmpty ? 'Sin documento' : documentoFormateado;
 

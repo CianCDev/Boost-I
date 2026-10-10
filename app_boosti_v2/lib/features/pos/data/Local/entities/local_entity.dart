@@ -21,8 +21,10 @@ class LocalEntity {
   DateTime? updatedAt;
 
 
-   @Index()
-  String businessMode = 'mercado';
+   // ⚠️ No cambiar sin migrar: `BusinessMode.fromId()` acepta el valor
+  // legacy 'mercado' y lo coacciona a 'retail'.
+  @Index()
+  String businessMode = 'retail';
 
   /// Cuándo se configuró el modo por última vez (auditoría).
   DateTime? modoConfiguradoEn;

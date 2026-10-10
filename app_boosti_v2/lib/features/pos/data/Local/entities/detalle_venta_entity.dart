@@ -45,4 +45,17 @@ class DetalleVentaEntity {
 
   /// ID local del lote principal (informativo).
   int? loteIdIsar;
+
+  /// true si la línea se vendió por peso (kg).
+  ///
+  /// Sin este flag, el ticket imprimía la cantidad con 0 decimales y una
+  /// venta de 1.5 kg aparecía como "2x" (ticket_generator.dart y
+  /// ticket_service.dart hacen `toStringAsFixed(esPesado ? 3 : 0)`).
+  ///
+  /// ⚠️ MIGRACIÓN: las ventas anteriores al 2026-10-03 quedan en `false`
+  /// aunque sí se vendieran por peso. El dato se perdía al construir el
+  /// detalle desde el carrito, así que no es reconstruible a posteriori.
+  /// Solo afecta a la presentación histórica del ticket, no a los totales:
+  /// `cantidad` y `subtotal` siempre se guardaron bien.
+  bool esPesado = false;
 }

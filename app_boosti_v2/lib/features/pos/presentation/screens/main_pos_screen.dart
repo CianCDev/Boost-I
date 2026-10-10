@@ -1407,8 +1407,15 @@ List<_GuideStep> _guideStepsForRole(UserRole role) {
 List<_QuickAccessItem> _quickItemsForRole(UserRole role, FeatureFlags flags) {
   final items = <_QuickAccessItem>[];
 
-  // ── POS ── (en restaurante el POS "rápido" se reemplaza por mesas)
-  if (Permissions.canAccessPos(role) && !flags.requiereMesa) {
+  // ── POS ──
+  //
+  // TODO(R.2): antes esta tarjeta se ocultaba en modo restaurante con
+  // `&& !flags.requiereMesa`, dejando al usuario sin forma de cobrar.
+  // El reemplazo real es "en restaurante el POS rápido se abre por mesa",
+  // y eso depende de la pantalla de mesas + comandas, que es R.1/R.2.
+  // Hasta entonces el POS se mantiene visible en todos los modos.
+  // Restaurar el gate en R.2, cuando exista el flujo por mesa.
+  if (Permissions.canAccessPos(role)) {
     items.add(_QuickAccessItem(
       icon: Icons.point_of_sale_rounded,
       title: 'Punto de venta',

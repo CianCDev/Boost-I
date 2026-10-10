@@ -82,89 +82,94 @@ const UsuarioEntitySchema = CollectionSchema(
       name: r'inicioDescanso',
       type: IsarType.dateTime,
     ),
-    r'localId': PropertySchema(
+    r'isSuperadmin': PropertySchema(
       id: 13,
+      name: r'isSuperadmin',
+      type: IsarType.bool,
+    ),
+    r'localId': PropertySchema(
+      id: 14,
       name: r'localId',
       type: IsarType.long,
     ),
     r'minutosDescanso': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'minutosDescanso',
       type: IsarType.long,
     ),
     r'nombre': PropertySchema(
-      id: 15,
+      id: 16,
       name: r'nombre',
       type: IsarType.string,
     ),
     r'numeroDocumento': PropertySchema(
-      id: 16,
+      id: 17,
       name: r'numeroDocumento',
       type: IsarType.string,
     ),
     r'password': PropertySchema(
-      id: 17,
+      id: 18,
       name: r'password',
       type: IsarType.string,
     ),
     r'pin': PropertySchema(
-      id: 18,
+      id: 19,
       name: r'pin',
       type: IsarType.string,
     ),
     r'rol': PropertySchema(
-      id: 19,
+      id: 20,
       name: r'rol',
       type: IsarType.string,
     ),
     r'sincronizado': PropertySchema(
-      id: 20,
+      id: 21,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'supabaseId': PropertySchema(
-      id: 21,
+      id: 22,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'supabaseUid': PropertySchema(
-      id: 22,
+      id: 23,
       name: r'supabaseUid',
       type: IsarType.string,
     ),
     r'supervisorId': PropertySchema(
-      id: 23,
+      id: 24,
       name: r'supervisorId',
       type: IsarType.long,
     ),
     r'telefono': PropertySchema(
-      id: 24,
+      id: 25,
       name: r'telefono',
       type: IsarType.string,
     ),
     r'tenantId': PropertySchema(
-      id: 25,
+      id: 26,
       name: r'tenantId',
       type: IsarType.string,
     ),
     r'tipoDocumento': PropertySchema(
-      id: 26,
+      id: 27,
       name: r'tipoDocumento',
       type: IsarType.string,
       enumMap: _UsuarioEntitytipoDocumentoEnumValueMap,
     ),
     r'ultimaActividad': PropertySchema(
-      id: 27,
+      id: 28,
       name: r'ultimaActividad',
       type: IsarType.dateTime,
     ),
     r'ultimaActualizacion': PropertySchema(
-      id: 28,
+      id: 29,
       name: r'ultimaActualizacion',
       type: IsarType.dateTime,
     ),
     r'updatedAt': PropertySchema(
-      id: 29,
+      id: 30,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -303,23 +308,24 @@ void _usuarioEntitySerialize(
   writer.writeDateTime(offsets[10], object.fechaSincronizacion);
   writer.writeString(offsets[11], object.fotoUrl);
   writer.writeDateTime(offsets[12], object.inicioDescanso);
-  writer.writeLong(offsets[13], object.localId);
-  writer.writeLong(offsets[14], object.minutosDescanso);
-  writer.writeString(offsets[15], object.nombre);
-  writer.writeString(offsets[16], object.numeroDocumento);
-  writer.writeString(offsets[17], object.password);
-  writer.writeString(offsets[18], object.pin);
-  writer.writeString(offsets[19], object.rol);
-  writer.writeBool(offsets[20], object.sincronizado);
-  writer.writeString(offsets[21], object.supabaseId);
-  writer.writeString(offsets[22], object.supabaseUid);
-  writer.writeLong(offsets[23], object.supervisorId);
-  writer.writeString(offsets[24], object.telefono);
-  writer.writeString(offsets[25], object.tenantId);
-  writer.writeString(offsets[26], object.tipoDocumento?.name);
-  writer.writeDateTime(offsets[27], object.ultimaActividad);
-  writer.writeDateTime(offsets[28], object.ultimaActualizacion);
-  writer.writeDateTime(offsets[29], object.updatedAt);
+  writer.writeBool(offsets[13], object.isSuperadmin);
+  writer.writeLong(offsets[14], object.localId);
+  writer.writeLong(offsets[15], object.minutosDescanso);
+  writer.writeString(offsets[16], object.nombre);
+  writer.writeString(offsets[17], object.numeroDocumento);
+  writer.writeString(offsets[18], object.password);
+  writer.writeString(offsets[19], object.pin);
+  writer.writeString(offsets[20], object.rol);
+  writer.writeBool(offsets[21], object.sincronizado);
+  writer.writeString(offsets[22], object.supabaseId);
+  writer.writeString(offsets[23], object.supabaseUid);
+  writer.writeLong(offsets[24], object.supervisorId);
+  writer.writeString(offsets[25], object.telefono);
+  writer.writeString(offsets[26], object.tenantId);
+  writer.writeString(offsets[27], object.tipoDocumento?.name);
+  writer.writeDateTime(offsets[28], object.ultimaActividad);
+  writer.writeDateTime(offsets[29], object.ultimaActualizacion);
+  writer.writeDateTime(offsets[30], object.updatedAt);
 }
 
 UsuarioEntity _usuarioEntityDeserialize(
@@ -343,24 +349,25 @@ UsuarioEntity _usuarioEntityDeserialize(
   object.fotoUrl = reader.readStringOrNull(offsets[11]);
   object.id = id;
   object.inicioDescanso = reader.readDateTimeOrNull(offsets[12]);
-  object.localId = reader.readLongOrNull(offsets[13]);
-  object.minutosDescanso = reader.readLongOrNull(offsets[14]);
-  object.nombre = reader.readString(offsets[15]);
-  object.numeroDocumento = reader.readStringOrNull(offsets[16]);
-  object.password = reader.readStringOrNull(offsets[17]);
-  object.pin = reader.readString(offsets[18]);
-  object.rol = reader.readString(offsets[19]);
-  object.sincronizado = reader.readBool(offsets[20]);
-  object.supabaseId = reader.readStringOrNull(offsets[21]);
-  object.supabaseUid = reader.readStringOrNull(offsets[22]);
-  object.supervisorId = reader.readLongOrNull(offsets[23]);
-  object.telefono = reader.readStringOrNull(offsets[24]);
-  object.tenantId = reader.readStringOrNull(offsets[25]);
+  object.isSuperadmin = reader.readBool(offsets[13]);
+  object.localId = reader.readLongOrNull(offsets[14]);
+  object.minutosDescanso = reader.readLongOrNull(offsets[15]);
+  object.nombre = reader.readString(offsets[16]);
+  object.numeroDocumento = reader.readStringOrNull(offsets[17]);
+  object.password = reader.readStringOrNull(offsets[18]);
+  object.pin = reader.readString(offsets[19]);
+  object.rol = reader.readString(offsets[20]);
+  object.sincronizado = reader.readBool(offsets[21]);
+  object.supabaseId = reader.readStringOrNull(offsets[22]);
+  object.supabaseUid = reader.readStringOrNull(offsets[23]);
+  object.supervisorId = reader.readLongOrNull(offsets[24]);
+  object.telefono = reader.readStringOrNull(offsets[25]);
+  object.tenantId = reader.readStringOrNull(offsets[26]);
   object.tipoDocumento = _UsuarioEntitytipoDocumentoValueEnumMap[
-      reader.readStringOrNull(offsets[26])];
-  object.ultimaActividad = reader.readDateTimeOrNull(offsets[27]);
-  object.ultimaActualizacion = reader.readDateTimeOrNull(offsets[28]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[29]);
+      reader.readStringOrNull(offsets[27])];
+  object.ultimaActividad = reader.readDateTimeOrNull(offsets[28]);
+  object.ultimaActualizacion = reader.readDateTimeOrNull(offsets[29]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[30]);
   return object;
 }
 
@@ -398,39 +405,41 @@ P _usuarioEntityDeserializeProp<P>(
     case 12:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 13:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 14:
       return (reader.readLongOrNull(offset)) as P;
     case 15:
-      return (reader.readString(offset)) as P;
+      return (reader.readLongOrNull(offset)) as P;
     case 16:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 17:
       return (reader.readStringOrNull(offset)) as P;
     case 18:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 19:
       return (reader.readString(offset)) as P;
     case 20:
-      return (reader.readBool(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 21:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 22:
       return (reader.readStringOrNull(offset)) as P;
     case 23:
-      return (reader.readLongOrNull(offset)) as P;
-    case 24:
       return (reader.readStringOrNull(offset)) as P;
+    case 24:
+      return (reader.readLongOrNull(offset)) as P;
     case 25:
       return (reader.readStringOrNull(offset)) as P;
     case 26:
+      return (reader.readStringOrNull(offset)) as P;
+    case 27:
       return (_UsuarioEntitytipoDocumentoValueEnumMap[
           reader.readStringOrNull(offset)]) as P;
-    case 27:
-      return (reader.readDateTimeOrNull(offset)) as P;
     case 28:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 29:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 30:
       return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -2180,6 +2189,16 @@ extension UsuarioEntityQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterFilterCondition>
+      isSuperadminEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isSuperadmin',
+        value: value,
       ));
     });
   }
@@ -4299,6 +4318,20 @@ extension UsuarioEntityQuerySortBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByIsSuperadmin() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSuperadmin', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      sortByIsSuperadminDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSuperadmin', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> sortByLocalId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'localId', Sort.asc);
@@ -4708,6 +4741,20 @@ extension UsuarioEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByIsSuperadmin() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSuperadmin', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy>
+      thenByIsSuperadminDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSuperadmin', Sort.desc);
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QAfterSortBy> thenByLocalId() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'localId', Sort.asc);
@@ -5024,6 +5071,13 @@ extension UsuarioEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct>
+      distinctByIsSuperadmin() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isSuperadmin');
+    });
+  }
+
   QueryBuilder<UsuarioEntity, UsuarioEntity, QDistinct> distinctByLocalId() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'localId');
@@ -5230,6 +5284,12 @@ extension UsuarioEntityQueryProperty
       inicioDescansoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'inicioDescanso');
+    });
+  }
+
+  QueryBuilder<UsuarioEntity, bool, QQueryOperations> isSuperadminProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isSuperadmin');
     });
   }
 

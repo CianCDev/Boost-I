@@ -20,8 +20,14 @@ class VentaService {
 
   VentaService(this._ref);
 
+  /// Persiste la venta del carrito actual y ejecuta la post-venta.
+  ///
+  /// `context` es OPCIONAL: el servicio puede guardar la venta sin UI
+  /// (tests, jobs offline). Si es `null`, se omiten la impresión del ticket y
+  /// el feedback visual; la persistencia, los lotes y el carrito igual
+  /// se hacen igual. Con `context` real, el comportamiento no cambia.
   Future<void> procesarVenta(
-    BuildContext context, {
+    BuildContext? context, {
     required String metodoPago,
     required double cambio,
     required double recibido,
@@ -32,6 +38,15 @@ class VentaService {
     final isar = _ref.read(isarServiceProvider);
     final cartState = _ref.read(cartProvider);
     final cartNotifier = _ref.read(cartProvider.notifier);
+
+    // Un carrito vacío no genera venta. Sin este guard, `procesarVenta`
+    // persistía una `VentaEntity` con 0 detalles y ensuciaba el histórico.
+    // El test `carrito vacío: no guarda ninguna venta` lo verifica.
+    // Se retorna silenciosamente (no es un error del caller, es un no-op).
+    if (cartState.items.isEmpty) {
+      debugPrint('ℹ️ procesarVenta: carrito vacío, no se guarda venta');
+      return;
+    }
 
     try {
       // ============================================================
@@ -71,15 +86,9 @@ class VentaService {
       }
 
       // ============================================================
-      // 2. Actualizar stock
+      // 2. Actualizar stock desde los lotes (fuente única de verdad)
       // ============================================================
-      for (var productoId in productosAfectados) {
-        final producto = await isar.obtenerProductoPorId(productoId);
-        if (producto == null) continue;
-        final stockTotal = await isar.obtenerStockTotalPorProducto(productoId);
-        producto.stock = stockTotal;
-        await isar.guardarProducto(producto);
-      }
+      await isar.recalcularStockDe(productosAfectados.toList());
 
       // ============================================================
       // 3. Preparar detalles de la venta
@@ -179,68 +188,73 @@ class VentaService {
       // ============================================================
       final local = await IsarService().obtenerLocalActivo();
 
-      try {
-        final ticketItems = itemsIsar.map((detalle) {
-          return TicketItem(
-            nombre: detalle.nombreProducto,
-            precio: detalle.precioUnidad,
-            cantidad: detalle.cantidad,
-            esPesado: false,
-            // Extras por si algún ítem de detal tiene tier aplicado
-            tipoPrecio: detalle.tipoPrecio,
-            descuentoPorcentaje: detalle.descuentoPorcentajeLinea,
-            precioDetalOriginal: detalle.precioDetalOriginal,
-            unidadEmpaque: detalle.unidadEmpaque,
-            autorizadoPorLinea: detalle.autorizadoPorLinea,
+      // Sin `context` no hay dónde dibujar el ticket: se salta la impresión
+      // entera. La venta YA quedó guardada antes de llegar aquí, así que
+      // omitir esto no deja datos inconsistentes.
+      if (context != null) {
+        try {
+          final ticketItems = itemsIsar.map((detalle) {
+            return TicketItem(
+              nombre: detalle.nombreProducto,
+              precio: detalle.precioUnidad,
+              cantidad: detalle.cantidad,
+              esPesado: detalle.esPesado,
+              // Extras por si algún ítem de detal tiene tier aplicado
+              tipoPrecio: detalle.tipoPrecio,
+              descuentoPorcentaje: detalle.descuentoPorcentajeLinea,
+              precioDetalOriginal: detalle.precioDetalOriginal,
+              unidadEmpaque: detalle.unidadEmpaque,
+              autorizadoPorLinea: detalle.autorizadoPorLinea,
+            );
+          }).toList();
+
+          // ✅ NUEVO: ticket cliente como objeto (firma nueva de la API)
+          final ticketCliente = cliente != null
+              ? TicketCliente(
+                  nombre: cliente.nombre,
+                  rif: cliente.rif,
+                  documento: cliente.documentoFormateado,
+                  razonSocial: cliente.razonSocial,
+                )
+              : null;
+
+          final selectedPrinter = _ref.read(printerProvider);
+          await TicketService.imprimirTicketVenta(
+            context: context,
+            local: local,
+            items: ticketItems,
+            subtotal: cartState.subtotal,
+            impuesto: cartState.impuesto,
+            total: cartState.total,
+            metodoPago: metodoPago,
+            montoRecibido: recibido,
+            cambio: cambio,
+            fechaVenta: DateTime.now(),
+            impresoraSeleccionada: selectedPrinter?.device,
+            // ✅ Objeto cliente (reemplaza los params sueltos viejos)
+            cliente: ticketCliente,
+            // Extras de contexto
+            tipoVenta: 'detal',
+            tasaBcv: tasaActual,
+            montoDescuentoTotal: resultadoDescuentos.montoDescuentoTotal,
+            vendedor: usuarioLogueado?.nombre,
           );
-        }).toList();
+        } catch (e) {
+          debugPrint('⚠️ Error al intentar imprimir el ticket: $e');
+        }
 
-        // ✅ NUEVO: ticket cliente como objeto (firma nueva de la API)
-        final ticketCliente = cliente != null
-            ? TicketCliente(
-                nombre: cliente.nombre,
-                rif: cliente.rif,
-                documento: cliente.documentoFormateado,
-                razonSocial: cliente.razonSocial,
-              )
-            : null;
-
-        final selectedPrinter = _ref.read(printerProvider);
-        await TicketService.imprimirTicketVenta(
-          context: context,
-          local: local,
-          items: ticketItems,
-          subtotal: cartState.subtotal,
-          impuesto: cartState.impuesto,
-          total: cartState.total,
-          metodoPago: metodoPago,
-          montoRecibido: recibido,
-          cambio: cambio,
-          fechaVenta: DateTime.now(),
-          impresoraSeleccionada: selectedPrinter?.device,
-          // ✅ Objeto cliente (reemplaza los params sueltos viejos)
-          cliente: ticketCliente,
-          // Extras de contexto
-          tipoVenta: 'detal',
-          tasaBcv: tasaActual,
-          montoDescuentoTotal: resultadoDescuentos.montoDescuentoTotal,
-          vendedor: usuarioLogueado?.nombre,
-        );
-      } catch (e) {
-        debugPrint('⚠️ Error al intentar imprimir el ticket: $e');
-      }
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Venta registrada con éxito! 🎉'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('¡Venta registrada con éxito! 🎉'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (context?.mounted ?? false) {
+        ScaffoldMessenger.of(context!).showSnackBar(
           SnackBar(
             content: Text('Error al registrar la venta: $e'),
             backgroundColor: Theme.of(context).colorScheme.error,

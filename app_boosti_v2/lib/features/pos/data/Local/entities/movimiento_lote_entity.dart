@@ -11,7 +11,13 @@ class MovimientoLoteEntity {
   @Index()
   int loteId = 0;
 
-  String tipo = ''; // 'activacion', 'venta', 'traspaso', 'devolucion'
+  /// 'activacion', 'venta', 'baja', 'devolucion'.
+  ///
+  /// 'traspaso' sigue existiendo por los movimientos historicos escritos
+  /// con ese valor. Renombrado a 'baja' porque la operacion saca
+  /// unidades del lote; 'traspaso' sugeria un traslado entre lotes que
+  /// nunca ocurrio. Los 3 switches de historial mapean ambos.
+  String tipo = '';
 
   double cantidad = 0.0;
 

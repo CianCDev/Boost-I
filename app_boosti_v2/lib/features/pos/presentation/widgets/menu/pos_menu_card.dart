@@ -27,6 +27,13 @@ class PosMenuCard extends StatefulWidget {
   /// Contador opcional para mostrar badge numérico (ej: pendientes).
   final int? badge;
 
+  /// R.3.2 · Color del badge. Si es `null`, usa [color].
+  ///
+  /// Existe para que una opción verde pueda llevar el contador en rojo:
+  /// el tono de la sección y el tono de la alerta no tienen por qué ser
+  /// el mismo. Antes el chip se pintaba siempre con `widget.color`.
+  final Color? badgeColor;
+
   /// Ícono opcional en lugar del chevron por defecto.
   final Widget? trailing;
 
@@ -48,6 +55,7 @@ class PosMenuCard extends StatefulWidget {
     this.subtitle,
     this.onTap,
     this.badge,
+    this.badgeColor,
     this.trailing,
     this.layout = MenuCardLayout.auto,
     this.padding,
@@ -310,7 +318,7 @@ class _PosMenuCardState extends State<PosMenuCard> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: widget.color,
+        color: widget.badgeColor ?? widget.color,
         borderRadius: BorderRadius.circular(10),
       ),
       constraints: const BoxConstraints(minWidth: 20),

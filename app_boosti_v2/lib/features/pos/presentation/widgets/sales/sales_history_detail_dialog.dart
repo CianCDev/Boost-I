@@ -1,23 +1,33 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/isar_service.dart';
 import '../../../data/Local/entities/venta_entity.dart';
 import '../../../data/Local/entities/detalle_venta_entity.dart';
+import '../../providers/usuario_provider.dart';
+import '../../providers/tenant_provider.dart';
+import '../../services/venta_anulacion_service.dart';
 import '../../utils/responsive_helper.dart';
+import '../admin_validation_dialog.dart';
 
-class SalesHistoryDetailDialog extends StatefulWidget {
+class SalesHistoryDetailDialog extends ConsumerStatefulWidget {
   final VentaEntity venta;
 
   const SalesHistoryDetailDialog({super.key, required this.venta});
 
   @override
-  State<SalesHistoryDetailDialog> createState() => _SalesHistoryDetailDialogState();
+  ConsumerState<SalesHistoryDetailDialog> createState() =>
+      _SalesHistoryDetailDialogState();
 }
 
-class _SalesHistoryDetailDialogState extends State<SalesHistoryDetailDialog> {
+class _SalesHistoryDetailDialogState
+    extends ConsumerState<SalesHistoryDetailDialog> {
   final IsarService _isarService = IsarService();
   late Future<List<DetalleVentaEntity>> _detallesFuture;
+  bool _anulada = false;
 
   // Acorta el ID para móviles
   String _shortId(String id) {
@@ -29,6 +39,14 @@ class _SalesHistoryDetailDialogState extends State<SalesHistoryDetailDialog> {
   void initState() {
     super.initState();
     _detallesFuture = _cargarDetalles();
+    _verificarAnulacion();
+  }
+
+  Future<void> _verificarAnulacion() async {
+    final ventaId = widget.venta.idSupabase ?? '';
+    if (ventaId.isEmpty) return;
+    final anulacion = await IsarService().obtenerAnulacionDeVenta(ventaId);
+    if (mounted) setState(() => _anulada = anulacion != null);
   }
 
   Future<List<DetalleVentaEntity>> _cargarDetalles() async {
@@ -278,6 +296,42 @@ class _SalesHistoryDetailDialogState extends State<SalesHistoryDetailDialog> {
                         ),
                       ),
                       const SizedBox(height: 4),
+
+                      // ═══════════════════════════════════════════════════════════════
+                      // BOTÓN: ANULAR VENTA (solo admin/supervisor, si no está anulada)
+                      // ═══════════════════════════════════════════════════════════════
+                      if (!_anulada) ...[
+                        const SizedBox(height: 12),
+                        _buildBotonAnular(context),
+                      ] else ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.block_rounded, size: 18, color: Color(0xFFEF4444)),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Esta venta fue anulada. El stock fue restaurado.',
+                                  style: TextStyle(
+                                    color: const Color(0xFFEF4444).withValues(alpha: 0.9),
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   );
                 },
@@ -917,5 +971,138 @@ class _SalesHistoryDetailDialogState extends State<SalesHistoryDetailDialog> {
         ),
       ],
     );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // BOTÓN: ANULAR VENTA
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _buildBotonAnular(BuildContext context) {
+    final usuario = ref.watch(usuarioActualProvider);
+    final esAdmin = usuario != null &&
+        (usuario.rol == 'admin' || usuario.rol == 'supervisor');
+
+    if (!esAdmin) return const SizedBox.shrink();
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => _anularVenta(context),
+        icon: const Icon(Icons.block_rounded, size: 18),
+        label: const Text(
+          'Anular venta',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFFEF4444),
+          side: BorderSide(
+            color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+            width: 1.2,
+          ),
+          backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.06),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _anularVenta(BuildContext context) async {
+    // ── 1. Pedir motivo ──
+    final motivoCtrl = TextEditingController();
+    final motivo = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Anular venta'),
+        content: TextField(
+          controller: motivoCtrl,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Motivo',
+            hintText: 'Ej: cliente canceló, error de cobro...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final txt = motivoCtrl.text.trim();
+              if (txt.isEmpty) return;
+              Navigator.pop(ctx, txt);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+
+    if (motivo == null || !mounted) return;
+
+    // ── 2. Validar PIN admin/supervisor ──
+    final validado = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AdminValidationDialog(
+        onSuccess: () => Navigator.pop(ctx, true),
+        onCancel: () => Navigator.pop(ctx, false),
+      ),
+    );
+
+    if (validado != true || !mounted) return;
+
+    // ── 3. Ejecutar la anulación ──
+    final usuario = ref.read(usuarioActualProvider);
+    if (usuario == null) return;
+
+    final tenantId = ref.read(tenantActualProvider).tenantId ?? '';
+    final ventaId = widget.venta.idSupabase ?? '';
+
+    if (ventaId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Esta venta no tiene UUID asignado. Sincroniza primero.'),
+          backgroundColor: Color(0xFFEF4444),
+        ),
+      );
+      return;
+    }
+
+    final ok = await ref.read(ventaAnulacionServiceProvider).anularVenta(
+          ventaIdOriginal: ventaId,
+          tenantId: tenantId,
+          motivo: motivo,
+          usuario: usuario,
+          montoOriginal: widget.venta.total,
+        );
+
+    if (!mounted) return;
+
+    if (ok) {
+      setState(() => _anulada = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Venta anulada. El stock fue restaurado.'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo anular la venta. Intenta de nuevo.'),
+          backgroundColor: Color(0xFFEF4444),
+        ),
+      );
+    }
   }
 }

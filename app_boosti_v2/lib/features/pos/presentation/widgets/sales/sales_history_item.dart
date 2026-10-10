@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../../../data/Local/entities/isar_service.dart';
+import '../../../data/Local/entities/venta_anulada_entity.dart';
 import '../../../data/Local/entities/venta_entity.dart';
 import 'sales_history_detail_dialog.dart';
 
@@ -72,13 +75,17 @@ class _SalesHistoryItemState extends State<SalesHistoryItem> {
     final double paddingHorizontal = widget.isTablet ? 32 : 16;
     final double paddingVertical = widget.isTablet ? 24 : 14;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => isHovering = true),
-      onExit: (_) => setState(() => isHovering = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () => _showDetailDialog(context),
-        child: AnimatedContainer(
+    return FutureBuilder<VentaAnuladaEntity?>(
+      future: IsarService().obtenerAnulacionDeVenta(venta.idSupabase ?? ''),
+      builder: (context, snapshot) {
+        final bool anulada = snapshot.data != null;
+        return MouseRegion(
+          onEnter: (_) => setState(() => isHovering = true),
+          onExit: (_) => setState(() => isHovering = false),
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => _showDetailDialog(context),
+            child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           transform: isHovering
               ? Matrix4.diagonal3Values(1.02, 1.02, 1.0)
@@ -227,6 +234,29 @@ class _SalesHistoryItemState extends State<SalesHistoryItem> {
                 ],
               ),
               const SizedBox(width: 8),
+              if (anulada) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Text(
+                    'ANULADA',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFEF4444),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               Icon(
                 Icons.chevron_right,
                 color: colorScheme.onSurfaceVariant,
@@ -236,6 +266,8 @@ class _SalesHistoryItemState extends State<SalesHistoryItem> {
           ),
         ),
       ),
+    );
+  },
     );
   }
 }

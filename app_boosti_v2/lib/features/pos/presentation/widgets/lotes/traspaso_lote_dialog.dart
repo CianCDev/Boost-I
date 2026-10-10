@@ -54,20 +54,25 @@ class _TraspasoLoteDialogState extends ConsumerState<TraspasoLoteDialog> {
       if (usuario == null) throw Exception('Usuario no autenticado');
 
       if (await _isar.descontarLote(widget.lote.id, cantidad)) {
-        final producto =
-            await _isar.obtenerProductoPorId(widget.lote.productoId);
-        if (producto != null) {
-          producto.stock += cantidad;
-          await _isar.guardarProducto(producto);
-        }
+        // El stock del producto se deriva de los lotes (fuente unica de
+        // verdad). Antes se hacia `producto.stock += cantidad`, lo que
+        // ademas de duplicar la fuente lo SUBIA mientras el lote Bajaba:
+        // el numero crecia sin que el inventario real cambiara.
+        //
+        // OJO: esto es una BAJA, no una reposicion. `descontarLote` saca
+        // unidades del lote y `recalcularStockDe` deriva el stock del
+        // producto hacia abajo. No existe un "inventario general" al que
+        // se le sume: el nombre viejo ("Reponer", tipo 'traspaso')
+        // describia la inversa de lo que hace.
+        await _isar.recalcularStockDe([widget.lote.productoId]);
         await _isar.guardarMovimientoLote(
           MovimientoLoteEntity()
             ..loteId = widget.lote.id
-            ..tipo = 'traspaso'
+            ..tipo = 'baja'
             ..cantidad = cantidad
             ..fecha = DateTime.now()
             ..usuarioId = usuario.id
-            ..observaciones = 'Traspaso manual a inventario'
+            ..observaciones = 'Baja manual de lote'
             ..sincronizado = false,
         );
 
@@ -77,7 +82,7 @@ class _TraspasoLoteDialogState extends ConsumerState<TraspasoLoteDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.floating,
-            content: Text('$cantidad unidades repuestas al inventario'),
+            content: Text('$cantidad unidades dadas de baja'),
             backgroundColor: _colorSuccess,
           ),
         );
@@ -111,9 +116,10 @@ class _TraspasoLoteDialogState extends ConsumerState<TraspasoLoteDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const DialogHeader(
-              icon: Icons.swap_horiz_rounded,
-              title: 'Reponer inventario',
-              subtitle: 'Mueve stock del lote al inventario general',
+              icon: Icons.remove_shopping_cart_rounded,
+              title: 'Dar de baja del lote',
+              subtitle: 'Retira unidades del lote. No se suman al stock: '
+                  'se dan de baja.',
               color: _colorWarning,
             ),
             const SizedBox(height: 18),
@@ -225,7 +231,7 @@ class _TraspasoLoteDialogState extends ConsumerState<TraspasoLoteDialog> {
                               child: CircularProgressIndicator(
                                   strokeWidth: 2, color: Colors.white),
                             )
-                          : const Text('Reponer',
+                          : const Text('Dar de baja',
                               style:
                                   TextStyle(fontWeight: FontWeight.bold)),
                     ),

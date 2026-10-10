@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../../data/Local/entities/proveedor_entity.dart';
 import '../../providers/esc_pos_provider.dart';
+import '../../providers/departamentos_provider.dart';
+import '../../providers/local_actual_provider.dart';
 import '../../providers/proveedores_provider.dart';
 import '../../services/printer_service.dart';
 import '../../services/label_generator.dart';
@@ -72,7 +74,7 @@ class ProductDetailDialog extends ConsumerWidget {
                     const SizedBox(height: 12),
                     _buildPrecioStock(colorScheme, isMobile),
                     const SizedBox(height: 12),
-                    _buildCategoriaStockMinimo(colorScheme, isMobile),
+                    _buildCategoriaStockMinimo(ref, colorScheme, isMobile),
                     if (producto.proveedorNombre.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _buildProveedorSection(
@@ -220,7 +222,41 @@ class ProductDetailDialog extends ConsumerWidget {
     );
   }
 
- Widget _buildCategoriaStockMinimo(ColorScheme colorScheme, bool isMobile) {
+ /// R.3.2 · Nombre de la estación de preparación.
+  ///
+  /// `ProductoEntity` guarda SOLO el `departamentoId`, no el nombre (el
+  /// snapshot se decided no hacerlo para no duplicar dato y forzar otro
+  /// `build_runner`). Así que el nombre se resuelve contra el provider de
+  /// departamentos.
+  ///
+  /// ⚠️ `WidgetRef` es un PARÁMETRO de `build` (L38), no un campo de la
+  /// clase: un método de instancia no lo ve. Por eso se recibe aquí y se
+  /// propaga desde `build` → `_buildCategoriaStockMinimo` → este método.
+  ///
+  /// Si el departamento fue borrado o pertenece a otro local tras un
+  /// hot-switch, cae a "Sin estación" en vez de mostrar un id suelto.
+  String _nombreEstacion(WidgetRef ref) {
+    final id = producto.departamentoId;
+    if (id == null) return 'Sin estación';
+
+    final localId = ref.read(localActualProvider);
+    if (localId == null) return 'Sin estación';
+
+    final departamentos = ref.watch(departamentosActivosProvider(localId));
+    final lista = departamentos.valueOrNull;
+    if (lista == null) return '…';
+
+    for (final d in lista) {
+      if (d.id == id) return d.nombre;
+    }
+    return 'Sin estación';
+  }
+
+  Widget _buildCategoriaStockMinimo(
+    WidgetRef ref,
+    ColorScheme colorScheme,
+    bool isMobile,
+  ) {
   // ✅ Normalizar: si la categoría está vacía o quedó huérfana, mostrar fallback
   final categoriaMostrada = producto.categoria.trim().isEmpty
       ? 'Sin categoría'
@@ -236,6 +272,19 @@ class ProductDetailDialog extends ConsumerWidget {
             label: 'Categoría',
             value: categoriaMostrada,
             valueColor: colorScheme.onSurface,
+            colorScheme: colorScheme,
+            isMobile: isMobile,
+          ),
+        ),
+        // R.3.2 · Estación de preparación (KDS).
+        Expanded(
+          child: _statBlock(
+            icon: Icons.kitchen_rounded,
+            label: 'Estación',
+            value: _nombreEstacion(ref),
+            valueColor: producto.departamentoId == null
+                ? colorScheme.onSurfaceVariant
+                : colorScheme.onSurface,
             colorScheme: colorScheme,
             isMobile: isMobile,
           ),

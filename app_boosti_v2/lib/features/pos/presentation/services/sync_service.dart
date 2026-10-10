@@ -114,14 +114,20 @@ class SyncService {
 
   /// Normaliza el valor de `business_mode` que viene de Supabase.
   ///
-  /// Si es null, vacío o un valor desconocido → devuelve 'mercado'
+  /// Si es null, vacío o un valor desconocido → devuelve 'retail'
   /// (retrocompatible con locales existentes que no tienen el campo).
+  ///
+  /// Acepta el valor legacy `'mercado'` y lo devuelve como `'retail'`.
+  /// `locales.business_mode` en Supabase ya guarda `'retail'` en los
+  /// 4 planes; sin esta traducción, un local descargado de la nube
+  /// caería al `orElse` y se guardaría en Isar como `'mercado'`.
   String _parseBusinessMode(dynamic value) {
-    if (value == null) return 'mercado';
+    if (value == null) return 'retail';
     final s = value.toString().trim().toLowerCase();
-    const validos = {'mercado', 'restaurante', 'servicios'};
+    if (s == 'mercado') return 'retail';
+    const validos = {'retail', 'restaurante', 'servicios'};
     if (validos.contains(s)) return s;
-    return 'mercado';
+    return 'retail';
   }
 
   // ============================================================
@@ -173,8 +179,7 @@ class SyncService {
       _suscribirATabla('categorias', () => descargarCategoriasDesdeSupabase());
       _suscribirATabla('marcas', () => descargarMarcasDesdeSupabase());
       _suscribirATabla('locales', _onLocalesCambiaronDesdeNube);
-      _suscribirATabla(
-          'departamentos', () => descargarDepartamentosDesdeSupabase());
+      _suscribirATabla( 'departamentos', () => descargarDepartamentosDesdeSupabase());
       _suscribirATabla('usuarios', () => sincronizarUsuariosDesdeSupabase());
       _suscribirATabla('gastos', () => descargarGastosDesdeSupabase());
       _suscribirATabla('clientes', () => descargarClientesDesdeSupabase());
@@ -236,28 +241,28 @@ class SyncService {
         hint: '_suscribirATabla_fallo',
         extras: {'tabla': tabla});
   }
+}
 
-  /// Handler ejecutado cuando Realtime detecta cambios en `locales`
-  /// desde OTRO dispositivo.
-  ///
-  /// Estrategia:
-  ///   1. Descarga los locales actualizados desde Supabase → Isar.
-  ///   2. Notifica al consumidor vía `onLocalCambiado` para que recargue
-  ///      el `businessModeProvider` y refresque la UI.
-  Future<void> _onLocalesCambiaronDesdeNube() async {
-    try {
-      debugPrint('🔄 [Realtime] Locales cambiaron, re-descargando...');
-      await descargarLocalesDesdeSupabase();
+/// Handler ejecutado cuando Realtime detecta cambios en `locales`
+/// desde OTRO dispositivo.
+///
+/// Estrategia:
+///   1. Descarga los locales actualizados desde Supabase → Isar.
+///   2. Notifica al consumidor vía `onLocalCambiado` para que recargue
+///      el `businessModeProvider` y refresque la UI.
+Future<void> _onLocalesCambiaronDesdeNube() async {
+  try {
+    debugPrint('🔄 [Realtime] Locales cambiaron, re-descargando...');
+    await descargarLocalesDesdeSupabase();
 
-      onLocalCambiado?.call();
-      debugPrint('✅ [Realtime] Locales actualizados + callback disparado');
-    } catch (e, stack) {
-      ErrorService.captureError(
-        e,
-        stack: stack,
-        hint: 'onLocalesCambiaronDesdeNube_fallo',
-      );
-    }
+    onLocalCambiado?.call();
+    debugPrint('✅ [Realtime] Locales actualizados + callback disparado');
+  } catch (e, stack) {
+    ErrorService.captureError(
+      e,
+      stack: stack,
+      hint: 'onLocalesCambiaronDesdeNube_fallo',
+    );
   }
 }
 
@@ -925,6 +930,17 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
           dirty = true;
         }
 
+        // 🎯 is_superadmin es SERVER-AUTHORITATIVE.
+        // Regla: si Supabase dice true, aplicamos true.
+        // NUNCA lo bajamos a false desde el sync, NUNCA lo subimos al servidor.
+        // Si el registro local queda actualizado, persistirlo SIN marcar dirty.
+        if (data['is_superadmin'] == true && local.isSuperadmin != true) {
+          local.isSuperadmin = true;
+          // Persistir SOLO este cambio sin disparar push.
+          final isar = await _isarService.db;
+          await isar.writeTxn(() => isar.usuarioEntitys.put(local));
+        }
+
         final nuevoNombre = data['nombre'] as String?;
         if (nuevoNombre != null &&
             nuevoNombre.isNotEmpty &&
@@ -1123,6 +1139,8 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
           ..departamento = data['departamento'] as String?
           ..supabaseId = data['id'] as String?
           ..fotoUrl = data['foto_url'] as String?
+          // 🎯 FIX: mapear is_superadmin para el Control Center.
+          ..isSuperadmin = data['is_superadmin'] as bool? ?? false
           ..tenantId = tenantUuid
           ..localId = localIdResuelto
           ..inicioDescanso = data['inicio_descanso'] != null
@@ -1484,10 +1502,23 @@ Future<void> subirUsuariosPendientes() async {
 
       for (final p in productosLocales) {
         final nuevoUuid = p.supabaseId ?? const Uuid().v4();
+
+        // ⚠️ Barcode único para productos sin código.
+        // `productos.codigo_barras` es NOT NULL y hay UNIQUE
+        // (tenant_id, codigo_barras). Si 2+ productos del mismo tenant
+        // tienen barcode vacío, el insert falla con 23505. Generamos un
+        // código estable derivado del UUID (o del id local si aún no
+        // tiene UUID), con el mismo patrón que el guard local de
+        // `isar_service.dart` (`AUTO-...` / `SB-...`).
+        final codigoParaSupabase = p.codigoBarras.trim().isEmpty
+            ? (p.supabaseId != null && p.supabaseId!.isNotEmpty
+                ? 'SB-$nuevoUuid'
+                : 'AUTO-${p.id}')
+            : p.codigoBarras;
         final payload = <String, dynamic>{
           'uuid': nuevoUuid,
           'id_isar': p.id,
-          'codigo_barras': p.codigoBarras,
+          'codigo_barras': codigoParaSupabase,
           'nombre': p.nombre,
           'marca': p.marca,
           'marca_supabase_id': p.marcaSupabaseId,
@@ -1524,19 +1555,61 @@ Future<void> subirUsuariosPendientes() async {
         productosParaActualizar.add(p);
       }
 
-      // 🛠️ FIX: Upsert masivo en Supabase
-      try {
-        await _supabase.from('productos').upsert(payloads, onConflict: 'uuid');
-        debugPrint('✅ ${payloads.length} productos enviados en upsert masivo');
-      } catch (e) {
-        debugPrint('⚠️ Error en upsert masivo de productos: $e');
-        // Fallback: intentar uno por uno
-        for (var i = 0; i < productosLocales.length; i++) {
-          try {
-            await _supabase.from('productos').insert(payloads[i]);
-          } catch (e2) {
-            debugPrint('⚠️ Error insertando producto ${productosLocales[i].nombre}: $e2');
-          }
+      // ── Separar por lotes: nuevos (INSERT) vs existentes (UPDATE) ──
+      // El upsert masivo con `onConflict: 'uuid'` intentaba escribir
+      // `id_isar` como parte del `DO UPDATE SET`. Eso violaba la FK
+      // `fk_detalles_pedido_producto_id_isar` (ON DELETE NO ACTION) en
+      // cuanto un producto ya referenciado cambiaba su `id_isar`.
+      //
+      // Además, productos ya existentes en Supabase (con `supabaseId`)
+      // nunca deben tocar `id_isar`: ese campo es inmutable una vez
+      // asignado, porque `detalles_pedido.producto_id_isar` lo referencia.
+      //
+      // Estrategia: los que ya tienen `supabaseId` van por UPDATE
+      // (excluyendo `id_isar`). Los nuevos van por INSERT con `id_isar`.
+      final nuevos = <Map<String, dynamic>>[];
+      final existentes = <Map<String, dynamic>>[];
+
+      for (final payload in payloads) {
+        if (payload['uuid'] != null &&
+            productosLocales
+                .any((p) => p.supabaseId == payload['uuid'])) {
+          // Excluir id_isar del payload de update.
+          final sinIdIsar = Map<String, dynamic>.from(payload)
+            ..remove('id_isar');
+          existentes.add(sinIdIsar);
+        } else {
+          nuevos.add(payload);
+        }
+      }
+
+      // Inserts masivos (productos nuevos, sin uuid en Supabase).
+      if (nuevos.isNotEmpty) {
+        try {
+          await _supabase.from('productos').insert(nuevos);
+          debugPrint('✅ ${nuevos.length} productos insertados');
+        } catch (e) {
+          debugPrint('⚠️ Error insertando nuevos: $e');
+        }
+      }
+
+      // Updates masivos en 1 request.
+      // ⚠️ Estos payloads NO llevan `id_isar` (fue excluido arriba),
+      // así que `ON CONFLICT (uuid) DO UPDATE` no puede violar la FK
+      // `fk_detalles_pedido_producto_id_isar`.
+      //
+      // El `BEFORE INSERT` trigger `productos_autoreasignar_id_isar()`
+      // cubre el `id_isar` ausente durante el intento de INSERT (evita
+      // el NOT NULL). En la ruta `DO UPDATE` ese trigger no se dispara,
+      // y como `id_isar` no está en el SET, la columna queda intacta.
+      if (existentes.isNotEmpty) {
+        try {
+          await _supabase
+              .from('productos')
+              .upsert(existentes, onConflict: 'uuid');
+          debugPrint('✅ ${existentes.length} productos actualizados');
+        } catch (e) {
+          debugPrint('⚠️ Error en batch update: $e');
         }
       }
 
@@ -1605,7 +1678,11 @@ Future<void> subirUsuariosPendientes() async {
           ..marca = data['marca'] as String? ?? ''
           ..marcaSupabaseId = data['marca_supabase_id'] as String?
           ..precioUnidad = _toDouble(data['precio_unidad'])
-          ..stock = _toDouble(data['stock'])
+          // ⚠️ NO se toma `stock` de la nube. Con el modelo "lotes = fuente
+          // única de verdad", `producto.stock` es un cache derivado que se
+          // recalcula con `IsarService.recalcularStockDe` DESPUÉS de
+          // descargar los lotes. Tomarlo de la nube reintroducía el
+          // conflicto de las dos verdades.
           ..stockMinimo = _toDouble(data['stock_minimo'], 5.0)
           ..esPesado = data['es_pesado'] ?? false
           ..activo = data['activo'] ?? true
@@ -1655,6 +1732,10 @@ Future<void> subirUsuariosPendientes() async {
         if (productoLocal != null) {
           productoNube.id = productoLocal.id;
           productoNube.proveedorId = productoLocal.proveedorId;
+          // Se preserva el stock local: no viene de la nube (ver arriba).
+          // Un producto nuevo de la nube queda en 0 hasta que se
+          // descarguen sus lotes y corra el recálculo.
+          productoNube.stock = productoLocal.stock;
         }
         productosParaGuardar.add(productoNube);
       }
@@ -1666,13 +1747,37 @@ Future<void> subirUsuariosPendientes() async {
       });
       debugPrint('✅ ${productosParaGuardar.length} productos guardados en lote');
 
-      // 🛠️ FIX: Transacción masiva para eliminar productos
+      // 🛠️ Transacción masiva para eliminar productos.
+      //
+      // ⚠️ NO borrar productos cuyo `codigoBarras` fue GENERADO por el guard de
+      // `isar_service.dart:887-893`. Ese guard deriva una clave única
+      // (`SB-<supabaseId>` o `AUTO-<epoch>-<hash>`) cuando el producto llega
+      // con el código vacío. Ese código es local por definición: nunca se sube
+      // a la nube, así que NUNCA estará en `codigosEnNube`, y el filtro "no está
+      // en la nube" lo destruía en CADA pasada de sync. Con esos productos en
+      // la base, cualquier producto real que se borrara de la nube tarde o
+      // temprano se traía de vuelta con todos sus ajustes de stock.
+      //
+      // Son códigos legítimos; se conservan.
       int eliminados = 0;
+      int preservadosPorCodigoGenerado = 0;
       for (var producto in productosLocales) {
-        if (!codigosEnNube.contains(producto.codigoBarras)) {
+        final cb = producto.codigoBarras;
+        final esCodigoGenerado =
+            cb.startsWith('AUTO-') || cb.startsWith('SB-');
+        if (esCodigoGenerado) {
+          preservadosPorCodigoGenerado++;
+          continue;
+        }
+        if (!codigosEnNube.contains(cb)) {
           idsParaEliminar.add(producto.id);
           eliminados++;
         }
+      }
+      if (preservadosPorCodigoGenerado > 0) {
+        debugPrint(
+            '🔒 $preservadosPorCodigoGenerado productos preservados '
+            '(código generado localmente)');
       }
       if (idsParaEliminar.isNotEmpty) {
         await isar.writeTxn(() async {
@@ -1756,14 +1861,20 @@ Future<void> subirUsuariosPendientes() async {
   // ============================================================
 
   Future<int> sincronizarVentasPendientes() async {
-    if (_isSyncing) return 0;
-    _isSyncing = true;
+    // ⚠️ Este método NO toca `_isSyncing`. Es un paso interno de
+    // `sincronizarTodo()`, que es el único dueño del lock. Antes tenía
+    // su propia guarda + set/finally, lo que causaba 2 bugs:
+    //   1. Como `sincronizarTodo` ya ponía `_isSyncing = true`, la
+    //      guarda convertía este método en un no-op silencioso
+    //      (ventas/gastos/turnos nunca se sincronizaban).
+    //   2. Al liberar el flag en su propio `finally`, dejaba al padre
+    //      sin lock durante los módulos restantes → despertaba los
+    //      guards anti-eco de Realtime (:204/:230).
     int ventasSincronizadas = 0;
 
     try {
       final pendientes = await _isarService.obtenerVentasPendientesSync();
       if (pendientes.isEmpty) {
-        _isSyncing = false;
         return 0;
       }
 
@@ -1795,8 +1906,6 @@ Future<void> subirUsuariosPendientes() async {
       debugPrint('❌ [SyncService] Error general durante la sincronización: $e');
       ErrorService.captureError(e,
           stack: stack, hint: 'sincronizarVentasPendientes_fallo');
-    } finally {
-      _isSyncing = false;
     }
     return ventasSincronizadas;
   }
@@ -1812,12 +1921,18 @@ Future<void> subirUsuariosPendientes() async {
         debugPrint('🔄 UUID generado para venta local: ${venta.idSupabase}');
       }
 
+      // INVARIANTE: tras el `if` de arriba, `idSupabase` es no-null y no vacío.
+      // Se materializa en una variable local para no repetir el `!` en cada
+      // uso; antes el `!` de `obtenerDetallesPorVenta` dependía de que nadie
+      // tocara `idSupabase` entre el `if` y esa línea.
+      final uuidVenta = venta.idSupabase!;
+
       final payload = _ventaToJson(venta);
       payload['sync_status'] = _SyncConstants.synced;
 
       // 🔥 Obtener los detalles de la venta desde la base de datos usando el UUID
       final detalles =
-          await _isarService.obtenerDetallesPorVenta(venta.idSupabase!);
+          await _isarService.obtenerDetallesPorVenta(uuidVenta);
       debugPrint(
           '📦 Detalles encontrados para venta ${venta.idSupabase}: ${detalles.length}');
 
@@ -1843,27 +1958,28 @@ Future<void> subirUsuariosPendientes() async {
         debugPrint('ℹ️ No hay configuración válida; se usa Supabase directo.');
       }
 
-      // 🔥 Insertar venta en Supabase
-      await _supabase.from('ventas').insert(payload);
+      // 🔥 Insertar venta + detalles en 1 RPC atómico.
+      // Antes eran 2 round-trips separados (insert ventas + insert
+      // detalle_ventas) sin transacción: si el 2º fallaba, quedaba una
+      // venta huérfana.
+      // El RPC hace UPSERT + DELETE-then-INSERT + INSERT en una sola
+      // transacción PL/pgSQL. Ver migración
+      // `supabase/migrations/20261009000000_sync_venta_completa.sql`.
+      final itemsPayload = detalles.map((item) {
+        if (item.ventaIdFk == null || item.ventaIdFk!.isEmpty) {
+          item.ventaIdFk = venta.idSupabase;
+        }
+        return _detalleToJson(item);
+      }).toList();
 
-      // 🔥 Insertar detalles con el UUID de la venta
-      if (detalles.isNotEmpty) {
-        final List<Map<String, dynamic>> itemsPayload = detalles.map((item) {
-          // Asegurar que cada detalle tenga el ventaIdFk correcto (local)
-          if (item.ventaIdFk == null || item.ventaIdFk!.isEmpty) {
-            item.ventaIdFk = venta.idSupabase;
-          }
-          return _detalleToJson(item);
-        }).toList();
-        await _supabase.from('detalle_ventas').insert(itemsPayload);
-        debugPrint(
-            '✅ ${itemsPayload.length} detalles insertados para venta ${venta.idSupabase}');
-      } else {
-        debugPrint('⚠️ No hay detalles para la venta ${venta.idSupabase}');
-      }
+      await _supabase.rpc('sync_venta_completa', params: {
+        'p_venta': payload,
+        'p_detalles': itemsPayload,
+      });
 
       debugPrint(
-          '✅ Venta ${venta.idSupabase} sincronizada vía Supabase directo');
+          '✅ Venta ${venta.idSupabase} sincronizada vía RPC '
+          '(${itemsPayload.length} detalles)');
       return true;
     } catch (e, stack) {
       debugPrint(
@@ -2232,13 +2348,27 @@ Future<void> subirUsuariosPendientes() async {
       }
 
       // Requiere que exista en Supabase:
-      // ajustar_stock(p_producto_id bigint, p_cantidad integer, p_tipo_movimiento text)
+      // ajustar_stock(p_producto_uuid uuid, p_cantidad numeric, p_tipo_movimiento text)
       try {
         final rpcResponse = await _supabase.rpc(
-          'ajustar_stock',
+          // ⚠️ Nombre único (no `ajustar_stock`) porque había 2 overloads con
+          // el mismo nombre y misma aridad. PostgREST elegía la bigint primero
+          // y devolvía FALSE sin encontrar producto. La firma renombrada deja
+          // la resolución sin ambigüedad.
+          'ajustar_stock_uuid',
           params: {
-            'p_producto_id': mov.productoId,
-            'p_cantidad': mov.cantidad.toInt(),
+            // ⚠️ Pasar el UUID, no el ID de Isar. La firma antigua
+            // `(bigint, integer, text)` recibía `mov.productoId` (isar),
+            // que no coincide con `productos.id` de Supabase (secuencia
+            // propia). El RPC devolvía false siempre y, si los IDs
+            // coincidían por accidente, ajustaba el producto equivocado.
+            // La firma nueva usa `productos.uuid`, estable cross-machine.
+            'p_producto_uuid': productoUuid,
+            // ⚠️ Sin `.toInt()`: la firma es `numeric`. Truncar aquí
+            // mandaba 0.5 kg como 0 y el RPC no descontaba nada pero
+            // devolvía TRUE. Ver migración
+            // `20261009000004_ajustar_stock_numeric.sql`.
+            'p_cantidad': mov.cantidad,
             'p_tipo_movimiento': mov.tipoMovimiento,
           },
         );
@@ -2615,14 +2745,20 @@ Future<void> subirUsuariosPendientes() async {
   }
 
   Future<int> sincronizarGastosPendientes() async {
-    if (_isSyncing) return 0;
-    _isSyncing = true;
+    // ⚠️ Este método NO toca `_isSyncing`. Es un paso interno de
+    // `sincronizarTodo()`, que es el único dueño del lock. Antes tenía
+    // su propia guarda + set/finally, lo que causaba 2 bugs:
+    //   1. Como `sincronizarTodo` ya ponía `_isSyncing = true`, la
+    //      guarda convertía este método en un no-op silencioso
+    //      (ventas/gastos/turnos nunca se sincronizaban).
+    //   2. Al liberar el flag en su propio `finally`, dejaba al padre
+    //      sin lock durante los módulos restantes → despertaba los
+    //      guards anti-eco de Realtime (:204/:230).
     int sincronizados = 0;
 
     try {
       final pendientes = await _isarService.obtenerGastosPendientesSync();
       if (pendientes.isEmpty) {
-        _isSyncing = false;
         return 0;
       }
 
@@ -2655,8 +2791,6 @@ Future<void> subirUsuariosPendientes() async {
       ErrorService.captureError(e,
           stack: stack, hint: 'sincronizarGastosPendientes_fallo');
       return 0;
-    } finally {
-      _isSyncing = false;
     }
   }
 
@@ -2714,14 +2848,20 @@ Future<void> subirUsuariosPendientes() async {
   // ============================================================
 
   Future<int> sincronizarTurnos() async {
-    if (_isSyncing) return 0;
-    _isSyncing = true;
+    // ⚠️ Este método NO toca `_isSyncing`. Es un paso interno de
+    // `sincronizarTodo()`, que es el único dueño del lock. Antes tenía
+    // su propia guarda + set/finally, lo que causaba 2 bugs:
+    //   1. Como `sincronizarTodo` ya ponía `_isSyncing = true`, la
+    //      guarda convertía este método en un no-op silencioso
+    //      (ventas/gastos/turnos nunca se sincronizaban).
+    //   2. Al liberar el flag en su propio `finally`, dejaba al padre
+    //      sin lock durante los módulos restantes → despertaba los
+    //      guards anti-eco de Realtime (:204/:230).
     int sincronizados = 0;
 
     try {
       final pendientes = await _isarService.obtenerTurnosPendientes();
       if (pendientes.isEmpty) {
-        _isSyncing = false;
         return 0;
       }
 
@@ -2752,8 +2892,6 @@ Future<void> subirUsuariosPendientes() async {
       ErrorService.captureError(e,
           stack: stack, hint: 'sincronizarTurnos_fallo');
       return 0;
-    } finally {
-      _isSyncing = false;
     }
   }
 
@@ -2829,36 +2967,42 @@ Future<void> subirUsuariosPendientes() async {
       debugPrint(
           '🔄 Sincronizando ${pendientes.length} locales con Supabase...');
 
+      final tenantJwt = getTenantIdFromJWT();
       for (var local in pendientes) {
-        final data = {
-          'id_isar': local.id,
-          'nombre': local.nombre,
-          'rif': local.rif,
-          'direccion': local.direccion,
-          'telefono': local.telefono,
-          'email': local.email,
-          'activo': local.activo,
-          'business_mode': local.businessMode,
-          'sync_status': _SyncConstants.synced,
-          'updated_at': DateTime.now().toIso8601String(),
-        };
+        if (tenantJwt == null ||
+            tenantJwt.isEmpty ||
+            local.supabaseId != tenantJwt) {
+          debugPrint(
+            '⏭️ Local "${local.nombre}" no pertenece al tenant actual '
+            '($tenantJwt). Skip.',
+          );
+          continue;
+        }
 
         try {
+          // 🎯 FIX: usar `update()` en vez de `upsert()`.
+          //    Los locales del sync NUNCA son nuevos — se crean vía el RPC
+          //    `crear_nuevo_local_para_usuario`. Solo necesitamos actualizar
+          //    campos (business_mode, nombre, etc.). `upsert` intentaba INSERT
+          //    y fallaba en RLS porque no hay policy INSERT.
           final response = await _supabase
               .from('locales')
-              .upsert(data, onConflict: 'id_isar')
+              .update({
+                'nombre': local.nombre,
+                'rif': local.rif,
+                'direccion': local.direccion,
+                'telefono': local.telefono,
+                'email': local.email,
+                'activo': local.activo,
+                'business_mode': local.businessMode,
+                'sync_status': _SyncConstants.synced,
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', local.supabaseId!)
               .select('id')
               .maybeSingle();
 
           String? supabaseId = response?['id'] as String?;
-          if (supabaseId == null) {
-            final findResponse = await _supabase
-                .from('locales')
-                .select('id')
-                .eq('id_isar', local.id)
-                .maybeSingle();
-            supabaseId = findResponse?['id'] as String?;
-          }
 
           if (supabaseId != null) {
             local.supabaseId = supabaseId;
@@ -2928,23 +3072,64 @@ Future<void> subirUsuariosPendientes() async {
           local = localesPorId[idIsar];
         }
 
-        final localNube = LocalEntity()
-          ..supabaseId = supabaseId
-          ..nombre = data['nombre'] ?? ''
-          ..direccion = data['direccion'] as String?
-          ..telefono = data['telefono'] as String?
-          ..email = data['email'] as String?
-          ..activo = data['activo'] ?? true
-          ..businessMode = _parseBusinessMode(data['business_mode'])
-          ..sincronizado = true
-          ..fechaSincronizacion = DateTime.now()
-          ..rif = data['rif'];
+        // 🎯 FIX: campos comunes que SÍ vienen de Supabase
+        final nombreNube = data['nombre'] as String? ?? '';
+        final direccionNube = data['direccion'] as String?;
+        final telefonoNube = data['telefono'] as String?;
+        final emailNube = data['email'] as String?;
+        final activoNube = data['activo'] as bool? ?? true;
+        final businessModeNube = _parseBusinessMode(data['business_mode']);
+        final rifNube = data['rif'] as String?;
 
         if (local != null) {
-          localNube.id = local.id;
-          await _isarService.guardarLocal(localNube);
-          debugPrint('🔄 Local ${localNube.nombre} actualizado');
+          // 🎯 FIX: si el local tiene cambios pendientes de subir (por ejemplo,
+          //    `businessMode` cambiado por el usuario pero no sincronizado aún),
+          //    NO sobreescribir con el valor stale de la nube. Preservar el
+          //    `businessMode` local hasta que se suba.
+          final tienePendientes = local.sincronizado == false;
+
+          local
+            ..supabaseId = supabaseId
+            ..nombre = nombreNube.isNotEmpty ? nombreNube : local.nombre
+            ..direccion = direccionNube ?? local.direccion
+            ..telefono = telefonoNube ?? local.telefono
+            ..email = emailNube ?? local.email
+            ..activo = activoNube
+            ..rif = rifNube ?? local.rif
+            ..fechaSincronizacion = DateTime.now();
+
+          // 🎯 Solo sobreescribir `businessMode` si el local NO tiene cambios
+          //    pendientes. Si los tiene, se preserva el valor local.
+          if (!tienePendientes) {
+            local.businessMode = businessModeNube;
+            local.sincronizado = true;
+          } else {
+            debugPrint(
+              '🛡️ Local ${local.nombre}: businessMode local '
+              '"${local.businessMode}" preservado (pendiente de sync)',
+            );
+          }
+
+          debugPrint('🔍 ANTES: modoConfiguradoEn=${local.modoConfiguradoEn}');
+          await _isarService.guardarLocal(local);
+          debugPrint('🔍 DESPUÉS: modoConfiguradoEn=${local.modoConfiguradoEn}');
+          debugPrint(
+            '🔄 Local ${local.nombre} actualizado (merge preservando config local)',
+          );
         } else {
+          // Crear nuevo (no hay datos previos que preservar)
+          final localNube = LocalEntity()
+            ..supabaseId = supabaseId
+            ..nombre = nombreNube
+            ..direccion = direccionNube
+            ..telefono = telefonoNube
+            ..email = emailNube
+            ..activo = activoNube
+            ..businessMode = businessModeNube
+            ..sincronizado = true
+            ..fechaSincronizacion = DateTime.now()
+            ..rif = rifNube;
+
           await _isarService.guardarLocal(localNube);
           debugPrint('📥 Local ${localNube.nombre} creado');
         }
@@ -3415,6 +3600,13 @@ Future<void> subirUsuariosPendientes() async {
 
       debugPrint('🔄 Sincronizando ${pendientes.length} lotes con Supabase...');
 
+      // `upsertados` cubre insert y update por igual: ya no podemos
+      // distinguirlos desde el cliente (PostgREST reporta `upserted`
+      // como una sola operación). Antes `actualizados` solo contaba la
+      // rama del catch "duplicate key", que con la constraint nueva
+      // nunca se ejecuta.
+      int upsertados = 0, fallidos = 0;
+
       final productosSupabase =
           await _supabase.from('productos').select('id_isar, uuid');
       final Set<int> idsProductosEnSupabase = {};
@@ -3428,6 +3620,7 @@ Future<void> subirUsuariosPendientes() async {
         if (producto == null) {
           debugPrint(
               '⚠️ Lote ${lote.id} omitido: producto ${lote.productoId} no existe en Isar');
+          fallidos++;
           continue;
         }
 
@@ -3449,9 +3642,26 @@ Future<void> subirUsuariosPendientes() async {
           debugPrint('✅ Producto ${producto.nombre} creado en Supabase');
         }
 
-        final localUuid = lote.localId == null
-            ? null
-            : await _obtenerSupabaseIdLocal(lote.localId!);
+        // `tenant_id` es NOT NULL en la nube y RLS lo exige. Antes se mandaba
+        // `null` cuando el lote no traía `localId`, y el insert fallaba
+        // en silencio (el lote quedaba `sincronizado = false` para
+        // siempre, reintentando en cada sync).
+        String? localUuid;
+        if (lote.localId != null) {
+          localUuid = await _obtenerSupabaseIdLocal(lote.localId!);
+        }
+        if (localUuid == null || localUuid.isEmpty) {
+          // Fallback: resolver al local activo del dispositivo.
+          final localActivo = await _isarService.obtenerLocalActivo();
+          localUuid = localActivo?.supabaseId;
+        }
+        if (localUuid == null || localUuid.isEmpty) {
+          debugPrint('❌ Lote ${lote.id} omitido: no hay local activo con '
+              'supabaseId. No se puede subir sin tenant_id (RLS lo '
+              'bloquearía).');
+          fallidos++;
+          continue;
+        }
 
         final data = {
           'id_isar': lote.id,
@@ -3471,25 +3681,43 @@ Future<void> subirUsuariosPendientes() async {
         };
 
         try {
-          await _supabase.from('lotes').insert(data);
-          debugPrint('✅ Lote ${lote.id} insertado correctamente');
+          // Upsert con ON CONFLICT (tenant_id, id_isar).
+          //
+          // Antes era `insert` + catch de "duplicate key" para caer al
+          // update. Sin constraint UNIQUE en la nube ese insert NUNCA
+          // fallaba, así que cada sync creaba una fila nueva del mismo
+          // lote: en producción había 2 filas con `id_isar = 1`, ambas
+          // con `restante > inicial` (100→200 y 100→150), lo que
+          // inflaba `SUM(lotes)` y rompía el stock.
+          //
+          // La constraint `lotes_id_isar_tenant_uk` (migración 00006) es
+          // la que hace que `onConflict` tenga un target real.
+          await _supabase
+              .from('lotes')
+              .upsert(data, onConflict: 'tenant_id,id_isar');
+          upsertados++;
+          debugPrint('✅ Lote ${lote.id} upserted');
         } catch (e) {
-          if (e.toString().contains('duplicate key') ||
-              e.toString().contains('unique constraint')) {
-            debugPrint('🔄 Lote ${lote.id} ya existe, actualizando...');
-            await _supabase.from('lotes').update(data).eq('id_isar', lote.id);
-            debugPrint('✅ Lote ${lote.id} actualizado correctamente');
-          } else {
-            debugPrint('❌ Error sincronizando lote ${lote.id}: $e');
-            continue;
-          }
+          debugPrint('❌ Error sincronizando lote ${lote.id}: $e');
+          fallidos++;
+          continue;
         }
 
         lote.sincronizado = true;
         lote.fechaSincronizacion = DateTime.now();
         await _isarService.guardarLote(lote);
       }
-      debugPrint('✅ ${pendientes.length} lotes sincronizados correctamente');
+
+      // Contadores honestos. Antes el log decía
+      // "${pendientes.length} lotes sincronizados" sin importar cuántos
+      // se habían omitido por producto inexistente, sin tenant o por
+      // error: un 0% de éxito se reportaba como éxito total.
+      if (fallidos > 0) {
+        debugPrint('⚠️ Lotes: $upsertados sincronizados, '
+            '$fallidos fallidos (ver errores arriba)');
+      } else {
+        debugPrint('✅ Lotes sincronizados: $upsertados');
+      }
     } catch (e, stack) {
       debugPrint('❌ Error sincronizando lotes: $e');
       ErrorService.captureError(e,
@@ -3504,9 +3732,22 @@ Future<void> subirUsuariosPendientes() async {
 
   Future<void> descargarLotesDesdeSupabase() async {
     try {
+      // ⚠️ Filtro por tenant OBLIGATORIO. Antes hacía `select()` a secas
+      // y depended por completo de que RLS aislara. Con 2 locales
+      // (JAHTLABS y centro) un fallo de RLS o un rol mal autenticado
+      // descargaba los lotes de ambas empresas en un mismo dispositivo.
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Descarga de lotes omitida (no se puede filtrar por tenant).');
+        return;
+      }
+
       final response = await _supabase
           .from('lotes')
           .select()
+          .eq('tenant_id', tenantUuid)
           .order('fecha_ingreso', ascending: false);
 
       if (response.isEmpty) {
@@ -3516,11 +3757,14 @@ Future<void> subirUsuariosPendientes() async {
 
       debugPrint('🔄 Descargando ${response.length} lotes desde Supabase...');
 
-      int creados = 0, actualizados = 0;
+      int creados = 0, actualizados = 0, omitidos = 0;
 
       for (var data in response) {
         final idIsar = _toInt(data['id_isar']);
-        if (idIsar == 0) continue;
+        if (idIsar == 0) {
+          omitidos++;
+          continue;
+        }
 
         final String? tenantUuid = data['tenant_id']?.toString();
         int? localIdResuelto;
@@ -3548,6 +3792,18 @@ Future<void> subirUsuariosPendientes() async {
             existente.cantidadRestante = loteNube.cantidadRestante;
             cambios = true;
           }
+          // `cantidadInicial` y `fechaVencimiento` no se comparaban, así
+          // que un cambio local de cualquiera de los dos se perdía en la
+          // siguiente descarga. `fechaVencimiento` es además la base
+          // del FEFO: si la nube lo corrige, el orden de consumo cambia.
+          if (existente.cantidadInicial != loteNube.cantidadInicial) {
+            existente.cantidadInicial = loteNube.cantidadInicial;
+            cambios = true;
+          }
+          if (existente.fechaVencimiento != loteNube.fechaVencimiento) {
+            existente.fechaVencimiento = loteNube.fechaVencimiento;
+            cambios = true;
+          }
           if (existente.estado != loteNube.estado) {
             existente.estado = loteNube.estado;
             cambios = true;
@@ -3573,8 +3829,15 @@ Future<void> subirUsuariosPendientes() async {
         }
       }
 
-      debugPrint(
-          '✅ Lotes sincronizados: $creados creados, $actualizados actualizados');
+      // Log honesto: antes no contaba los omitidos, así que una descarga
+      // 100% fallida se reportaba como éxito.
+      if (omitidos > 0) {
+        debugPrint('⚠️ Lotes descargados: $creados creados, '
+            '$actualizados actualizados, $omitidos omitidos (sin id_isar)');
+      } else {
+        debugPrint('✅ Lotes descargados: $creados creados, '
+            '$actualizados actualizados');
+      }
     } catch (e, stack) {
       debugPrint('❌ Error descargando lotes: $e');
       ErrorService.captureError(e,
@@ -3844,14 +4107,24 @@ Future<void> subirUsuariosPendientes() async {
 
       debugPrint('📦 Sincronizando ${pedidosPendientes.length} pedidos...');
 
-      final localesEnSupabase =
-          await _supabase.from('locales').select('id, id_isar');
+      // Mapa local→uuid desde ISAR (no desde Supabase).
+      //
+      // Antes se construía desde la tabla `locales` de Supabase, así que
+      // un local que aún no estaba subido era indistinguible de uno
+      // inexistente, y cualquier pedido suyo caía en la rama de
+      // "reasignar al local activo", que es destructiva.
+      //
+      // `soloActivos: false` porque el pedido puede haber nacido en un
+      // local que luego quedó inactivo por un hot-switch: sigue siendo
+      // un local válido con UUID.
+      final localesLocales =
+          await _isarService.obtenerLocales(soloActivos: false);
       final Map<int, String> idIsarAUuid = {};
-      for (var row in localesEnSupabase) {
-        final idIsar = row['id_isar'];
-        final id = row['id'];
-        if (idIsar == null || id == null) continue; // ✅ skip nulls
-        idIsarAUuid[_toInt(idIsar)] = id as String;
+      for (final local in localesLocales) {
+        final uuid = local.supabaseId;
+        if (uuid != null && uuid.isNotEmpty) {
+          idIsarAUuid[local.id] = uuid;
+        }
       }
 
       final localActivo = await _isarService.obtenerLocalActivo();
@@ -3871,17 +4144,24 @@ Future<void> subirUsuariosPendientes() async {
       debugPrint('🏢 Local activo: ID=$localActualId, UUID=$localActualUuid');
 
       for (var pedido in pedidosPendientes) {
-        bool pedidoModificado = false;
-
+        // ⚠️ NO reasignar `localOrigenId` al local activo.
+        //
+        // El código anterior hacía `pedido.localOrigenId = localActualId`
+        // + `guardarPedido`, es decir una reescritura DESTRUCTIVA e
+        // irreversible del origen. Con más de un local activo eso movía
+        // pedidos de un local a otro cada vez que sincronizabas desde el
+        // segundo. El pedido nació en un local real; mentir sobre eso
+        // corrompe el dato de negocio.
+        //
+        // Si el local no tiene UUID todavía, el pedido se omite este
+        // ciclo y se reintenta en el siguiente: queda `pendiente` y
+        // vuelve a aparecer cuando el local se suba.
         if (!idIsarAUuid.containsKey(pedido.localOrigenId)) {
           debugPrint(
-              '⚠️ Pedido ${pedido.id}: localOrigenId ${pedido.localOrigenId} NO existe en Supabase. Reasignando a $localActualId.');
-          pedido.localOrigenId = localActualId;
-          pedidoModificado = true;
-        }
-
-        if (pedidoModificado) {
-          await _isarService.guardarPedido(pedido);
+            '⚠️ Pedido ${pedido.id}: localOrigenId ${pedido.localOrigenId} '
+            'sin UUID en Isar. Omitido este ciclo (no se reasigna).',
+          );
+          continue;
         }
 
         final String? usuarioUuid =
@@ -4015,7 +4295,7 @@ Future<void> subirUsuariosPendientes() async {
           debugPrint('⚠️ Pedido ${pedidoJson['id']} omitido: campos faltantes');
           continue;
         }
-  final int localOrigenId = await _obtenerIsarIdLocal(localOrigenUuid);
+        final int localOrigenId = await _obtenerIsarIdLocal(localOrigenUuid);
         int usuarioId = await _obtenerIsarIdUsuario(usuarioUuid);
 
         // 🎯 FIX Bug 9: si el usuario no existe ni local ni en Supabase
@@ -4043,12 +4323,6 @@ Future<void> subirUsuariosPendientes() async {
           debugPrint(
               '⚠️ Pedido ${pedidoJson['id']} omitido: IDs no encontrados '
               '(origen=$localOrigenId, usuario=$usuarioId)');
-          continue;
-        }
-
-        if (localOrigenId == 0 || usuarioId == 0) {
-          debugPrint(
-              '⚠️ Pedido ${pedidoJson['id']} omitido: IDs no encontrados (origen=$localOrigenId, usuario=$usuarioId)');
           continue;
         }
 
@@ -4254,7 +4528,7 @@ Future<void> subirUsuariosPendientes() async {
     try {
       final response = await _supabase
           .from('usuarios')
-          .select('id_isar, nombre, pin, rol, email, estado, tenant_id')
+          .select('id_isar, nombre, pin, rol, email, estado, tenant_id, is_superadmin')
           .eq('id', supabaseId)
           .maybeSingle();
       if (response != null) {
@@ -4274,6 +4548,8 @@ Future<void> subirUsuariosPendientes() async {
           ..rol = response['rol'] ?? 'cajero'
           ..email = response['email'] as String?
           ..tenantId = response['tenant_id'] as String?
+          // 🎯 FIX: mapear is_superadmin para el Control Center.
+          ..isSuperadmin = response['is_superadmin'] as bool? ?? false
           // activo se deriva de estado
           ..activo = estadoNube != _SyncConstants.inactivo && estadoNube != _SyncConstants.desconectado
           ..estado = estadoNube
@@ -4315,7 +4591,9 @@ Future<void> subirUsuariosPendientes() async {
           ..codigoBarras = response['codigo_barras'] ?? ''
           ..nombre = response['nombre'] ?? 'Producto Sincronizado'
           ..precioUnidad = _toDouble(response['precio_unidad'])
-          ..stock = _toDouble(response['stock'])
+          // ⚠️ NO se toma `stock` de la nube: los lotes son la fuente
+          // única de verdad (ver `descargarProductosDesdeSupabase`).
+          ..stock = 0.0
           ..categoria = response['categoria'] ?? 'General'
           ..sincronizado = true
           ..fechaSincronizacion = DateTime.now();
@@ -4346,7 +4624,11 @@ Future<void> subirUsuariosPendientes() async {
       }
 
       final productos = await _isarService.obtenerProductos();
-      final supabase = Supabase.instance.client;
+      // Usa el getter `_supabase` (no `Supabase.instance.client` directo) para
+      // respetar el `SupabaseClient` inyectado por constructor
+      // (`sync_service.dart:171`). Antes esta línea saltaba la inyección y
+      // obligaba a los tests a inicializar el singleton global.
+      final supabase = _supabase;
       int reparados = 0;
 
       // ✅ Listar SOLO los archivos del tenant actual
@@ -4405,7 +4687,8 @@ Future<void> subirUsuariosPendientes() async {
   }
 
   Future<bool> _tieneSesionSupabaseValida() async {
-    final client = Supabase.instance.client;
+    // Ver `repararImagenesFaltantes`: el getter respeta el cliente inyectado.
+    final client = _supabase;
     var session = client.auth.currentSession;
 
     if (session == null) return false;
@@ -4488,6 +4771,30 @@ Future<void> subirUsuariosPendientes() async {
       await _safe('sincronizarLotes', sincronizarLotesPendientes);
       await _safe('descargarLotes', descargarLotesDesdeSupabase);
 
+      // ⚠️ Los lotes se descargan DESPUÉS que los productos, así que el
+      // recálculo va aquí y no antes: hasta este punto los lotes locales
+      // son los previos, no los de la nube.
+      //
+      // Con el modelo "lotes = fuente única de verdad",
+      // `producto.stock` es un cache derivado. Esta llamada es la que
+      // hace que la UI muestre el stock correcto tras el sync.
+      try {
+        final productosSincronizados =
+            await _isarService.obtenerProductos();
+        final ids = productosSincronizados.map((p) => p.id).toList();
+        await _isarService.recalcularStockDe(ids);
+        debugPrint(
+            '🔄 Stock recalculado desde lotes para ${ids.length} productos');
+      } catch (e, stack) {
+        debugPrint('⚠️ [SyncService] Error recalculando stock: $e');
+        ErrorService.captureError(e,
+            stack: stack, hint: 'sincronizarTodo_recalcularStock_fallo');
+      }
+
+      // 🎯 FIX: subir locales pendientes ANTES de descargar para no perder
+      //    cambios locales (por ejemplo, `businessMode` modificado por el
+      //    usuario pero aún no sincronizado).
+      await _safe('sincronizarLocales', sincronizarLocalesPendientes);
       await _safe('descargarLocales', descargarLocalesDesdeSupabase);
       await _safe(
           'sincronizarDepartamentos', sincronizarDepartamentosPendientes);
@@ -4565,11 +4872,11 @@ Future<void> subirUsuariosPendientes() async {
         lotes = lotesPend.length;
       }
 
-      /*   final localesPend = await _isarService.obtenerLocalesPendientesSync();
+      final localesPend = await _isarService.obtenerLocalesPendientesSync();
       if (localesPend.isNotEmpty) {
         await sincronizarLocalesPendientes();
         locales = localesPend.length;
-      } */
+      }
 
       final deptosPend =
           await _isarService.obtenerDepartamentosPendientesSync();

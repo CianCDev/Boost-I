@@ -288,7 +288,7 @@ class _ModoNegocioCardState extends State<ModoNegocioCard> {
 
   List<String> _featuresDelModo(BusinessMode modo) {
     switch (modo) {
-      case BusinessMode.mercado:
+      case BusinessMode.retail:
         return const [
           'Ventas rápidas con código de barras',
           'Inventario y stock en tiempo real',

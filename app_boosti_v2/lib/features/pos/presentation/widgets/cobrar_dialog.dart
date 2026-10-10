@@ -259,7 +259,10 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
       'metodoPago': metodo,
       // 🔑 Cliente capturado como objeto completo (o null si no se seleccionó)
       'cliente': _clienteSeleccionado,
-      'documento': _clienteSeleccionado?.documento ?? 'V-00000000',
+      // Documento formateado ("V-12345678") o null si no hay cliente.
+      // Nunca el int crudo: el tipo se pierde y el consumidor no puede
+      // reconstruir el prefijo.
+      'documento': _clienteSeleccionado?.documentoFormateado,
       'montoRecibido': totalRecibido,
       'vuelto': vueltoUsd,
       'referencia': _referenciaController.text.trim().isEmpty
@@ -1687,7 +1690,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                   ),
                 ),
                 subtitle: Text(
-                  '${c.documento ?? "Sin documento"}${c.telefono != null ? " · ${c.telefono}" : ""}',
+                  '${c.documentoDisplay}${c.telefono != null ? " · ${c.telefono}" : ""}',
                   style: const TextStyle(fontSize: 11),
                 ),
                 onTap: () => setState(() {

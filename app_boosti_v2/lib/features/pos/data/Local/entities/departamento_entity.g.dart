@@ -48,23 +48,28 @@ const DepartamentoEntitySchema = CollectionSchema(
       name: r'nombre',
       type: IsarType.string,
     ),
-    r'sincronizado': PropertySchema(
+    r'orden': PropertySchema(
       id: 6,
+      name: r'orden',
+      type: IsarType.long,
+    ),
+    r'sincronizado': PropertySchema(
+      id: 7,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'supabaseId': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'updatedAt': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
     r'usuarioId': PropertySchema(
-      id: 9,
+      id: 10,
       name: r'usuarioId',
       type: IsarType.long,
     )
@@ -117,10 +122,11 @@ void _departamentoEntitySerialize(
   writer.writeDateTime(offsets[3], object.fechaSincronizacion);
   writer.writeLong(offsets[4], object.localId);
   writer.writeString(offsets[5], object.nombre);
-  writer.writeBool(offsets[6], object.sincronizado);
-  writer.writeString(offsets[7], object.supabaseId);
-  writer.writeDateTime(offsets[8], object.updatedAt);
-  writer.writeLong(offsets[9], object.usuarioId);
+  writer.writeLong(offsets[6], object.orden);
+  writer.writeBool(offsets[7], object.sincronizado);
+  writer.writeString(offsets[8], object.supabaseId);
+  writer.writeDateTime(offsets[9], object.updatedAt);
+  writer.writeLong(offsets[10], object.usuarioId);
 }
 
 DepartamentoEntity _departamentoEntityDeserialize(
@@ -137,10 +143,11 @@ DepartamentoEntity _departamentoEntityDeserialize(
   object.id = id;
   object.localId = reader.readLongOrNull(offsets[4]);
   object.nombre = reader.readString(offsets[5]);
-  object.sincronizado = reader.readBool(offsets[6]);
-  object.supabaseId = reader.readStringOrNull(offsets[7]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[8]);
-  object.usuarioId = reader.readLongOrNull(offsets[9]);
+  object.orden = reader.readLong(offsets[6]);
+  object.sincronizado = reader.readBool(offsets[7]);
+  object.supabaseId = reader.readStringOrNull(offsets[8]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[9]);
+  object.usuarioId = reader.readLongOrNull(offsets[10]);
   return object;
 }
 
@@ -164,12 +171,14 @@ P _departamentoEntityDeserializeProp<P>(
     case 5:
       return (reader.readString(offset)) as P;
     case 6:
-      return (reader.readBool(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 7:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 8:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 9:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 10:
       return (reader.readLongOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -851,6 +860,62 @@ extension DepartamentoEntityQueryFilter
   }
 
   QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterFilterCondition>
+      ordenEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'orden',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterFilterCondition>
+      ordenGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'orden',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterFilterCondition>
+      ordenLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'orden',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterFilterCondition>
+      ordenBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'orden',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterFilterCondition>
       sincronizadoEqualTo(bool value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
@@ -1256,6 +1321,20 @@ extension DepartamentoEntityQuerySortBy
   }
 
   QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterSortBy>
+      sortByOrden() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'orden', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterSortBy>
+      sortByOrdenDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'orden', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterSortBy>
       sortBySincronizado() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'sincronizado', Sort.asc);
@@ -1413,6 +1492,20 @@ extension DepartamentoEntityQuerySortThenBy
   }
 
   QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterSortBy>
+      thenByOrden() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'orden', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterSortBy>
+      thenByOrdenDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'orden', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QAfterSortBy>
       thenBySincronizado() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'sincronizado', Sort.asc);
@@ -1514,6 +1607,13 @@ extension DepartamentoEntityQueryWhereDistinct
   }
 
   QueryBuilder<DepartamentoEntity, DepartamentoEntity, QDistinct>
+      distinctByOrden() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'orden');
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, DepartamentoEntity, QDistinct>
       distinctBySincronizado() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'sincronizado');
@@ -1586,6 +1686,12 @@ extension DepartamentoEntityQueryProperty
   QueryBuilder<DepartamentoEntity, String, QQueryOperations> nombreProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'nombre');
+    });
+  }
+
+  QueryBuilder<DepartamentoEntity, int, QQueryOperations> ordenProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'orden');
     });
   }
 

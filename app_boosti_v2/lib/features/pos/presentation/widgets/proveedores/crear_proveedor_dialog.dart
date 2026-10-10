@@ -217,6 +217,17 @@ class _CrearProveedorDialogState extends ConsumerState<CrearProveedorDialog> {
                         setState(() => _tipoDocumento = v),
                     numeroController: _documentoController,
                     accentColor: _colorPrimary,
+                    // Valida por tipo según `validarNumeroDocumento`
+                    // (persona_form_template.dart).
+                    numeroValidator: (_) => validarNumeroDocumento(
+                      _tipoDocumento,
+                      _documentoController.text,
+                    ),
+                    // Valida el tipo solo si hay número.
+                    tipoValidator: (_) => validarTipoDocumentoSiHayNumero(
+                      _tipoDocumento,
+                      _documentoController.text,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   RifField(

@@ -66,6 +66,8 @@ class CashClosingNotifier extends StateNotifier<CashClosingState> {
       // 2. Calcular resumen del día
       final resumen = await _cashService.calcularCorteDelDia();
 
+      // Guarda estándar: el notifier puede haberse dispuesto durante el await.
+      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         resumen: resumen,
@@ -73,6 +75,7 @@ class CashClosingNotifier extends StateNotifier<CashClosingState> {
         error: null,
       );
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -101,8 +104,10 @@ class CashClosingNotifier extends StateNotifier<CashClosingState> {
       // Refrescar datos después del cierre
       await _cargarDatos();
 
+      if (!mounted) return;
       state = state.copyWith(isSyncing: false);
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(
         isSyncing: false,
         error: e.toString(),
