@@ -1,4 +1,4 @@
-// lib/features/pos/presentation/widgets/marcas/marca_form_dialog.dart
+﻿// lib/features/pos/presentation/widgets/marcas/marca_form_dialog.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,7 +37,7 @@ class _MarcaFormDialogState extends ConsumerState<MarcaFormDialog> {
   final TextEditingController _proveedorBusquedaController =
       TextEditingController();
 
-  String? _logoUrl;
+  String? _logoPath;
   XFile? _imagenSeleccionada;
   bool _subiendoImagen = false;
   bool _guardando = false;
@@ -58,7 +58,7 @@ class _MarcaFormDialogState extends ConsumerState<MarcaFormDialog> {
     if (marca != null) {
       _nombreController.text = marca.nombre;
       _descripcionController.text = marca.descripcion ?? '';
-      _logoUrl = marca.logoUrl;
+      _logoPath = marca.logoPath;
       _cargarProveedorSeleccionado(marca.proveedorId);
     }
     _cargarProveedores();
@@ -144,7 +144,7 @@ class _MarcaFormDialogState extends ConsumerState<MarcaFormDialog> {
       if (image != null && mounted) {
         setState(() {
           _imagenSeleccionada = image;
-          _logoUrl = image.path;
+          _logoPath = image.path;
         });
       }
     } catch (e) {
@@ -163,7 +163,7 @@ class _MarcaFormDialogState extends ConsumerState<MarcaFormDialog> {
   void _limpiarImagen() {
     setState(() {
       _imagenSeleccionada = null;
-      _logoUrl = null;
+      _logoPath = null;
     });
   }
 
@@ -197,13 +197,11 @@ Future<String?> _uploadLogo(File image, String nombre) async {
         .from('marcas')
         .upload(fileName, image);
 
-    // Bucket privado: usar signed URL (válida 1 hora)
-    final signedUrl = await Supabase.instance.client.storage
-        .from('marcas')
-        .createSignedUrl(fileName, 3600);
-
-    debugPrint('✅ [_uploadLogo] Logo subido: $signedUrl');
-    return signedUrl;
+    // NO firmar aca: se guarda el PATH. Antes se guardaba la signed URL
+    // (caduca en 1 h) y por eso todos los logos morian al hora. La URL
+    // firmada se genera al renderizar, en marcas_management_dialog.
+    debugPrint('[_uploadLogo] Logo subido: $fileName');
+    return fileName;
   } catch (e, stack) {
     debugPrint('❌ [_uploadLogo] Error: $e');
     debugPrint('❌ [_uploadLogo] Stack: $stack');
@@ -221,7 +219,7 @@ Future<String?> _uploadLogo(File image, String nombre) async {
     setState(() => _guardando = true);
 
     try {
-      String? logoUrlFinal = _logoUrl;
+      String? logoPathFinal = _logoPath;
 
       if (_imagenSeleccionada != null) {
         setState(() => _subiendoImagen = true);
@@ -231,14 +229,14 @@ Future<String?> _uploadLogo(File image, String nombre) async {
             _nombreController.text.trim(),
           );
           if (url != null && url.isNotEmpty) {
-            logoUrlFinal = url;
+            logoPathFinal = url;
           } else {
-            logoUrlFinal =
-                _logoUrl?.startsWith('http') == true ? _logoUrl : null;
+            logoPathFinal =
+                _logoPath?.startsWith('http') == true ? _logoPath : null;
           }
         } catch (_) {
-          logoUrlFinal =
-              _logoUrl?.startsWith('http') == true ? _logoUrl : null;
+          logoPathFinal =
+              _logoPath?.startsWith('http') == true ? _logoPath : null;
         } finally {
           if (mounted) setState(() => _subiendoImagen = false);
         }
@@ -252,7 +250,7 @@ Future<String?> _uploadLogo(File image, String nombre) async {
       marca.descripcion = _descripcionController.text.trim().isEmpty
           ? null
           : _descripcionController.text.trim();
-      marca.logoUrl = logoUrlFinal;
+      marca.logoPath = logoPathFinal;
       marca.proveedorId = _proveedorSeleccionado?.supabaseId;
       marca.activo = true;
       marca.syncStatus = 'pending';
@@ -515,9 +513,9 @@ Future<String?> _uploadLogo(File image, String nombre) async {
                       File(_imagenSeleccionada!.path),
                       fit: BoxFit.cover,
                     )
-                  : _logoUrl != null && _logoUrl!.startsWith('http')
+                  : _logoPath != null && _logoPath!.startsWith('http')
                       ? Image.network(
-                          _logoUrl!,
+                          _logoPath!,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) => Icon(
                             Icons.branding_watermark_rounded,
@@ -550,7 +548,7 @@ Future<String?> _uploadLogo(File image, String nombre) async {
                 color: colorScheme.primary,
               ),
               if (_imagenSeleccionada != null ||
-                  (_logoUrl != null && _logoUrl!.isNotEmpty))
+                  (_logoPath != null && _logoPath!.isNotEmpty))
                 _buildImageButton(
                   icon: Icons.delete_outline,
                   label: 'Eliminar',

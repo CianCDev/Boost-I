@@ -97,9 +97,14 @@ class _ProductCardState extends ConsumerState<ProductCard> {
     // card ronda los 150px.
     final vencimientos = ref.watch(vencimientosProvider);
     final fechaVenc = vencimientos[widget.producto.id];
-    final expiryInfo = widget.isMobile && widget.stockBajo
-        ? ExpiryUtils.clasificarCompacto(fechaVenc)
-        : ExpiryUtils.clasificar(fechaVenc);
+    final diasVenc = fechaVenc == null
+        ? null
+        : ExpiryUtils.diasRestantes(fechaVenc);
+
+    // ⚠️ `clasificar` decide SI se muestra (null = >15 días, no badge).
+    // `diasVenc` es el valor crudo que el chip usa para el texto y los
+    // colores. Los dos van juntos: uno decide visibilidad, el otro contenido.
+    final expiryInfo = ExpiryUtils.clasificar(fechaVenc);
 
     return AnimatedBuilder(
       animation: widget.animationController,
@@ -241,33 +246,49 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                       // datos porque esa region es Expanded(flex: 45) y ya
                       // tiene 4 elementos: sumar un chip ahi le roba
                       // altura al nombre, que hoy tiene maxLines: 2.
-                      if (expiryInfo != null)
+                      if (expiryInfo != null && diasVenc != null)
                         Positioned(
                           top: widget.isMobile ? 8 : 10,
                           right: widget.isMobile ? 8 : 10,
                           child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: badgePadding,
-                              vertical: badgePadding * 0.8,
-                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: expiryInfo.color,
+                              color: _expiryFondo(diasVenc)
+                                  .withValues(alpha: 0.95),
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.2),
+                                  color: Colors.black.withValues(alpha: 0.08),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
-                            child: Text(
-                              expiryInfo.label,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: badgeFontSize,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.schedule_rounded,
+                                    size: 11, color: _expiryTexto(diasVenc)),
+                                const SizedBox(width: 4),
+                                // `FittedBox` porque en móvil la card
+                                // ronda los 150px y con "¡Stock bajo!"
+                                // al lado el "Vencido" (7 chars) se
+                                // cortaba. Escala en vez de desbordar.
+                                Flexible(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      _expiryLabel(diasVenc),
+                                      style: TextStyle(
+                                        color: _expiryTexto(diasVenc),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -428,5 +449,45 @@ class _ProductCardState extends ConsumerState<ProductCard> {
         ),
       ),
     );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // HELPERS DEL BADGE DE VENCIMIENTO
+  //
+  // El chip nuevo (pill con icono) usa texto y colores propios, no los
+  // de `ExpiryBadgeInfo`: aquel `label` ("Vence 8d") y aquel `color`
+  // (saturado, pensado para texto blanco encima) estaban pensados para el
+  // chip viejo, de fondo sólido.
+  //
+  // ⚠️ `ExpiryUtils.clasificar` sigue siendo el que decide SI se muestra
+  //    (devuelve null más allá de 15 días). Acá solo se pinta.
+  // ══════════════════════════════════════════════════════════════
+
+  /// Fondo suave: separa el chip de la imagen sin gritar.
+  static Color _expiryFondo(int dias) {
+    if (dias <= 3) return const Color(0xFFFEE2E2); // rojo suave
+    if (dias <= 7) return const Color(0xFFFEF3C7); // ámbar suave
+    return const Color(0xFFD1FAE5); // verde suave
+  }
+
+  /// Texto/icono: saturado, para contrastar contra el fondo de arriba.
+  ///
+  /// Los tonos son legibles sobre su propio fondo pastel: `#DC2626` sobre
+  /// `#FEE2E2` pasa ~5.9:1 y `#059669` sobre `#D1FAE5` ~4.6:1 (WCAG AA
+  /// pide 4.5:1 para texto normal).
+  static Color _expiryTexto(int dias) {
+    if (dias <= 3) return const Color(0xFFDC2626);
+    if (dias <= 7) return const Color(0xFFD97706);
+    return const Color(0xFF059669);
+  }
+
+  /// Texto del chip. Corto a propósito: en móvil la card ronda los 150px y
+  /// este convive con "¡Stock bajo!" (~70px) en la misma esquina.
+  ///
+  /// `diasRestantes` trunca hacia cero, así que un vencimiento dentro de
+  /// 23 h da `0`: cae en "Vencido", que es lo que quiere decir.
+  static String _expiryLabel(int dias) {
+    if (dias <= 0) return 'Vencido';
+    return '$dias d';
   }
 }

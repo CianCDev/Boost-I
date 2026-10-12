@@ -36,6 +36,19 @@ class ProductDataTab extends ConsumerStatefulWidget {
   final TextEditingController unidadesPorBultoController;
   final TextEditingController costoUnitarioController;
 
+  /// Motivo de la reposición. Solo tiene sentido cuando el stock **sube**:
+  /// bajar stock no necesita justificación.
+  ///
+  /// El campo se oculta cuando no hay delta positivo (ver `_deltaPositivo`).
+  final TextEditingController motivoController;
+
+  /// Stock actual del producto, tal como está en Isar.
+  ///
+  /// Se pasa aparte porque [stockController] arranca con el valor formateado
+  /// del stock (`p.stock.toStringAsFixed(0)`, redondeado), y el delta tiene
+  /// que compararse contra el valor real, no contra el redondeado.
+  final double stockActual;
+
   // ── State ──
   final bool esPesado;
   final bool activo;
@@ -120,6 +133,8 @@ class ProductDataTab extends ConsumerStatefulWidget {
     required this.cantidadMinimaMedioMayorController,
     required this.unidadesPorBultoController,
     required this.costoUnitarioController,
+    required this.motivoController,
+    required this.stockActual,
     required this.esPesado,
     required this.activo,
     required this.permiteVentaMayor,
@@ -167,10 +182,28 @@ class _ProductDataTabState extends ConsumerState<ProductDataTab> {
     super.initState();
     _marcaSearchCtrl =
         TextEditingController(text: widget.marcaSeleccionada?.nombre ?? '');
+    // El campo "Motivo de la reposición" solo aparece cuando el stock tipeado
+    // supera al actual, así que hay que reevaluar en cada tecla del campo de
+    // stock. `TextEditingController` no notifica solo.
+    widget.stockController.addListener(_onStockChanged);
+  }
+
+  void _onStockChanged() => setState(() {});
+
+  @override
+  void didUpdateWidget(covariant ProductDataTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Si el padre cambia el controller (no debería, pero el contrato lo pide),
+    // el listener viejo se queda escuchando el viejo.
+    if (!identical(oldWidget.stockController, widget.stockController)) {
+      oldWidget.stockController.removeListener(_onStockChanged);
+      widget.stockController.addListener(_onStockChanged);
+    }
   }
 
   @override
   void dispose() {
+    widget.stockController.removeListener(_onStockChanged);
     _marcaSearchCtrl.dispose();
     super.dispose();
   }
@@ -1069,18 +1102,52 @@ class _ProductDataTabState extends ConsumerState<ProductDataTab> {
           fields[1],
           const SizedBox(height: 12),
           fields[2],
+          if (_deltaPositivo) ...[
+            const SizedBox(height: 12),
+            _buildMotivoField(cs),
+          ],
         ],
       );
     }
 
-    return Row(
+    return Column(
       children: [
-        Expanded(child: fields[0]),
-        const SizedBox(width: 12),
-        Expanded(child: fields[1]),
-        const SizedBox(width: 12),
-        Expanded(child: fields[2]),
+        Row(
+          children: [
+            Expanded(child: fields[0]),
+            const SizedBox(width: 12),
+            Expanded(child: fields[1]),
+            const SizedBox(width: 12),
+            Expanded(child: fields[2]),
+          ],
+        ),
+        if (_deltaPositivo) ...[
+          const SizedBox(height: 12),
+          _buildMotivoField(cs),
+        ],
       ],
+    );
+  }
+
+  /// `true` cuando el stock tipeado supera al stock actual del producto.
+  ///
+  /// Solo en ese caso tiene sentido pedir un motivo: bajar stock no necesita
+  /// justificación, y el descuento ya deja su rastro en los lotes.
+  bool get _deltaPositivo {
+    final tipeado =
+        double.tryParse(widget.stockController.text.replaceAll(',', '.')) ??
+            0.0;
+    return tipeado - widget.stockActual > 0.0001;
+  }
+
+  Widget _buildMotivoField(ColorScheme cs) {
+    return PersonaTextField(
+      controller: widget.motivoController,
+      label: 'Motivo de la reposición (opcional)',
+      icon: Icons.edit_note_outlined,
+      accentColor: cs.primary,
+      textCapitalization: TextCapitalization.sentences,
+      maxLines: 2,
     );
   }
 

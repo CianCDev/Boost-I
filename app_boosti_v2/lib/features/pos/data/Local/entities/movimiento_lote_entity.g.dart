@@ -48,13 +48,23 @@ const MovimientoLoteEntitySchema = CollectionSchema(
       name: r'sincronizado',
       type: IsarType.bool,
     ),
-    r'tipo': PropertySchema(
+    r'stockAntes': PropertySchema(
       id: 6,
+      name: r'stockAntes',
+      type: IsarType.double,
+    ),
+    r'stockDespues': PropertySchema(
+      id: 7,
+      name: r'stockDespues',
+      type: IsarType.double,
+    ),
+    r'tipo': PropertySchema(
+      id: 8,
       name: r'tipo',
       type: IsarType.string,
     ),
     r'usuarioId': PropertySchema(
-      id: 7,
+      id: 9,
       name: r'usuarioId',
       type: IsarType.long,
     )
@@ -128,8 +138,10 @@ void _movimientoLoteEntitySerialize(
   writer.writeLong(offsets[3], object.loteId);
   writer.writeString(offsets[4], object.observaciones);
   writer.writeBool(offsets[5], object.sincronizado);
-  writer.writeString(offsets[6], object.tipo);
-  writer.writeLong(offsets[7], object.usuarioId);
+  writer.writeDouble(offsets[6], object.stockAntes);
+  writer.writeDouble(offsets[7], object.stockDespues);
+  writer.writeString(offsets[8], object.tipo);
+  writer.writeLong(offsets[9], object.usuarioId);
 }
 
 MovimientoLoteEntity _movimientoLoteEntityDeserialize(
@@ -146,8 +158,10 @@ MovimientoLoteEntity _movimientoLoteEntityDeserialize(
   object.loteId = reader.readLong(offsets[3]);
   object.observaciones = reader.readStringOrNull(offsets[4]);
   object.sincronizado = reader.readBool(offsets[5]);
-  object.tipo = reader.readString(offsets[6]);
-  object.usuarioId = reader.readLong(offsets[7]);
+  object.stockAntes = reader.readDoubleOrNull(offsets[6]);
+  object.stockDespues = reader.readDoubleOrNull(offsets[7]);
+  object.tipo = reader.readString(offsets[8]);
+  object.usuarioId = reader.readLong(offsets[9]);
   return object;
 }
 
@@ -171,8 +185,12 @@ P _movimientoLoteEntityDeserializeProp<P>(
     case 5:
       return (reader.readBool(offset)) as P;
     case 6:
-      return (reader.readString(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 7:
+      return (reader.readDoubleOrNull(offset)) as P;
+    case 8:
+      return (reader.readString(offset)) as P;
+    case 9:
       return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -955,6 +973,174 @@ extension MovimientoLoteEntityQueryFilter on QueryBuilder<MovimientoLoteEntity,
   }
 
   QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockAntesIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'stockAntes',
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockAntesIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'stockAntes',
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockAntesEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'stockAntes',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockAntesGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'stockAntes',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockAntesLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'stockAntes',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockAntesBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'stockAntes',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockDespuesIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'stockDespues',
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockDespuesIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'stockDespues',
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockDespuesEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'stockDespues',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockDespuesGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'stockDespues',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockDespuesLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'stockDespues',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
+      QAfterFilterCondition> stockDespuesBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'stockDespues',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity,
       QAfterFilterCondition> tipoEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -1242,6 +1428,34 @@ extension MovimientoLoteEntityQuerySortBy
   }
 
   QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QAfterSortBy>
+      sortByStockAntes() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockAntes', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QAfterSortBy>
+      sortByStockAntesDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockAntes', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QAfterSortBy>
+      sortByStockDespues() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockDespues', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QAfterSortBy>
+      sortByStockDespuesDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockDespues', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QAfterSortBy>
       sortByTipo() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'tipo', Sort.asc);
@@ -1371,6 +1585,34 @@ extension MovimientoLoteEntityQuerySortThenBy
   }
 
   QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QAfterSortBy>
+      thenByStockAntes() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockAntes', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QAfterSortBy>
+      thenByStockAntesDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockAntes', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QAfterSortBy>
+      thenByStockDespues() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockDespues', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QAfterSortBy>
+      thenByStockDespuesDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'stockDespues', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QAfterSortBy>
       thenByTipo() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'tipo', Sort.asc);
@@ -1445,6 +1687,20 @@ extension MovimientoLoteEntityQueryWhereDistinct
   }
 
   QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QDistinct>
+      distinctByStockAntes() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'stockAntes');
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QDistinct>
+      distinctByStockDespues() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'stockDespues');
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, MovimientoLoteEntity, QDistinct>
       distinctByTipo({bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'tipo', caseSensitive: caseSensitive);
@@ -1505,6 +1761,20 @@ extension MovimientoLoteEntityQueryProperty on QueryBuilder<
       sincronizadoProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'sincronizado');
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, double?, QQueryOperations>
+      stockAntesProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'stockAntes');
+    });
+  }
+
+  QueryBuilder<MovimientoLoteEntity, double?, QQueryOperations>
+      stockDespuesProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'stockDespues');
     });
   }
 

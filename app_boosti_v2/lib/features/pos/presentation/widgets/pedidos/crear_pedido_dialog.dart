@@ -11,6 +11,7 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/proveedor_entity.
 import 'package:app_boosti_v2/features/pos/presentation/utils/responsive_helper.dart';
 import '../../providers/local_actual_provider.dart';
 import '../../providers/usuario_provider.dart';
+import '../common/guard_tenant_activo.dart';
 
 class CrearPedidoDialog extends ConsumerStatefulWidget {
   const CrearPedidoDialog({super.key});
@@ -1198,20 +1199,30 @@ class _CrearPedidoDialogState extends ConsumerState<CrearPedidoDialog> {
           ),
         ),
         const SizedBox(width: 12),
-        ElevatedButton(
-          onPressed: _isSaving || _proveedorSeleccionado == null || _detalles.isEmpty
-              ? null
-              : _guardarPedido,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF8B5CF6),
-            foregroundColor: Colors.white,
-            padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: isMobile ? 10 : 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            elevation: 0,
+        // Crear un pedido escribe en la nube: si el tenant no está
+        // alineado, el pedido caería en el tenant del JWT y no en el
+        // local que se está viendo.
+        GuardTenantActivo(
+          onEjecutar: () {
+            if (!_isSaving &&
+                _proveedorSeleccionado != null &&
+                _detalles.isNotEmpty) {
+              _guardarPedido();
+            }
+          },
+          child: ElevatedButton(
+            onPressed: null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF8B5CF6),
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: isMobile ? 10 : 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
+            ),
+            child: _isSaving
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Crear Pedido', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-          child: _isSaving
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Text('Crear Pedido', style: TextStyle(fontWeight: FontWeight.bold)),
         ),
       ],
     );

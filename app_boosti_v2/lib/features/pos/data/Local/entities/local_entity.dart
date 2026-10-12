@@ -13,6 +13,16 @@ class LocalEntity {
   String? email;
   String? rif; // NUEVO: RIF del local
 
+  /// Path del logo en el bucket `locales` de Supabase Storage.
+  ///
+  /// Relativo, ej: `<tenant>/local_123.png`. **NO** es una URL ni una
+  /// signed URL: guardar una URL firmada fue el bug que mataba los logos
+  /// de marca (caducan a la hora). El path es permanente y la URL se
+  /// firma en el momento de renderizar.
+  ///
+  /// Se usa para imprimir el logo del local en tickets y comprobantes.
+  String? logoPath;
+
   bool activo = true;
   bool sincronizado = false;
   DateTime? fechaSincronizacion;

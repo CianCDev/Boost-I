@@ -3,10 +3,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/permissions/roles.dart';
 import '../../services/mayoreo/wholesale_authorization_service.dart';
 import '../admin_validation_dialog.dart';
+import '../common/guard_tenant_activo.dart';
 
 /// Resultado del diálogo de descuento.
 class DiscountResult {
@@ -541,33 +543,41 @@ class _WholesaleDiscountDialogState extends State<WholesaleDiscountDialog> {
         const SizedBox(width: 10),
         Expanded(
           flex: 2,
-          child: ElevatedButton(
-            onPressed: _procesando ? null : _confirmar,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              elevation: 3,
-            ),
-            child: _procesando
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text(
-                    'Aplicar descuento',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+          // Autorizar un descuento escribe en la nube: si el tenant no está
+          // alineado, la autorización caería en el tenant del JWT.
+          child: Consumer(
+            builder: (context, ref, _) => GuardTenantActivo(
+              onEjecutar: () => _confirmar(),
+              child: ElevatedButton(
+                onPressed: null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
+                  elevation: 3,
+                ),
+                child: _procesando
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Aplicar descuento',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+              ),
+            ),
           ),
-        ),
-      ],
+          ),
+        ],
     );
   }
 }

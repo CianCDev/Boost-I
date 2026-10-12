@@ -81,7 +81,19 @@ void main() {
               'lib/features/pos/presentation/services/sync_service.dart')
           .readAsString();
 
-      expect(source.contains("'tenant_id': localUuid"), isTrue);
+      // El payload de lotes YA NO manda `tenant_id` desde el cliente: lo
+      // llena el default `current_tenant_id()` del server.
+      //
+      // Antes mandaba `'tenant_id': localUuid`, resuelto de Isar. En la
+      // ventana del hot-switch, el local activo de Isar y el tenant del
+      // JWT no coinciden: el lote se subía a un tenant y el movimiento
+      // de ese mismo lote (que nunca mandó tenant) al otro, dejando el
+      // movimiento referenciando un `lote_id_isar` inexistente en su
+      // tenant.
+      //
+      // La aserción se invierte a propósito: ya no es "tiene que estar",
+      // es "no tiene que estar".
+      expect(source.contains("'tenant_id': localUuid"), isFalse);
       expect(source.contains("data['tenant_id']"), isTrue);
       expect(source.contains("'tenant_id': localSupabaseId"), isTrue);
       expect(source.contains(".eq('tenant_id', localSupabaseId)"), isTrue);

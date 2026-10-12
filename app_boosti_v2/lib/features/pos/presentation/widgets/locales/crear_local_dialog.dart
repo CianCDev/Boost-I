@@ -6,8 +6,10 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart
 import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
 import '../common/glass_dialog.dart';
 import '../common/dialog_header.dart';
+import '../common/logo_upload_field.dart';
 import '../dialogos_genericos/error_dialog.dart';
 import '../dialogos_genericos/succes_dialog.dart';
+import '../../utils/tenant_utils.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 
 
@@ -30,6 +32,11 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
   bool _activo = true;
   bool _isSaving = false;
 
+  /// Path del logo en el bucket `locales`. Se guarda el PATH, nunca una
+  /// URL firmada: la firma caduca en 1 hora y, persistida, deja el objeto
+  /// huérfano. Ver la regla de Storage en `AGENTS.MD`.
+  String? _logoPath;
+
   static const _colorPrimary = Color(0xFF8B5CF6);
   // ignore: unused_field
   static const _colorSuccess = Color(0xFF10B981);
@@ -44,6 +51,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
     _emailController = TextEditingController(text: l?.email ?? '');
     _rifController = TextEditingController(text: l?.rif ?? '');
     _activo = l?.activo ?? true;
+    _logoPath = l?.logoPath;
   }
 
   @override
@@ -113,6 +121,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
               ? _rifController.text.trim()
               : null
           ..activo = _activo
+          ..logoPath = _logoPath
           ..supabaseId = widget.local!.supabaseId
           ..sincronizado = false;
 
@@ -127,6 +136,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
             'telefono': local.telefono,
             'email': local.email,
             'rif': local.rif,
+            'logo_path': local.logoPath,
             'activo': local.activo,
             'updated_at': DateTime.now().toIso8601String(),
           }).eq('id', widget.local!.supabaseId!);
@@ -192,6 +202,19 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
                     : 'Registra un nuevo punto de venta',
               ),
               const SizedBox(height: 24),
+
+              // ===== LOGO =====
+              // Solo en edición. En creación el local lo crea la RPC
+              // 'crear_nuevo_local_para_usuario', que no acepta
+              // `logo_path`; habría que cambiar la firma de la función
+              // SQL. Ver docs/TODO.md.
+              if (esEdicion) ...[
+                _LogoField(
+                  pathActual: _logoPath,
+                  onChanged: (p) => setState(() => _logoPath = p),
+                ),
+                const SizedBox(height: 20),
+              ],
 
               _field(
                 controller: _nombreController,
@@ -363,11 +386,37 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
   }
 }
 
+/// Envoltura fina sobre [LogoUploadField] que resuelve el tenant.
+///
+/// El tenant sale del JWT, igual que en `marca_form_dialog.dart`: es lo
+/// único disponible sin una sesión ya sincronizada, y es contra eso que
+/// evalúan las policies de RLS del bucket.
+class _LogoField extends StatelessWidget {
+  const _LogoField({required this.pathActual, required this.onChanged});
+
+  final String? pathActual;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tenantId = getTenantIdFromJWT();
+    if (tenantId == null || tenantId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return LogoUploadField(
+      pathActual: pathActual,
+      onPathChanged: onChanged,
+      bucket: 'locales',
+      tenantId: tenantId,
+    );
+  }
+}
+
 class _ActivoToggle extends StatelessWidget {
+  const _ActivoToggle({required this.value, required this.onChanged});
+
   final bool value;
   final ValueChanged<bool> onChanged;
-
-  const _ActivoToggle({required this.value, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {

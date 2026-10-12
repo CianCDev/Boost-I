@@ -9,6 +9,7 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart
 import 'package:app_boosti_v2/features/pos/presentation/widgets/shared/barcode_scanner_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/invalidation/invalidation_provider.dart';
+import '../../common/guard_tenant_activo.dart';
 import '../../common/glass_dialog.dart';
 import '../../common/dialog_header.dart';
 import '../../common/status_badge.dart';
@@ -296,9 +297,24 @@ class _AsignarCodigoLoteDialogState
       if (usuario == null) throw Exception('Usuario no autenticado');
 
       final lote = widget.lote;
+      final restanteAntes = lote.cantidadRestante;
       lote.codigoLoteProveedor = codigo;
       lote.fechaVencimiento = fechaVencimiento;
       lote.cantidadRestante = cantidad;
+
+      // ⚠️ Clamp de Opción A.
+      //
+      // Este diálogo ASIGNA `cantidadRestante` en vez de acumular, así que
+      // el riesgo es distinto al del editor: si se tipea una cantidad mayor
+      // que la inicial, el lote nace ya violando `restante <= inicial`.
+      // Se sube `cantidadInicial` para acompañar al valor tipeado, que es
+      // la interpretación correcta: el lote tiene esas unidades
+      // disponibles, lo que haya pasado con las anteriores es historia y
+      // ya está en los movimientos.
+      if (cantidad > lote.cantidadInicial) {
+        lote.cantidadInicial = cantidad;
+      }
+
       lote.estado = 'activo';
       lote.sincronizado = false;
 
@@ -314,6 +330,23 @@ class _AsignarCodigoLoteDialogState
           ..observaciones = 'Lote activado con código: $codigo'
           ..sincronizado = false,
       );
+
+      // Si además se CORRIGIÓ la cantidad respecto de lo que había, eso es
+      // un movimiento distinto y merece su propio registro: de lo
+      // contrario el ajuste se pierde dentro del 'activacion' de arriba.
+      if ((cantidad - restanteAntes).abs() > 0.0001) {
+        await _isar.guardarMovimientoLote(
+          MovimientoLoteEntity()
+            ..loteId = lote.id
+            ..tipo = 'reposicion'
+            ..cantidad = cantidad - restanteAntes
+            ..fecha = DateTime.now()
+            ..usuarioId = usuario.id
+            ..observaciones = 'Cantidad corregida al asignar el código '
+                '($restanteAntes -> $cantidad)'
+            ..sincronizado = false,
+        );
+      }
 
       final producto = await _isar.obtenerProductoPorId(lote.productoId);
       if (producto != null) {
@@ -494,28 +527,35 @@ class _AsignarCodigoLoteDialogState
                     cursor: (_isLoading || !_codigoValido)
                         ? SystemMouseCursors.forbidden
                         : SystemMouseCursors.click,
-                    child: ElevatedButton(
-                      onPressed:
-                          (_isLoading || !_codigoValido) ? null : _guardar,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _colorSuccess,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    // Asignar un código de lote escribe en la nube: si el
+                    // tenant no está alineado, el lote caería en el tenant
+                    // del JWT y no en el local que se está viendo.
+                    child: GuardTenantActivo(
+                      onEjecutar: () {
+                        if (!_isLoading && _codigoValido) _guardar();
+                      },
+                      child: ElevatedButton(
+                        onPressed: null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _colorSuccess,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
                         ),
-                        elevation: 0,
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Text('Activar Lote',
+                                style:
+                                    TextStyle(fontWeight: FontWeight.bold)),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Text('Activar Lote',
-                              style:
-                                  TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ),

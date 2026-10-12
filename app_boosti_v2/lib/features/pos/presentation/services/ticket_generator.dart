@@ -1,5 +1,7 @@
 // lib/features/pos/presentation/services/ticket_generator.dart
 import 'package:esc_pos_utils_lts/esc_pos_utils_lts.dart';
+import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 
 import '../../data/Local/entities/local_entity.dart';
 
@@ -149,6 +151,10 @@ class TicketGenerator {
     bool requiereAutorizacion = false,
     String? autorizadoPorNombre,
     String? vendedor,
+
+    /// Bytes del logo ya descargados de Storage. Los resuelve
+    /// `PrinterService`; acá solo se decodifican. `null` = sin logo.
+    List<int>? logoBytes,
   }) async {
     final profile = await CapabilityProfile.load();
     final generator = Generator(PaperSize.mm80, profile);
@@ -183,6 +189,7 @@ class TicketGenerator {
       requiereAutorizacion: requiereAutorizacion,
       autorizadoPorNombre: autorizadoPorNombre,
       vendedor: vendedor,
+      logoBytes: logoBytes,
     );
   }
 
@@ -210,13 +217,14 @@ class TicketGenerator {
     bool requiereAutorizacion = false,
     String? autorizadoPorNombre,
     String? vendedor,
+    List<int>? logoBytes,
   }) {
     final bytes = <int>[];
     final esMayor = tipoVenta == 'mayor';
     final esMultipago = (pagos?.length ?? 0) > 1;
 
     // ── Encabezado del local ──
-    _appendHeaderLocal(generator, bytes, local);
+    _appendHeaderLocal(generator, bytes, local, logoBytes: logoBytes);
 
     // ── Tipo de documento ──
     if (esMayor) {
@@ -436,11 +444,49 @@ class TicketGenerator {
   // HELPERS PRIVADOS
   // ══════════════════════════════════════════════════════════════
 
+  /// Agrega el logo del local al ticket, si se resolvió uno.
+  ///
+  /// Los bytes llegan ya descargados y redimensionados: acá solo se
+  /// decodifican. La resolución (descarga de Storage + caché) vive en
+  /// `PrinterService`, porque este método es síncrono.
+  ///
+  /// ⚠️ Un logo roto NO puede voltear el ticket. Por eso cualquier
+  ///    error se traga y se sigue imprimiendo el texto.
+  ///
+  /// 512 px de ancho máximo: `PaperSize.mm80` son 558 dots de ancho. Con
+  /// 512 queda un margen de ~23 dots por lado y no hay recorte.
+  static void _appendLogo(Generator g, List<int> bytes, List<int>? logoBytes) {
+    if (logoBytes == null || logoBytes.isEmpty) return;
+    try {
+      // `decodeImage` pide Uint8List; el caller entrega List<int>.
+      final decodificada = img.decodeImage(Uint8List.fromList(logoBytes));
+      if (decodificada == null) return;
+
+      final ancho = decodificada.width > _anchoMaxLogo
+          ? _anchoMaxLogo
+          : decodificada.width;
+      final imagen = decodificada.width == ancho
+          ? decodificada
+          : img.copyResize(decodificada, width: ancho);
+
+      bytes.addAll(g.image(imagen, align: PosAlign.center));
+      bytes.addAll(g.emptyLines(1));
+    } catch (e) {
+      debugPrint('Ticket: no se pudo imprimir el logo ($e)');
+    }
+  }
+
+  /// Ancho máximo del logo en pixels, para una impresora de 80 mm.
+  static const int _anchoMaxLogo = 512;
+
   static void _appendHeaderLocal(
     Generator g,
     List<int> bytes,
-    LocalEntity? local,
-  ) {
+    LocalEntity? local, {
+    List<int>? logoBytes,
+  }) {
+    _appendLogo(g, bytes, logoBytes);
+
     if (local == null) {
       bytes.addAll(g.text('--- LOCAL NO CONFIGURADO ---',
           styles: const PosStyles(align: PosAlign.center)));

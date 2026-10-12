@@ -1,4 +1,4 @@
-// lib/features/pos/presentation/screens/empleados/employee_form_dialog.dart
+﻿// lib/features/pos/presentation/screens/empleados/employee_form_dialog.dart
 import 'dart:io';
 
 import 'package:app_boosti_v2/features/pos/presentation/providers/tenant_provider.dart';
@@ -247,7 +247,10 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
   // IMAGEN — ✅ CORREGIDO: sin cerrar/reabrir el diálogo
   // ══════════════════════════════════════════════════════════════
 
-  Future<void> _seleccionarImagen() async {
+  // ⚠️ CONGELADO 2026-10-10: sin callers por decisión de política de datos.
+// Se conserva intacto para poder reactivar la feature.
+// ignore: unused_element
+Future<void> _seleccionarImagen() async {
     // Evita doble toque mientras el picker está abierto
     if (_isPickingImage) return;
     setState(() => _isPickingImage = true);
@@ -468,6 +471,9 @@ class _EmployeeFormDialogState extends ConsumerState<EmployeeFormDialog>
 ///   propia carpeta).
 /// - Se agrega un `?t=<timestamp>` a la URL para evitar cache del navegador
 ///   cuando se reemplaza la imagen de un mismo usuario.
+// ⚠️ CONGELADO 2026-10-10: sin callers por decisión de política de datos.
+// Se conserva intacto para poder reactivar la feature.
+// ignore: unused_element
 Future<String?> _subirImagenASupabase({
   required File imagen,
   required String tenantId,
@@ -636,28 +642,36 @@ if (_imagenLocal != null) {
       );
     }
   } else {
-    debugPrint('📤 Subiendo avatar de "${usuario.nombre}"...');
-
-    final url = await _subirImagenASupabase(
-      imagen: _imagenLocal!,
-      tenantId: tenantId,
-      usuarioId: usuario.dynamicId,
-    );
-
-    if (!mounted) return;
-
-    if (url != null) {
-      usuario.fotoUrl = url;
-      // 🎯 SEGUNDA persistencia: la URL queda grabada en Isar
-      await isarService.guardarUsuario(usuario);
-      _fotoUrlActual = url;
-      debugPrint('✅ URL de avatar guardada en Isar: $url');
-    } else {
-      _showSnack(
-        'La foto no se pudo subir. Los demás datos se guardaron.',
-        isError: true,
-      );
-    }
+    // ⚠️ CONGELADO 2026-10-10: gestión de fotos de empleados
+    // deshabilitada por decisión de política de datos sensibles.
+    // Reversible.
+    //
+    // El método `_subirImagenASupabase` (más abajo en este archivo) queda
+    // intacto para reactivar si se decide. El botón de la foto abre un
+    // diálogo "Próximamente" en vez de disparar el picker.
+    //
+    // Lo que quedó desactivado era: subir la imagen al bucket
+    // `avatars`, guardar la URL en `usuario.fotoUrl` y persistirla.
+    // Ver docs/LEGAL/privacidad.md para el marco.
+    //
+    // final url = await _subirImagenASupabase(
+    //   imagen: _imagenLocal!,
+    //   tenantId: tenantId,
+    //   usuarioId: usuario.dynamicId,
+    // );
+    //
+    // if (!mounted) return;
+    //
+    // if (url != null) {
+    //   usuario.fotoUrl = url;
+    //   await isarService.guardarUsuario(usuario);
+    //   _fotoUrlActual = url;
+    // } else {
+    //   _showSnack(
+    //     "La foto no se pudo subir. Los demás datos se guardaron.",
+    //     isError: true,
+    //   );
+    // }
   }
 }
 
@@ -802,11 +816,32 @@ if (_imagenLocal != null) {
       child: Row(
         children: [
           GestureDetector(
-            onTap: _isPickingImage ? null : _seleccionarImagen,
+            // ⚠️ CONGELADO 2026-10-10: el botón ya no dispara el picker.
+            // Antes era `_seleccionarImagen`. La feature de subir fotos de
+            // empleados está pausada por política de datos sensibles.
+            // El avatar sigue mostrando la foto EXISTENTE si la hay.
+            onTap: () => showDialog<void>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                title: const Text('Próximamente'),
+                content: const Text(
+                  'La gestión de fotos de empleados estará disponible en '
+                  'una próxima actualización. Estamos trabajando en la mejor '
+                  'manera de manejar datos sensibles de tus colaboradores.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Entendido'),
+                  ),
+                ],
+              ),
+            ),
             child: MouseRegion(
-              cursor: _isPickingImage
-                  ? SystemMouseCursors.forbidden
-                  : SystemMouseCursors.click,
+              cursor: SystemMouseCursors.click,
               child: _buildAvatarPreview(isMobile),
             ),
           ),

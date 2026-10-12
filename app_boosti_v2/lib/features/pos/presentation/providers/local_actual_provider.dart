@@ -59,15 +59,18 @@ class LocalActualNotifier extends StateNotifier<int?> {
   ///
   /// ⚠️ POR QUÉ `prefs` GANA AL JWT (fix del hot-switch):
   ///
-  /// El claim `tenant_id` del JWT se genera en `custom_access_token_hook`
-  /// (Supabase), que lo lee de la COLUMNA `usuarios.tenant_id`. Ese valor
-  /// es fijo y el RPC `set_active_tenant` NO lo toca: solo mueve
-  /// `usuarios_locales.es_default`.
+  /// El hook `custom_access_token_hook` resuelve el claim `tenant_id`
+  /// desde `usuarios_locales.es_default` (o el claim temporal
+  /// `active_tenant_id`). `set_active_tenant(tenant)` + `refreshSession()`
+  /// reemiten el JWT con el nuevo tenant.
   ///
-  /// Consecuencia: `refreshSession()` SIEMPRE devuelve el tenant con el
-  /// que se hizo login, nunca el que el usuario eligió después. Si el JWT
-  /// tuviera prioridad, reiniciar la app devolvería al usuario al local
-  /// original.
+  /// Pero `refreshSession()` es una llamada de red: entre que el usuario
+  /// elige el local y que el JWT se reemite hay una ventana en la que las
+  /// dos fuentes no coinciden.
+  ///
+  /// La versión anterior de este comentario decía que el hook leía de
+  /// `usuarios.tenant_id`, lo que era falso y hacía creer que el JWT no se
+  /// podía refrescar en caliente.
   ///
   /// Por eso la ELECCIÓN EXPLÍCITA del usuario (`prefs['localActualId']`,
   /// escrita por `setLocalActual`) tiene prioridad sobre el claim.

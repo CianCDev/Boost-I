@@ -4216,8 +4216,12 @@ Future<bool> eliminarLocal(int id) async {
   /// ⚠️ `LoteEntityQuerySortBy` no expone `sortById()` (Isar no genera
   /// un ordenador para el `Id` implícito), así que ambos caminos
   /// ordenan en Dart.
-  Future<bool> ajustarStockDesdeEditor(
-      int productoId, double stockObjetivo) async {
+  Future<bool> ajustarStockDesdeEditor({
+    required int productoId,
+    required double stockObjetivo,
+    required int usuarioId,
+    String? motivo,
+  }) async {
     try {
       final stockActual = await obtenerStockTotalPorProducto(productoId);
       final delta = stockObjetivo - stockActual;
@@ -4258,11 +4262,61 @@ Future<bool> eliminarLocal(int id) async {
               ..localId = localIdActivo
               ..sincronizado = false;
             await isar.loteEntitys.put(lote);
+
+            // Alta de stock desde el editor: el lote nace con
+            // `inicial == restante`, así que el invariante
+            // `restante <= inicial` ya se cumple. Se registra igual
+            // para que el lote `EDIT-` no aparezca en el historial sin
+            // origen explicado.
+            await isar.movimientoLoteEntitys.put(
+              MovimientoLoteEntity()
+                ..loteId = lote.id
+                ..tipo = 'reposicion'
+                ..cantidad = delta
+                ..stockAntes = stockActual
+                ..stockDespues = stockObjetivo
+                ..fecha = DateTime.now()
+                ..usuarioId = usuarioId
+                ..observaciones = motivo
+                ..sincronizado = false,
+            );
           } else {
             final lote = lotes.first;
             lote.cantidadRestante += delta;
+
+            // ⚠️ Clamp de Opción A: `cantidadInicial` sube junto con
+            // `cantidadRestante`.
+            //
+            // Sin esto, editar el stock hacia arriba solo acumulaba sobre
+            // `restante` y dejaba `restante > inicial`. Así se explican
+            // los tres casos medidos en la nube, todos con
+            // `inicial = 100`:
+            //   · Arroz       → 512   (se tipeó 512)
+            //   · 133cf99a    → 200   (se tipeó 200)
+            //   · 20680fa5    → 150   (se tipeó 150)
+            //
+            // Con el clamp, `inicial` deja de ser "lo que llegó del
+            // proveedor" y pasa a ser "lo recibido + reposiciones". Es la
+            // semántica correcta bajo el modelo "lotes = fuente única":
+            // el lote es un acumulador del producto, no un acta de
+            // recepción. Y `producto.stock` no cambia: `recalcularStockDe`
+            // lo recalcula como `SUM(restante)` más abajo.
+            lote.cantidadInicial += delta;
             lote.sincronizado = false;
             await isar.loteEntitys.put(lote);
+
+            await isar.movimientoLoteEntitys.put(
+              MovimientoLoteEntity()
+                ..loteId = lote.id
+                ..tipo = 'reposicion'
+                ..cantidad = delta
+                ..stockAntes = stockActual
+                ..stockDespues = stockObjetivo
+                ..fecha = DateTime.now()
+                ..usuarioId = usuarioId
+                ..observaciones = motivo
+                ..sincronizado = false,
+            );
           }
         });
       } else {
@@ -4343,6 +4397,16 @@ Future<bool> eliminarLocal(int id) async {
         final lote = await isar.loteEntitys.get(loteId);
         if (lote == null) return;
         lote.cantidadRestante += cantidad;
+
+        // ⚠️ Clamp de Opción A, mismo motivo que en
+        // `ajustarStockDesdeEditor`: sin esto una devolución repetida
+        // sobre un lote ya lleno deja `restante > inicial`.
+        //
+        // Una devolución NO registra movimiento acá: el lote ya viene de
+        // una venta anulada y esa operación ya dejó su rastro. Acá solo
+        // se corrige el invariante.
+        lote.cantidadInicial += cantidad;
+
         if (lote.cantidadRestante > 0 && lote.estado == 'agotado') {
           lote.estado = 'activo';
         }

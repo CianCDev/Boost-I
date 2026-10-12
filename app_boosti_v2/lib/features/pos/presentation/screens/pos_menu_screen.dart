@@ -18,6 +18,8 @@ import '../services/backup_service.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../widgets/appbar.dart';
+import '../widgets/common/local_activo_chip.dart';
+import '../widgets/locales/local_selector_dialog.dart';
 import '../widgets/menu/pos_menu_card.dart';
 import '../widgets/menu/turno_closing_dialog.dart';
 import '../widgets/menu/turno_status_banner.dart';
@@ -491,6 +493,18 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                 horaApertura: _formatearHora(_turnoAbierto?.fechaApertura),
                 onAbrirTurno: _abrirTurno,
                 onCerrarTurno: _cerrarTurno,
+              ),
+              const SizedBox(height: 14),
+
+              // ── Local activo (informativo, no bloquea) ──
+              // Va después del banner de turno: el turno es lo que
+              // impide vender, el local es solo contexto. Invertir el
+              // orden haría creer que el chip es un requisito.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: LocalActivoChip(
+                  onTap: () => LocalSelectorDialog.show(context),
+                ),
               ),
               const SizedBox(height: 20),
 

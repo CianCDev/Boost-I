@@ -7,13 +7,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../domain/permissions/roles.dart';
 import '../providers/auth_provider.dart';
 import '../providers/bcv_provider.dart';
+import '../providers/local_actual_provider.dart';
+import '../providers/tenant_alineado_provider.dart';
 import '../providers/usuario_provider.dart';
 import '../utils/responsive_helper.dart';
+import '../utils/tenant_utils.dart';
 import '../widgets/catalog/bcv_moneda_selector.dart';
+import '../widgets/common/vista_previa_banner.dart';
 import '../widgets/menu/pos_menu_card.dart';
 import 'cash_closing_screen.dart';
 import 'dashboard_screen.dart';
@@ -102,7 +107,50 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
     );
   }
 
-    @override
+  Future<void> _realinarTenant() async {
+    await realinearTenantConLocalActual();
+    if (!mounted) return;
+    // Avisar del resultado: si el usuario no tiene acceso al local, el RPC
+    // lanza y el banner sigue. Un silencio aquí sería indistinguible de
+    // "ya está resuelto".
+    final jwt = getTenantIdFromJWT();
+    if (jwt == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo cambiar de negocio. Cerra sesión y '
+              'entrá de nuevo con la cuenta de este local.'),
+        ),
+      );
+    }
+  }
+
+  /// Realinea el JWT con el local que se está viendo.
+  ///
+  /// Es la acción correcta para el banner de "modo vista previa": llama
+  /// `set_active_tenant` + `refreshSession`, que es lo único que reemite el
+  /// JWT con el claim `tenant_id` nuevo.
+  ///
+  /// ⚠️ NO usa `logout()` a propósito. `AuthNotifier.logout()` preserva la
+  ///    sesión de Supabase a propósito (varios cajeros comparten tablet),
+  ///    así que cerrar sesión desde acá dejaría el JWT exactamente igual y
+  ///    el banner seguiría apareciendo.
+  Future<bool> realinearTenantConLocalActual() async {
+    final localId = ref.read(localActualProvider);
+    if (localId == null) return false;
+
+    final isar = IsarService();
+    final local = await isar.obtenerLocalPorId(localId);
+    if (local?.supabaseId == null || local!.supabaseId!.isEmpty) {
+      return false;
+    }
+
+    // `cambiarLocal` ya hace set_active_tenant + refreshSession y alinea
+    // las 3 fuentes (TenantNotifier, LocalActualNotifier, LocalEntity).
+    await ref.read(authProvider.notifier).cambiarLocal(local.supabaseId!);
+    return true;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final usuario = ref.watch(usuarioActualProvider);
     final flags = ref.watch(featureFlagsProvider);   // 🎯 NUEVO
@@ -209,62 +257,124 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
   }
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
-    return AppBar(
-      automaticallyImplyLeading: false,
-      leadingWidth: 85,
-      leading: Padding(
-        padding: const EdgeInsets.all(10),
-        child: SvgPicture.asset(
-          'assets/logoboosti300px.svg',
-          fit: BoxFit.contain,
-          colorFilter: const ColorFilter.mode(
-            Colors.white,
-            BlendMode.srcIn,
-          ),
-        ),
+    return PreferredSize(
+      // El banner se suma al alto del AppBar solo cuando aparece, así que
+      // el alto tiene que ser dinámico: kToolbarHeight + alto del banner.
+      preferredSize: Size.fromHeight(
+        kToolbarHeight + (ref.watch(tenantAlineadoProvider) ? 0 : _altoBanner),
       ),
-      title: const Text(
-        'Inicio',
-        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 18),
-      ),
-      flexibleSpace: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color.fromRGBO(68, 109, 241, 1),
-              Color.fromARGB(255, 85, 59, 235),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ⚠️ AppBar CRUDO a propósito, no `CustomAppBar`.
+          //
+          // `CustomAppBar` (widgets/appbar.dart) está compartido por ~30
+          // pantallas y tiene el contenido hardcodeado a BLANCO
+          // (`foregroundColor`, `iconTheme` y el `ColorFilter` del logo).
+          // Acá no sirve: el POS principal es la única pantalla con
+          // `extendBodyBehindAppBar: true` sobre `_WelcomeBackground`, así
+          // que una barra clara + texto blanco = ilegible. Tocar ese widget
+          // para arreglarlo rompería las otras 30, así que la variante
+          // clara vive acá, local.
+          AppBar(
+            automaticallyImplyLeading: false,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            // ⚠️ TRANSPARENTE a propósito: no hay barra. El fondo con
+            // blobs del body se ve completo y el AppBar solo aporta los
+            // elementos. Por eso los iconos van blancos con una base
+            // circular propia (ver `_AppBarIconButton`): sin base, el
+            // blanco se pierde contra `#F4F3FF` (~1.05:1).
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            iconTheme: const IconThemeData(color: Colors.white),
+            leadingWidth: 85,
+            leading: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Container(
+                // Misma base blanca que los botones: sin ella el logo
+                // flota suelto sobre los blobs y pierde jerarquía.
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: SvgPicture.asset(
+                  // ⚠️ `logoboosti300px.svg` es el asset DECLARADO en
+                  // pubspec.yaml. `logo.svg` existe en disco pero NO está
+                  // en el bundle → `SvgPicture.asset` no lo encuentra.
+                  'assets/logoboosti300px.svg',
+                  fit: BoxFit.contain,
+                  // Sin `ColorFilter`: el logo va a color real. Forzarlo
+                  // a blanco lo borraba sobre el fondo claro.
+                ),
+              ),
+            ),
+            title: const Text(
+              'Inicio',
+              style: TextStyle(
+                // Negro suave, no `Colors.black`: sobre el fondo con
+                // blobs el negro puro vibra y se ve sucio.
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                letterSpacing: -0.2,
+                color: Color(0xFF111827),
+                shadows: [
+                  // Halo blanco: garantiza legibilidad aunque un blob
+                  // violeta/azure pase justo por detrás del texto.
+                  Shadow(color: Color(0x99FFFFFF), blurRadius: 8),
+                ],
+              ),
+            ),
+            actions: [
+              const _BcvBadge(),
+              const SizedBox(width: 4),
+              _AppBarIconButton(
+                icon: Icons.person_rounded,
+                tooltip: 'Mi perfil',
+                // Glifo oscuro sobre la base blanca (no blanco sobre
+                // blanco, que era el bug de legibilidad).
+                color: const Color(0xFF111827),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const UserSettingsScreen()),
+                ),
+              ),
+              const SizedBox(width: 2),
+              _AppBarIconButton(
+                icon: Icons.logout_rounded,
+                tooltip: 'Cerrar sesión',
+                // Rojo: distingue la acción destructiva del perfil a un
+                // vistazo, sin necesidad de texto.
+                color: const Color(0xFFEF4444),
+                onTap: _confirmLogout,
+              ),
+              const SizedBox(width: 10),
             ],
           ),
-        ),
-      ),
-      backgroundColor: Colors.transparent,
-      elevation: 2,
-      foregroundColor: Colors.white,
-      actions: [
-        const _BcvBadge(),
-        const SizedBox(width: 4),
-        _AppBarIconButton(
-          icon: Icons.person_rounded,
-          tooltip: 'Mi perfil',
-          color: Colors.white,
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const UserSettingsScreen()),
+          VistaPreviaBanner(
+            // Realinear, no cerrar sesión: `logout()` preserva la sesión de
+            // Supabase a propósito (varios cajeros comparten tablet), así que
+            // no reemitiría el JWT y el banner seguiría apareciendo.
+            onCambiarCuenta: _realinarTenant,
           ),
-        ),
-        const SizedBox(width: 2),
-        _AppBarIconButton(
-          icon: Icons.logout_rounded,
-          tooltip: 'Cerrar sesión',
-          color: const Color(0xFFEF4444),
-          onTap: _confirmLogout,
-        ),
-        const SizedBox(width: 10),
-      ],
+        ],
+      ),
     );
   }
+
+  /// Alto del banner de vista previa. Debe coincidir con el que ocupa
+  /// [VistaPreviaBanner] para que el `PreferredSize` no recorte.
+  static const double _altoBanner = 62;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -473,6 +583,11 @@ class _BcvBadge extends ConsumerStatefulWidget {
 class _BcvBadgeState extends ConsumerState<_BcvBadge> {
   bool _hovered = false;
 
+  /// Distingue hover de "presionado". Sin esto no hay `AnimatedScale`
+  /// con dos intensidades: el squash al click se sentiría igual que el
+  /// lift del hover.
+  bool _pressed = false;
+
   @override
   Widget build(BuildContext context) {
     final bcv = ref.watch(bcvProvider);
@@ -482,68 +597,85 @@ class _BcvBadgeState extends ConsumerState<_BcvBadge> {
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
+        onExit: (_) => setState(() {
+          _hovered = false;
+          _pressed = false;
+        }),
         child: GestureDetector(
           onTap: () => BcvMonedaSelectorDialog.mostrar(context),
-          child: AnimatedContainer(
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTapCancel: () => setState(() => _pressed = false),
+          child: AnimatedScale(
+            // 1.04 al hover, 0.94 al presionar. Escala el hit area
+            // incluida: el gesto se siente elástico sin salir del chip.
+            scale: _pressed ? 0.94 : (_hovered ? 1.04 : 1.0),
             duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOut,
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: _hovered ? 0.28 : 0.18),
-                  Colors.white.withValues(alpha: _hovered ? 0.16 : 0.10),
+            curve: Curves.easeOutCubic,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                // Violeta SÓLIDO del design system. Es el único elemento
+                // de la barra con color propio: lo que lo hace legible sin
+                // necesidad de una barra de fondo, y ata el grupo de
+                // acciones a la identidad de la app.
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: _hovered
+                      ? const [Color(0xFF4840E8), Color(0xFF3B34CE)]
+                      : const [Color(0xFF5352ED), Color(0xFF4840E8)],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  // Sombra siempre presente, no solo en hover: sin ella el
+                  // chip "flota" sin peso sobre el fondo con blobs.
+                  BoxShadow(
+                    color: const Color(0xFF3B34CE).withValues(
+                      alpha: _hovered ? 0.40 : 0.24,
+                    ),
+                    blurRadius: _hovered ? 14 : 8,
+                    offset: Offset(0, _hovered ? 4 : 2),
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: _hovered ? 0.7 : 0.4),
-                width: 1,
-              ),
-              boxShadow: _hovered
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.currency_exchange_rounded,
-                  size: 14,
-                  color: Color(0xFF38BDF8),
-                ),
-                const SizedBox(width: 6),
-                if (bcv.cargando)
-                  const SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.8,
-                      color: Colors.white,
-                    ),
-                  )
-                else
-                  Text(
-                    'Bs. ${bcv.tasa.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12.5,
-                      color: Colors.white,
-                      letterSpacing: -0.2,
-                    ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.currency_exchange_rounded,
+                    size: 14,
+                    // El celeste sobre violeta daba ~2.6:1. Con blanco
+                    // sube a ~4.8:1 (WCAG AA pide 4.5:1).
+                    color: _hovered ? Colors.white : const Color(0xFFE0F2FE),
                   ),
-              ],
+                  const SizedBox(width: 6),
+                  if (bcv.cargando)
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.8,
+                        color: Colors.white,
+                      ),
+                    )
+                  else
+                    Text(
+                      'Bs. ${bcv.tasa.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                        // Blanco sobre violeta = ~5.4:1.
+                        color: Colors.white,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -575,6 +707,7 @@ class _AppBarIconButton extends StatefulWidget {
 
 class _AppBarIconButtonState extends State<_AppBarIconButton> {
   bool _hovered = false;
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -583,22 +716,59 @@ class _AppBarIconButtonState extends State<_AppBarIconButton> {
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
+        onExit: (_) => setState(() {
+          _hovered = false;
+          _pressed = false;
+        }),
         child: GestureDetector(
           onTap: widget.onTap,
-          child: AnimatedContainer(
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTapCancel: () => setState(() => _pressed = false),
+          child: AnimatedScale(
+            // Hover levanta (1.06), presionar hunde (0.92). El squash es
+            // más marcado que el lift a propósito: es lo que confirma el
+            // click sin necesidad de abrir un diálogo.
+            scale: _pressed ? 0.92 : (_hovered ? 1.06 : 1.0),
             duration: const Duration(milliseconds: 150),
-            curve: Curves.easeOut,
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: widget.color.withValues(alpha: _hovered ? 0.20 : 0.0),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              widget.icon,
-              size: 22,
-              color: widget.color,
+            curve: Curves.easeOutCubic,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                // Base BLANCA sobre AppBar sin fondo: es lo que le da
+                // peso al botón y lo separa de los blobs.
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _hovered
+                      ? const Color(0xFF6366F1)
+                      : const Color(0xFFE5E7EB),
+                  width: _hovered ? 1.5 : 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    // Azul noche en vez de negro puro: negro al 8% sobre
+                    // fondo claro se ve gris sucio; el tinte lo hace
+                    // parecer sombra y no manchas.
+                    color: const Color(0xFF0F172A).withValues(
+                      alpha: _hovered ? 0.18 : 0.08,
+                    ),
+                    blurRadius: _hovered ? 16 : 8,
+                    offset: Offset(0, _hovered ? 5 : 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                widget.icon,
+                size: 22,
+                // ⚠️ Glifo OSCURO sobre base blanca. Con blanco el icono
+                // se borraba dentro de su propio círculo (~1.05:1).
+                // `#111827` sobre `#FFFFFF` = ~16.9:1.
+                color: widget.color,
+              ),
             ),
           ),
         ),

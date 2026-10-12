@@ -75,15 +75,31 @@
 - Gating de módulos: `ModuleGate` a nivel de pantalla, no solo en el menú. Las pantallas se
   abren con `Navigator.push` y el gate de menú no las cubre.
 
-### 7. Hot-switch: `prefs` gana al JWT
+### 7. El tenant del JWT sale de `usuarios_locales.es_default`
 
-- El claim `tenant_id` del JWT viene de `usuarios.tenant_id` (columna fija). El RPC
-  `set_active_tenant` solo mueve `usuarios_locales.es_default`, que el hook del JWT no lee.
-  Es decir: `refreshSession()` devuelve **siempre** el tenant del login original.
+El hook `custom_access_token_hook` (`baseline.sql:243-303`) resuelve el claim
+`tenant_id` en tres pasos:
+
+1. Si el cliente pide `active_tenant_id` en los claims, y el usuario
+   tiene acceso a ese tenant, se usa ese.
+2. Si no, se usa el tenant de `usuarios_locales.es_default = true`.
+3. Si no, el primer tenant activo del usuario.
+
+⚠️ **NO lee de `usuarios.tenant_id`.** La documentación anterior de este
+   archivo decía eso y era falsa. El error no era académico: indujo a
+   concluir que el JWT no se podía refrescar en caliente, cuando
+   `set_active_tenant(p_tenant_id)` (que mueve `es_default`) +
+   `refreshSession()` **sí** reemiten el JWT con el claim nuevo.
+
+Lo que sí es real, y es lo que justifica las prioridades de abajo: entre
+que `setLocalActual` escribe `prefs` (instantáneo) y que `refreshSession`
+emite el JWT nuevo (red) hay una **ventana** en la que el local visible y
+el tenant de la sesión no coinciden. Ahí es donde aparecen
+`tenantAlineadoProvider` y el modo vista previa.
+
 - Por eso la elección explícita del usuario (`prefs['localActualId']`, escrita por
   `setLocalActual` **antes** de pedir el cambio de tenant) tiene prioridad sobre el JWT, en
   `IsarService.obtenerLocalActivo` y en `LocalActualNotifier.cargarLocalActual`.
-- Raíz pendiente: cambiar `custom_access_token_hook` para leer `es_default`.
 
 ### 8. La tasa BCV: la fecha que cuenta es la de la tasa
 
@@ -124,6 +140,61 @@
 - `test_helpers.dart:59-66` cierra **todas** las instancias de Isar del proceso, de forma
   global. Un archivo de test puede romper el siguiente sin tocarlo.
 
+### 11. Prohibido exponer credenciales en git
+
+- **Ningún secreto va al código ni a un `.md`.** Ni siquiera a un archivo que esté en
+  `.gitignore`: eso evita que se suba, pero no que termine en un backup, en un `.bak`, o
+  en la pantalla de otra persona.
+- Todo valor sensible (URL de conexión, clave de API, PAT, password, DSN) vive en
+  `env.json`, que además está gitignored, y se inyecta con
+  `--dart-define-from-file=env.json` hacia `String.fromEnvironment`.
+- **No hay cargador runtime.** `env.json` no se lee en ejecución: se compila dentro del
+  binario. Consecuencia a tener presente: compilar sin el flag deja TODAS las variables
+  vacías y la app arranca degradada en silencio.
+- **Antes de cada commit**, revisar `git diff --cached` buscando strings que parezcan
+  credenciales. Si aparece una, parar y reportar antes de continuar.
+- Incidente real (2026-10-10): un `HANDOFF_CONTROL_CENTER.md` tenía un PAT `sbp_…`, una
+  cadena de conexión completa de Postgres con password, y un `$env:PGPASSWORD=` con la
+  contraseña en claro. GitHub push protection solo detectó **el PAT**: la cadena de
+  conexión y el password habrían entrado al remoto sin aviso. **El escaneo propio tiene que
+  ir más allá de lo que detecta la herramienta.**
+- Rotar una credencial que estuvo en un archivo es obligatorio aunque el archivo nunca se
+  haya subido: puede haberse copiado a otro lado.
+
+#### ⚠️ Verificación obligatoria después de mover un secreto
+
+Un `grep` con **0 resultados no prueba que el secreto se fue**: puede faltar el sitio, o
+buscar el patrón equivocado. La verificación es parte del movimiento, no un paso opcional.
+
+```powershell
+grep -rn "<fragmento único del secreto>" lib/
+```
+
+Si devuelve **0 fuera de `env.json`**, está bien. Si devuelve **≥ 1**, el secreto sigue en
+el fuente y el movimiento no está hecho.
+
+⚠️ **2026-10-10, segundo incidente el mismo día:** `error_service.dart:22` tenía el DSN de
+Sentry hardcodeado mientras `MEMORY.md` y `docs/TODO.md` afirmaban que ya estaba en
+`env.json`. La afirmación era falsa y estuvo vigente un turno entero. **Corregido:** se
+eliminó el `SentryFlutter.init` duplicado de `ErrorService.init()` (bootstrap ya
+inicializa Sentry con `beforeSend`, `release` y `environment`), y ahora el DSN se lee solo
+desde `String.fromEnvironment('SENTRY_DSN')` en `bootstrap.dart` §4.
+**Lección:** al mover un secreto, el grep de verificación va en el mismo turno.
+
+### 12. `cantidad_restante <= cantidad_inicial` es un invariante, no una coincidencia
+
+- Un lote nace con `cantidad_inicial == cantidad_restante`. Cada vez que entra mercadería
+  suben **los dos**; cada vez que sale, solo baja `cantidad_restante`.
+- Por eso Opción A (subir `cantidad_inicial` junto con `cantidad_restante` al reponer) es
+  la corrección correcta: `cantidad_inicial` deja de ser "el acta de recepción" y pasa a
+  ser "lo recibido más las reposiciones". El lote es un acumulador del producto, que es lo
+  que el modelo "lotes = fuente única" implica.
+- **Cualquier escritor futuro de `cantidad_restante` tiene que respetar el invariante.**
+  Los tres sitios que lo violaban están corregidos, pero el patrón se repite: buscar con
+  `cantidadRestante\s*(\+=|-=|=)` antes de tocar un lote.
+- Todavía **no hay CHECK en la BD**. Sin él, nada impide que el siguiente escritor lo
+  rompa. Ver `docs/TODO.md`.
+
 
 ---
 
@@ -136,6 +207,37 @@
   - `android.newDsl=false` (requerido para compatibilidad con las extensiones de Flutter en AGP 8.x)
   - `android.skipBuildDependencyValidation=true`
   - `android.builtInKotlin=false`
+
+---
+
+## Notas de entorno (harness Windows)
+
+- **`flutter analyze` y `flutter test` hay que lanzarlos desacoplados** cuando pueden tardar más de ~5s. El harness corta el comando con *exit 255* sin dejar output, y mata el proceso hijo si se lo deja en background. El patrón que sí funciona:
+
+  ```powershell
+  $out="C:\Users\Yan\AppData\Local\Temp\opencode\out.txt"
+  $a = "/c flutter analyze --no-pub > `"$out`" 2>&1"
+  $p = Start-Process -FilePath "cmd.exe" -ArgumentList $a `
+        -WorkingDirectory "<repo>" -WindowStyle Hidden -PassThru
+  Get-Content $out      # leer el archivo: Wait-Process también se corta
+  ```
+
+- **Antes de correr la suite, matar procesos `dart` huérfanos.** Quedan de corridas previas, acumulan CPU y bloquean los locks de Isar y del pub cache:
+
+  ```powershell
+  Get-Process -Name dart,dartaotruntime -ErrorAction SilentlyContinue |
+    Stop-Process -Force -ErrorAction SilentlyContinue
+  ```
+
+- **El reporter `compact` usa `\r`, no `\n`.** `Get-Content` ve 1-2 "líneas" con todo el progreso pegado atrás, así que `tail` no sirve y parece que el test no avanza. Para el progreso real hay que parsear el archivo crudo:
+
+  ```powershell
+  $raw = Get-Content $out -Raw
+  $m=[regex]::Matches($raw,'\+(\d+) ~(\d+)')
+  "+$($m[$m.Count-1].Groups[1].Value)"    # tests ok
+  ```
+
+- **La suite completa son ~800 tests / ~3 min.** El cierre válido es `"All tests passed!"`, o `"All other tests passed!"` cuando hubo skips. Conviene además comprobar 0 ocurrencias de `Expected:` y de `[E]`.
 
 ---
 
@@ -158,3 +260,20 @@
 | `sincronizarPedidosPendientes` | Reescribía `pedido.localOrigenId` al local activo: corrupción de origen entre locales | Eliminado; si el local no tiene UUID se omite el ciclo, nunca se reasigna |
 | `TraspasoLoteDialog` | Se llamaba "Reponer" pero **bajaba** el stock; el tipo `'traspaso'` sugería mover entre lotes | Renombrado a "Dar de baja del lote", tipo `'baja'`. `'traspaso'` se conserva como histórico |
 | `buscarItemIndex` | Comparaba `String == int`: siempre devolvía `-1` | Convierte a String; agregada `buscarItemIndex` correcta |
+| `empleado_form_dialog` + `sync_service.dart:534` | Reincidencia del patrón "grep por nombre equivocado, conclusion falsa". Se buscó `avatarUrl` cuando el campo es `fotoUrl`; se reportó la feature de fotos como muerta cuando estaba viva en 3 pantallas y en el sync | Congelada 2026-10-10: callers comentados, botón muestra "Próximamente", subida de `foto_url` pausada. Lectura de fotos existentes intacta. **Reversible** |
+| `sync_service.dart` (mapeo de `movimiento_lote`) | El mapeo Isar a Supabase estaba duplicado: `toSupabaseJson()` en la entity y el Map armado a mano en el download. Podían divergir sin que nada lo detectara | Un solo lugar: el download usa `MovimientoLoteEntity.fromSupabase(data)` |
+| `sync_service.dart` (`descargarMovimientosLoteDesdeSupabase`) | Método escrito y nunca conectado: 0 callers. El historial de movimientos de lote nunca se descargaba de la nube | Conectado en `sincronizarTodo()`, despues de lotes (FK `lote_id_isar`) |
+| `sync_service.dart` (nuevo `subirMovimientosLotePendientes`) | No existía método de subida: los movimientos de lote solo se leían, nunca se subían | Nuevo, con `toSupabaseJson()` como payload y marcado selectivo de `sincronizado` (solo lo que sí subió) |
+| `marca_form_dialog.dart:203` | **Segundo error de grep en 2 turnos.** Se buscó `storage.from('...')` sobre líneas individuales; la llamada real está partida en 2 (`Supabase.instance.client.storage` + `.from('marcas')`). El bucket `marcas` no apareció y el bug de la URL firmada pasó un turno entero sin detectarse | Corregido 2026-10-10: `MarcaEntity.logoUrl` → `logoPath`, se guarda el path y la URL se firma al renderizar (`_SignedUrlCache` en `marcas_managment_dialog.dart`). Migración `20261010000004` limpia las URLs caducadas |
+| Supabase Storage (concepto) | `createSignedUrl(path, 3600)` devuelve una URL **caducable**. Guardarla en la entity y subirla a la nube deja el objeto huérfano: existe en el bucket pero la única referencia está expirada. Solo pasaba con el bucket `marcas` (los otros 3 usan `getPublicUrl` sobre buckets públicos) | Regla: **guardar siempre el path**, firmar en el render. Cache en memoria con margen de expiración |
+| `isar_service.dart:4263` (`ajustarStockDesdeEditor`) | Sumaba el delta solo sobre `cantidadRestante`, nunca sobre `cantidadInicial` → `restante > inicial`. Lotes `EDIT-` del 2026-10-08 con `inicial=100` y `restante` 512/200/150, los tres con `inicial` idéntico | Clamp de Opción A: `cantidadInicial += delta` + movimiento `'reposicion'` |
+| `isar_service.dart:4345` (`devolverALote`) | Mismo patrón: `+= cantidad` sin clamp. Una devolución repetida dejaba `restante > inicial` | Clamp aplicado. Sin movimiento: la venta anulada ya dejó su rastro |
+| `asignar_codigo_lote_dialog.dart:301` | Asignaba `cantidadRestante` sin tocar `cantidadInicial`: tipear más de la inicial nacía el lote ya violando el invariante | `cantidadInicial` sube a `cantidad` si queda por debajo + movimiento `'reposicion'` si la cantidad cambió |
+| `movimientos_tab.dart` x2, `detalle_lote_dialog.dart` | 8 switches (color/icono/label) sin caso para `'reposicion'`; sin mapear, el movimiento nuevo salía gris con `Icons.circle_rounded` y el label crudo | Caso agregado: `Colors.lightGreen` / `Color(0xFF34D399)`, `Icons.add_shopping_cart_rounded`, "Reposición" |
+| `lib/core/bootstrap.dart:91` | DSN de Sentry hardcodeado en el fuente | `String.fromEnvironment('SENTRY_DSN')`, valor movido a `env.json` |
+| `2026-10-10 · error_service.dart:22` | El DSN de Sentry se volvió a hardcodear mientras los docs afirmaban que estaba en `env.json. Además `SentryFlutter.init` se llamaba DOS veces (bootstrap + ErrorService), con dos configuraciones distintas | Eliminado el init de `ErrorService.init()`; bootstrap es el único que inicializa Sentry (tiene `beforeSend`, `release`, `environment`). Verificado con grep: 0 hits en `lib/` |
+| `2026-10-10 · ticket térmico con logo` | El ticket no llevaba logo del local. `TicketGenerator` es síncrono y la descarga de Storage es async | `printer_service._resolverLogoDelLocal` descarga y cachea por path, y pasa los bytes a `ticket_generator._appendLogo` (máx. 512 px; `PaperSize.mm80` = 558 dots). Fallback: logo corrupto o ausente no rompe el ticket. **Deuda:** resuelve bajo el tenant del JWT, así que el hot-switch a otro tenant deja el ticket sin logo |
+| `2026-10-10 · modo vista previa cross-tenant` | El JWT y el local activo de Isar podían diferir tras un hot-switch. Las escrituras (ventas, RPCs) caían en el tenant del JWT sin aviso: una venta creada viendo "centro" con sesión de JAHTLABS se subía a JAHTLABS | `tenantAlineadoProvider` compara `getTenantIdFromJWT()` vs `localActualUuidProvider`; banner `VistaPreviaBanner` + `GuardTenantActivo` en 4 botones críticos (cobrar, descuento, crear pedido, activar lote). **"Cambiar de cuenta" → `_realinarTenant`, NO `logout()`:** `AuthNotifier.logout()` preserva la sesión de Supabase a propósito (varios cajeros comparten tablet), así que no reemitiría el JWT. **Hallazgo:** §7 decía que el hook lee `usuarios.tenant_id`; es falso, lee `usuarios_locales.es_default`. Corregido |
+| `android/app/build.gradle` | `applicationId` y `app_name` de ejemplo (`com.tuempresa.tuapp.*`, "TuApp") | Flavor client → `com.jahtlabs.boostipos.client` / "Boosti POS"; admin → `...admin` / "Boosti POS Admin" |
+| `docs/HANDOFF_CONTROL_CENTER.md` | PAT de Supabase, cadena de conexión de Postgres con password y `$env:PGPASSWORD` en texto plano. GitHub solo detectó el PAT | Los tres redactados; sección reescrita como "Rotar YA" con el procedimiento |
+| `20261009000005_reset_inventario_pruebas.sql` | Sus 25 lotes de JAHTLABS nunca se borraron porque **la migración no se aplicó nunca** | Pendiente: aplicarla con la app cerrada, antes de `00006` |

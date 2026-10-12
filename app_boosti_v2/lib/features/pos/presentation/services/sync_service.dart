@@ -1,4 +1,4 @@
-// ignore_for_file: unused_field
+﻿// ignore_for_file: unused_field
 
 import 'dart:async';
 import 'dart:convert';
@@ -531,8 +531,18 @@ Future<void> sincronizarUsuariosASupabase() async {
             //    El trigger `update_updated_at_column` en Supabase lo
             //    setea con hora de servidor. Si lo mandamos desde el
             //    cliente, un reloj desincronizado rompe el LWW.
-            if (usuario.fotoUrl != null && usuario.fotoUrl!.isNotEmpty)
-            'foto_url': usuario.fotoUrl,
+            // ⚠️ CONGELADO 2026-10-10: oto_url deja de subirse al
+            // congelar la feature de fotos de empleados.
+            //
+            // Las fotos EXISTENTES siguen leyéndose con normalidad en
+            // sincronizarUsuariosDesdeSupabase y en el mapeo de
+            // fromSupabase. El objetivo es no crear fotos nuevas, no
+            // borrar las viejas.
+            //
+            // 'foto_url': usuario.fotoUrl,
+            //
+            // Para reactivar: descomentar la línea de arriba. El comentario
+            // del LWW se mantenía junto al campo.
           };
 
           // ── PIN ──
@@ -2377,7 +2387,7 @@ Future<void> subirUsuariosPendientes() async {
           debugPrint('✅ Movimiento ${mov.id} sincronizado vía RPC');
           return true;
         }
-        debugPrint('⚠️ RPC ajustar_stock devolvió false, cayendo a directo');
+        debugPrint('⚠️ RPC ajustar_stock_uuid devolvió false, cayendo a directo');
       } catch (rpcError) {
         debugPrint('⚠️ RPC falló, intentando directo: $rpcError');
       }
@@ -2577,7 +2587,7 @@ Future<void> subirUsuariosPendientes() async {
         'id': marca.supabaseId,
         'nombre': marca.nombre,
         'descripcion': marca.descripcion,
-        'logo_url': marca.logoUrl,
+        'logo_url': marca.logoPath,
         'proveedor_id': marca.proveedorId,
         'activo': marca.activo,
         'created_at': marca.createdAt.toIso8601String(),
@@ -2624,12 +2634,12 @@ Future<void> subirUsuariosPendientes() async {
         if (local != null) {
           if (local.nombre != marcaNube.nombre ||
               local.descripcion != marcaNube.descripcion ||
-              local.logoUrl != marcaNube.logoUrl ||
+              local.logoPath != marcaNube.logoPath ||
               local.proveedorId != marcaNube.proveedorId ||
               local.activo != marcaNube.activo) {
             local.nombre = marcaNube.nombre;
             local.descripcion = marcaNube.descripcion;
-            local.logoUrl = marcaNube.logoUrl;
+            local.logoPath = marcaNube.logoPath;
             local.proveedorId = marcaNube.proveedorId;
             local.activo = marcaNube.activo;
             local.updatedAt = DateTime.now();
@@ -2993,6 +3003,7 @@ Future<void> subirUsuariosPendientes() async {
                 'direccion': local.direccion,
                 'telefono': local.telefono,
                 'email': local.email,
+                'logo_path': local.logoPath,
                 'activo': local.activo,
                 'business_mode': local.businessMode,
                 'sync_status': _SyncConstants.synced,
@@ -3081,6 +3092,7 @@ Future<void> subirUsuariosPendientes() async {
         final businessModeNube = _parseBusinessMode(data['business_mode']);
         final rifNube = data['rif'] as String?;
 
+        final logoPathNube = data['logo_path'] as String?;
         if (local != null) {
           // 🎯 FIX: si el local tiene cambios pendientes de subir (por ejemplo,
           //    `businessMode` cambiado por el usuario pero no sincronizado aún),
@@ -3096,6 +3108,7 @@ Future<void> subirUsuariosPendientes() async {
             ..email = emailNube ?? local.email
             ..activo = activoNube
             ..rif = rifNube ?? local.rif
+            ..logoPath = logoPathNube ?? local.logoPath
             ..fechaSincronizacion = DateTime.now();
 
           // 🎯 Solo sobreescribir `businessMode` si el local NO tiene cambios
@@ -3128,7 +3141,8 @@ Future<void> subirUsuariosPendientes() async {
             ..businessMode = businessModeNube
             ..sincronizado = true
             ..fechaSincronizacion = DateTime.now()
-            ..rif = rifNube;
+            ..rif = rifNube
+            ..logoPath = logoPathNube;
 
           await _isarService.guardarLocal(localNube);
           debugPrint('📥 Local ${localNube.nombre} creado');
@@ -3642,31 +3656,21 @@ Future<void> subirUsuariosPendientes() async {
           debugPrint('✅ Producto ${producto.nombre} creado en Supabase');
         }
 
-        // `tenant_id` es NOT NULL en la nube y RLS lo exige. Antes se mandaba
-        // `null` cuando el lote no traía `localId`, y el insert fallaba
-        // en silencio (el lote quedaba `sincronizado = false` para
-        // siempre, reintentando en cada sync).
-        String? localUuid;
-        if (lote.localId != null) {
-          localUuid = await _obtenerSupabaseIdLocal(lote.localId!);
-        }
-        if (localUuid == null || localUuid.isEmpty) {
-          // Fallback: resolver al local activo del dispositivo.
-          final localActivo = await _isarService.obtenerLocalActivo();
-          localUuid = localActivo?.supabaseId;
-        }
-        if (localUuid == null || localUuid.isEmpty) {
-          debugPrint('❌ Lote ${lote.id} omitido: no hay local activo con '
-              'supabaseId. No se puede subir sin tenant_id (RLS lo '
-              'bloquearía).');
-          fallidos++;
-          continue;
-        }
-
+        // ⚠️ `tenant_id` NO se manda: lo llena `current_tenant_id()` del
+        //    server (la columna tiene DEFAULT, baseline.sql:630).
+        //
+        // Antes se mandaba `localUuid`, resuelto de Isar. El problema: en
+        // la ventana del hot-switch, el local activo de Isar y el tenant
+        // del JWT no coinciden, así que el lote se subía a un tenant y el
+        // movimiento de ese mismo lote (que NO manda tenant) al otro. El
+        // movimiento quedaba referenciando un `lote_id_isar` que no
+        // existía en su tenant.
+        //
+        // Mismo principio que `movimientos_lotes`: una sola fuente de
+        // verdad para el tenant, y es la sesión.
         final data = {
           'id_isar': lote.id,
           'producto_id_fk': lote.productoId,
-          'tenant_id': localUuid,
           'codigo_lote_proveedor': lote.codigoLoteProveedor,
           'cantidad_inicial': lote.cantidadInicial,
           'cantidad_restante': lote.cantidadRestante,
@@ -3726,9 +3730,70 @@ Future<void> subirUsuariosPendientes() async {
     }
   }
 
-  // ============================================================
-  // MOVIMIENTOS DE LOTE
-  // ============================================================
+  /// Sube los movimientos de lote pendientes a Supabase.
+///
+/// El payload sale de `MovimientoLoteEntity.toSupabaseJson()`. Antes este
+/// metodo armaba el Map a mano, en paralelo a la entity, y el mapeo podia
+/// divergir sin que nada lo detectara: agregar una columna obligaba a
+/// acordarse de editar DOS lugares y el sync no valida el payload contra el
+/// schema. Ahora hay una sola fuente.
+///
+/// La entity NO manda `tenant_id`: lo resuelve el default
+/// `current_tenant_id()` del server (migracion 20261010000002). Mandarlo
+/// desde el cliente mandaria el tenant equivocado si el usuario hot-cambia
+/// de local a mitad del sync.
+Future<void> subirMovimientosLotePendientes() async {
+  try {
+    final todos = await _isarService.obtenerTodosMovimientosLote();
+    final pendientes = todos.where((m) => !m.sincronizado).toList();
+
+    if (pendientes.isEmpty) {
+      debugPrint('No hay movimientos de lote pendientes');
+      return;
+    }
+
+    debugPrint(
+        'Sincronizando ${pendientes.length} movimientos de lote...');
+
+    int fallidos = 0;
+    final subidos = <MovimientoLoteEntity>[];
+
+    for (final mov in pendientes) {
+      try {
+        await _supabase
+            .from('movimientos_lotes')
+            .upsert(mov.toSupabaseJson(), onConflict: 'tenant_id,id_isar');
+        subidos.add(mov);
+      } catch (e) {
+        // No se marca como sincronizado: queda pendiente y se reintenta en
+        // el proximo ciclo, que es el comportamiento de las demas
+        // entidades.
+        debugPrint('Error subiendo movimiento ${mov.id}: $e');
+        ErrorService.captureError(e,
+            hint: 'subirMovimientosLote_individual_fallo',
+            extras: {'movimientoId': mov.id, 'tipo': mov.tipo});
+        fallidos++;
+      }
+    }
+
+    // Solo se marcan los que SUBIERON. Marcar todos dejaria los fallidos
+    // como sincronizados para siempre y el movimiento se perderia sin
+    // reintento.
+    for (final mov in subidos) {
+      mov.sincronizado = true;
+      mov.fechaSincronizacion = DateTime.now();
+      await _isarService.guardarMovimientoLote(mov);
+    }
+
+    debugPrint('Movimientos de lote: ${subidos.length} sincronizados, '
+        '$fallidos fallidos');
+  } catch (e, stack) {
+    debugPrint('Error sincronizando movimientos de lote: $e');
+    ErrorService.captureError(e,
+        stack: stack, hint: 'subirMovimientosLotePendientes_fallo');
+    rethrow;
+  }
+}
 
   Future<void> descargarLotesDesdeSupabase() async {
     try {
@@ -3864,19 +3929,14 @@ Future<void> subirUsuariosPendientes() async {
         final idIsar = _toInt(data['id_isar']);
         if (idIsar == 0) continue;
 
-        final movNube = MovimientoLoteEntity()
+        // El mapeo vive en la entity: `fromSupabase` es el unico lugar que sabe
+        // como se llama cada columna. Antes el sync armaba la entity a mano
+        // en un segundo sitio que podia divergir del primero sin avisar.
+        final movNube = MovimientoLoteEntity.fromSupabase(data)
           ..id = idIsar
-          ..loteId = _toInt(data['lote_id'], _toInt(data['lote_id_fk']))
-          ..tipo = (data['tipo'] as String?) ??
-              (data['tipo_movimiento'] as String?) ??
-              ''
-          ..cantidad = _toDouble(data['cantidad'])
-          ..observaciones = (data['observaciones'] as String?) ??
-              (data['origen_destino'] as String?)
-          ..fecha = data['fecha'] != null
-              ? DateTime.parse(data['fecha']).toLocal()
-              : DateTime.now()
-          ..usuarioId = _toInt(data['usuario_id'])
+          // Lo que viene de la nube esta sincronizado por definicion, sin
+          // importar lo que diga la columna: el proposito de este metodo es
+          // dejar el movimiento local marcado para no volver a subirlo.
           ..sincronizado = true
           ..fechaSincronizacion = DateTime.now();
 
@@ -3887,11 +3947,15 @@ Future<void> subirUsuariosPendientes() async {
       }
       onDataChanged?.call();
     } catch (e, stack) {
-      debugPrint('❌ Error descargando movimientos de lote: $e');
+      debugPrint('❌ Error en movimientos_lotes: $e');
       ErrorService.captureError(
         e,
         stack: stack,
         hint: 'descargarMovimientosLoteDesdeSupabase_fallo',
+        // Sin `extras`, este error era indistinguible de un timeout de red
+        // o de un rechazo de RLS: los tres llegaban al mismo hint sin
+        // decir contra que tabla ni contra que operacion.
+        extras: {'tabla': 'movimientos_lotes', 'origen': 'descarga'},
       );
     }
   }
@@ -4770,6 +4834,16 @@ Future<void> subirUsuariosPendientes() async {
       await _safe('sincronizarAlias', sincronizarAliasPendientes);
       await _safe('sincronizarLotes', sincronizarLotesPendientes);
       await _safe('descargarLotes', descargarLotesDesdeSupabase);
+
+      // Movimientos de lote: DESPUES de lotes en ambos sentidos.
+      //
+      // Un movimiento referencia su lote por `lote_id_isar`. Si el lote se
+      // creo en este mismo dispositivo y todavia no subio, el movimiento no
+      // puede ir antes o el insert falla por FK. El orden lotes ->
+      // movimientos lo evita.
+      await _safe('subirMovimientosLote', subirMovimientosLotePendientes);
+      await _safe(
+          'descargarMovimientosLote', descargarMovimientosLoteDesdeSupabase);
 
       // ⚠️ Los lotes se descargan DESPUÉS que los productos, así que el
       // recálculo va aquí y no antes: hasta este punto los lotes locales

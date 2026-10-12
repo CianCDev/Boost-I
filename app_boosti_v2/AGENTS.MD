@@ -235,6 +235,194 @@ shorebird patch android --release-version=X.Y.Z+B
 - Bump de versión en `pubspec.yaml` **antes** de cada release.
 - Un commit por feature/refactor. Mensajes en español.
 
+### 10.1 Prohibido exponer datos sensibles en git
+
+- 🚫 **Ningún secreto va al código fuente ni a un `.md`.** Ni URL de conexión, ni
+  clave de API, ni token, ni PAT, ni password, ni DSN. **Tampoco a un archivo que
+  esté en `.gitignore`**: eso evita que se suba, pero no que termine en un backup,
+  en un `.bak`, o en la pantalla de otra persona.
+- ✅ Todo valor sensible vive en `env.json` y se inyecta con
+  `--dart-define-from-file=env.json` hacia `String.fromEnvironment`.
+- ⚠️ **No hay cargador runtime.** `env.json` se compila dentro del binario: si se
+  compila sin el flag, todas las variables quedan vacías y la app arranca
+  degradada en silencio.
+- 🔍 **Antes de cada commit**, revisar `git diff --cached` en busca de strings que
+  parezcan credenciales. Si aparece una: **parar y reportar**, no commitear.
+  - Filtrar **solo líneas agregadas** (`git diff --cached -U0` y quedarse con las que
+    arrancan en `+`). Un escaneo ingenuo marca la línea que se está *eliminando* y da
+    un falso positivo cada vez que se saca un secreto del código, que es justo cuando
+    más hace falta confirmar que se fue.
+- El escaneo propio tiene que ir **más allá** de lo que detecte la herramienta:
+  GitHub push protection solo marca PATs, no cadenas de conexión con password.
+
+## Regla — Verificación de usos antes de afirmar "nadie lo usa"
+
+Un grep que devuelve 0 resultados **no** prueba que algo esté muerto. Puede
+ser que se esté buscando el nombre equivocado, que se busque solo como
+lectura y no como escritura, o que el uso esté detrás de una capa que no
+se miró.
+
+Antes de concluir que un campo, método o widget no se usa:
+
+1. **Grep por el nombre EXACTO del campo.** Buscar una sola variante que
+   suene parecida da 0 falsos positivos y destruye la conclusión.
+   *Caso real (2026-10-10):* se buscó `avatarUrl` cuando el campo se llamaba
+   `fotoUrl`. Se reportó la feature de fotos de empleados como muerta
+   mientras estaba viva en 3 pantallas (`empleado_card`,
+   `employees_detail_screen`, `empleado_form_dialog`) y sincronizándose
+   (`sync_service.dart:534`, `:980`, `:1141`). Un grep de alcance lo
+   detectó **antes de aplicar el cambio**.
+2. **Grep por la entidad contenedora** (`UsuarioEntity`) y leer qué campos
+   extrae su `fromSupabase` / `toSupabaseJson`. Los nombres reales están
+   ahí, no en los que uno adivina.
+3. **Grep por sinónimos del feature** (avatar, foto, photo, img, pic,
+   imagen) antes de concluir nada.
+4. **Grep por el sitio de ESCRITURA** además del de lectura:
+   `.storage.from(`, `.upload(`, `.insert(`, `.upsert(`, `= campo`.
+   Un feature puede no tener lectores y sí estar escribiendo datos.
+5. **Contar los call sites, no los matches.** Un método con 2 referencias
+   puede ser 1 definición + 0 callers (código muerto) o 2 callers. Un grep
+   que reporta "2 hits" no distingue los casos.
+6. **Si la conclusión implica borrar o congelar algo, releer los hits uno
+   por uno antes de tocar.** El costo de un grep mal orientado es
+   minúsimo; el de romper una feature en 3 pantallas es un incidente.
+
+## Regla — Verificación de usos (versión reforzada)
+
+Un grep con 0 resultados **no prueba** que algo no exista ni que no se use.
+Es una señal de que el patrón estaba mal, no una confirmación.
+
+### Antes de concluir que algo "no existe" o "no se usa"
+
+1. **Grep con el nombre EXACTO.** No variantes que suenen igual.
+   *Ejemplo real:* el campo es `fotoUrl`, no `avatarUrl`.
+
+2. **Grep del SÍMBOLO, no de la línea.** Las llamadas se parten:
+
+   ```dart
+   Supabase.instance.client.storage
+       .from('marcas')      // el .from esta en OTRA linea
+   ```
+
+   Un grep de `storage.from('...')` sobre lineas individuales devuelve 0 y
+   uno concluye "no hay storage". Hay que **`\s*` entre tokens**, o leer
+   el archivo crudo y buscar con regex multilinea.
+
+3. **Cuando dos greps dan 0 en la misma area, hay un tercer grep que no
+   se hizo.** Parar y cambiar de estrategia: buscar el paquete que lo usa
+   (`image_picker`, `storage`), o el elemento contenedor.
+
+4. **Si 0 resultados, probar antes de concluir:**
+   - El nombre sin prefijo (`url` en vez de `imageUrl`).
+   - Solo el sufijo (`Url`, `Path`).
+   - La entidad contenedora, y que campos extrae su `fromSupabase` o
+     `toSupabaseJson`.
+   - El **sitio de escritura**, no solo el de lectura. El bug suele
+     estar donde se sube algo, no donde se lee.
+
+5. **Contar call sites, no matches.** "2 hits" puede ser 1 definicion + 0
+   callers, o 2 callers. No es distinguible.
+
+6. **Si la conclusion implica borrar, congelar o migrar, releer los hits
+   uno por uno antes de tocar.**
+
+### Errores reales que motivaron esta regla
+
+| Fecha | Patron buscado | Realidad | Costo |
+|---|---|---|---|
+| 2026-10-10 | `avatarUrl` | el campo es `fotoUrl`; feature viva en 3 pantallas + sync | Casi se congela una feature que funcionaba |
+| 2026-10-10 | `storage.from(...)` por linea | la llamada esta partida en 2 lineas; faltaba el bucket `marcas` | El bug de la URL firmada paso un turno entero sin detectarse |
+
+## Regla — `supabase migration repair` NO ejecuta SQL
+
+`supabase migration repair --status applied <version>` **solo** actualiza
+`supabase_migrations.schema_migrations`. **No corre el SQL del archivo.**
+
+### Orden correcto
+
+1. Correr el SQL: SQL Editor de Supabase, o `supabase db push` si la
+   migración es nueva en el archivo.
+2. **Verificar que el objeto existe** con una query.
+3. Recién ahí `supabase migration repair --status applied <version>`, para
+   alinear el tracking.
+
+Invertir el orden deja el historial mintiendo: dice "aplicada" mientras el
+objeto no existe. Peor todavía: la migración queda marcada y **nadie la va
+a volver a correr** en otro entorno.
+
+### Incidente real (2026-10-10)
+
+Se marcó `20261010000002` (RLS + policy de `movimientos_lotes`) como
+aplicada **sin haber corrido el SQL**. El remoto quedó con la tabla sin RLS
+y con el sync ya conectado contra ella: `select()` sin filtrar por tenant,
+o sea movimientos de todos los tenants en el mismo dispositivo. Se detectó
+porque la tabla se había creado a mano y el repair parecía la solución
+rápida.
+
+## Regla — Guardar el path de Storage, nunca la signed URL
+
+`createSignedUrl(path, segundos)` devuelve una URL **caducable**. Si esa
+URL se guarda en una entity, se persiste en Isar y se sube a Supabase,
+el objeto queda huérfano: sigue en el bucket pero la única referencia
+guardada está expirada y no hay forma de recuperarlo.
+
+- **Guardar el path** (`marca_123.png`), que es permanente.
+- **Firmar en el momento de renderizar**, con cache en memoria y margen
+  antes de la expiración.
+- `getPublicUrl` sobre un bucket público sí es estable: ahí no hay problema.
+
+## Regla — Buckets de Storage necesitan 4 policies
+
+Crear el bucket en el dashboard NO alcanza. Sin policies en
+`storage.objects`, el upload falla silenciosamente (RLS por defecto
+deniega).
+
+El path tiene que empezar con el tenant_id:
+  bucket/{tenant_id}/archivo.png
+
+Policies mínimas: SELECT, INSERT, UPDATE, DELETE, con check
+`(storage.foldername(name))[1] = current_tenant_id()::text`.
+
+Verificar: `SELECT policyname FROM pg_policies WHERE
+schemaname = 'storage' AND tablename = 'objects';` — tienen que
+aparecer 4 por bucket.
+
+⚠️ `PaperSize.mm80` de `esc_pos_utils_lts` son **558 dots** de ancho
+(`PaperSize.width`), no 576. Los logos se redimensionan a 512 px, que
+deja ~23 dots de margen por lado.
+
+## Regla — Simetría de campos en el sync
+
+Cada campo nuevo en una entidad sincronizada tiene que estar en **3 sitios**:
+
+1. **Push** — el `toSupabaseJson()` de la entity, o el JSON inline de subida.
+2. **Pull** — el `fromSupabase()`, o el read inline de bajada.
+3. **El merge/comparador** — si el pull solo escribe cuando detecta diferencia,
+   o si preserva el valor local con `?? local.campo`.
+
+Faltar en el punto 3 es el peor caso: la nube tiene el dato, el local no lo
+ve, y **no hay error** porque el sync "funciona". Solo ignora el campo.
+
+### Verificación
+
+```powershell
+grep -n "<nombreCampo>\|<nombre_columna>" lib/features/pos/presentation/services/sync_service.dart
+```
+
+Contá los hits y comprobá que están los 3 sitios. En `locales` son 4, porque
+el pull tiene **dos ramas** (merge y create) y ambas necesitan el campo:
+
+| # | Sitio | Línea (locales) |
+|---|---|---|
+| 1 | Push: `'logo_path': local.logoPath` | `sync_service.dart:3006` |
+| 2 | Pull: `final logoPathNube = data['logo_path']` | `sync_service.dart:3095` |
+| 3 | Rama merge: `..logoPath = logoPathNube ?? local.logoPath` | `sync_service.dart:3111` |
+| 4 | Rama create: `..logoPath = logoPathNube` | `sync_service.dart:3145` |
+
+⚠️ El `?? local.campo` no es decorativo: preserva el valor local cuando la
+nube manda `null`. Sin él, un logo subido en un dispositivo se borra en el
+siguiente sync si el otro dispositivo todavía no lo tiene.
+
 ## 11. Contacto
 
 Yan Camacaro — camacaroyan@gmail.com — JAHTLABS

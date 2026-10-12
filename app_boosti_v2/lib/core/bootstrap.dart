@@ -85,10 +85,28 @@ Future<BootstrapResult> bootstrap() async {
   }
 
   // ── 4. Sentry ──
+  //
+  // El DSN viene de `env.json` vía `--dart-define-from-file`, igual que
+  // `SUPABASE_URL` y `SUPABASE_ANON_KEY`. Antes estaba hardcodeado en esta
+  // línea, lo que lo metía en el repositorio y en el diff de cada commit.
+  //
+  // `String.fromEnvironment` es de TIEMPO DE COMPILACIÓN: si se compila sin
+  // `--dart-define-from-file=env.json`, el DSN queda vacío y Sentry queda
+  // silenciosamente desactivado. No es un error: `SentryFlutter.init` con
+  // un DSN vacío no inicializa nada. Es el mismo contrato que ya usan las
+  // credenciales de Supabase.
+  const sentryDsn = String.fromEnvironment('SENTRY_DSN');
+
+  if (sentryDsn.isEmpty) {
+    debugPrint(
+      '⚠️ SENTRY_DSN vacío: Sentry queda desactivado. Compilar con '
+      '--dart-define-from-file=env.json para activarlo.',
+    );
+  }
+
   await SentryFlutter.init(
     (options) {
-      options.dsn =
-          'https://d6ba391e37a1ea64b67002541041c94d@o4512161811922944.ingest.us.sentry.io/4512164794793984';
+      options.dsn = sentryDsn;
 
       options.environment = kReleaseMode ? 'production' : 'development';
       options.release = release;

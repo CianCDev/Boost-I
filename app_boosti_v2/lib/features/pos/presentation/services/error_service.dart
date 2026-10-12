@@ -11,24 +11,19 @@ class ErrorService {
 
   static bool _initialized = false;
 
-  /// Inicializa Sentry (siempre, en todas las plataformas)
+  /// Cuelga los handlers de crash globales.
+  ///
+  /// ⚠️ NO inicializa Sentry. Eso lo hace `bootstrap()`, que es el único
+  ///    que conoce el `release`, el `environment` y el `beforeSend` que
+  ///    filtra los errores de red. Llamar a `SentryFlutter.init` desde acá
+  ///    inicializaba Sentry DOS veces, con dos configuraciones distintas,
+  ///    y ganaba la pobre.
+  ///
+  /// El DSN se lee de `env.json` vía `--dart-define-from-file` en
+  /// `bootstrap.dart` §4. Ver la regla de secretos en `MEMORY.md` §11.
   static Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
-
-    try {
-      await SentryFlutter.init(
-        (options) {
-          options.dsn = 'https://773c9f0fead4c95fbbf27aacd669cbd8@o4512050802524160.ingest.us.sentry.io/4512050844008448';
-          options.tracesSampleRate = 0.1;
-          options.environment = const String.fromEnvironment('ENV', defaultValue: 'production');
-        },
-        appRunner: () => {},
-      );
-      debugPrint('✅ Sentry inicializado correctamente');
-    } catch (e) {
-      debugPrint('⚠️ Error inicializando Sentry: $e');
-    }
 
     // ============================================================
     // CAPTURAR CRASHES NO MANEJADOS (todas las plataformas)
@@ -45,6 +40,8 @@ class ErrorService {
       Sentry.captureException(error, stackTrace: stack);
       return true;
     };
+
+    debugPrint('✅ Handlers de crash registrados');
   }
 
   /// Captura un error controlado

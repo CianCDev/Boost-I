@@ -32,9 +32,9 @@ const MarcaEntitySchema = CollectionSchema(
       name: r'descripcion',
       type: IsarType.string,
     ),
-    r'logoUrl': PropertySchema(
+    r'logoPath': PropertySchema(
       id: 3,
-      name: r'logoUrl',
+      name: r'logoPath',
       type: IsarType.string,
     ),
     r'nombre': PropertySchema(
@@ -104,7 +104,7 @@ int _marcaEntityEstimateSize(
     }
   }
   {
-    final value = object.logoUrl;
+    final value = object.logoPath;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
     }
@@ -135,7 +135,7 @@ void _marcaEntitySerialize(
   writer.writeBool(offsets[0], object.activo);
   writer.writeDateTime(offsets[1], object.createdAt);
   writer.writeString(offsets[2], object.descripcion);
-  writer.writeString(offsets[3], object.logoUrl);
+  writer.writeString(offsets[3], object.logoPath);
   writer.writeString(offsets[4], object.nombre);
   writer.writeString(offsets[5], object.proveedorId);
   writer.writeString(offsets[6], object.supabaseId);
@@ -154,7 +154,7 @@ MarcaEntity _marcaEntityDeserialize(
   object.createdAt = reader.readDateTime(offsets[1]);
   object.descripcion = reader.readStringOrNull(offsets[2]);
   object.id = id;
-  object.logoUrl = reader.readStringOrNull(offsets[3]);
+  object.logoPath = reader.readStringOrNull(offsets[3]);
   object.nombre = reader.readString(offsets[4]);
   object.proveedorId = reader.readStringOrNull(offsets[5]);
   object.supabaseId = reader.readStringOrNull(offsets[6]);
@@ -682,30 +682,30 @@ extension MarcaEntityQueryFilter
   }
 
   QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition>
-      logoUrlIsNull() {
+      logoPathIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
-        property: r'logoUrl',
+        property: r'logoPath',
       ));
     });
   }
 
   QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition>
-      logoUrlIsNotNull() {
+      logoPathIsNotNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNotNull(
-        property: r'logoUrl',
+        property: r'logoPath',
       ));
     });
   }
 
-  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition> logoUrlEqualTo(
+  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition> logoPathEqualTo(
     String? value, {
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'logoUrl',
+        property: r'logoPath',
         value: value,
         caseSensitive: caseSensitive,
       ));
@@ -713,7 +713,7 @@ extension MarcaEntityQueryFilter
   }
 
   QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition>
-      logoUrlGreaterThan(
+      logoPathGreaterThan(
     String? value, {
     bool include = false,
     bool caseSensitive = true,
@@ -721,14 +721,15 @@ extension MarcaEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         include: include,
-        property: r'logoUrl',
+        property: r'logoPath',
         value: value,
         caseSensitive: caseSensitive,
       ));
     });
   }
 
-  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition> logoUrlLessThan(
+  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition>
+      logoPathLessThan(
     String? value, {
     bool include = false,
     bool caseSensitive = true,
@@ -736,14 +737,14 @@ extension MarcaEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.lessThan(
         include: include,
-        property: r'logoUrl',
+        property: r'logoPath',
         value: value,
         caseSensitive: caseSensitive,
       ));
     });
   }
 
-  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition> logoUrlBetween(
+  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition> logoPathBetween(
     String? lower,
     String? upper, {
     bool includeLower = true,
@@ -752,7 +753,7 @@ extension MarcaEntityQueryFilter
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
-        property: r'logoUrl',
+        property: r'logoPath',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -763,50 +764,50 @@ extension MarcaEntityQueryFilter
   }
 
   QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition>
-      logoUrlStartsWith(
+      logoPathStartsWith(
     String value, {
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.startsWith(
-        property: r'logoUrl',
+        property: r'logoPath',
         value: value,
         caseSensitive: caseSensitive,
       ));
     });
   }
 
-  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition> logoUrlEndsWith(
+  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition>
+      logoPathEndsWith(
     String value, {
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.endsWith(
-        property: r'logoUrl',
+        property: r'logoPath',
         value: value,
         caseSensitive: caseSensitive,
       ));
     });
   }
 
-  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition> logoUrlContains(
-      String value,
-      {bool caseSensitive = true}) {
+  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition>
+      logoPathContains(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.contains(
-        property: r'logoUrl',
+        property: r'logoPath',
         value: value,
         caseSensitive: caseSensitive,
       ));
     });
   }
 
-  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition> logoUrlMatches(
+  QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition> logoPathMatches(
       String pattern,
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.matches(
-        property: r'logoUrl',
+        property: r'logoPath',
         wildcard: pattern,
         caseSensitive: caseSensitive,
       ));
@@ -814,20 +815,20 @@ extension MarcaEntityQueryFilter
   }
 
   QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition>
-      logoUrlIsEmpty() {
+      logoPathIsEmpty() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
-        property: r'logoUrl',
+        property: r'logoPath',
         value: '',
       ));
     });
   }
 
   QueryBuilder<MarcaEntity, MarcaEntity, QAfterFilterCondition>
-      logoUrlIsNotEmpty() {
+      logoPathIsNotEmpty() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
-        property: r'logoUrl',
+        property: r'logoPath',
         value: '',
       ));
     });
@@ -1512,15 +1513,15 @@ extension MarcaEntityQuerySortBy
     });
   }
 
-  QueryBuilder<MarcaEntity, MarcaEntity, QAfterSortBy> sortByLogoUrl() {
+  QueryBuilder<MarcaEntity, MarcaEntity, QAfterSortBy> sortByLogoPath() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'logoUrl', Sort.asc);
+      return query.addSortBy(r'logoPath', Sort.asc);
     });
   }
 
-  QueryBuilder<MarcaEntity, MarcaEntity, QAfterSortBy> sortByLogoUrlDesc() {
+  QueryBuilder<MarcaEntity, MarcaEntity, QAfterSortBy> sortByLogoPathDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'logoUrl', Sort.desc);
+      return query.addSortBy(r'logoPath', Sort.desc);
     });
   }
 
@@ -1635,15 +1636,15 @@ extension MarcaEntityQuerySortThenBy
     });
   }
 
-  QueryBuilder<MarcaEntity, MarcaEntity, QAfterSortBy> thenByLogoUrl() {
+  QueryBuilder<MarcaEntity, MarcaEntity, QAfterSortBy> thenByLogoPath() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'logoUrl', Sort.asc);
+      return query.addSortBy(r'logoPath', Sort.asc);
     });
   }
 
-  QueryBuilder<MarcaEntity, MarcaEntity, QAfterSortBy> thenByLogoUrlDesc() {
+  QueryBuilder<MarcaEntity, MarcaEntity, QAfterSortBy> thenByLogoPathDesc() {
     return QueryBuilder.apply(this, (query) {
-      return query.addSortBy(r'logoUrl', Sort.desc);
+      return query.addSortBy(r'logoPath', Sort.desc);
     });
   }
 
@@ -1729,10 +1730,10 @@ extension MarcaEntityQueryWhereDistinct
     });
   }
 
-  QueryBuilder<MarcaEntity, MarcaEntity, QDistinct> distinctByLogoUrl(
+  QueryBuilder<MarcaEntity, MarcaEntity, QDistinct> distinctByLogoPath(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
-      return query.addDistinctBy(r'logoUrl', caseSensitive: caseSensitive);
+      return query.addDistinctBy(r'logoPath', caseSensitive: caseSensitive);
     });
   }
 
@@ -1797,9 +1798,9 @@ extension MarcaEntityQueryProperty
     });
   }
 
-  QueryBuilder<MarcaEntity, String?, QQueryOperations> logoUrlProperty() {
+  QueryBuilder<MarcaEntity, String?, QQueryOperations> logoPathProperty() {
     return QueryBuilder.apply(this, (query) {
-      return query.addPropertyName(r'logoUrl');
+      return query.addPropertyName(r'logoPath');
     });
   }
 

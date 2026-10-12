@@ -63,3 +63,8 @@ env.staging.json
 sentry.properties
 
 sentry.properties
+
+# Sentry — artefactos de runtime, no versionar.
+# `.sentry-native/` estaba trackeado: `installation_id` es un
+# identificador de máquina y los `.run/` son sesiones efímeras.
+.sentry-native/

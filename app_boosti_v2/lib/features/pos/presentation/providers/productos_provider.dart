@@ -92,17 +92,21 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
         state = state.copyWith(items: productos, isLoading: false);
         debugPrint('🔄 [ProductosNotifier] Productos actualizados (${productos.length} items)');
       } else if (state.isLoading) {
-        // ⚠️ `else` sin emisión.
+        // ⚠️ La lista no cambió, pero el notifier estaba en `isLoading`.
         //
-        // Antes se hacía `state = state.copyWith(isLoading: false)` en
-        // TODOS los caminos. Cuando nada había cambiado eso emitía un
-        // estado nuevo e inequivalente, y con esto eso dispara los dos
-        // filtrados O(n) de `catalogProvider._aplicarFiltros` e
-        // `inventoryProvider.aplicarFiltros` de nuevo.
+        // Sin esta emisión, `isLoading` queda en `true` PARA SIEMPRE
+        // cuando Isar devuelve vacío: `_listasSonIguales([], [])` da
+        // true, se entraba por la rama "sin cambios" y nunca se bajaba
+        // el flag. La UI que gatea por `isLoading` se quedaba en spinner
+        // eterno hasta que un cambio de local hiciera invalidate.
         //
-        // Ahora, si ya estábamos en `isLoading: false` y la lista es
-        // igual, no se toca el estado: cero emisiones, cero filtrados.
-        debugPrint('ℹ️ [ProductosNotifier] Sin cambios en productos');
+        // Emitir acá NO reintroduce el costo que la optimización evita:
+        // el estado pasa de `(items: [], isLoading: true)` a
+        // `(items: [], isLoading: false)`, que son DISTINTOS. La
+        // comparación estructural da false, así que los listeners corren
+        // una sola vez, no dos.
+        debugPrint('ℹ️ [ProductosNotifier] Sin cambios, pero se cierra la carga');
+        state = state.copyWith(isLoading: false);
       }
     } catch (e) {
       // 🔥 Verificar también en caso de error asíncrono

@@ -3,12 +3,59 @@ import 'package:esc_pos_utils_lts/esc_pos_utils_lts.dart';
 import 'package:flutter/foundation.dart';
 import 'package:esc_pos_printer_lts/esc_pos_printer_lts.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:image/image.dart' as img;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/Local/entities/local_entity.dart';
 import '../../domain/enums/printer_error.dart';
 import '../../domain/models/printer_models.dart';
 import 'label_generator.dart';
+import 'error_service.dart';
 import 'ticket_generator.dart';
+
+/// Descarga y cachea el logo del local para imprimirlo en los tickets.
+///
+/// Vive acá, y no en `TicketGenerator`, porque el generador es síncrono
+/// y la descarga de Storage es async.
+///
+/// La cache es por path y no tiene expiration: el nombre del archivo lleva
+/// un timestamp (`logo_1699...png`), así que un logo nuevo es un path
+/// nuevo. El viejo se queda en memoria — son unos pocos KB.
+Future<List<int>?> _resolverLogoDelLocal(String? logoPath) async {
+  if (logoPath == null || logoPath.isEmpty) return null;
+
+  final cache = _logoCache;
+  final hit = cache[logoPath];
+  if (hit != null) return hit;
+
+  try {
+    final bytes = await Supabase.instance.client.storage
+        .from('locales')
+        .download(logoPath);
+
+    final decodificada = img.decodeImage(bytes);
+    if (decodificada == null) return null;
+
+    // `PaperSize.mm80` de la impresora son 558 dots de ancho. 512 deja
+    // un margen de ~23 dots por lado: se centra sin recortar.
+    final redimensionada = decodificada.width > _anchoMaxLogo
+        ? img.copyResize(decodificada, width: _anchoMaxLogo)
+        : decodificada;
+    final finales = img.encodePng(redimensionada);
+
+    cache[logoPath] = finales;
+    return finales;
+  } catch (e, stack) {
+    // Un logo caído NO puede impedir la venta. Se reporta y se sigue.
+    ErrorService.captureError(e,
+        stack: stack, hint: 'resolverLogoDelLocal_fallo');
+    debugPrint('Aviso: no se pudo descargar el logo del local');
+    return null;
+  }
+}
+
+const int _anchoMaxLogo = 512;
+final Map<String, List<int>> _logoCache = {};
 
 class PrinterService {
   // =========================================================
@@ -69,6 +116,7 @@ class PrinterService {
           requiereAutorizacion: requiereAutorizacion,
           autorizadoPorNombre: autorizadoPorNombre,
           vendedor: vendedor,
+          logoBytes: await _resolverLogoDelLocal(local?.logoPath),
         );
 
         const PaperSize paper = PaperSize.mm80;
@@ -165,6 +213,7 @@ class PrinterService {
           requiereAutorizacion: requiereAutorizacion,
           autorizadoPorNombre: autorizadoPorNombre,
           vendedor: vendedor,
+          logoBytes: await _resolverLogoDelLocal(local?.logoPath),
         );
 
         final device = BluetoothDevice.fromId(printer.address);

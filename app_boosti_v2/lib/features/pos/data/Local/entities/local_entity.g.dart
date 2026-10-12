@@ -47,48 +47,53 @@ const LocalEntitySchema = CollectionSchema(
       name: r'fechaSincronizacion',
       type: IsarType.dateTime,
     ),
-    r'modoConfiguradoEn': PropertySchema(
+    r'logoPath': PropertySchema(
       id: 6,
+      name: r'logoPath',
+      type: IsarType.string,
+    ),
+    r'modoConfiguradoEn': PropertySchema(
+      id: 7,
       name: r'modoConfiguradoEn',
       type: IsarType.dateTime,
     ),
     r'nombre': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'nombre',
       type: IsarType.string,
     ),
     r'planIdCache': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'planIdCache',
       type: IsarType.string,
     ),
     r'planVerificadoEn': PropertySchema(
-      id: 9,
+      id: 10,
       name: r'planVerificadoEn',
       type: IsarType.dateTime,
     ),
     r'rif': PropertySchema(
-      id: 10,
+      id: 11,
       name: r'rif',
       type: IsarType.string,
     ),
     r'sincronizado': PropertySchema(
-      id: 11,
+      id: 12,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'supabaseId': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'telefono': PropertySchema(
-      id: 13,
+      id: 14,
       name: r'telefono',
       type: IsarType.string,
     ),
     r'updatedAt': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -140,6 +145,12 @@ int _localEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final value = object.logoPath;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.nombre.length * 3;
   {
     final value = object.planIdCache;
@@ -180,15 +191,16 @@ void _localEntitySerialize(
   writer.writeString(offsets[3], object.direccion);
   writer.writeString(offsets[4], object.email);
   writer.writeDateTime(offsets[5], object.fechaSincronizacion);
-  writer.writeDateTime(offsets[6], object.modoConfiguradoEn);
-  writer.writeString(offsets[7], object.nombre);
-  writer.writeString(offsets[8], object.planIdCache);
-  writer.writeDateTime(offsets[9], object.planVerificadoEn);
-  writer.writeString(offsets[10], object.rif);
-  writer.writeBool(offsets[11], object.sincronizado);
-  writer.writeString(offsets[12], object.supabaseId);
-  writer.writeString(offsets[13], object.telefono);
-  writer.writeDateTime(offsets[14], object.updatedAt);
+  writer.writeString(offsets[6], object.logoPath);
+  writer.writeDateTime(offsets[7], object.modoConfiguradoEn);
+  writer.writeString(offsets[8], object.nombre);
+  writer.writeString(offsets[9], object.planIdCache);
+  writer.writeDateTime(offsets[10], object.planVerificadoEn);
+  writer.writeString(offsets[11], object.rif);
+  writer.writeBool(offsets[12], object.sincronizado);
+  writer.writeString(offsets[13], object.supabaseId);
+  writer.writeString(offsets[14], object.telefono);
+  writer.writeDateTime(offsets[15], object.updatedAt);
 }
 
 LocalEntity _localEntityDeserialize(
@@ -205,15 +217,16 @@ LocalEntity _localEntityDeserialize(
   object.email = reader.readStringOrNull(offsets[4]);
   object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[5]);
   object.id = id;
-  object.modoConfiguradoEn = reader.readDateTimeOrNull(offsets[6]);
-  object.nombre = reader.readString(offsets[7]);
-  object.planIdCache = reader.readStringOrNull(offsets[8]);
-  object.planVerificadoEn = reader.readDateTimeOrNull(offsets[9]);
-  object.rif = reader.readStringOrNull(offsets[10]);
-  object.sincronizado = reader.readBool(offsets[11]);
-  object.supabaseId = reader.readStringOrNull(offsets[12]);
-  object.telefono = reader.readStringOrNull(offsets[13]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[14]);
+  object.logoPath = reader.readStringOrNull(offsets[6]);
+  object.modoConfiguradoEn = reader.readDateTimeOrNull(offsets[7]);
+  object.nombre = reader.readString(offsets[8]);
+  object.planIdCache = reader.readStringOrNull(offsets[9]);
+  object.planVerificadoEn = reader.readDateTimeOrNull(offsets[10]);
+  object.rif = reader.readStringOrNull(offsets[11]);
+  object.sincronizado = reader.readBool(offsets[12]);
+  object.supabaseId = reader.readStringOrNull(offsets[13]);
+  object.telefono = reader.readStringOrNull(offsets[14]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[15]);
   return object;
 }
 
@@ -237,22 +250,24 @@ P _localEntityDeserializeProp<P>(
     case 5:
       return (reader.readDateTimeOrNull(offset)) as P;
     case 6:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 7:
-      return (reader.readString(offset)) as P;
-    case 8:
-      return (reader.readStringOrNull(offset)) as P;
-    case 9:
       return (reader.readDateTimeOrNull(offset)) as P;
+    case 8:
+      return (reader.readString(offset)) as P;
+    case 9:
+      return (reader.readStringOrNull(offset)) as P;
     case 10:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 11:
-      return (reader.readBool(offset)) as P;
-    case 12:
       return (reader.readStringOrNull(offset)) as P;
+    case 12:
+      return (reader.readBool(offset)) as P;
     case 13:
       return (reader.readStringOrNull(offset)) as P;
     case 14:
+      return (reader.readStringOrNull(offset)) as P;
+    case 15:
       return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -1043,6 +1058,159 @@ extension LocalEntityQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      logoPathIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'logoPath',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      logoPathIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'logoPath',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> logoPathEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'logoPath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      logoPathGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'logoPath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      logoPathLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'logoPath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> logoPathBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'logoPath',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      logoPathStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'logoPath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      logoPathEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'logoPath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      logoPathContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'logoPath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> logoPathMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'logoPath',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      logoPathIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'logoPath',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      logoPathIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'logoPath',
+        value: '',
       ));
     });
   }
@@ -2105,6 +2273,18 @@ extension LocalEntityQuerySortBy
     });
   }
 
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> sortByLogoPath() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'logoPath', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> sortByLogoPathDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'logoPath', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy>
       sortByModoConfiguradoEn() {
     return QueryBuilder.apply(this, (query) {
@@ -2308,6 +2488,18 @@ extension LocalEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> thenByLogoPath() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'logoPath', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> thenByLogoPathDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'logoPath', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy>
       thenByModoConfiguradoEn() {
     return QueryBuilder.apply(this, (query) {
@@ -2464,6 +2656,13 @@ extension LocalEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<LocalEntity, LocalEntity, QDistinct> distinctByLogoPath(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'logoPath', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<LocalEntity, LocalEntity, QDistinct>
       distinctByModoConfiguradoEn() {
     return QueryBuilder.apply(this, (query) {
@@ -2568,6 +2767,12 @@ extension LocalEntityQueryProperty
       fechaSincronizacionProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'fechaSincronizacion');
+    });
+  }
+
+  QueryBuilder<LocalEntity, String?, QQueryOperations> logoPathProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'logoPath');
     });
   }
 

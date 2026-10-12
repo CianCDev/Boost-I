@@ -3,8 +3,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/mayoreo/venta_mayor_service.dart';
+import '../common/guard_tenant_activo.dart';
 import 'all_payment_methods_dialog.dart';
 
 /// Datos que devuelve el diálogo tras confirmar el cobro.
@@ -1261,22 +1263,36 @@ class _WholesaleCobrarDialogState extends State<WholesaleCobrarDialog> {
           const SizedBox(width: 10),
           Expanded(
             flex: 2,
-            child: ElevatedButton(
-              onPressed: puedeConfirmar ? _confirmar : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF10B981),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 3,
-              ),
-              child: const Text(
-                'Confirmar cobro',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
+            // El cobro es la acción de escritura más crítica: si el tenant
+            // no está alineado, la venta se subiría al tenant del JWT.
+            // Ver `tenant_alineado_provider.dart`.
+            //
+            // `puedeConfirmar` sigue gobernando el estado visual del botón
+            // (el ElevatedButton va con onPressed: null para no taparse dos
+            // veces). El guard cubre el bloqueo por tenant.
+            child: Consumer(
+              builder: (context, ref, _) => GuardTenantActivo(
+                onEjecutar: () {
+                  if (puedeConfirmar) _confirmar();
+                },
+                child: ElevatedButton(
+                  onPressed: null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 3,
+                  ),
+                  child: const Text(
+                    'Confirmar cobro',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ),
             ),

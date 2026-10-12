@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_provider.dart';
+import '../services/error_service.dart';
 
 class LockStateNotifier extends StateNotifier<bool> {
   final Ref ref;
@@ -29,8 +30,14 @@ class LockStateNotifier extends StateNotifier<bool> {
           'timestamp': DateTime.now().toIso8601String(),
         });
       }
-    } catch (e) {
-      // Error silencioso
+    } catch (e, stack) {
+      // Antes esto era `catch (e) { // Error silencioso }`: la tabla no
+      // existía, el insert fallaba, el catch se comía el error y nadie
+      // sabía que los eventos de caja no se estaban registrando.
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'cashier_logs_insert_fallo',
+          extras: {'event_type': 'rest_start', 'motivo': reason});
     }
   }
 
@@ -57,8 +64,12 @@ class LockStateNotifier extends StateNotifier<bool> {
           'timestamp': DateTime.now().toIso8601String(),
         });
       }
-    } catch (e) {
-      // Error silencioso
+    } catch (e, stack) {
+      // Mismo catch mudo que en `_lockScreen`.
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'cashier_logs_insert_fallo',
+          extras: {'event_type': 'rest_end'});
     }
     state = false;
   }

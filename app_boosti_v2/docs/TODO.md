@@ -62,9 +62,167 @@
       `Timer.periodic` a loop secuencial. El cambio elimina requests apilados pero
       cambia el ritmo: ahora el intervalo se mide entre el fin de un request y el
       arranque del siguiente (con long-poll de 10 s, el ciclo real queda en ~13 s).
+- [ ] **CHECK `(cantidad_restante <= cantidad_inicial)` en `public.lotes`.** Invariante
+      documentado en `MEMORY.MD` §12. **Requiere una migración de limpieza previa**:
+      hoy hay filas que lo violan (2 con `id_isar=1` en JAHTLABS, 4 del Arroz) y el
+      `ALTER TABLE` fallaría. Aplicar **después** de cerrar el fix de
+      `ajustarStockDesdeEditor` y **después** de aplicar `00005`.
+- [x] **DSN de Sentry sacado del fuente** (2026-10-10, 2.º intento). El primero afirmó
+      que estaba movido a `env.json` y era falso: seguía hardcodeado en
+      `error_service.dart:22`. Corregido eliminando el `SentryFlutter.init` duplicado de
+      `ErrorService.init()`; ahora se lee solo desde `bootstrap.dart` §4 vía
+      `String.fromEnvironment('SENTRY_DSN')`. Verificado con grep: 0 hits en `lib/`.
+- [x] **Credenciales redactadas de `HANDOFF_CONTROL_CENTER.md`** (2026-10-10). Contenía
+      un PAT `sbp_…`, una cadena de conexión de Postgres con password y un
+      `$env:PGPASSWORD`. GitHub push protection solo detectó el PAT; los otros dos
+      habrían entrado al remoto sin aviso.
+- [ ] **Rotar las credenciales expuestas**: PAT de Supabase, password de la base y
+      DSN de Sentry. Redactar no basta: si estuvieron en un archivo, están comprometidas.
+      Procedimiento en `HANDOFF_CONTROL_CENTER.md` §11.
+      ⚠️ El DSN de Sentry **sigue pendiente de rotar**: aunque ya no está en el fuente,
+      estuvo committeado hasta el 2026-10-10.
+- [ ] **Sanear las filas que violan el invariante** antes del CHECK: 2 lotes con
+      `id_isar=1` (inicial=100, restante=200/150) y 4 del Arroz (inicial=100,
+      restante=512–519). El clamp future los evita pero no repara los que ya están.
+- [ ] **Rediseño conceptual "almacén vs estantería" (Camino 2)** — evaluar post-v1.
+      Hoy `lotes == stock`: un lote es un acumulador de un producto, no un depósito con
+      ubicación física. El modelo asume que todo el stock de un producto está disponible
+      para vender sin preguntar por la ubicación. Si alguna vez hay dos almacenes, este
+      modelo no lo representa.
 - [ ] **Quedan confirmadores duplicados** fuera de `cart_dialogs.dart`:
       `inventory_catalog_screen._limpiarCarritoConConfirmacion` ya usa el helper, pero
       `crear_pedido_dialog` y otros siguen con copies propios.
+
+## 🔶 Drift de schema (tablas en remoto sin versionar)
+
+**7 tablas existen en Supabase pero NO están en ninguna migración.** Las 7 se
+detectaron el 2026-10-10 auditando los `.from(...)` del código contra los
+`CREATE TABLE` de `supabase/migrations/`.
+
+**Riesgo:** si alguien regenera el schema desde las migraciones, estas tablas
+desaparecen. El baseline solo versiona 24 tablas contra las ~39 del remoto.
+
+| Tabla | Consultada desde |
+|---|---|
+| `autorizaciones_descuento` | `sync_service.dart:2268` |
+| `pagos_ventas` | `sync_service.dart:2192` |
+| `planes` | `admin_console/data/repositories/plans_repository.dart`, `pos/data/remote/suscripciones_repository.dart:37` |
+| `suscripciones` | `admin_console/.../subscriptions_repository.dart`, `pos/data/remote/suscripciones_repository.dart:100` |
+| `tenants` | `admin_console/data/repositories/tenants_repository.dart` |
+| `notas_cliente` | `admin_console/data/repositories/notes_repository.dart` |
+| `suscripcion_historial` | `admin_console/data/repositories/subscriptions_repository.dart` |
+
+⚠️ **El `admin_console` usa el MISMO cliente que el POS** (`Supabase.instance.client`),
+así que no es un proyecto Supabase aparte: todo esto cae sobre el mismo schema.
+
+**Acción:** generar una migración "snapshot" que las versione tal como están,
+sin cambiar definiciones.
+
+## 🔶 Fantasmas reales (el código consulta, la tabla no existe)
+
+A diferencia del bloque anterior, aquí **no se pudo confirmar que la tabla exista**.
+Los tres se consultan desde un `try/catch` que traga el error, así que la app
+funciona igual y el problema es invisible.
+
+| Tabla | Consultada desde | Decisión |
+|---|---|---|
+| `avatars` | `empleado_form_dialog.dart` | Crear o eliminar |
+| `cashier_logs` | `lock_provider.dart` | Crear o eliminar |
+| `saas_metrics` | `admin_console/data/repositories/metrics_repository.dart` | Crear o eliminar |
+
+**Caso aparte:** `movimientos_lotes` (`sync_service.dart:3851`) tampoco está
+versionada, pero además **`descargarMovimientosLoteDesdeSupabase()` no tiene
+ningún caller**: el historial de movimientos de lote nunca se descarga de la
+nube. Hay que decidir si se conecta o se elimina el método.
+
+- [ ] **`pagos_venta` (singular, legacy)** — el código ya lee
+      `data['lote_id'] ?? data['lote_id_fk']` en `sync_service.dart:3869-3875`, o
+      sea que hay columnas con dos nombres históricos. Limpiar los fallbacks cuando
+      se confirme cuál es el bueno.
+- [ ] **`movimientos_lotes`** — tabla creada y aplicada al remoto 2026-10-10.
+      Backfill de versión en `20261010000001_create_movimientos_lotes.sql` para que
+      dev/staging la obtengan. **Pendiente:**
+      `supabase migration repair --status applied 20261010000001`.
+- [ ] **`usuarios.foto_url`** — columna REAL, sincronizada en
+      `sync_service.dart` y leída en 3 pantallas (`empleado_card`,
+      `employees_detail_screen`, `empleado_form_dialog`). No está versionada en el
+      baseline. Incluir en la migración snapshot del drift.
+      **Sin bug de URL firmada:** el bucket `avatars` es PÚBLICO y usa
+      `getPublicUrl`, que no caduca. A diferencia de `marcas`, acá la URL
+      guardada es estable.
+- [x] **Fotos de empleados — congelada** 2026-10-10 por política de datos
+      sensibles. Callers comentados, el botón muestra "Próximamente", la subida de
+      `foto_url` está pausada. La lectura de fotos existentes quedó intacta.
+      **Reversible:** descomentar los 2 bloques + revertir el diálogo del botón.
+- [ ] **`saas_metrics`** (vista materializada) + RPC `refresh_saas_metrics()`
+      — feature viva: `admin_console/admin_dashboard_screen.dart:229` la consume vía
+      `admin_dashboard_provider`. Ni la vista ni la RPC están versionadas. Bloque
+      propio. ⚠️ El catch de `metrics_repository.dart:37` devuelve
+      `SaasMetrics.empty()`: si la vista falla, el dashboard muestra ceros sin
+      avisar que no hay datos.
+- [x] **`cashier_logs`** — tabla aplicada al remoto 2026-10-10
+      (`000003` + `migration repair`). Catch mudo de `lock_provider.dart`
+      reemplazado por `ErrorService.captureError`.
+      **Pendiente verificar:** disparar un lock manual y confirmar que
+      aparece una fila.
+- [x] **Bucket `locales`** — 4 policies aplicadas 2026-10-10 (migración
+      `20261010000006_storage_policies.sql` sobre `storage.objects`, path
+      con `tenant_id` como primera carpeta).
+- [x] **Bucket `marcas`** — 4 policies aplicadas 2026-10-10 (misma migración
+      `000006`, bloque `ARRAY['marcas', 'locales']`).
+- [ ] Verificar en Storage que el upload desde la app funciona end-to-end
+      (probado manualmente en dispositivo). Las policies están, pero la
+      app todavía no subió ni un logo real contra el bucket nuevo.
+- [ ] **PDF de venta** — no existe. Solo etiquetas. Post-v1.
+- [ ] **58mm en impresora** — hoy 80mm hardcodeado (`PaperSize.mm80`).
+      Post-v1.
+- [x] **Logo del local en el ticket — CERRADO 2026-10-10.** Sync de
+      `logo_path` completo en los 4 puntos (push, pull, merge, create), UI
+      de upload (`widgets/common/logo_upload_field.dart`) y render en el
+      encabezado del ticket térmico. Ver `ticket_generator._appendLogo` y
+      `printer_service._resolverLogoDelLocal`.
+- [ ] **Logo de marca (`marca_form_dialog.dart`)** — sube al bucket `marcas` y se
+      muestra en 1 widget (`marcas_management_dialog.dart:547`). `logo_url` **sí**
+      está versionada en el baseline. **Pendiente de decisión**, pero hay un bug
+      que lo anula: usa `createSignedUrl(3600)` y guarda esa URL caducable en
+      `MarcaEntity.logoUrl`, que además se sincroniza a la nube. Al expirar, todos
+      los logos guardados quedan muertos.
+- [ ] **Logo del ticket resuelve con tenant del JWT, no del local
+      impreso.** Con hot-switch a un local de otro tenant, el claim
+      sigue siendo el del login y el logo no baja del bucket.
+      Impacto: ticket sale sin logo (no rompe). Decisión: post-v1, a
+      menos que el negocio imprima cross-tenant con logos distintos.
+      Aplicable a: printer_service.dart `_resolverLogoDelLocal`.
+- [ ] **UX: después de realinear el JWT con "Cambiar de cuenta", no hay
+      botón para volver al tenant anterior.** El usuario tiene que usar
+      el hot-switch y volver a tocar "Cambiar de cuenta".
+      Impacto: bajo (funciona). Post-v1.
+      Aplicable a: main_pos_screen.dart `_realinarTenant`.
+- [ ] **Logo de marca no se muestra en el catálogo** — `product_card.dart` y
+      `product_list_tile.dart` no usan `logoUrl`. Solo aparece en el gestor.
+
+## 🔴 v1 — Logo del local en comprobantes
+
+El logo de **marca** existe, pero no es lo que el negocio necesita. Para
+tickets y recibos hace falta el logo del **LOCAL**, y hoy no existe en
+ningún lado.
+
+`LocalEntity` hoy tiene: `supabaseId`, `nombre`, `direccion`, `telefono`,
+`email`, `rif`, `activo`, `sincronizado`, `businessMode`, `planIdCache`.
+**Ningún campo de imagen.**
+
+- [ ] `LocalEntity.logoPath` + columna `locales.logo_path` en Supabase
+      (guardar el **path**, no una URL firmada: ver el bug de
+      `marca_form_dialog.dart`).
+- [ ] Bucket `locales` en Storage, con policies por tenant.
+- [ ] UI de upload en el formulario de local. **Reutilizar el flujo de
+      marcas ya corregido**, no escribir uno nuevo.
+- [ ] Mostrar en el comprobante: impresion termica + PDF.
+
+Decisión pendiente (U54): **v1 o post-v1**. Depende de si los comprobantes
+con logo son requisito de lanzamiento.
+
+Prioridad: esto es lo que pidió el negocio. El logo de marca es accesorio.
 
 ## KDS · R.3 pendientes
 
@@ -338,6 +496,34 @@ retail (~15 archivos usan `ProductItem`).
 Al crear una receta, poder marcarla como "disponible en retail". El
 plato pasa a ser producto vendible en modo retail (pizzerías takeout,
 restaurantes con venta por unidad preparada).
+
+## Cerrado en 2026-10-12 (sesión AppBar + chip de local)
+
+- [x] **`sync_service.dart:2390`** — el log decía `RPC ajustar_stock` pero la
+      RPC real es `ajustar_stock_uuid`. Diagnóstico engañoso en producción.
+- [x] **Badge de local activo en el Menú POS** — `LocalActivoChip`, chip
+      informativo (NO un guard). Tocar abre `LocalSelectorDialog`.
+- [x] **AppBar del POS principal sin barra** — transparente, con base
+      blanca en logo/botones y pill BCV violeta. `CustomAppBar` quedó
+      intacto: lo usan ~30 pantallas y tiene el contenido hardcodeado a
+      blanco.
+
+## Deuda abierta de 2026-10-12
+
+- [ ] **`assets/logo.svg` es un duplicado exacto de `logoboosti300px.svg`.**
+      Mismo SHA256 (`343FA29D...`), 1826 bytes. `logo.svg` no lo usa ningún
+      archivo y NO está declarado en `pubspec.yaml`, así que no está en el
+      bundle. Se decidió **no declararlo** (sería una copia muerta). Queda
+      pendiente borrarlo o renombrarlo — `AGENTS.md` prohíbe borrar sin
+      confirmación explícita.
+- [ ] **El chip de local no tiene test de widget.** Es el único indicador
+      de "dónde estoy operando" en el Menú POS.
+- [ ] **El chip de local no se verificó en device.** El `Flexible` +
+      `TextOverflow.ellipsis` es preventivo: no se comprobó con nombres
+      largos en móvil (~360px).
+- [ ] **La supresión de `isLoading` en `productos_provider.dart` sigue sin
+      verificar en dispositivo.** Cierra el caso "Isar vacío"; si el
+      síntoma real era "datos presentes pero no aparecen", no lo arregla.
 
 - [ ] Campo tipo `esProductoRetail` en `RecetaEntity` (local-only, patrón
       `departamentoId`) o, mejor, en `ProductoEntity` si aplica también a

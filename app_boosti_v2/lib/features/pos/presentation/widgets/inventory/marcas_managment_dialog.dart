@@ -1,6 +1,7 @@
-// lib/features/pos/presentation/widgets/marcas/marcas_managment_dialog.dart
+﻿// lib/features/pos/presentation/widgets/marcas/marcas_managment_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../data/Local/entities/isar_service.dart';
 import '../../../data/Local/entities/marca_entity.dart';
@@ -525,7 +526,7 @@ class _MarcaCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isActive = marca.activo;
     final estadoColor = isActive ? colorSuccess : colorDanger;
-    final tieneLogo = marca.logoUrl != null && marca.logoUrl!.isNotEmpty;
+    final tieneLogo = marca.logoPath != null && marca.logoPath!.isNotEmpty;
 
     return GlassCard(
       margin: EdgeInsets.zero,
@@ -543,21 +544,7 @@ class _MarcaCard extends StatelessWidget {
             radius: isMobile ? 18 : 20,
             backgroundColor: colorPrimary.withValues(alpha: 0.12),
             child: tieneLogo
-                ? ClipOval(
-                    child: Image.network(
-                      marca.logoUrl!,
-                      width: isMobile ? 36 : 40,
-                      height: isMobile ? 36 : 40,
-                      fit: BoxFit.cover,
-                      // ✅ cacheWidth reduce memoria en listas largas
-                      cacheWidth: isMobile ? 72 : 80,
-                      errorBuilder: (_, __, ___) => Icon(
-                        Icons.branding_watermark_rounded,
-                        color: colorPrimary,
-                        size: isMobile ? 18 : 20,
-                      ),
-                    ),
-                  )
+                ? ClipOval(child: _LogoImagen(path: marca.logoPath!))
                 : Icon(
                     Icons.branding_watermark_rounded,
                     color: colorPrimary,
@@ -719,6 +706,113 @@ class _CrearMarcaButtonState extends State<_CrearMarcaButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Cache de signed URLs por path, con expiracion propia.
+///
+/// La signed URL vive 1 hora. Sin cache, `FutureBuilder` firmaria una
+/// URL nueva en cada rebuild de cada fila de la lista, y con 50 marcas
+/// eso son 50 firmas por scroll. El cache esta en memoria (no en disco):
+/// si la app se cierra, se vuelve a firmar, que es lo correcto.
+///
+/// La entrada se descarta cuando pasa su expiracion, con margen: si la
+/// URL caduca a mitad de uso, `Image.network` la da por rota.
+class _SignedUrlCache {
+  static final Map<String, _UrlFirmada> _cache = {};
+
+  /// Margen antes de la expiracion real, para no servir una URL a punto
+  /// de morir.
+  static const Duration _margen = Duration(minutes: 5);
+
+  static Future<String> obtener(String path) async {
+    final hit = _cache[path];
+    final ahora = DateTime.now();
+    if (hit != null && hit.expira.isAfter(ahora)) return hit.url;
+
+    final url = await Supabase.instance.client.storage
+        .from('marcas')
+        .createSignedUrl(path, 3600);
+
+    _cache[path] = _UrlFirmada(
+      url,
+      ahora.add(const Duration(hours: 1)).subtract(_margen),
+    );
+    return url;
+  }
+}
+
+/// URL firmada con su momento de expiracion.
+class _UrlFirmada {
+  const _UrlFirmada(this.url, this.expira);
+
+  final String url;
+  final DateTime expira;
+}
+
+
+/// Pinta el logo de una marca, firmando la URL en el momento.
+///
+/// El path viene de `MarcaEntity.logoPath`. Antteriormente el campo
+/// guardaba la signed URL ya expirada, y por eso ningun logo se veia.
+class _LogoImagen extends StatefulWidget {
+  const _LogoImagen({required this.path});
+
+  final String path;
+
+  @override
+  State<_LogoImagen> createState() => _LogoImagenState();
+}
+
+class _LogoImagenState extends State<_LogoImagen> {
+  late Future<String> _futuro;
+
+  @override
+  void initState() {
+    super.initState();
+    _futuro = _SignedUrlCache.obtener(widget.path);
+  }
+
+  @override
+  void didUpdateWidget(covariant _LogoImagen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path) {
+      _futuro = _SignedUrlCache.obtener(widget.path);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: _futuro,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const SizedBox(
+            width: 40,
+            height: 40,
+            child: Center(
+              child: SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+        if (!snap.hasData || snap.hasError || snap.data == null) {
+          return const Icon(Icons.image_not_supported_outlined, size: 20);
+        }
+        return Image.network(
+          snap.data!,
+          width: 40,
+          height: 40,
+          fit: BoxFit.cover,
+          cacheWidth: 80,
+          errorBuilder: (_, __, ___) =>
+              const Icon(Icons.image_not_supported_outlined, size: 20),
+        );
+      },
     );
   }
 }

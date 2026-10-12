@@ -367,6 +367,11 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
         return Colors.orange;
       case 'devolucion':
         return Colors.purple;
+      case 'reposicion':
+        // Verde claro, no `Colors.green`: ese ya lo usa 'activacion' y
+        // dos tipos con el mismo color en la misma leyenda no se
+        // distinguen.
+        return Colors.lightGreen;
       default:
         return Colors.grey;
     }
@@ -383,6 +388,8 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
         return Icons.remove_shopping_cart_rounded;
       case 'devolucion':
         return Icons.undo_rounded;
+      case 'reposicion':
+        return Icons.add_shopping_cart_rounded;
       default:
         return Icons.circle_rounded;
     }
@@ -400,6 +407,8 @@ class _MovimientosTabState extends ConsumerState<MovimientosTab> {
         return 'Traspaso';
       case 'devolucion':
         return 'Devolución';
+      case 'reposicion':
+        return 'Reposición';
       default:
         return tipo;
     }

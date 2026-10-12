@@ -22,6 +22,7 @@ import '../../../data/Local/entities/isar_service.dart';
 import '../../../data/Local/entities/receta_entity.dart';
 import '../../providers/local_actual_provider.dart';
 import '../../providers/productos_provider.dart';
+import '../../providers/usuario_provider.dart';
 import '../../services/sync_service.dart';
 import '../../utils/responsive_helper.dart';
 import '../../utils/tenant_utils.dart';
@@ -66,6 +67,17 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   final _nombreCtrl = TextEditingController();
   final _precioCtrl = TextEditingController();
   final _stockCtrl = TextEditingController();
+
+  /// Stock real del producto al abrir el diálogo.
+///
+/// Vive en el State porque `ProductDataTab` lo necesita para calcular el
+/// delta del campo "Stock inicial", y no puede derivarlo del controller: el
+/// controller arranca con el valor **redondeado**
+/// (`stock.toStringAsFixed(0)`).
+double _stockBase = 0.0;
+
+  /// Motivo de la reposición. Opcional: solo se usa cuando el stock sube.
+  final _motivoCtrl = TextEditingController();
   final _stockMinCtrl = TextEditingController();
   final _provBusqCtrl = TextEditingController();
   final _precioMayorCtrl = TextEditingController();
@@ -165,6 +177,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     _nombreCtrl.dispose();
     _precioCtrl.dispose();
     _stockCtrl.dispose();
+    _motivoCtrl.dispose();
     _stockMinCtrl.dispose();
     _provBusqCtrl.dispose();
     _precioMayorCtrl.dispose();
@@ -179,6 +192,7 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   void _cargarInicial() {
     final p = widget.producto;
     final stockBase = widget.esDuplicado ? 0.0 : p?.stock ?? 0.0;
+    _stockBase = stockBase;
 
     _codigoCtrl.text = p?.codigoBarras ?? widget.codigoBarrasPrecargado ?? '';
     _nombreCtrl.text = p?.nombre ?? '';
@@ -213,6 +227,31 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
     final s = t.trim();
     if (s.isEmpty) return null;
     return double.tryParse(s.replaceAll(',', '.'));
+  }
+
+  /// Una fila "Etiqueta: valor" del diálogo de reposición.
+  ///
+  /// Formatea sin ceros inútiles: `50` en vez de `50.0`, `12.5` en vez de
+  /// `12.50`. En un POS el stock se tipea y se cuenta a mano, y `200.00`
+  /// invita a pensar que hay una precisión que no existe.
+  Widget _filaDiff(String etiqueta, double valor, {bool conSigno = false}) {
+    var texto = valor.toStringAsFixed(2);
+    texto = texto.replaceFirst(RegExp(r'\.?0+$'), '');
+    if (conSigno && valor > 0) texto = '+$texto';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(etiqueta),
+          Text(
+            texto,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
   }
 
   int? _parseInt(String t) {
@@ -692,8 +731,84 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
       // edición, `ajustarStockDesdeEditor` calcula el delta contra
       // `SUM(lotes)` y lo reparte entre lotes FEFO.
       if (stockIngresado > 0 || !widget.esDuplicado) {
+        // Confirmación de la reposición.
+        //
+        // Solo sube el stock: una reposición crea o agranda lotes sin que
+        // haya ninguna mercadería visible entrando, y el campo "Stock
+        // inicial" no dice en ningún lado que el número es un OBJETIVO
+        // total. Antes de que esto existiera, un error de tipeo acá
+        // inflaba el inventario sin dejar rastro visible hasta el
+        // siguiente conteo físico.
+        //
+        // Se compara contra `_stockBase` y no contra `p.stock` porque es
+        // el mismo valor que usa `_deltaPositivo` para mostrar el campo
+        // de motivo: si el diálogo mostrara un número distinto del que
+        // decidió mostrar el campo, uno de los dos miente.
+        //
+        // Ojo: el producto YA quedó guardado por `onGuardar` más arriba.
+        // Cancelar aborta el ajuste de stock, no el alta del producto.
+        final delta = stockIngresado - _stockBase;
+        if (delta > 0.0001) {
+          final motivo = _motivoCtrl.text.trim();
+          final confirmado = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text('Confirmar reposición'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _filaDiff('Stock actual', _stockBase),
+                  _filaDiff('Stock nuevo', stockIngresado),
+                  _filaDiff('Delta', delta, conSigno: true),
+                  if (motivo.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Motivo: $motivo',
+                      style: const TextStyle(fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Confirmar'),
+                ),
+              ],
+            ),
+          );
+
+          if (confirmado != true) return;
+        }
+
         final isar = IsarService();
-        final ok = await isar.ajustarStockDesdeEditor(p.id, stockIngresado);
+        // El servicio no tiene acceso a Riverpod: el usuario se resuelve
+        // acá y se le pasa. Mismo patrón que `verificarLote`, que recibe
+        // `usuarioId` como parámetro.
+        final usuario = ref.read(usuarioActualProvider);
+        final ok = await isar.ajustarStockDesdeEditor(
+          productoId: p.id,
+          stockObjetivo: stockIngresado,
+          usuarioId: usuario?.id ?? 0,
+          // El motivo es opcional: si el usuario no escribió nada, el
+          // movimiento queda con `observaciones = null` en vez de un
+          // placeholder que después no se puede distinguir de un motivo real.
+          motivo: _motivoCtrl.text.trim().isEmpty
+              ? null
+              : _motivoCtrl.text.trim(),
+        );
         if (!ok) {
           debugPrint(
               '⚠️ [ProductFormDialog] Stock insuficiente para el ajuste de '
@@ -942,6 +1057,8 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
                       nombreController: _nombreCtrl,
                       precioController: _precioCtrl,
                       stockController: _stockCtrl,
+                      motivoController: _motivoCtrl,
+                      stockActual: _stockBase,
                       stockMinController: _stockMinCtrl,
                       precioMayorController: _precioMayorCtrl,
                       cantidadMinimaMayorController: _cantMinMayorCtrl,
