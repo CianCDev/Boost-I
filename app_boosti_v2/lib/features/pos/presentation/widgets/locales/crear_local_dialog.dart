@@ -81,24 +81,35 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
         // Esta función SQL tiene SECURITY DEFINER y valida auth.uid()
         // internamente, así que es imposible falsificar al usuario.
         // ============================================================
-      await supabase.rpc(
-        'crear_nuevo_local_para_usuario',
-        params: {
-          'p_nombre': _nombreController.text.trim(),
-          'p_direccion': _direccionController.text.trim(),
-          'p_telefono': _telefonoController.text.trim(),
-          'p_email': _emailController.text.trim(),
-          'p_rif': _rifController.text.trim(),
-        },
-      );
+        // El logo va DENTRO del RPC (migración 20261012000001). No se
+        // puede hacer `UPDATE locales SET logo_path` después: la policy
+        // `locales_tenant_update` solo deja actualizar el tenant ACTIVO,
+        // y el local recién creado todavía no lo es.
+        final nuevoId = await supabase.rpc(
+          'crear_nuevo_local_para_usuario',
+          params: {
+            'p_nombre': _nombreController.text.trim(),
+            'p_direccion': _direccionController.text.trim(),
+            'p_telefono': _telefonoController.text.trim(),
+            'p_email': _emailController.text.trim(),
+            'p_rif': _rifController.text.trim(),
+            'p_logo_path': _logoPath,
+          },
+        );
 
-      // ✅ NUEVO: descargar los locales de Supabase a Isar
-      // antes de refrescar el provider. Sin esto, la lista
-      // lee de Isar y no ve el local recién creado en Supabase.
-      await SyncService().descargarLocalesDesdeSupabase();
+        // La RPC devuelve el uuid del local creado (`RETURNS uuid`), que
+        // es el mismo valor que queda en `locales.id`. Antes se
+        // descartaba con un `await` pelado; ahora se loguea para poder
+        // rastrear la creación si el sync o el Storage fallan después.
+        debugPrint('✅ Local creado en Supabase: $nuevoId');
 
-      // Ahora sí, refrescar la lista
-      ref.invalidate(localesProvider);
+        // ✅ NUEVO: descargar los locales de Supabase a Isar
+        // antes de refrescar el provider. Sin esto, la lista
+        // lee de Isar y no ve el local recién creado en Supabase.
+        await SyncService().descargarLocalesDesdeSupabase();
+
+        // Ahora sí, refrescar la lista
+        ref.invalidate(localesProvider);
       } else {
         // ============================================================
         // EDICIÓN: actualizar metadata local + Supabase
@@ -204,17 +215,17 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
               const SizedBox(height: 24),
 
               // ===== LOGO =====
-              // Solo en edición. En creación el local lo crea la RPC
-              // 'crear_nuevo_local_para_usuario', que no acepta
-              // `logo_path`; habría que cambiar la firma de la función
-              // SQL. Ver docs/TODO.md.
-              if (esEdicion) ...[
-                _LogoField(
-                  pathActual: _logoPath,
-                  onChanged: (p) => setState(() => _logoPath = p),
-                ),
-                const SizedBox(height: 20),
-              ],
+              // Visible en creación y en edición. Antes era solo
+              // edición: la RPC `crear_nuevo_local_para_usuario` no
+              // aceptaba `logo_path`, y el UPDATE post-RPC lo rechaza
+              // `locales_tenant_update` (solo el tenant activo).
+              // Desde la migración 20261012000001 la RPC recibe
+              // `p_logo_path`.
+              _LogoField(
+                pathActual: _logoPath,
+                onChanged: (p) => setState(() => _logoPath = p),
+              ),
+              const SizedBox(height: 20),
 
               _field(
                 controller: _nombreController,
@@ -359,7 +370,21 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-        prefixIcon: const Icon(Icons.circle, size: 0), // placeholder
+        // ⚠️ Antes esto era `const Icon(Icons.circle, size: 0)`: un
+        // placeholder invisible. El parámetro `icon` se recibía y se
+        // descartaba, así que los 5 campos se veían planos aunque los
+        // callers pasaran un ícono. Ahora se dibuja.
+        //
+        // Se usan las variantes `_rounded` porque son las mismas que
+        // usa `detalle_local_dialog.dart` (storefront/location/phone/
+        // email/assignment). Cambiar solo el form a `_outlined`
+        // rompería esa consistencia.
+        prefixIcon: Icon(
+          icon,
+          size: 18,
+          color: colorScheme.onSurfaceVariant,
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 44),
         filled: true,
         fillColor: isDark
             ? Colors.white.withValues(alpha: 0.04)

@@ -527,6 +527,40 @@ restaurantes con venta por unidad preparada).
 - [ ] **Ejecutar `docs/SMOKE_TEST_2026-10-13.md` con usuario real.**
       Es el gate para v1.0.1. Si todo verde → tag + release.
 
+## Cerrado en 2026-10-12 (locales)
+
+- [x] **Logo del local en creación**: se sube vía el RPC con `p_logo_path`
+      (migración `20261012000001`). El camino directo —`UPDATE locales SET
+      logo_path` desde el cliente— no servía: `locales_tenant_update` solo
+      permite actualizar el tenant **activo**, y el local recién creado
+      todavía no lo es.
+- [x] **Íconos en el form de crear/editar local.** No era que faltaran:
+      `_field()` recibía el parámetro `icon` y lo tiraba, con un
+      `prefixIcon: Icon(Icons.circle, size: 0)` de placeholder invisible.
+- [x] **Bump a `1.0.0+4`.**
+- [ ] **Tag v1.0.0**: pendiente smoke test verde.
+
+## Deuda de arquitectura multi-local (post-v1)
+
+- [ ] **Código de asociación.** Hoy un usuario solo puede crear un tenant
+      nuevo desde la app. No hay forma de asociar a un usuario a un tenant
+      **existente** (el típico "invitame a mi local"). El RPC crea tenant +
+      asignación en el mismo paso, y eso es justamente lo que no permite
+      ese caso de uso.
+- [ ] **No hay modelo multi-sucursal.** Cada "local" es un tenant
+      independiente (Camino A). El dueño navega con hot-switch, pero
+      catálogos, stock y ventas son de cada tenant: dos sucursales del
+      mismo negocio no comparten inventario. Post-v1 evaluar Camino C
+      (varios locales por tenant, con `local_id`).
+
+## Pendiente de aplicar en Supabase
+
+- [ ] **`20261012000001_crear_local_con_logo.sql`** — redefine la RPC con
+      `p_logo_path`. **Sin el `DROP FUNCTION` previo quedaría una sobrecarga
+      ambigua** y PostgREST devolvería "function is not unique", rompiendo la
+      creación de local para todos los usuarios. Verificar con
+      `pg_get_function_identity_arguments` que hay **una sola** función.
+
 - [ ] Campo tipo `esProductoRetail` en `RecetaEntity` (local-only, patrón
       `departamentoId`) o, mejor, en `ProductoEntity` si aplica también a
       productos sin receta.
