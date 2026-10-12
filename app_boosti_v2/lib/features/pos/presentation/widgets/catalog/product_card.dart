@@ -4,6 +4,7 @@ import '../../../data/Local/entities/producto_entity.dart';
 import '../../providers/lotes_provider.dart';
 import '../../providers/marca_provider.dart';
 import '../../providers/themes/app_colors.dart';
+import '../../utils/expiry_style.dart';
 import '../../utils/expiry_utils.dart';
 import '../../utils/responsive_helper.dart';
 
@@ -39,9 +40,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
     final isTablet = ResponsiveHelper.isTablet(context);
 
     // Estilo igual que InventoryProductCard
-    final Color cardBackground = isDark
-        ?cardDark
-        : Colors.white;
+    final Color cardBackground = isDark ? cardDark : Colors.white;
 
     final Color cardBorderColor = isDark
         ? Colors.white.withValues(alpha: 0.08)
@@ -97,9 +96,8 @@ class _ProductCardState extends ConsumerState<ProductCard> {
     // card ronda los 150px.
     final vencimientos = ref.watch(vencimientosProvider);
     final fechaVenc = vencimientos[widget.producto.id];
-    final diasVenc = fechaVenc == null
-        ? null
-        : ExpiryUtils.diasRestantes(fechaVenc);
+    final diasVenc =
+        fechaVenc == null ? null : ExpiryUtils.diasRestantes(fechaVenc);
 
     // ⚠️ `clasificar` decide SI se muestra (null = >15 días, no badge).
     // `diasVenc` es el valor crudo que el chip usa para el texto y los
@@ -192,12 +190,12 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                                     widget.producto.imagenUrl!,
                                     fit: BoxFit.contain,
                                     // ✅ Nombres descriptivos para evitar '_'
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        Icon(
-                                          Icons.inventory_2,
-                                          size: 40,
-                                          color: colorScheme.outline,
-                                        ),
+                                    errorBuilder:
+                                        (context, error, stackTrace) => Icon(
+                                      Icons.inventory_2,
+                                      size: 40,
+                                      color: colorScheme.outline,
+                                    ),
                                   )
                                 : Icon(
                                     Icons.inventory_2,
@@ -254,8 +252,8 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: _expiryFondo(diasVenc)
-                                  .withValues(alpha: 0.95),
+                              color:
+                                  expiryFondo(diasVenc).withValues(alpha: 0.95),
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: [
                                 BoxShadow(
@@ -269,7 +267,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.schedule_rounded,
-                                    size: 11, color: _expiryTexto(diasVenc)),
+                                    size: 11, color: expiryTexto(diasVenc)),
                                 const SizedBox(width: 4),
                                 // `FittedBox` porque en móvil la card
                                 // ronda los 150px y con "¡Stock bajo!"
@@ -279,9 +277,9 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                                   child: FittedBox(
                                     fit: BoxFit.scaleDown,
                                     child: Text(
-                                      _expiryLabel(diasVenc),
+                                      expiryLabel(diasVenc),
                                       style: TextStyle(
-                                        color: _expiryTexto(diasVenc),
+                                        color: expiryTexto(diasVenc),
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -326,9 +324,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                widget.producto.esPesado
-                                    ? 'Balanza'
-                                    : 'Unidad',
+                                widget.producto.esPesado ? 'Balanza' : 'Unidad',
                                 style: TextStyle(
                                   fontSize: typeBadgeFontSize,
                                   fontWeight: FontWeight.w600,
@@ -421,7 +417,8 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                                 borderRadius: BorderRadius.circular(6),
                                 border: widget.stockBajo
                                     ? Border.all(
-                                        color: pumpkinSpice.withValues(alpha: 0.3),
+                                        color:
+                                            pumpkinSpice.withValues(alpha: 0.3),
                                         width: 1,
                                       )
                                     : null,
@@ -451,43 +448,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // HELPERS DEL BADGE DE VENCIMIENTO
-  //
-  // El chip nuevo (pill con icono) usa texto y colores propios, no los
-  // de `ExpiryBadgeInfo`: aquel `label` ("Vence 8d") y aquel `color`
-  // (saturado, pensado para texto blanco encima) estaban pensados para el
-  // chip viejo, de fondo sólido.
-  //
-  // ⚠️ `ExpiryUtils.clasificar` sigue siendo el que decide SI se muestra
-  //    (devuelve null más allá de 15 días). Acá solo se pinta.
-  // ══════════════════════════════════════════════════════════════
-
-  /// Fondo suave: separa el chip de la imagen sin gritar.
-  static Color _expiryFondo(int dias) {
-    if (dias <= 3) return const Color(0xFFFEE2E2); // rojo suave
-    if (dias <= 7) return const Color(0xFFFEF3C7); // ámbar suave
-    return const Color(0xFFD1FAE5); // verde suave
-  }
-
-  /// Texto/icono: saturado, para contrastar contra el fondo de arriba.
-  ///
-  /// Los tonos son legibles sobre su propio fondo pastel: `#DC2626` sobre
-  /// `#FEE2E2` pasa ~5.9:1 y `#059669` sobre `#D1FAE5` ~4.6:1 (WCAG AA
-  /// pide 4.5:1 para texto normal).
-  static Color _expiryTexto(int dias) {
-    if (dias <= 3) return const Color(0xFFDC2626);
-    if (dias <= 7) return const Color(0xFFD97706);
-    return const Color(0xFF059669);
-  }
-
-  /// Texto del chip. Corto a propósito: en móvil la card ronda los 150px y
-  /// este convive con "¡Stock bajo!" (~70px) en la misma esquina.
-  ///
-  /// `diasRestantes` trunca hacia cero, así que un vencimiento dentro de
-  /// 23 h da `0`: cae en "Vencido", que es lo que quiere decir.
-  static String _expiryLabel(int dias) {
-    if (dias <= 0) return 'Vencido';
-    return '$dias d';
-  }
+  // Los helpers del badge (`expiryFondo` / `expiryTexto` / `expiryLabel`)
+  // viven en `utils/expiry_style.dart`, compartidos con
+  // `product_list_tile.dart`. Ver ese archivo.
 }

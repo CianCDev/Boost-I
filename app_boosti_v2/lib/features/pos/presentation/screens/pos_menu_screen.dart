@@ -19,7 +19,6 @@ import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../widgets/appbar.dart';
 import '../widgets/common/local_activo_chip.dart';
-import '../widgets/locales/local_selector_dialog.dart';
 import '../widgets/menu/pos_menu_card.dart';
 import '../widgets/menu/turno_closing_dialog.dart';
 import '../widgets/menu/turno_status_banner.dart';
@@ -178,8 +177,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           title: const Text('Abrir turno'),
           content: TextField(
             controller: montoController,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
               labelText: 'Monto inicial',
               prefixText: '\$ ',
@@ -400,7 +398,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     final todasLasSecciones = MenuBuilder.buildSections(
       usuario: usuario,
       context: context,
-      flags: flags,                                     // 🎯 NUEVO
+      flags: flags, // 🎯 NUEVO
       onCrearBackup: _crearBackup,
       onSincronizar: _sincronizarConProgreso,
       ventasPendientesSync: _ventasPendientesSync,
@@ -411,8 +409,8 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     final seccionesConPermisos = todasLasSecciones
         .map((s) => s.copyWith(
               options: s.options
-                  .where((o) =>
-                      MenuBuilder.puedeVerOpcion(role, o.id, flags))  // 🎯 CAMBIO
+                  .where((o) => MenuBuilder.puedeVerOpcion(
+                      role, o.id, flags)) // 🎯 CAMBIO
                   .toList(),
             ))
         .where((s) => s.options.isNotEmpty)
@@ -439,6 +437,15 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         showBackButton: false,
         gradient: gradient,
         actions: [
+          // Local activo. INFO only, no clickeable: el hot-switch vive en
+          // el side panel. Va antes del spinner para que el nombre quede
+          // en posición estable y el spinner no lo desplace al syncar.
+          const Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: Center(
+              child: LocalActivoChip(variante: LocalActivoVariante.appBar),
+            ),
+          ),
           if (_sincronizando)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -493,18 +500,6 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                 horaApertura: _formatearHora(_turnoAbierto?.fechaApertura),
                 onAbrirTurno: _abrirTurno,
                 onCerrarTurno: _cerrarTurno,
-              ),
-              const SizedBox(height: 14),
-
-              // ── Local activo (informativo, no bloquea) ──
-              // Va después del banner de turno: el turno es lo que
-              // impide vender, el local es solo contexto. Invertir el
-              // orden haría creer que el chip es un requisito.
-              Align(
-                alignment: Alignment.centerLeft,
-                child: LocalActivoChip(
-                  onTap: () => LocalSelectorDialog.show(context),
-                ),
               ),
               const SizedBox(height: 20),
 

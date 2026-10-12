@@ -524,6 +524,8 @@ restaurantes con venta por unidad preparada).
 - [ ] **La supresión de `isLoading` en `productos_provider.dart` sigue sin
       verificar en dispositivo.** Cierra el caso "Isar vacío"; si el
       síntoma real era "datos presentes pero no aparecen", no lo arregla.
+- [ ] **Ejecutar `docs/SMOKE_TEST_2026-10-13.md` con usuario real.**
+      Es el gate para v1.0.1. Si todo verde → tag + release.
 
 - [ ] Campo tipo `esProductoRetail` en `RecetaEntity` (local-only, patrón
       `departamentoId`) o, mejor, en `ProductoEntity` si aplica también a

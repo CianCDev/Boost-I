@@ -13,12 +13,9 @@ import '../../domain/permissions/roles.dart';
 import '../providers/auth_provider.dart';
 import '../providers/bcv_provider.dart';
 import '../providers/local_actual_provider.dart';
-import '../providers/tenant_alineado_provider.dart';
 import '../providers/usuario_provider.dart';
 import '../utils/responsive_helper.dart';
-import '../utils/tenant_utils.dart';
 import '../widgets/catalog/bcv_moneda_selector.dart';
-import '../widgets/common/vista_previa_banner.dart';
 import '../widgets/menu/pos_menu_card.dart';
 import 'cash_closing_screen.dart';
 import 'dashboard_screen.dart';
@@ -61,8 +58,8 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
     if (bcv.cargando) return;
 
     final ultima = bcv.ultimoUpdateRemoto;
-    final needsUpdate = ultima == null ||
-        DateTime.now().difference(ultima).inHours >= 6;
+    final needsUpdate =
+        ultima == null || DateTime.now().difference(ultima).inHours >= 6;
     if (!needsUpdate) return;
 
     try {
@@ -76,8 +73,7 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Cerrar sesión'),
         content: const Text('¿Seguro que quieres cerrar sesión?'),
         actions: [
@@ -107,33 +103,18 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
     );
   }
 
-  Future<void> _realinarTenant() async {
-    await realinearTenantConLocalActual();
-    if (!mounted) return;
-    // Avisar del resultado: si el usuario no tiene acceso al local, el RPC
-    // lanza y el banner sigue. Un silencio aquí sería indistinguible de
-    // "ya está resuelto".
-    final jwt = getTenantIdFromJWT();
-    if (jwt == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo cambiar de negocio. Cerra sesión y '
-              'entrá de nuevo con la cuenta de este local.'),
-        ),
-      );
-    }
-  }
-
   /// Realinea el JWT con el local que se está viendo.
   ///
-  /// Es la acción correcta para el banner de "modo vista previa": llama
-  /// `set_active_tenant` + `refreshSession`, que es lo único que reemite el
-  /// JWT con el claim `tenant_id` nuevo.
+  /// ⚠️ Quedó sin consumidor al eliminar el `VistaPreviaBanner`. Se conserva
+  /// (es `public` y no es código muerto desde el punto de vista de la API de
+  /// la pantalla) por si el hot-switch del side panel necesita reemitir el
+  /// JWT sin cambiar de local. `GuardTenantActivo` es lo que hoy bloquea las
+  /// acciones cross-tenant; esto es el camino para *resolver* el
+  /// desalineamiento.
   ///
-  /// ⚠️ NO usa `logout()` a propósito. `AuthNotifier.logout()` preserva la
-  ///    sesión de Supabase a propósito (varios cajeros comparten tablet),
-  ///    así que cerrar sesión desde acá dejaría el JWT exactamente igual y
-  ///    el banner seguiría apareciendo.
+  /// NO usa `logout()` a propósito: `AuthNotifier.logout()` preserva la
+  /// sesión de Supabase (varios cajeros comparten tablet), así que cerrar
+  /// sesión desde acá dejaría el JWT exactamente igual.
   Future<bool> realinearTenantConLocalActual() async {
     final localId = ref.read(localActualProvider);
     if (localId == null) return false;
@@ -153,7 +134,7 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
   @override
   Widget build(BuildContext context) {
     final usuario = ref.watch(usuarioActualProvider);
-    final flags = ref.watch(featureFlagsProvider);   // 🎯 NUEVO
+    final flags = ref.watch(featureFlagsProvider); // 🎯 NUEVO
 
     if (usuario == null) {
       return const Scaffold(
@@ -212,7 +193,7 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
                             const SizedBox(height: 12),
                             _QuickAccessGrid(
                               role: role,
-                              flags: flags,    // 🎯 NUEVO
+                              flags: flags, // 🎯 NUEVO
                               isMobile: isMobile,
                               isTablet: isTablet,
                             ),
@@ -257,124 +238,114 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
   }
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
-    return PreferredSize(
-      // El banner se suma al alto del AppBar solo cuando aparece, así que
-      // el alto tiene que ser dinámico: kToolbarHeight + alto del banner.
-      preferredSize: Size.fromHeight(
-        kToolbarHeight + (ref.watch(tenantAlineadoProvider) ? 0 : _altoBanner),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ⚠️ AppBar CRUDO a propósito, no `CustomAppBar`.
-          //
-          // `CustomAppBar` (widgets/appbar.dart) está compartido por ~30
-          // pantallas y tiene el contenido hardcodeado a BLANCO
-          // (`foregroundColor`, `iconTheme` y el `ColorFilter` del logo).
-          // Acá no sirve: el POS principal es la única pantalla con
-          // `extendBodyBehindAppBar: true` sobre `_WelcomeBackground`, así
-          // que una barra clara + texto blanco = ilegible. Tocar ese widget
-          // para arreglarlo rompería las otras 30, así que la variante
-          // clara vive acá, local.
-          AppBar(
-            automaticallyImplyLeading: false,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            // ⚠️ TRANSPARENTE a propósito: no hay barra. El fondo con
-            // blobs del body se ve completo y el AppBar solo aporta los
-            // elementos. Por eso los iconos van blancos con una base
-            // circular propia (ver `_AppBarIconButton`): sin base, el
-            // blanco se pierde contra `#F4F3FF` (~1.05:1).
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            iconTheme: const IconThemeData(color: Colors.white),
-            leadingWidth: 85,
-            leading: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Container(
-                // Misma base blanca que los botones: sin ella el logo
-                // flota suelto sobre los blobs y pierde jerarquía.
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0F172A).withValues(alpha: 0.08),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: SvgPicture.asset(
-                  // ⚠️ `logoboosti300px.svg` es el asset DECLARADO en
-                  // pubspec.yaml. `logo.svg` existe en disco pero NO está
-                  // en el bundle → `SvgPicture.asset` no lo encuentra.
-                  'assets/logoboosti300px.svg',
-                  fit: BoxFit.contain,
-                  // Sin `ColorFilter`: el logo va a color real. Forzarlo
-                  // a blanco lo borraba sobre el fondo claro.
-                ),
+    // AppBar directo. Antes iba envuelto en `PreferredSize` + `Column`, y
+    // ese envoltorio existía únicamente para colgar el `VistaPreviaBanner`
+    // debajo: el alto del `PreferredSize` era `kToolbarHeight + _altoBanner`.
+    // Un `Column` pelado no implementa `PreferredSizeWidget`, así que al
+    // sacar el banner el `Column` tiene que irse también.
+    //
+    // ⚠️ El banner se eliminó por redundancia: `GuardTenantActivo` sigue
+    // bloqueando las 4 acciones críticas (cobrar, descuento, crear pedido,
+    // activar lote) y el hot-switch vive en el side panel. Lo que se
+    // perdió es el aviso *previo*: ahora el desalineamiento se manifiesta
+    // como un bloqueo sin explicación previa.
+    //
+    // ⚠️ AppBar CRUDO a propósito, no `CustomAppBar`.
+    //
+    // `CustomAppBar` (widgets/appbar.dart) está compartido por ~30
+    // pantallas y tiene el contenido hardcodeado a BLANCO
+    // (`foregroundColor`, `iconTheme` y el `ColorFilter` del logo).
+    // Acá no sirve: el POS principal es la única pantalla con
+    // `extendBodyBehindAppBar: true` sobre `_WelcomeBackground`, así
+    // que una barra clara + texto blanco = ilegible. Tocar ese widget
+    // para arreglarlo rompería las otras 30, así que la variante
+    // clara vive acá, local.
+    return AppBar(
+      automaticallyImplyLeading: false,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      // ⚠️ TRANSPARENTE a propósito: no hay barra. El fondo con
+      // blobs del body se ve completo y el AppBar solo aporta los
+      // elementos. Por eso los iconos van blancos con una base
+      // circular propia (ver `_AppBarIconButton`): sin base, el
+      // blanco se pierde contra `#F4F3FF` (~1.05:1).
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      iconTheme: const IconThemeData(color: Colors.white),
+      leadingWidth: 85,
+      leading: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Container(
+          // Misma base blanca que los botones: sin ella el logo
+          // flota suelto sobre los blobs y pierde jerarquía.
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-            ),
-            title: const Text(
-              'Inicio',
-              style: TextStyle(
-                // Negro suave, no `Colors.black`: sobre el fondo con
-                // blobs el negro puro vibra y se ve sucio.
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-                letterSpacing: -0.2,
-                color: Color(0xFF111827),
-                shadows: [
-                  // Halo blanco: garantiza legibilidad aunque un blob
-                  // violeta/azure pase justo por detrás del texto.
-                  Shadow(color: Color(0x99FFFFFF), blurRadius: 8),
-                ],
-              ),
-            ),
-            actions: [
-              const _BcvBadge(),
-              const SizedBox(width: 4),
-              _AppBarIconButton(
-                icon: Icons.person_rounded,
-                tooltip: 'Mi perfil',
-                // Glifo oscuro sobre la base blanca (no blanco sobre
-                // blanco, que era el bug de legibilidad).
-                color: const Color(0xFF111827),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const UserSettingsScreen()),
-                ),
-              ),
-              const SizedBox(width: 2),
-              _AppBarIconButton(
-                icon: Icons.logout_rounded,
-                tooltip: 'Cerrar sesión',
-                // Rojo: distingue la acción destructiva del perfil a un
-                // vistazo, sin necesidad de texto.
-                color: const Color(0xFFEF4444),
-                onTap: _confirmLogout,
-              ),
-              const SizedBox(width: 10),
             ],
           ),
-          VistaPreviaBanner(
-            // Realinear, no cerrar sesión: `logout()` preserva la sesión de
-            // Supabase a propósito (varios cajeros comparten tablet), así que
-            // no reemitiría el JWT y el banner seguiría apareciendo.
-            onCambiarCuenta: _realinarTenant,
+          child: SvgPicture.asset(
+            // ⚠️ `logoboosti300px.svg` es el asset DECLARADO en
+            // pubspec.yaml. `logo.svg` existe en disco pero NO está
+            // en el bundle → `SvgPicture.asset` no lo encuentra.
+            'assets/logoboosti300px.svg',
+            fit: BoxFit.contain,
+            // Sin `ColorFilter`: el logo va a color real. Forzarlo
+            // a blanco lo borraba sobre el fondo claro.
           ),
-        ],
+        ),
       ),
+      title: const Text(
+        'Inicio',
+        style: TextStyle(
+          // Negro suave, no `Colors.black`: sobre el fondo con
+          // blobs el negro puro vibra y se ve sucio.
+          fontWeight: FontWeight.w700,
+          fontSize: 18,
+          letterSpacing: -0.2,
+          color: Color(0xFF111827),
+          shadows: [
+            // Halo blanco: garantiza legibilidad aunque un blob
+            // violeta/azure pase justo por detrás del texto.
+            Shadow(color: Color(0x99FFFFFF), blurRadius: 8),
+          ],
+        ),
+      ),
+      actions: [
+        const _BcvBadge(),
+        const SizedBox(width: 4),
+        _AppBarIconButton(
+          icon: Icons.person_rounded,
+          tooltip: 'Mi perfil',
+          // Glifo oscuro sobre la base blanca (no blanco sobre
+          // blanco, que era el bug de legibilidad).
+          color: const Color(0xFF111827),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const UserSettingsScreen()),
+          ),
+        ),
+        const SizedBox(width: 2),
+        _AppBarIconButton(
+          icon: Icons.logout_rounded,
+          tooltip: 'Cerrar sesión',
+          // Rojo: distingue la acción destructiva del perfil a un
+          // vistazo, sin necesidad de texto.
+          color: const Color(0xFFEF4444),
+          onTap: _confirmLogout,
+        ),
+        const SizedBox(width: 10),
+      ],
     );
   }
-
-  /// Alto del banner de vista previa. Debe coincidir con el que ocupa
-  /// [VistaPreviaBanner] para que el `PreferredSize` no recorte.
-  static const double _altoBanner = 62;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -417,11 +388,11 @@ class _WelcomeBackgroundState extends State<_WelcomeBackground>
     final base = widget.seed;
 
     // Paleta derivada del color del rol → cada rol tiene su "ambiente".
-    final c1 = base;                                              // rol
-    final c2 = Color.lerp(base, const Color(0xFF8B5CF6), 0.55)!;  // violeta
-    final c3 = Color.lerp(base, const Color(0xFF06B6D4), 0.60)!;  // cyan
-    final c4 = Color.lerp(base, const Color(0xFFEC4899), 0.45)!;  // rosa
-    final c5 = Color.lerp(base, const Color(0xFFF59E0B), 0.50)!;  // ámbar
+    final c1 = base; // rol
+    final c2 = Color.lerp(base, const Color(0xFF8B5CF6), 0.55)!; // violeta
+    final c3 = Color.lerp(base, const Color(0xFF06B6D4), 0.60)!; // cyan
+    final c4 = Color.lerp(base, const Color(0xFFEC4899), 0.45)!; // rosa
+    final c5 = Color.lerp(base, const Color(0xFFF59E0B), 0.50)!; // ámbar
 
     // ✅ Alphas recalibrados:
     //    - claro: 0.35/0.28/0.18 → los blobs SÍ se ven sobre blanco
@@ -616,8 +587,7 @@ class _BcvBadgeState extends ConsumerState<_BcvBadge> {
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
               margin: const EdgeInsets.symmetric(vertical: 8),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 // Violeta SÓLIDO del design system. Es el único elemento
                 // de la barra con color propio: lo que lo hace legible sin
@@ -1199,20 +1169,20 @@ class _GuideStepCardState extends State<_GuideStepCard> {
 
 class _QuickAccessGrid extends StatelessWidget {
   final UserRole role;
-  final FeatureFlags flags;   // 🎯 NUEVO
+  final FeatureFlags flags; // 🎯 NUEVO
   final bool isMobile;
   final bool isTablet;
 
   const _QuickAccessGrid({
     required this.role,
-    required this.flags,      // 🎯 NUEVO
+    required this.flags, // 🎯 NUEVO
     required this.isMobile,
     required this.isTablet,
   });
 
   @override
   Widget build(BuildContext context) {
-    final items = _quickItemsForRole(role, flags);   // 🎯 CAMBIO
+    final items = _quickItemsForRole(role, flags); // 🎯 CAMBIO
 
     if (items.isEmpty) {
       return Container(

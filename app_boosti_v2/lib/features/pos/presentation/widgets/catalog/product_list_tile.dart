@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../providers/lotes_provider.dart';
 import '../../providers/themes/app_colors.dart';
+import '../../utils/expiry_style.dart';
 import '../../utils/expiry_utils.dart';
 import '../../utils/responsive_helper.dart';
-import '../common/status_badge.dart';
 
 class ProductListTile extends ConsumerStatefulWidget {
   final ProductoEntity producto;
@@ -40,14 +40,22 @@ class _ProductListTileState extends ConsumerState<ProductListTile> {
     // Mismo criterio que `product_card.dart`: en móvil, cuando el stock
     // ya está marcado, el label se acorta.
     final vencimientos = ref.watch(vencimientosProvider);
+    final fechaVenc = vencimientos[widget.producto.id];
     final expiryInfo = isMobile && widget.stockBajo
-        ? ExpiryUtils.clasificarCompacto(vencimientos[widget.producto.id])
-        : ExpiryUtils.clasificar(vencimientos[widget.producto.id]);
+        ? ExpiryUtils.clasificarCompacto(fechaVenc)
+        : ExpiryUtils.clasificar(fechaVenc);
+
+    // Días crudos para el pill. Igual que en `product_card.dart`: el
+    // `expiryInfo` decide SI se muestra, `diasVenc` pinta el contenido.
+    final diasVenc =
+        fechaVenc == null ? null : ExpiryUtils.diasRestantes(fechaVenc);
 
     final cardBackground = isDark ? cardDark : cardLight;
     final borderColor = widget.stockBajo
         ? pumpkinSpice.withValues(alpha: 0.5)
-        : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1));
+        : (isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : Colors.black.withValues(alpha: 0.1));
     final borderWidth = widget.stockBajo ? 2.0 : 1.0;
 
     return MouseRegion(
@@ -66,7 +74,9 @@ class _ProductListTileState extends ConsumerState<ProductListTile> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: _isHovered
-                ? (widget.stockBajo ? pumpkinSpice : primaryGreen.withValues(alpha: 0.5))
+                ? (widget.stockBajo
+                    ? pumpkinSpice
+                    : primaryGreen.withValues(alpha: 0.5))
                 : borderColor,
             width: _isHovered ? 2.0 : borderWidth,
           ),
@@ -119,10 +129,10 @@ class _ProductListTileState extends ConsumerState<ProductListTile> {
                             width: imageSize,
                             height: imageSize,
                             errorBuilder: (context, error, stackTrace) => Icon(
-                            Icons.inventory_2,
-                            size: 24,
-                            color: colorScheme.primary,
-                          ),
+                              Icons.inventory_2,
+                              size: 24,
+                              color: colorScheme.primary,
+                            ),
                           )
                         : Icon(
                             Icons.inventory_2,
@@ -194,7 +204,8 @@ class _ProductListTileState extends ConsumerState<ProductListTile> {
                           ),
                           if (widget.stockBajo)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: pumpkinSpice,
                                 borderRadius: BorderRadius.circular(4),
@@ -218,13 +229,42 @@ class _ProductListTileState extends ConsumerState<ProductListTile> {
                               ),
                             ),
                           // Badge de vencimiento, a la derecha del stock.
-                          if (expiryInfo != null) ...[
+                          // Mismo pill que el grid (`product_card.dart`):
+                          // helpers compartidos en `utils/expiry_style.dart`.
+                          if (expiryInfo != null && diasVenc != null) ...[
                             const SizedBox(width: 8),
-                            StatusBadge(
-                              label: expiryInfo.label,
-                              color: expiryInfo.color,
-                              icon: Icons.event_available_rounded,
-                              size: StatusBadgeSize.small,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: expiryFondo(diasVenc)
+                                    .withValues(alpha: 0.95),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.schedule_rounded,
+                                      size: 11, color: expiryTexto(diasVenc)),
+                                  const SizedBox(width: 4),
+                                  // Escala en vez de desbordar: "Vencido" son
+                                  // 7 caracteres y en móvil la fila ya tiene
+                                  // el stock al lado.
+                                  Flexible(
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        expiryLabel(diasVenc),
+                                        style: TextStyle(
+                                          color: expiryTexto(diasVenc),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ],

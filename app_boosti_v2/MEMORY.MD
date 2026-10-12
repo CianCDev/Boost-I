@@ -277,3 +277,39 @@ desde `String.fromEnvironment('SENTRY_DSN')` en `bootstrap.dart` §4.
 | `android/app/build.gradle` | `applicationId` y `app_name` de ejemplo (`com.tuempresa.tuapp.*`, "TuApp") | Flavor client → `com.jahtlabs.boostipos.client` / "Boosti POS"; admin → `...admin` / "Boosti POS Admin" |
 | `docs/HANDOFF_CONTROL_CENTER.md` | PAT de Supabase, cadena de conexión de Postgres con password y `$env:PGPASSWORD` en texto plano. GitHub solo detectó el PAT | Los tres redactados; sección reescrita como "Rotar YA" con el procedimiento |
 | `20261009000005_reset_inventario_pruebas.sql` | Sus 25 lotes de JAHTLABS nunca se borraron porque **la migración no se aplicó nunca** | Pendiente: aplicarla con la app cerrada, antes de `00006` |
+| `assets/logo.svg` | Duplicado **byte a byte** de `logoboosti300px.svg` (mismo SHA256 `343FA29D...`, 1826 bytes). No lo usa ningún archivo y no está en `pubspec.yaml`, así que no está en el bundle. Declararlo metía una copia muerta | No declarado. Queda pendiente borrarlo o renombrarlo (`AGENTS.md` prohíbe borrar sin confirmación) |
+| `.sentry-native/` | Estaba **trackeado**: `installation_id` es un identificador de máquina y los `.run/` son sesiones efímeras. `AGENTS.md §10.1` prohíbe subir identificadores | Agregado a `.gitignore` + `git rm -r --cached`. `git ls-files | grep sentry-native` → 0 |
+| `CustomAppBar` (`widgets/appbar.dart`) | Se intentó agregar una variante clara (fondo blanco, contenido oscuro). El widget lo usan **~30 pantallas** y tiene el contenido hardcodeado a blanco (`foregroundColor`, `iconTheme`, `ColorFilter` del logo): tocarlo rompía las otras 30 | Revertido (`git diff` vacío). La variante clara quedó **local en `main_pos_screen.dart`**, que es la única pantalla con `extendBodyBehindAppBar: true` sobre `_WelcomeBackground` |
+
+---
+
+## Cierre sesión 2026-10-12
+
+**Commit único:** `724cddf` — *feat(pos): lote acumulado de fixes de sesion - tenant, storage, logo, UI*
+
+63 archivos: 42 modificados, 15 nuevos, 9 borrados (`.sentry-native/`). Todo verificado con
+`flutter analyze` (No issues found!) y `flutter test` (800 OK, 1 skip, 0 fallos).
+
+### Pendiente para mañana
+
+Smoke test + inyección de datos → `docs/SMOKE_TEST_2026-10-13.md`.
+
+### Sobre `LocalActualBadge` vs `LocalActivoChip` — no unificar
+
+| Widget | Clickeable | Dónde | Por qué |
+|---|---|---|---|
+| `LocalActualBadge` | **No** | Pantallas con estado de local propio (`PedidosProveedor`) | Nació de un bug real: el selector propio de esa pantalla usaba `_localDestinoUuid` mientras el diálogo leía `localActualProvider`, así que lista y alta filtraban por locales distintos |
+| `LocalActivoChip` | **Sí** | Hub de navegación sin estado propio (Menú POS) | No repite el bug porque todo lo de abajo lee `localActualProvider`: no hay segunda fuente que pueda divergir |
+
+El docstring de `LocalActualBadge` dice "deliberadamente NO es pulsable", lo que parece
+contradecir al chip nuevo. **No lo contradice**: la prohibición era para pantallas con
+doble fuente de verdad, no para el hub. Unificarlos en un widget parametrizado
+(`accionable: bool`) haría esa distinción explícita en el código en vez de implícita en
+la elección del archivo.
+
+### Sobre el `isLoading` de `productos_provider.dart`
+
+Cierra el caso "Isar devuelve vacío". **No verificado en device.** Si el síntoma real
+era "datos presentes en Isar pero no aparecen", este fix no lo resuelve y el ítem 6.5
+del smoke test va a fallar. El paso 2.5 del smoke test registra el síntoma exacto para
+no volver a diagnosticar a ciegas.
