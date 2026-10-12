@@ -2013,6 +2013,7 @@ Future<void> subirUsuariosPendientes() async {
       'total_bolivares': venta.totalBolivares,
       'metodo_pago': venta.metodoPago,
       'documento': venta.documento,
+    'numero_factura': venta.numeroFactura,
       'empleado_nombre': venta.empleado,
       'sync_status': venta.syncStatus,
       'tiene_descuento_especial': venta.tieneDescuentoEspecial,
@@ -2115,6 +2116,10 @@ Future<void> subirUsuariosPendientes() async {
           ..totalBolivares = _toDouble(data['total_bolivares'])
           ..metodoPago = data['metodo_pago'] ?? ''
           ..documento = _toInt(data['documento'])
+      // `documento` es el doc del cliente; la numeración fiscal va en su
+      // propio campo (`numero_factura`, texto). Nullable: las ventas
+      // anteriores a la migración 20261012000003 llegan sin él.
+      ..numeroFactura = data['numero_factura'] as String?
           ..empleado = data['empleado_nombre'] ?? data['empleado'] ?? ''
           ..syncStatus = _SyncConstants.synced
           ..tieneDescuentoEspecial = data['tiene_descuento_especial'] ?? false
@@ -3004,6 +3009,7 @@ Future<void> subirUsuariosPendientes() async {
                 'telefono': local.telefono,
                 'email': local.email,
                 'logo_path': local.logoPath,
+                'razon_social': local.razonSocial,
                 'activo': local.activo,
                 'business_mode': local.businessMode,
                 'sync_status': _SyncConstants.synced,
@@ -3093,6 +3099,7 @@ Future<void> subirUsuariosPendientes() async {
         final rifNube = data['rif'] as String?;
 
         final logoPathNube = data['logo_path'] as String?;
+        final razonSocialNube = data['razon_social'] as String?;
         if (local != null) {
           // 🎯 FIX: si el local tiene cambios pendientes de subir (por ejemplo,
           //    `businessMode` cambiado por el usuario pero no sincronizado aún),
@@ -3109,6 +3116,7 @@ Future<void> subirUsuariosPendientes() async {
             ..activo = activoNube
             ..rif = rifNube ?? local.rif
             ..logoPath = logoPathNube ?? local.logoPath
+            ..razonSocial = razonSocialNube ?? local.razonSocial
             ..fechaSincronizacion = DateTime.now();
 
           // 🎯 Solo sobreescribir `businessMode` si el local NO tiene cambios
@@ -3142,7 +3150,8 @@ Future<void> subirUsuariosPendientes() async {
             ..sincronizado = true
             ..fechaSincronizacion = DateTime.now()
             ..rif = rifNube
-            ..logoPath = logoPathNube;
+            ..logoPath = logoPathNube
+            ..razonSocial = razonSocialNube;
 
           await _isarService.guardarLocal(localNube);
           debugPrint('📥 Local ${localNube.nombre} creado');

@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/departamento_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
@@ -159,6 +160,19 @@ class _DetalleLocalDialogState extends ConsumerState<DetalleLocalDialog>
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         children: [
+          // ── Logo del local (read-only) ──
+          if (local.logoPath?.isNotEmpty ?? false) ...[
+            _LogoDetalle(logoPath: local.logoPath!),
+            _divider(colorScheme),
+          ],
+
+          // ── Razón social ──
+          //
+          // Va PRIMERO porque es el dato que identifica legalmente al
+          // emisor; el nombre de fantasía ya está en el `DialogHeader`.
+          _infoTile(Icons.business_outlined, 'Razón Social',
+              local.razonSocial ?? 'No registrada', colorScheme),
+          _divider(colorScheme),
           _infoTile(Icons.location_on_rounded, 'Dirección',
               local.direccion ?? 'No registrada', colorScheme),
           _divider(colorScheme),
@@ -525,6 +539,125 @@ class _DetalleLocalDialogState extends ConsumerState<DetalleLocalDialog>
     showDialog(
       context: context,
       builder: (_) => DetalleDepartamentoDialog(departamento: departamento),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// LOGO DEL LOCAL (read-only)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Muestra el logo del local en el tab de Información.
+///
+/// ## Por qué firma y no `getPublicUrl`
+///
+/// El bucket `locales` es privado, así que `getPublicUrl` devuelve una
+/// URL que **no resuelve**. Hay que pedir una signed URL, y esa URL
+/// **caduca**. Por eso se firma en el momento de renderizar y NO se
+/// guarda en la entity: persistirla dejaría el objeto huérfano
+/// (existe en el bucket, pero la única referencia guardada expiró).
+/// Misma regla que `MarcaEntity.logoPath` en `AGENTS.MD`.
+///
+/// ## La `Future` se crea una vez
+///
+/// `FutureBuilder` reconstruye con una `Future` nueva en cada `build`,
+/// lo que dispara una firma nueva en cada frame. Por eso la `Future`
+/// se calcula UNA vez en el `initState` del `State`, no dentro del
+/// `builder`.
+class _LogoDetalle extends StatefulWidget {
+  const _LogoDetalle({required this.logoPath});
+
+  final String logoPath;
+
+  @override
+  State<_LogoDetalle> createState() => _LogoDetalleState();
+}
+
+class _LogoDetalleState extends State<_LogoDetalle> {
+  late final Future<String> _signedUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _signedUrl = _firmar(widget.logoPath);
+  }
+
+  @override
+  void didUpdateWidget(covariant _LogoDetalle old) {
+    super.didUpdateWidget(old);
+    // Si el local cambió de logo hay que volver a firmar.
+    if (old.logoPath != widget.logoPath) {
+      _signedUrl = _firmar(widget.logoPath);
+    }
+  }
+
+  Future<String> _firmar(String path) async {
+    return Supabase.instance.client.storage
+        .from('locales')
+        .createSignedUrl(path, 3600);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Center(
+      child: FutureBuilder<String>(
+        future: _signedUrl,
+        builder: (ctx, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const SizedBox(
+              width: 96,
+              height: 96,
+              child: Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            );
+          }
+
+          // Error de firma (bucket ausente, RLS, path inválido): NO se
+          // muestra un error rojo. Es un campo informativo y un logo
+          // que no carga no puede romper la pantalla de detalle.
+          final url = snap.data;
+          if (url == null) {
+            return _marco(
+              cs,
+              child: Icon(Icons.image_not_supported_outlined,
+                  size: 28, color: cs.onSurfaceVariant),
+            );
+          }
+
+          return _marco(
+            cs,
+            child: Image.network(
+              url,
+              fit: BoxFit.contain,
+              // El logo tiene fondo transparente: sin esto se ve un
+              // cuadro blanco detrás del PNG.
+              errorBuilder: (_, __, ___) => Icon(
+                Icons.broken_image_outlined,
+                size: 28,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _marco(ColorScheme cs, {required Widget child}) {
+    return Container(
+      width: 96,
+      height: 96,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: child,
     );
   }
 }

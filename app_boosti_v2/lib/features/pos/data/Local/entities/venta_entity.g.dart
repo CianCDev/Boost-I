@@ -107,58 +107,63 @@ const VentaEntitySchema = CollectionSchema(
       name: r'montoDescuentoTotal',
       type: IsarType.double,
     ),
-    r'requiereAutorizacion': PropertySchema(
+    r'numeroFactura': PropertySchema(
       id: 18,
+      name: r'numeroFactura',
+      type: IsarType.string,
+    ),
+    r'requiereAutorizacion': PropertySchema(
+      id: 19,
       name: r'requiereAutorizacion',
       type: IsarType.bool,
     ),
     r'subtotal': PropertySchema(
-      id: 19,
+      id: 20,
       name: r'subtotal',
       type: IsarType.double,
     ),
     r'syncStatus': PropertySchema(
-      id: 20,
+      id: 21,
       name: r'syncStatus',
       type: IsarType.string,
     ),
     r'tasaBcv': PropertySchema(
-      id: 21,
+      id: 22,
       name: r'tasaBcv',
       type: IsarType.double,
     ),
     r'tieneDescuentoEspecial': PropertySchema(
-      id: 22,
+      id: 23,
       name: r'tieneDescuentoEspecial',
       type: IsarType.bool,
     ),
     r'tipoDocumento': PropertySchema(
-      id: 23,
+      id: 24,
       name: r'tipoDocumento',
       type: IsarType.string,
     ),
     r'tipoPago': PropertySchema(
-      id: 24,
+      id: 25,
       name: r'tipoPago',
       type: IsarType.string,
     ),
     r'tipoVenta': PropertySchema(
-      id: 25,
+      id: 26,
       name: r'tipoVenta',
       type: IsarType.string,
     ),
     r'total': PropertySchema(
-      id: 26,
+      id: 27,
       name: r'total',
       type: IsarType.double,
     ),
     r'totalBolivares': PropertySchema(
-      id: 27,
+      id: 28,
       name: r'totalBolivares',
       type: IsarType.double,
     ),
     r'ventaIdString': PropertySchema(
-      id: 28,
+      id: 29,
       name: r'ventaIdString',
       type: IsarType.string,
     )
@@ -269,6 +274,12 @@ int _ventaEntityEstimateSize(
   }
   bytesCount += 3 + object.metodoPago.length * 3;
   {
+    final value = object.numeroFactura;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final value = object.syncStatus;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -310,17 +321,18 @@ void _ventaEntitySerialize(
   writer.writeString(offsets[15], object.metodoPago);
   writer.writeDouble(offsets[16], object.montoDescuentoPorcentaje);
   writer.writeDouble(offsets[17], object.montoDescuentoTotal);
-  writer.writeBool(offsets[18], object.requiereAutorizacion);
-  writer.writeDouble(offsets[19], object.subtotal);
-  writer.writeString(offsets[20], object.syncStatus);
-  writer.writeDouble(offsets[21], object.tasaBcv);
-  writer.writeBool(offsets[22], object.tieneDescuentoEspecial);
-  writer.writeString(offsets[23], object.tipoDocumento);
-  writer.writeString(offsets[24], object.tipoPago);
-  writer.writeString(offsets[25], object.tipoVenta);
-  writer.writeDouble(offsets[26], object.total);
-  writer.writeDouble(offsets[27], object.totalBolivares);
-  writer.writeString(offsets[28], object.ventaIdString);
+  writer.writeString(offsets[18], object.numeroFactura);
+  writer.writeBool(offsets[19], object.requiereAutorizacion);
+  writer.writeDouble(offsets[20], object.subtotal);
+  writer.writeString(offsets[21], object.syncStatus);
+  writer.writeDouble(offsets[22], object.tasaBcv);
+  writer.writeBool(offsets[23], object.tieneDescuentoEspecial);
+  writer.writeString(offsets[24], object.tipoDocumento);
+  writer.writeString(offsets[25], object.tipoPago);
+  writer.writeString(offsets[26], object.tipoVenta);
+  writer.writeDouble(offsets[27], object.total);
+  writer.writeDouble(offsets[28], object.totalBolivares);
+  writer.writeString(offsets[29], object.ventaIdString);
 }
 
 VentaEntity _ventaEntityDeserialize(
@@ -348,16 +360,17 @@ VentaEntity _ventaEntityDeserialize(
   object.metodoPago = reader.readString(offsets[15]);
   object.montoDescuentoPorcentaje = reader.readDouble(offsets[16]);
   object.montoDescuentoTotal = reader.readDouble(offsets[17]);
-  object.requiereAutorizacion = reader.readBool(offsets[18]);
-  object.subtotal = reader.readDouble(offsets[19]);
-  object.syncStatus = reader.readStringOrNull(offsets[20]);
-  object.tasaBcv = reader.readDouble(offsets[21]);
-  object.tieneDescuentoEspecial = reader.readBool(offsets[22]);
-  object.tipoDocumento = reader.readStringOrNull(offsets[23]);
-  object.tipoPago = reader.readString(offsets[24]);
-  object.tipoVenta = reader.readString(offsets[25]);
-  object.total = reader.readDouble(offsets[26]);
-  object.totalBolivares = reader.readDouble(offsets[27]);
+  object.numeroFactura = reader.readStringOrNull(offsets[18]);
+  object.requiereAutorizacion = reader.readBool(offsets[19]);
+  object.subtotal = reader.readDouble(offsets[20]);
+  object.syncStatus = reader.readStringOrNull(offsets[21]);
+  object.tasaBcv = reader.readDouble(offsets[22]);
+  object.tieneDescuentoEspecial = reader.readBool(offsets[23]);
+  object.tipoDocumento = reader.readStringOrNull(offsets[24]);
+  object.tipoPago = reader.readString(offsets[25]);
+  object.tipoVenta = reader.readString(offsets[26]);
+  object.total = reader.readDouble(offsets[27]);
+  object.totalBolivares = reader.readDouble(offsets[28]);
   return object;
 }
 
@@ -405,26 +418,28 @@ P _ventaEntityDeserializeProp<P>(
     case 17:
       return (reader.readDouble(offset)) as P;
     case 18:
-      return (reader.readBool(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 19:
-      return (reader.readDouble(offset)) as P;
-    case 20:
-      return (reader.readStringOrNull(offset)) as P;
-    case 21:
-      return (reader.readDouble(offset)) as P;
-    case 22:
       return (reader.readBool(offset)) as P;
-    case 23:
+    case 20:
+      return (reader.readDouble(offset)) as P;
+    case 21:
       return (reader.readStringOrNull(offset)) as P;
+    case 22:
+      return (reader.readDouble(offset)) as P;
+    case 23:
+      return (reader.readBool(offset)) as P;
     case 24:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 25:
       return (reader.readString(offset)) as P;
     case 26:
-      return (reader.readDouble(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 27:
       return (reader.readDouble(offset)) as P;
     case 28:
+      return (reader.readDouble(offset)) as P;
+    case 29:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -2659,6 +2674,160 @@ extension VentaEntityQueryFilter
   }
 
   QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'numeroFactura',
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'numeroFactura',
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'numeroFactura',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'numeroFactura',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'numeroFactura',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'numeroFactura',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'numeroFactura',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'numeroFactura',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'numeroFactura',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'numeroFactura',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'numeroFactura',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
+      numeroFacturaIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'numeroFactura',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterFilterCondition>
       requiereAutorizacionEqualTo(bool value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
@@ -4010,6 +4179,19 @@ extension VentaEntityQuerySortBy
     });
   }
 
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> sortByNumeroFactura() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'numeroFactura', Sort.asc);
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy>
+      sortByNumeroFacturaDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'numeroFactura', Sort.desc);
+    });
+  }
+
   QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy>
       sortByRequiereAutorizacion() {
     return QueryBuilder.apply(this, (query) {
@@ -4396,6 +4578,19 @@ extension VentaEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy> thenByNumeroFactura() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'numeroFactura', Sort.asc);
+    });
+  }
+
+  QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy>
+      thenByNumeroFacturaDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'numeroFactura', Sort.desc);
+    });
+  }
+
   QueryBuilder<VentaEntity, VentaEntity, QAfterSortBy>
       thenByRequiereAutorizacion() {
     return QueryBuilder.apply(this, (query) {
@@ -4665,6 +4860,14 @@ extension VentaEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<VentaEntity, VentaEntity, QDistinct> distinctByNumeroFactura(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'numeroFactura',
+          caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<VentaEntity, VentaEntity, QDistinct>
       distinctByRequiereAutorizacion() {
     return QueryBuilder.apply(this, (query) {
@@ -4861,6 +5064,12 @@ extension VentaEntityQueryProperty
       montoDescuentoTotalProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'montoDescuentoTotal');
+    });
+  }
+
+  QueryBuilder<VentaEntity, String?, QQueryOperations> numeroFacturaProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'numeroFactura');
     });
   }
 

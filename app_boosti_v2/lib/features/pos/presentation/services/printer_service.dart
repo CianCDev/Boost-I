@@ -21,20 +21,41 @@ import 'ticket_generator.dart';
 /// La cache es por path y no tiene expiration: el nombre del archivo lleva
 /// un timestamp (`logo_1699...png`), así que un logo nuevo es un path
 /// nuevo. El viejo se queda en memoria — son unos pocos KB.
-Future<List<int>?> _resolverLogoDelLocal(String? logoPath) async {
-  if (logoPath == null || logoPath.isEmpty) return null;
+Future<List<int>?> resolverLogoDelLocal(String? logoPath) async {
+  // Diagnóstico 2026-10-12 (temporal, sacar tras el smoke test).
+  //
+  // El síntoma "el ticket sale sin logo" es indistinguible entre tres
+  // causas, y antes no había forma de separarlas: (a) el local no tiene
+  // logo, (b) el path no llega al call site, (c) RLS del bucket lo
+  // rechaza. En (a) y (b) se salía por el `return null` de abajo SIN
+  // excepción, así que el `catch` no reportaba nada y Sentry tampoco.
+  if (logoPath == null || logoPath.isEmpty) {
+    debugPrint('🔍 [_resolverLogoDelLocal] logoPath vacío — no hay logo '
+        'para descargar. El local no tiene logoPath o no se hidrató.');
+    return null;
+  }
 
   final cache = _logoCache;
   final hit = cache[logoPath];
   if (hit != null) return hit;
 
+  // Va DESPUÉS del hit de cache a propósito: si se imprimiera antes,
+  // anunciaría una descarga que no ocurre (la cache la evita), y el log
+  // mentiría justo cuando uno está depurando la descarga.
+  debugPrint('🔍 [_resolverLogoDelLocal] Intentando descargar: $logoPath');
+
   try {
     final bytes = await Supabase.instance.client.storage
         .from('locales')
         .download(logoPath);
+    debugPrint('✅ [_resolverLogoDelLocal] Descargados ${bytes.length} bytes');
 
     final decodificada = img.decodeImage(bytes);
-    if (decodificada == null) return null;
+    if (decodificada == null) {
+      debugPrint('❌ [_resolverLogoDelLocal] Los ${bytes.length} bytes NO '
+          'son una imagen decodificable.');
+      return null;
+    }
 
     // `PaperSize.mm80` de la impresora son 558 dots de ancho. 512 deja
     // un margen de ~23 dots por lado: se centra sin recortar.
@@ -47,9 +68,9 @@ Future<List<int>?> _resolverLogoDelLocal(String? logoPath) async {
     return finales;
   } catch (e, stack) {
     // Un logo caído NO puede impedir la venta. Se reporta y se sigue.
+    debugPrint('❌ [_resolverLogoDelLocal] Falló la descarga de $logoPath: $e');
     ErrorService.captureError(e,
         stack: stack, hint: 'resolverLogoDelLocal_fallo');
-    debugPrint('Aviso: no se pudo descargar el logo del local');
     return null;
   }
 }
@@ -86,6 +107,10 @@ class PrinterService {
     bool requiereAutorizacion = false,
     String? autorizadoPorNombre,
     String? vendedor,
+
+    /// Numeración fiscal (`P123-2026-0001`). Se propaga al generador;
+    /// si es null el ticket imprime "N° pendiente".
+    String? numeroFactura,
   }) async {
     int attempts = 0;
     PrintResult? lastResult;
@@ -116,7 +141,8 @@ class PrinterService {
           requiereAutorizacion: requiereAutorizacion,
           autorizadoPorNombre: autorizadoPorNombre,
           vendedor: vendedor,
-          logoBytes: await _resolverLogoDelLocal(local?.logoPath),
+          numeroFactura: numeroFactura,
+          logoBytes: await resolverLogoDelLocal(local?.logoPath),
         );
 
         const PaperSize paper = PaperSize.mm80;
@@ -183,6 +209,10 @@ class PrinterService {
     bool requiereAutorizacion = false,
     String? autorizadoPorNombre,
     String? vendedor,
+
+    /// Numeración fiscal (`P123-2026-0001`). Se propaga al generador;
+    /// si es null el ticket imprime "N° pendiente".
+    String? numeroFactura,
   }) async {
     int attempts = 0;
     PrintResult? lastResult;
@@ -213,7 +243,8 @@ class PrinterService {
           requiereAutorizacion: requiereAutorizacion,
           autorizadoPorNombre: autorizadoPorNombre,
           vendedor: vendedor,
-          logoBytes: await _resolverLogoDelLocal(local?.logoPath),
+          numeroFactura: numeroFactura,
+          logoBytes: await resolverLogoDelLocal(local?.logoPath),
         );
 
         final device = BluetoothDevice.fromId(printer.address);

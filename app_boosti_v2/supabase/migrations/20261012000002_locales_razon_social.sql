@@ -1,0 +1,45 @@
+-- ═══════════════════════════════════════════════════════════════
+-- Agrega `razon_social` a `locales`.
+--
+-- MOTIVACIÓN
+--
+-- La factura legal exige la razón social del emisor, que NO es lo mismo
+-- que el nombre de fantasía. Un negocio puede tener razón social
+-- "JAHTLABS C.A." y además operar bajo la marca "Boosti POS".
+--
+-- Antes solo existía `nombre`, que es el nombre de fantasía: usarlo en
+-- la factura es un error legal.
+--
+-- ───────────────────────────────────────────────────────────────
+-- ⚠️ LO QUE ESTA MIGRACIÓN **NO** HACE
+--
+-- No pone `NOT NULL` ni backfillea desde `nombre`, a propósito:
+--
+--   • Los locales ya creados quedan con `razon_social = NULL` hasta que
+--     alguien la cargue. Es preferible a inventar una razón social
+--     ("JAHTLABS") que es exactamente el dato que se quiere corregir.
+--   • Poner `NOT NULL` ahora bloquearía el guardado de cualquier local
+--     preexistente.
+--
+-- El ticket térmico muestra "Razón social: [no configurada]" cuando es
+-- NULL, para que el faltante sea visible y no un espacio en blanco.
+--
+-- Idempotente: `IF NOT EXISTS` permite correrla más de una vez.
+-- ═══════════════════════════════════════════════════════════════
+
+ALTER TABLE public.locales
+  ADD COLUMN IF NOT EXISTS razon_social text;
+
+-- ───────────────────────────────────────────────────────────────
+-- VERIFICACIÓN
+--
+--   select column_name, data_type
+--     from information_schema.columns
+--    where table_name = 'locales' and column_name = 'razon_social';
+--
+-- Y, para ver qué locales quedan sin cargar antes de imprimir:
+--
+--   select id, nombre, coalesce(razon_social, '(sin configurar)') as rz
+--     from public.locales
+--    where razon_social is null;
+-- ═══════════════════════════════════════════════════════════════

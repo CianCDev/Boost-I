@@ -540,6 +540,47 @@ restaurantes con venta por unidad preparada).
 - [x] **Bump a `1.0.0+4`.**
 - [ ] **Tag v1.0.0**: pendiente smoke test verde.
 
+## Cerrado en 2026-10-12 (fiscal)
+
+- [x] **Numeración fiscal (`numero_factura`)** — migración
+      `20261012000003` **escrita, PENDIENTE de aplicar en Supabase**.
+      `DocumentoFiscalService` con cola serial (el `read → +1 → write`
+      sobre `SharedPreferences` no es atómico), contador por año y
+      device id aleatorio. El ticket imprime `N° pendiente` cuando la
+      venta no tiene número, para que la falencia se vea en el papel.
+- [x] **Detalle del local**: logo read-only con signed URL (firmada en
+      `initState`, no en cada `build`) + razón social.
+- [x] **Vendedor eliminado del ticket.** El parámetro `vendedor` se
+      conserva en la firma para no romper 5 call sites; el bloque viejo
+      quedó comentado con el motivo. Un test fija la eliminación.
+- [x] **Razón social**: migración `20261012000002`, campo en
+      `LocalEntity`, los 4 sitios del sync, y campo en el form.
+
+## Deuda post-v1 (fiscal)
+
+- [ ] **`ventas.documento` es `int` con doble significado.** En
+      `VentaEntity` guarda el documento del CLIENTE (`..documento =
+      cliente.documento`, o `0` si no hay), no un número de factura.
+      Por eso la numeración fiscal vive en `numero_factura` y no ahí.
+      Limpiar: renombrar `documento` a `cliente_documento` y dejar
+      `numero_factura` como único número de venta.
+- [ ] **Secuencia fiscal server-side.** Hoy es **por dispositivo**
+      (`{deviceId}-{year}-{counter}`), válida bajo Providencia 00071
+      para un punto de emisión. Dos tablets del mismo negocio pueden
+      generar el mismo número. Chequeo de duplicados:
+      ```sql
+      select numero_factura, count(*) from public.ventas
+       where numero_factura is not null
+       group by numero_factura having count(*) > 1;
+      ```
+      Si devuelve filas, hay que migrar a secuencia server-side antes
+      de seguir vendiendo.
+- [ ] **Diagnóstico temporal del logo.** `_resolverLogoDelLocal` tiene
+      `debugPrint` en los 4 puntos (path vacío / cache miss / descarga
+      OK / error). Es para el smoke test: separa "no hay logo" de "el
+      path no llega" de "RLS lo rechaza". **Sacar tras el smoke test**,
+      o el log se llena de ruido en cada impresión.
+
 ## Deuda de arquitectura multi-local (post-v1)
 
 - [ ] **Código de asociación.** Hoy un usuario solo puede crear un tenant

@@ -20,6 +20,18 @@ class VentaEntity {
   double totalBolivares = 0.0;
   String metodoPago = '';
   int documento = 0;
+
+  /// Numeración fiscal de la venta. Formato `{deviceId}-{year}-{counter}`,
+  /// ej. `P123-2026-0001`.
+  ///
+  /// ⚠️ DISTINTO de [documento]: ese campo guarda el documento del
+  ///    CLIENTE (`..documento = cliente.documento`, o `0` si no hay),
+  ///    no un número de factura. Mezclarlos perdería el dato del
+  ///    cliente. La limpieza de esa ambigüedad es deuda post-v1.
+  ///
+  /// Nullable: las ventas anteriores a la migración `20261012000003` no
+  /// tienen número. El ticket imprime "pendiente" en ese caso.
+  String? numeroFactura;
   String empleado = 'Administrador / Catálogo';
   String? syncStatus = 'pending';
   int? clienteId;

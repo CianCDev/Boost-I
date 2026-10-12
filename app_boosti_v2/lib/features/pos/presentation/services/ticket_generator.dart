@@ -152,6 +152,15 @@ class TicketGenerator {
     String? autorizadoPorNombre,
     String? vendedor,
 
+    /// Numeración fiscal de la venta (`P123-2026-0001`).
+    ///
+    /// Va por parámetro y no se lee de la `LocalEntity` porque el
+    /// número pertenece a la VENTA, no al local. `null` = venta sin
+    /// numerar (anterior a la migración 20261012000003) → el ticket
+    /// imprime "pendiente" en vez de omitir la línea, para que la
+    /// falencia se vea en el papel.
+    String? numeroFactura,
+
     /// Bytes del logo ya descargados de Storage. Los resuelve
     /// `PrinterService`; acá solo se decodifican. `null` = sin logo.
     List<int>? logoBytes,
@@ -189,6 +198,7 @@ class TicketGenerator {
       requiereAutorizacion: requiereAutorizacion,
       autorizadoPorNombre: autorizadoPorNombre,
       vendedor: vendedor,
+      numeroFactura: numeroFactura,
       logoBytes: logoBytes,
     );
   }
@@ -217,6 +227,7 @@ class TicketGenerator {
     bool requiereAutorizacion = false,
     String? autorizadoPorNombre,
     String? vendedor,
+    String? numeroFactura,
     List<int>? logoBytes,
   }) {
     final bytes = <int>[];
@@ -241,6 +252,21 @@ class TicketGenerator {
         ),
       ));
     }
+
+    // ── Numeración fiscal ──
+    //
+    // Va SIEMPRE, también en venta al detal: un ticket sin número
+    // correlativo no es comprobante fiscal. `pendiente` marca las
+    // ventas anteriores a la migración 20261012000003, que es
+    // información útil (faltó numerar) y no un error de impresión.
+    bytes.addAll(generator.text(
+      'N° ${numeroFactura ?? "pendiente"}',
+      styles: const PosStyles(
+        align: PosAlign.center,
+        height: PosTextSize.size2,
+        width: PosTextSize.size2,
+      ),
+    ));
 
     // ── Fecha ──
     bytes.addAll(generator.text('--------------------------------'));
@@ -295,8 +321,11 @@ class TicketGenerator {
       )));
     }
 
+    // El IVA va con su alícuota explícita. Sin el porcentaje, un ticket
+    // con impuesto no permite saber si es 16%, exento o una tasa
+    // especial: el monto solo no dice nada.
     bytes.addAll(generator.text(_filaDual(
-      'IVA:',
+      'IVA 16%:',
       '\$${impuesto.toStringAsFixed(2)}',
     )));
 
@@ -359,11 +388,25 @@ class TicketGenerator {
       ));
     }
 
-    // ── Vendedor ──
-    if ((vendedor ?? '').isNotEmpty) {
-      bytes.addAll(generator.text('--------------------------------'));
-      bytes.addAll(generator.text('Vendedor: $vendedor'));
-    }
+    // ── Vendedor: ELIMINADO (2026-10-12) ──
+    //
+    // El ticket es un comprobante que el cliente se lleva y archiva. El
+    // nombre del vendedor no es un dato exigido por la factura y suma
+    // una línea de dato personal del empleado a un papel que circula.
+    //
+    // El parámetro `vendedor` se conserva en la firma: quitarlo rompería
+    // a los 5 call sites de `printer_service.dart`/`ticket_service.dart`
+    // y no aporta nada funcional. Se ignora acá a propósito.
+    //
+    // Antes:
+    //   if ((vendedor ?? '').isNotEmpty) {
+    //     bytes.addAll(generator.text('--------------------------------'));
+    //     bytes.addAll(generator.text('Vendedor: $vendedor'));
+    //   }
+    //
+    // ⚠️ `vendedor` queda sin uso dentro del método. Si el analizador se
+    //    queja, la solución es `_ = vendedor;` o dejar el parámetro con
+    //    su docstring — NO reintroducir la línea.
 
     // ── Pie ──
     bytes.addAll(generator.text('================================'));
@@ -491,6 +534,27 @@ class TicketGenerator {
       bytes.addAll(g.text('--- LOCAL NO CONFIGURADO ---',
           styles: const PosStyles(align: PosAlign.center)));
       return;
+    }
+
+    // Razón social PRIMERO: es el dato que identifica legalmente al
+    // emisor. `nombre` va debajo como nombre de fantasía.
+    //
+    // Los locales creados antes de la migración `20261012000002` la
+    // tienen en NULL. Se imprime el aviso en vez de dejar un hueco, para
+    // que el faltante se vea en el papel y alguien lo cargue.
+    if ((local.razonSocial ?? '').isNotEmpty) {
+      bytes.addAll(g.text(
+        local.razonSocial!,
+        styles: const PosStyles(
+          align: PosAlign.center,
+          bold: true,
+          height: PosTextSize.size2,
+          width: PosTextSize.size2,
+        ),
+      ));
+    } else {
+      bytes.addAll(g.text('Razón social: [no configurada]',
+          styles: const PosStyles(align: PosAlign.center)));
     }
 
     bytes.addAll(g.text(

@@ -913,6 +913,9 @@ class _WholesaleSaleDetailScreenState
       await TicketService.imprimirTicketVenta(
         context: context,
         local: local,
+        // `venta` es la VentaEntity que se está viendo: ya trae su
+        // número fiscal.
+        numeroFactura: venta.numeroFactura,
         items: ticketItems,
         subtotal: venta.subtotal,
         impuesto: venta.impuesto,

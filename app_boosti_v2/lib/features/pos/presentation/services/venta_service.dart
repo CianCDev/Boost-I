@@ -3,6 +3,7 @@
 
 import 'package:app_boosti_v2/features/pos/presentation/providers/pedidos_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/ventas_calculator.dart';
+import 'documento_fiscal_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/venta_entity.dart';
@@ -104,6 +105,14 @@ class VentaService {
 
       final resultadoDescuentos = VentaCalculator.calcularDescuentos(itemsIsar);
 
+      // Numeración fiscal. Se pide ANTES de construir la entidad porque
+      // es async: el número va en el mismo INSERT que la venta, así que
+      // no puede completarse después.
+      //
+      // ⚠️ `..documento` NO se toca: ese campo guarda el documento del
+      //    CLIENTE, no el número de factura. Ver `VentaEntity`.
+      final numeroFactura = await DocumentoFiscalService.siguiente();
+
       final nuevaVenta = VentaEntity()
         ..idSupabase = nuevoUuidVenta
         ..fecha = ahora
@@ -113,6 +122,7 @@ class VentaService {
         ..tasaBcv = tasaActual
         ..totalBolivares = totalBsCalculado
         ..metodoPago = metodoPago
+        ..numeroFactura = numeroFactura
         ..documento = 0
         ..empleado = usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
         ..syncStatus = 'pending'
@@ -222,6 +232,9 @@ class VentaService {
           await TicketService.imprimirTicketVenta(
             context: context,
             local: local,
+            // La venta ya se creó arriba con su número fiscal. Sin esto el
+            // PDF de respaldo sale con "FACTURA" y sin N°.
+            numeroFactura: nuevaVenta.numeroFactura,
             items: ticketItems,
             subtotal: cartState.subtotal,
             impuesto: cartState.impuesto,

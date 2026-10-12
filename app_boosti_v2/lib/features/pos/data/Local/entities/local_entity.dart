@@ -23,6 +23,15 @@ class LocalEntity {
   /// Se usa para imprimir el logo del local en tickets y comprobantes.
   String? logoPath;
 
+  /// Razón social del emisor (registro legal). NO es el nombre de
+  /// fantasía: "JAHTLABS C.A." vs "Boosti POS".
+  ///
+  /// Nullable a propósito: los locales creados antes de la migración
+  /// `20261012000002` no la tienen, y rellenarla con `nombre` sería
+  /// justamente el error que se quiere corregir. El ticket térmico
+  /// muestra "[no configurada]" cuando falta.
+  String? razonSocial;
+
   bool activo = true;
   bool sincronizado = false;
   DateTime? fechaSincronizacion;

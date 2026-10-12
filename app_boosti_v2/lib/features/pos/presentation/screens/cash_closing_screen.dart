@@ -430,6 +430,9 @@ class _CashClosingScreenState extends ConsumerState<CashClosingScreen>
         // ignore: use_build_context_synchronously
         context: context,
         local: local,
+        // El cierre no es una venta: no tiene número fiscal. Se pasa
+        // null a propósito — el PDF del cierre no imprime la línea N°.
+        numeroFactura: null,
         items: [],
         total: resumen.totalVentas,
         metodoPago: 'Cierre de Caja',

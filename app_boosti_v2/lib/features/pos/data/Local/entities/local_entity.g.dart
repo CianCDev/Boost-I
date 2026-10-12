@@ -72,28 +72,33 @@ const LocalEntitySchema = CollectionSchema(
       name: r'planVerificadoEn',
       type: IsarType.dateTime,
     ),
-    r'rif': PropertySchema(
+    r'razonSocial': PropertySchema(
       id: 11,
+      name: r'razonSocial',
+      type: IsarType.string,
+    ),
+    r'rif': PropertySchema(
+      id: 12,
       name: r'rif',
       type: IsarType.string,
     ),
     r'sincronizado': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'supabaseId': PropertySchema(
-      id: 13,
+      id: 14,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'telefono': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'telefono',
       type: IsarType.string,
     ),
     r'updatedAt': PropertySchema(
-      id: 15,
+      id: 16,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -159,6 +164,12 @@ int _localEntityEstimateSize(
     }
   }
   {
+    final value = object.razonSocial;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final value = object.rif;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -196,11 +207,12 @@ void _localEntitySerialize(
   writer.writeString(offsets[8], object.nombre);
   writer.writeString(offsets[9], object.planIdCache);
   writer.writeDateTime(offsets[10], object.planVerificadoEn);
-  writer.writeString(offsets[11], object.rif);
-  writer.writeBool(offsets[12], object.sincronizado);
-  writer.writeString(offsets[13], object.supabaseId);
-  writer.writeString(offsets[14], object.telefono);
-  writer.writeDateTime(offsets[15], object.updatedAt);
+  writer.writeString(offsets[11], object.razonSocial);
+  writer.writeString(offsets[12], object.rif);
+  writer.writeBool(offsets[13], object.sincronizado);
+  writer.writeString(offsets[14], object.supabaseId);
+  writer.writeString(offsets[15], object.telefono);
+  writer.writeDateTime(offsets[16], object.updatedAt);
 }
 
 LocalEntity _localEntityDeserialize(
@@ -222,11 +234,12 @@ LocalEntity _localEntityDeserialize(
   object.nombre = reader.readString(offsets[8]);
   object.planIdCache = reader.readStringOrNull(offsets[9]);
   object.planVerificadoEn = reader.readDateTimeOrNull(offsets[10]);
-  object.rif = reader.readStringOrNull(offsets[11]);
-  object.sincronizado = reader.readBool(offsets[12]);
-  object.supabaseId = reader.readStringOrNull(offsets[13]);
-  object.telefono = reader.readStringOrNull(offsets[14]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[15]);
+  object.razonSocial = reader.readStringOrNull(offsets[11]);
+  object.rif = reader.readStringOrNull(offsets[12]);
+  object.sincronizado = reader.readBool(offsets[13]);
+  object.supabaseId = reader.readStringOrNull(offsets[14]);
+  object.telefono = reader.readStringOrNull(offsets[15]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[16]);
   return object;
 }
 
@@ -262,12 +275,14 @@ P _localEntityDeserializeProp<P>(
     case 11:
       return (reader.readStringOrNull(offset)) as P;
     case 12:
-      return (reader.readBool(offset)) as P;
-    case 13:
       return (reader.readStringOrNull(offset)) as P;
+    case 13:
+      return (reader.readBool(offset)) as P;
     case 14:
       return (reader.readStringOrNull(offset)) as P;
     case 15:
+      return (reader.readStringOrNull(offset)) as P;
+    case 16:
       return (reader.readDateTimeOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -1651,6 +1666,160 @@ extension LocalEntityQueryFilter
     });
   }
 
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'razonSocial',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'razonSocial',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'razonSocial',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'razonSocial',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'razonSocial',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'razonSocial',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'razonSocial',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'razonSocial',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'razonSocial',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'razonSocial',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'razonSocial',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition>
+      razonSocialIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'razonSocial',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<LocalEntity, LocalEntity, QAfterFilterCondition> rifIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -2337,6 +2506,18 @@ extension LocalEntityQuerySortBy
     });
   }
 
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> sortByRazonSocial() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'razonSocial', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> sortByRazonSocialDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'razonSocial', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> sortByRif() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'rif', Sort.asc);
@@ -2552,6 +2733,18 @@ extension LocalEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> thenByRazonSocial() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'razonSocial', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> thenByRazonSocialDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'razonSocial', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalEntity, LocalEntity, QAfterSortBy> thenByRif() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'rif', Sort.asc);
@@ -2691,6 +2884,13 @@ extension LocalEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<LocalEntity, LocalEntity, QDistinct> distinctByRazonSocial(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'razonSocial', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<LocalEntity, LocalEntity, QDistinct> distinctByRif(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -2799,6 +2999,12 @@ extension LocalEntityQueryProperty
       planVerificadoEnProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'planVerificadoEn');
+    });
+  }
+
+  QueryBuilder<LocalEntity, String?, QQueryOperations> razonSocialProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'razonSocial');
     });
   }
 

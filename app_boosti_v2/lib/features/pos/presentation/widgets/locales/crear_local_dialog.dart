@@ -37,6 +37,10 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
   /// huérfano. Ver la regla de Storage en `AGENTS.MD`.
   String? _logoPath;
 
+  /// Razón social del emisor. Distinta del nombre de fantasía: es lo que
+  /// va en la factura.
+  late final TextEditingController _razonSocialController;
+
   static const _colorPrimary = Color(0xFF8B5CF6);
   // ignore: unused_field
   static const _colorSuccess = Color(0xFF10B981);
@@ -50,6 +54,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
     _telefonoController = TextEditingController(text: l?.telefono ?? '');
     _emailController = TextEditingController(text: l?.email ?? '');
     _rifController = TextEditingController(text: l?.rif ?? '');
+    _razonSocialController = TextEditingController(text: l?.razonSocial ?? '');
     _activo = l?.activo ?? true;
     _logoPath = l?.logoPath;
   }
@@ -61,6 +66,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
     _telefonoController.dispose();
     _emailController.dispose();
     _rifController.dispose();
+    _razonSocialController.dispose();
     super.dispose();
   }
 
@@ -131,6 +137,9 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
           ..rif = _rifController.text.trim().isNotEmpty
               ? _rifController.text.trim()
               : null
+          ..razonSocial = _razonSocialController.text.trim().isNotEmpty
+              ? _razonSocialController.text.trim()
+              : null
           ..activo = _activo
           ..logoPath = _logoPath
           ..supabaseId = widget.local!.supabaseId
@@ -148,6 +157,7 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
             'email': local.email,
             'rif': local.rif,
             'logo_path': local.logoPath,
+            'razon_social': local.razonSocial,
             'activo': local.activo,
             'updated_at': DateTime.now().toIso8601String(),
           }).eq('id', widget.local!.supabaseId!);
@@ -233,6 +243,19 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
                 icon: Icons.storefront_rounded,
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+              ),
+              const SizedBox(height: 14),
+              // Razón social: NO es el nombre de fantasía. Va después
+              // del nombre porque es el par que identifica al emisor, y
+              // antes de la dirección que es el bloque de "datos del
+              // emisor" de la factura.
+              _field(
+                controller: _razonSocialController,
+                label: 'Razón Social',
+                icon: Icons.business_outlined,
+                // Sin `validator`: nullable a propósito (locales ya
+                // creados no la tienen). El ticket thermal muestra
+                // "[no configurada]" cuando falta.
               ),
               const SizedBox(height: 14),
               _field(
