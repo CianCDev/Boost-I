@@ -187,7 +187,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<bool> loginWithEmail(String email, String password) async {
+  /// Inicia sesión con email + contraseña.
+  ///
+  /// [forzarLocalNuevo] solo debe valer `true` en el flujo de registro
+  /// ("Crear mi empresa"), donde Isar y `prefs` acaban de borrarse.
+  /// Ver [registerCompany] para el detalle de por qué el resto de los
+  /// logins NO debe tocar el local activo.
+  Future<bool> loginWithEmail(
+    String email,
+    String password, {
+    bool forzarLocalNuevo = false,
+  }) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final supabase = Supabase.instance.client;
@@ -258,6 +268,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
         usuario.nombre,
       );
 
+      // ── Wipe del estado previo (solo tras crear un tenant) ──
+      //
+      // Va DESPUÉS del `signIn` y ANTES del sync, por dos motivos:
+      //
+      // 1. Si el `signIn` hubiera fallado, el Isar del negocio anterior
+      //    sigue intacto: el usuario no pierde catálogo ni ventas por un
+      //    alta que no se completó. `ventas`, `detalle_ventas` y
+      //    `movimientos_inventarios` son inmutables (AGENTS.md §3.1), así
+      //    que una venta local sin sincronizar no tiene recuperación.
+      //
+      // 2. El wipe va antes del sync para que el sync del tenant nuevo
+      //    arranque de cero y no mezcle datos del anterior.
+      //
+      // También borra `prefs['localActualId']` porque
+      // `obtenerLocalActivo` lo prioriza sobre el JWT (prioridad 1) y,
+      // si sobrevive, devolvería el local del tenant viejo.
+      //
+      // ⚠️ Va antes de `loadUsuarios()` para que la lista de usuarios que
+      //    queda en el state sea la del tenant nuevo, no la anterior.
+      if (forzarLocalNuevo) {
+        debugPrint('🧹 Limpiando estado previo al nuevo tenant...');
+        await IsarService().wipeAll();
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('localActualId');
+        debugPrint('🧹 prefs localActualId borrado');
+      }
+
       await loadUsuarios();
 
       try {
@@ -265,6 +303,48 @@ class AuthNotifier extends StateNotifier<AuthState> {
       } catch (e) {
         debugPrint('⚠️ Error en sync post-login: $e');
       }
+
+      // ── Forzar el local del nuevo tenant como activo ──
+      //
+      // Después del wipe + sync, Isar tiene el nuevo local pero `prefs` está
+      // vacío. `obtenerLocalActivo` resolvería por JWT (prioridad 2), pero
+      // forzarlo explícitamente elimina cualquier ambigüedad durante el
+      // arranque y asegura que el badge del AppBar muestre el local correcto
+      // antes de que la UI haga el primer render.
+      //
+      // ⚠️ Solo tras crear un tenant. En un login normal el local activo
+      // ya es correcto y `setLocalActual` dispararía un hot-switch
+      // innecesario: RPC `set_active_tenant` + `refreshSession()` + una
+      // llamada reentrante a `cambiarLocal` sobre este mismo notifier,
+      // que puede dejar un `errorMessage` espurio en un login exitoso.
+      if (forzarLocalNuevo) {
+        try {
+          final nuevoLocal =
+              await IsarService().obtenerLocalPorSupabaseId(tenantId);
+          if (nuevoLocal != null) {
+            await _ref
+                .read(localActualProvider.notifier)
+                .setLocalActual(nuevoLocal.id);
+            debugPrint('📍 Local activo forzado a: ${nuevoLocal.nombre} '
+                '(id=${nuevoLocal.id})');
+          } else {
+            debugPrint('⚠️ No se encontró el local del tenant $tenantId '
+                'después del sync. Fallback a obtenerLocalActivo.');
+          }
+        } catch (e, stack) {
+          ErrorService.captureError(e,
+              stack: stack,
+              hint: 'loginWithEmail_forceLocalActivo_fallo',
+              extras: {'tenantId': tenantId});
+        }
+
+        // El `loadUsuarios()` de arriba corrió con Isar recién wipeado, así
+        // que `state.usuarios` quedó vacío. El sync ya descargó los
+        // usuarios del tenant nuevo: hay que releerlos o el selector de
+        // usuarios del login muestra "No hay usuarios disponibles".
+        await loadUsuarios();
+      }
+
       return true;
     } catch (e, stack) {
       ErrorService.captureError(
@@ -349,7 +429,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       debugPrint('✅ Tenant creado: ${data['tenant_id']}');
 
-      final success = await loginWithEmail(email, password);
+      // El wipe de Isar NO va acá. Va adentro de `loginWithEmail`, ya
+      // que recién ahí sabemos que el `signIn` funcionó: si lo hiciéramos
+      // antes y el login fallara, el usuario perdía el catálogo/las ventas
+      // del negocio viejo sin tener cuenta nueva operativa. Y como
+      // `usuarios.pin` es inmutable por AGENTS.md §3.1, una venta local
+      // sin sincronizar no tiene forma de recuperarse.
+      final success =
+          await loginWithEmail(email, password, forzarLocalNuevo: true);
       return success;
     } catch (e, stack) {
       ErrorService.captureError(

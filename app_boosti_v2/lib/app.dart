@@ -30,6 +30,7 @@ import 'features/pos/presentation/screens/empleados/employees_screen.dart';
 import 'features/pos/presentation/screens/login_screen.dart';
 import 'features/pos/presentation/screens/main_pos_screen.dart';
 import 'features/pos/presentation/screens/rest_screen.dart';
+import 'features/pos/presentation/screens/setup_pin_screen.dart';
 import 'features/pos/presentation/screens/splash_screen.dart';
 import 'features/pos/presentation/utils/tenant_utils.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
@@ -274,6 +275,23 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
 
     final usuario = ref.watch(usuarioActualProvider);
     if (usuario != null) {
+      // ── PIN obligatorio ──
+      //
+      // Este es el arranque en frío: se entra directo al POS con la sesión
+      // persistida, sin pasar por el login. Un usuario con `pin = ''` (alta
+      // por `create-tenant`, o alta en el Panel de Personal sin PIN) llega
+      // acá sin haber pasado nunca por `SetupPinScreen`, y queda con un
+      // bloqueo blando sin salida: `IsarService.validarLogin` ignora los
+      // usuarios con pin vacío y devuelve `null`, así que `RestScreen` le
+      // responde "PIN incorrecto" para siempre.
+      if (usuario.pin.isEmpty) {
+        final role = UserRole.fromString(usuario.rol);
+        final destino = Permissions.isEmployeesOnlyRole(role)
+            ? const EmployeesScreen()
+            : const MainPosScreen();
+        return SetupPinScreen(destino: destino);
+      }
+
       final role = UserRole.fromString(usuario.rol);
 
       if (Permissions.isEmployeesOnlyRole(role)) {

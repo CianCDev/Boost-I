@@ -22,6 +22,7 @@ import 'empleados/employees_screen.dart';
 import 'main_pos_screen.dart';
 // ignore: unused_import
 import 'inventory_catalog_screen.dart';
+import 'register_company_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -769,6 +770,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                                   fontWeight: FontWeight.w500,
                                                   color: Colors.white
                                                       .withValues(alpha: 0.7),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+
+                                      // Botón para ir a registro de nueva empresa
+                                      const SizedBox(height: 12),
+                                      Center(
+                                        child: TextButton(
+                                          onPressed: _isLoading
+                                              ? null
+                                              : () => Navigator.of(context).push(
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const RegisterCompanyScreen(),
+                                                  ),
+                                                ),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: _accent,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 8,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.add_business_rounded,
+                                                size: 16,
+                                                color: _accent,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                '¿No tienes cuenta? Crear mi empresa',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: _accent,
                                                 ),
                                               ),
                                             ],

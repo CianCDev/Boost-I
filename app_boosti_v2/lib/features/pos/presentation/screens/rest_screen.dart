@@ -104,6 +104,30 @@ class _RestScreenState extends ConsumerState<RestScreen>
         return;
       }
 
+      // ── Defensa: usuario sin PIN ──
+      //
+      // `IsarService.validarLogin` hace `if (storedPin.isEmpty) continue;`
+      // y devuelve `null`. Para esta pantalla eso es indistinguible de
+      // "PIN incorrecto", así que el usuario sin PIN ve ese mensaje y
+      // después de 5 intentos queda en lockout — sin ninguna forma de
+      // salir. Este overlay tampoco tiene botón de cerrar sesión.
+      //
+      // Sin llegar a `validarLogin` se avisa que el problema es otro.
+      if (usuarioLogueado.pin.isEmpty) {
+        setState(() => _cargando = false);
+        if (mounted) {
+          _triggerError(
+            'Este usuario todavía no tiene PIN configurado. '
+            'Cerrá sesión y volvé a entrar para configurarlo.',
+          );
+        }
+        debugPrint(
+          '⚠️ [RestScreen] "${usuarioLogueado.nombre}" sin PIN: '
+          'validarLogin lo habría reportado como "PIN incorrecto".',
+        );
+        return;
+      }
+
       // ✅ FIX: usar validarLogin (maneja hash + plano legacy)
       final usuarioValido = await _isarService.validarLogin(
         usuarioLogueado.nombre,

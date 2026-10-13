@@ -23,6 +23,7 @@ import 'main_pos_screen.dart';
 import 'welcome_screen.dart';
 import '../providers/suscripcion_provider.dart';
 import 'seleccionar_modo_negocio_screen.dart';
+import 'setup_pin_screen.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -276,6 +277,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
 
     final role = UserRole.fromString(usuario.rol);
+
+    // ── PIN obligatorio ──
+    //
+    // Va DESPUÉS del onboarding de modo de negocio y antes del check de
+    // rol, para que el empleado de RRHH también quede con PIN: el lock
+    // por inactividad (`UserActivityDetector`) lo cubre igual y sin PIN
+    // se queda trabado en `RestScreen` sin salida.
+    if (usuario.pin.isEmpty) {
+      debugPrint('➡️ Usuario sin PIN configurado → SetupPinScreen');
+      final destino = Permissions.isEmployeesOnlyRole(role)
+          ? const EmployeesScreen()
+          : const MainPosScreen();
+      if (!mounted) return;
+      _goTo(SetupPinScreen(destino: destino));
+      return;
+    }
 
     if (Permissions.isEmployeesOnlyRole(role)) {
       debugPrint('➡️ Sesión RRHH → EmployeesScreen');

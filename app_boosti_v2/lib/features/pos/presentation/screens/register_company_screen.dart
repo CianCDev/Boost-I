@@ -8,6 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../providers/auth_provider.dart';
 import '../utils/responsive_helper.dart';
 import 'inventory_catalog_screen.dart';
+import 'setup_pin_screen.dart';
 
 /// Pantalla para registrar una nueva empresa (tenant) en BoostI POS.
 ///
@@ -93,7 +94,14 @@ class _RegisterCompanyScreenState
 
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => InventoryCatalogScreen(usuarioLogueado: user),
+            // El usuario nuevo nace SIN PIN (la Edge Function `create-tenant`
+            // ya no pone `pin: "1234"`). Sin configurarlo, el primer bloqueo
+            // por inactividad lo deja soft-loqueado para siempre:
+            // `IsarService.validarLogin` ignora los usuarios con pin vacío y
+            // `RestScreen` le responde "PIN incorrecto" sin salida.
+            builder: (_) => SetupPinScreen(
+              destino: InventoryCatalogScreen(usuarioLogueado: user),
+            ),
           ),
         );
         return;

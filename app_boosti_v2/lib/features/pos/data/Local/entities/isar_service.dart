@@ -2878,6 +2878,71 @@ Future<List<ClienteEntity>> buscarClientes(
     }
   }
 
+  /// Borra TODAS las colecciones de Isar registradas en la instancia.
+  ///
+  /// Usado al crear un tenant nuevo (signup "Crear mi empresa") para no
+  /// mezclar datos con el tenant anterior. Sin esto, el negocio nuevo
+  /// hereda el catálogo/ventas/lotes del viejo — y como el JWT nuevo no
+  /// los autoriza por RLS, el sync falla con `row-level security violation`.
+  ///
+  /// ⚠️ Por qué wipe y no borrado selectivo: la instancia de Isar es
+  /// única para todos los tenants. `isar_service.dart:118` calcula el
+  /// path como `isar_${prefs['empresa_id'] ?? 'default'}`, pero nadie
+  /// escribe esa key → siempre resuelve `isar_default`. Un borrado
+  /// selectivo dejaría residuos de tablas que hoy no figuran en el
+  /// wipe y que volverían a filtrarse.
+  ///
+  /// ⚠️ No rethrow: si una colección falla, se reporta a Sentry y se
+  /// sigue. Dejar al usuario con datos stale es preferible a dejarlo
+  /// sin cuenta creada.
+  Future<void> wipeAll() async {
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        await isar.ventaEntitys.clear();
+        await isar.detalleVentaEntitys.clear();
+        await isar.productoEntitys.clear();
+        await isar.usuarioEntitys.clear();
+        await isar.movimientoInventarioEntitys.clear();
+        await isar.gastoEntitys.clear();
+        await isar.logEntitys.clear();
+        await isar.pedidoEntitys.clear();
+        await isar.detallePedidoEntitys.clear();
+        await isar.recepcionEntitys.clear();
+        await isar.cartSessionEntitys.clear();
+        await isar.turnoEntitys.clear();
+        await isar.localEntitys.clear();
+        await isar.proveedorEntitys.clear();
+        await isar.codigoBarrasAliasEntitys.clear();
+        await isar.loteEntitys.clear();
+        await isar.departamentoEntitys.clear();
+        await isar.telegramConfigEntitys.clear();
+        await isar.categoriaEntitys.clear();
+        await isar.marcaEntitys.clear();
+        await isar.movimientoLoteEntitys.clear();
+        await isar.clienteEntitys.clear();
+        await isar.empleadoInfoEntitys.clear();
+        await isar.horarioEntitys.clear();
+        await isar.nominaPagoEntitys.clear();
+        await isar.pagoVentaEntitys.clear();
+        await isar.cotizacionMayorEntitys.clear();
+        await isar.autorizacionDescuentoEntitys.clear();
+        await isar.configDescuentoMayoristaEntitys.clear();
+        await isar.planEntitys.clear();
+        await isar.suscripcionEntitys.clear();
+        await isar.ventaAnuladaEntitys.clear();
+        await isar.gastoAnuladoEntitys.clear();
+        await isar.mesaEntitys.clear();
+        await isar.recetaEntitys.clear();
+      });
+      debugPrint('🧹 [wipeAll] Isar limpio completamente');
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'wipeAll_fallo');
+      debugPrint('⚠️ [wipeAll] Falló la limpieza: $e');
+    }
+  }
+
   Future<int> guardarLocal(LocalEntity local) async {
     try {
       final isar = await db;
