@@ -647,3 +647,31 @@ funcionando para stock real, pero las recetas no descuentan.
 - [ ] lote_tenant_id_contract_test.dart: path hardcodeado c:\Users\torre\... — no portable.
 - [ ] sync_services_test.dart: mock HTTP no intercepta (~5).
 - [ ] Test colgado: "... guarda 1 venta + N detalles en Isar" (integración Isar).
+
+## Cerrado en 2026-10-12 (Shorebird)
+
+- [x] **Shorebird configurado 2026-10-12 (init --force).**
+      app_id base (Windows): 66db3549-d408-4006-a746-c67ad7f711ca
+      flavors:
+        client: 0738ce2f-4460-4079-9f1d-38b6cc3daf64
+        admin:  2ac7198d-03f1-4d9e-bc66-0a4faedbd76c
+- [x] **Release 1.0.1+5 emitido SOLO vía Shorebird** (Android APK + Windows exe).
+      Release IDs:
+        · Android client: 894041
+        · Windows:        894068
+      U6 = B: distribución exclusiva por Shorebird (OTA).
+      El APK de `flutter build apk --release` (108 MB, sin OTA) queda
+      como artefacto histórico pero NO se distribuye.
+- [x] **Instalador de Windows generado con inno_bundle.**
+      Comando: `flutter build windows --release --target lib/main_client.dart`
+               + `dart run inno_bundle --skip-app`
+      ⚠️ `inno_bundle` NO acepta `--target`. El build de Flutter va por separado.
+- [ ] Validar flujo de `shorebird patch` en la próxima iteración.
+
+- ⚠️ **Notas operativas sobre Shorebird en Windows:**
+  · `shorebird.bat` no quotea args (`%1..%9`) y rompe `--dart-define-from-file`.
+    Usar `shorebird.ps1` directo desde PowerShell.
+  · Cada flavor necesita su propia app en Shorebird. El valor en
+    `flavors:` es el UUID (no el path al entrypoint).
+  · Windows usa el app_id base (no tiene flavors).
+  · `shorebird init --force` es interactivo: pipe `"y`n"` para confirmar.
