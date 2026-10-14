@@ -313,9 +313,16 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
           letterSpacing: -0.2,
           color: Color(0xFF111827),
           shadows: [
-            // Halo blanco: garantiza legibilidad aunque un blob
-            // violeta/azure pase justo por detrás del texto.
-            Shadow(color: Color(0x99FFFFFF), blurRadius: 8),
+            // Halo blanco MUY sutil. Antes era `Color(0x99FFFFFF)` con
+            // `blurRadius: 8`: un radio tan grande lo difumina sobre el
+            // fondo claro de la AppBar y deja el texto emborronado en
+            // lugar de separarlo. Bajado a 2px hace el trabajo de
+            // contraste sin la mancha.
+            Shadow(
+              color: Color(0xB3FFFFFF),
+              offset: Offset(0, 1),
+              blurRadius: 2,
+            ),
           ],
         ),
       ),

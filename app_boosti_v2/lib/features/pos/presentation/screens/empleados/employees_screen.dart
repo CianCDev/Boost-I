@@ -218,6 +218,7 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
     return SegmentedToggle<EmployeeTab>(
       selected: _tab,
       accentColor: const Color(0xFF10B981),
+      borderColor: kCardBorder.withValues(alpha: 0.3),
       onChanged: (v) => setState(() => _tab = v),
       items: const [
         SegmentedToggleItem(

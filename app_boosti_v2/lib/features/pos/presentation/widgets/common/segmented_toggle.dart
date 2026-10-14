@@ -13,6 +13,13 @@ class SegmentedToggle<T> extends StatelessWidget {
   /// Si es `false`, se activa automáticamente cuando el ancho < 380.
   final bool compact;
 
+  /// Color del borde del contenedor.
+  ///
+  /// `null` (default) conserva el gris `Colors.grey.shade300` de siempre.
+  /// Se sobreescribe desde la pantalla de empleados para acompañar el
+  /// verde de sus cards en vez de cortar con un gris frío.
+  final Color? borderColor;
+
   const SegmentedToggle({
     super.key,
     required this.items,
@@ -20,6 +27,7 @@ class SegmentedToggle<T> extends StatelessWidget {
     required this.onChanged,
     this.accentColor = const Color(0xFF8B5CF6),
     this.compact = false,
+    this.borderColor,
   });
 
   @override
@@ -46,9 +54,10 @@ class SegmentedToggle<T> extends StatelessWidget {
                   : Colors.white.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.grey.shade300,
+                color: borderColor ??
+                    (isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : Colors.grey.shade300),
                 width: 1,
               ),
             ),

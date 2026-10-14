@@ -8,6 +8,18 @@ import '../../../domain/permissions/roles.dart';
 
 enum EmployeeCardMode { detailed, compact }
 
+/// Verde del design system para los bordes en reposo de cards y chips.
+///
+/// Antes era `colorScheme.outlineVariant`, que en tema claro resuelve a
+/// un gris casi negro: sobre cards blancas el borde se leía como una
+/// línea dura y le daba a la pantalla un tono sucio. Con verde al 28% la
+/// separación sigue siendo legible pero se lleva bien con los avatares
+/// y los badges de rol, que ya son de color.
+///
+/// Ojo: NO se usa en hover — ahí manda el accent del rol
+/// (`_rolColor`), que tiene más contraste y ya codifica información.
+const Color kCardBorder = Color(0xFF10B981);
+
 class EmployeeCard extends StatefulWidget {
   final UsuarioEntity usuario;
   final EmpleadoInfoEntity? info;
@@ -101,8 +113,19 @@ class _EmployeeCardState extends State<EmployeeCard> {
   String get _rolLabel => UserRole.fromString(u.rol).label;
 
   String get _initials {
-    final parts = u.nombre.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty) return '?';
+    // ⚠️ El `trimmed.isEmpty` va ANTES del split, no después.
+    //
+    // La versión anterior hacía `''.split(RegExp(r'\s+'))` y después
+    // `if (parts.isEmpty) return '?'`. Eso nunca se cumplía: split SIEMPRE
+    // devuelve al menos un elemento, y para `''` devuelve `['']`. Pasaba
+    // al `parts.length == 1` y ejecutaba `''.substring(0, 1)`, que lanza
+    // `RangeError`. Como `_initialsAvatar` se llama siempre (con foto o
+    // sin foto), cualquier empleado con `nombre == ''` reventaba la
+    // pantalla de empleados.
+    final trimmed = u.nombre.trim();
+    if (trimmed.isEmpty) return '?';
+
+    final parts = trimmed.split(RegExp(r'\s+'));
     if (parts.length == 1) return parts[0].substring(0, 1).toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
@@ -167,20 +190,27 @@ class _EmployeeCardState extends State<EmployeeCard> {
                   ? colorScheme.surfaceContainerHigh
                       .withValues(alpha: _hovered ? 0.95 : 0.75)
                   : Colors.white.withValues(alpha: _hovered ? 1.0 : 0.97),
+              // 20 en las DOS variantes: la compacta usaba 16 y la
+              // diferencia se veía al cambiar de vista.
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: _hovered
                     ? accent.withValues(alpha: 0.45)
-                    : colorScheme.outlineVariant.withValues(alpha: 0.3),
-                width: _hovered ? 1.5 : 1,
+                    : kCardBorder.withValues(alpha: 0.28),
+                // Ancho FIJO (1.0) también en hover. `pos_menu_card.dart`
+                // ya hizo este cambio: engrosar a 1.5 roba 1px de espacio
+                // interno y provoca "BOTTOM OVERFLOWED BY 1.00 PIXELS".
+                width: 1.0,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: isDark ? 0.2 : (_hovered ? 0.10 : 0.05),
+                  // 0x0F172A (azul noche) en vez de negro puro: sobre
+                  // cards blancas, el negro puro se ve sucio.
+                  color: const Color(0xFF0F172A).withValues(
+                    alpha: isDark ? 0.2 : (_hovered ? 0.10 : 0.06),
                   ),
-                  blurRadius: _hovered ? 18 : 10,
-                  offset: Offset(0, _hovered ? 6 : 3),
+                  blurRadius: _hovered ? 18 : 8,
+                  offset: Offset(0, _hovered ? 6 : 2),
                 ),
               ],
             ),
@@ -228,7 +258,7 @@ class _EmployeeCardState extends State<EmployeeCard> {
                   const SizedBox(height: 8),
                   Container(
                     height: 1,
-                    color: colorScheme.outlineVariant.withValues(alpha: 0.25),
+                    color: kCardBorder.withValues(alpha: 0.22),
                   ),
                   const SizedBox(height: 6),
                 ],
@@ -276,17 +306,19 @@ class _EmployeeCardState extends State<EmployeeCard> {
                   ? colorScheme.surfaceContainerHigh
                       .withValues(alpha: _hovered ? 0.95 : 0.75)
                   : Colors.white.withValues(alpha: _hovered ? 1.0 : 0.97),
-              borderRadius: BorderRadius.circular(16),
+              // 20, igual que la variante detallada.
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: _hovered
                     ? accent.withValues(alpha: 0.45)
-                    : colorScheme.outlineVariant.withValues(alpha: 0.3),
-                width: _hovered ? 1.5 : 1,
+                    : kCardBorder.withValues(alpha: 0.28),
+                // Fijo en 1.0 — ver la nota en `_buildDetailed`.
+                width: 1.0,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: isDark ? 0.15 : (_hovered ? 0.08 : 0.04),
+                  color: const Color(0xFF0F172A).withValues(
+                    alpha: isDark ? 0.2 : (_hovered ? 0.10 : 0.06),
                   ),
                   blurRadius: _hovered ? 14 : 8,
                   offset: Offset(0, _hovered ? 5 : 2),
@@ -354,7 +386,21 @@ class _EmployeeCardState extends State<EmployeeCard> {
   // ═══════════════════════════════════════════════════════════
 
   Widget _buildAvatar({required double size, required Color accent}) {
-    final tieneFoto = u.fotoUrl != null && u.fotoUrl!.isNotEmpty;
+    // ⚠️ La foto NO se muestra, ni siquiera si ya existe.
+    //
+    // La subida está congelada desde el 2026-10-10 por política de datos
+    // sensibles (`empleado_form_dialog.dart` → diálogo "Próximamente"),
+    // pero la LECTURA seguía activa y las cards seguían pintando la
+    // imagen. Eso dejaba el estado a medias: se podía ver la foto de un
+    // empleado viejo pero no cambiarla, sin explicación para el usuario.
+    //
+    // Ahora el avatar es SIEMPRE iniciales sobre el gradiente del rol.
+    // `UsuarioEntity.fotoUrl` sigue poblándose y sincronizándose: si se
+    // revierte la decisión, alcanza con restaurar el bloque comentado.
+    //
+    // REVERSIÓN: descomentar el `Image.network` de abajo y volver a
+    // definir `tieneFoto`.
+    // final tieneFoto = u.fotoUrl != null && u.fotoUrl!.isNotEmpty;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -379,22 +425,20 @@ class _EmployeeCardState extends State<EmployeeCard> {
             ],
           ),
           child: ClipOval(
-            child: Container(
-              color: Colors.white,
-              child: tieneFoto
-                  ? Image.network(
-                      u.fotoUrl!,
-                      key: ValueKey(u.fotoUrl),
-                      fit: BoxFit.cover,
-                      cacheWidth: (size * 3).toInt(),
-                      errorBuilder: (_, __, ___) => _initialsAvatar(accent),
-                      loadingBuilder: (_, child, progress) {
-                        if (progress == null) return child;
-                        return _initialsAvatar(accent);
-                      },
-                    )
-                  : _initialsAvatar(accent),
-            ),
+            child: _initialsAvatar(accent),
+            // child: tieneFoto
+            //     ? Image.network(
+            //         u.fotoUrl!,
+            //         key: ValueKey(u.fotoUrl),
+            //         fit: BoxFit.cover,
+            //         cacheWidth: (size * 3).toInt(),
+            //         errorBuilder: (_, __, ___) => _initialsAvatar(accent),
+            //         loadingBuilder: (_, child, progress) {
+            //           if (progress == null) return child;
+            //           return _initialsAvatar(accent);
+            //         },
+            //       )
+            //     : _initialsAvatar(accent),
           ),
         ),
         Positioned(
@@ -491,6 +535,9 @@ class _EmployeeCardState extends State<EmployeeCard> {
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
+        // El `_rolBadge` (detallada) sí lo tenía; la variante compacta
+        // quedaba sin borde. Ahora ambas usan el mismo grosor.
+        border: Border.all(color: accent.withValues(alpha: 0.28), width: 1.0),
       ),
       child: Text(
         _rolLabel.toUpperCase(),

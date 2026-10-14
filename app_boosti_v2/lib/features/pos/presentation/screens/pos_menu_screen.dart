@@ -853,17 +853,30 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     if (options.isEmpty) return const SizedBox.shrink();
 
     // ── Opción única: card horizontal ancha ──
+    //
+    // ⚠️ El `SizedBox(width: double.infinity)` NO es cosmético.
+    //
+    // El padre es un `Column(crossAxisAlignment: CrossAxisAlignment.start)`
+    // (`:810-818`), así que un hijo directo recibe restricciones FLOJAS en
+    // el eje horizontal y se ajusta a su ancho intrínseco. Sin el
+    // `SizedBox`, "Punto de venta" (rama de 1 opción) medía ~204px
+    // mientras "Productos" (celda del grid de 2 columnas) medía ~331px en
+    // la MISMA pantalla. En desktop no se notaba porque con título +
+    // subtítulo + chevron el contenido llenaba el ancho de todos modos.
     if (options.length == 1) {
       final singleOpt = options.first;
-      return PosMenuCard(
-        title: singleOpt.title,
-        subtitle: singleOpt.subtitle,
-        icon: singleOpt.icon,
-        color: singleOpt.color,
-        onTap: singleOpt.onTap,
-        badge: singleOpt.badge,
-        badgeColor: singleOpt.badgeColor,
-        compactMode: isMobile,
+      return SizedBox(
+        width: double.infinity,
+        child: PosMenuCard(
+          title: singleOpt.title,
+          subtitle: singleOpt.subtitle,
+          icon: singleOpt.icon,
+          color: singleOpt.color,
+          onTap: singleOpt.onTap,
+          badge: singleOpt.badge,
+          badgeColor: singleOpt.badgeColor,
+          compactMode: isMobile,
+        ),
       );
     }
 

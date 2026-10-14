@@ -5,6 +5,7 @@ import '../../screens/empleados/employees_enums.dart';
 import '../../utils/responsive_helper.dart';
 import '../common/filtro_chip_template.dart';
 import '../common/segmented_toggle.dart';
+import 'empleado_card.dart' show kCardBorder;
 
 /// Toolbar completa de la pantalla de empleados:
 /// filtros de estado + dropdown dpto + dropdown orden + agrupar + vista.
@@ -195,7 +196,10 @@ class EmployeesToolbar extends StatelessWidget {
         color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+          // Verde del design system en vez de `outlineVariant` (gris
+          // casi negro en tema claro). Mismo criterio que
+          // `kCardBorder` en `empleado_card.dart`.
+          color: kCardBorder.withValues(alpha: 0.3),
         ),
       ),
       child: child,
@@ -249,6 +253,9 @@ class EmployeesToolbar extends StatelessWidget {
           accentColor: const Color(0xFF8B5CF6),
           compact: isMobile,
           onChanged: onViewChanged,
+          // Borde verde para acompañar las cards de abajo en vez del
+          // gris `Colors.grey.shade300` por defecto.
+          borderColor: kCardBorder.withValues(alpha: 0.3),
           items: const [
             SegmentedToggleItem(
               value: EmployeeView.detailed,
@@ -285,7 +292,7 @@ class EmployeesToolbar extends StatelessWidget {
             border: Border.all(
               color: activo
                   ? const Color(0xFF10B981).withValues(alpha: 0.4)
-                  : colorScheme.outlineVariant.withValues(alpha: 0.4),
+                  : kCardBorder.withValues(alpha: 0.3),
             ),
           ),
           child: Row(

@@ -293,8 +293,17 @@ class _EmployeeDetailScreenState
     final accent = _roleColor(empleado.rol);
     final isMobile = ResponsiveHelper.isMobile(context);
     final size = isMobile ? 72.0 : 88.0;
-    final tieneFoto =
-        empleado.fotoUrl != null && empleado.fotoUrl!.isNotEmpty;
+    // ⚠️ Avatar SIEMPRE con iniciales, nunca la foto.
+    //
+    // Misma decisión que `empleado_card._buildAvatar`: la gestión de
+    // fotos está congelada por política de datos sensibles, así que no se
+    // muestran ni las que ya existen. El dato `fotoUrl` sigue en el
+    // modelo por si se revierte.
+    //
+    // REVERSIÓN: descomentar el `Image.network` y volver a declarar
+    // `tieneFoto` abajo.
+    // final tieneFoto =
+    //     empleado.fotoUrl != null && empleado.fotoUrl!.isNotEmpty;
 
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -317,11 +326,9 @@ class _EmployeeDetailScreenState
             width: size,
             height: size,
             decoration: BoxDecoration(
-              gradient: tieneFoto
-                  ? null
-                  : LinearGradient(
-                      colors: [accent, Color.lerp(accent, Colors.black, 0.2)!],
-                    ),
+              gradient: LinearGradient(
+                colors: [accent, Color.lerp(accent, Colors.black, 0.2)!],
+              ),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
@@ -332,15 +339,16 @@ class _EmployeeDetailScreenState
               ],
             ),
             child: ClipOval(
-              child: tieneFoto
-                  ? Image.network(
-                      empleado.fotoUrl!,
-                      fit: BoxFit.cover,
-                      cacheWidth: (size * 2).toInt(),
-                      errorBuilder: (_, __, ___) =>
-                          _heroInitials(empleado.inicial),
-                    )
-                  : _heroInitials(empleado.inicial),
+              child: _heroInitials(empleado.inicial),
+              // child: tieneFoto
+              //     ? Image.network(
+              //         empleado.fotoUrl!,
+              //         fit: BoxFit.cover,
+              //         cacheWidth: (size * 2).toInt(),
+              //         errorBuilder: (_, __, ___) =>
+              //             _heroInitials(empleado.inicial),
+              //       )
+              //     : _heroInitials(empleado.inicial),
             ),
           ),
           const SizedBox(width: 16),

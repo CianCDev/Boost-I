@@ -884,7 +884,6 @@ if (_imagenLocal != null) {
 
   Widget _buildAvatarPreview(bool isMobile) {
     final size = isMobile ? 56.0 : 64.0;
-    final tieneFoto = _imagenLocal != null || _fotoUrlActual != null;
 
     return Stack(
       children: [
@@ -892,11 +891,9 @@ if (_imagenLocal != null) {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            gradient: tieneFoto
-                ? null
-                : const LinearGradient(
-                    colors: [_colorPrimary, Color(0xFF059669)],
-                  ),
+            gradient: const LinearGradient(
+              colors: [_colorPrimary, Color(0xFF059669)],
+            ),
             shape: BoxShape.circle,
             border: Border.all(
               color: _colorPrimary.withValues(alpha: 0.3),
@@ -904,19 +901,26 @@ if (_imagenLocal != null) {
             ),
           ),
           child: ClipOval(
-            child: _imagenLocal != null
-                ? Image.file(
-                    _imagenLocal!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _avatarInicial(),
-                  )
-                : (_fotoUrlActual != null
-                    ? Image.network(
-                        _fotoUrlActual!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _avatarInicial(),
-                      )
-                    : _avatarInicial()),
+            // ⚠️ Siempre iniciales. La gestión de fotos está congelada
+            // por política de datos sensibles, así que el preview del
+            // formulario tampoco las muestra (aunque `_fotoUrlActual`
+            // siga teniendo la URL de una foto vieja).
+            //
+            // REVERSIÓN: restaurar el ternario comentado abajo.
+            child: _avatarInicial(),
+            // child: _imagenLocal != null
+            //     ? Image.file(
+            //         _imagenLocal!,
+            //         fit: BoxFit.cover,
+            //         errorBuilder: (_, __, ___) => _avatarInicial(),
+            //       )
+            //     : (_fotoUrlActual != null
+            //         ? Image.network(
+            //             _fotoUrlActual!,
+            //             fit: BoxFit.cover,
+            //             errorBuilder: (_, __, ___) => _avatarInicial(),
+            //           )
+            //         : _avatarInicial()),
           ),
         ),
         Positioned(

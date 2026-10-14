@@ -12,6 +12,12 @@ class ActiveToggle extends StatelessWidget {
   final String? inactiveSubtitle;
   final Color activeColor;
 
+  /// Color del borde en estado inactivo.
+  ///
+  /// `null` (default) conserva `outlineVariant`. La pantalla de
+  /// empleados lo sobreescribe con el verde de sus cards.
+  final Color? idleBorderColor;
+
   const ActiveToggle({
     super.key,
     required this.value,
@@ -21,6 +27,7 @@ class ActiveToggle extends StatelessWidget {
     this.activeSubtitle,
     this.inactiveSubtitle,
     this.activeColor = const Color(0xFF10B981),
+    this.idleBorderColor,
   });
 
   @override
@@ -45,7 +52,8 @@ class ActiveToggle extends StatelessWidget {
           border: Border.all(
             color: value
                 ? activeColor.withValues(alpha: 0.3)
-                : colorScheme.outlineVariant.withValues(alpha: 0.5),
+                : (idleBorderColor ??
+                    colorScheme.outlineVariant.withValues(alpha: 0.5)),
           ),
         ),
         child: SwitchListTile(

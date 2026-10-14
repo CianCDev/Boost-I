@@ -54,15 +54,63 @@ class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier(this._ref) : super(AuthState());
 
   /// Carga la lista de usuarios desde Isar.
-  /// 
-  /// ✅ CAMBIO IMPORTANTE: Ahora trae a TODOS los usuarios (activos e inactivos).
-  /// Esto permite que el selector de login muestre a todos los usuarios registrados
-  /// en el dispositivo, sin importar si cerraron sesión previamente.
+  ///
+  /// ✅ Trae a TODOS los usuarios (activos e inactivos) del tenant
+  /// activo: un usuario que solo cerró sesión debe seguir siendo
+  /// seleccionable en el login (ver más abajo).
+  ///
+  /// ⚠️ Se filtra por `tenantId`. La instancia de Isar es ÚNICA para
+  /// todos los tenants (`isar_service.dart:118` calcula el path como
+  /// `isar_${prefs['empresa_id'] ?? 'default'}` y nadie escribe esa key,
+  /// así que siempre resuelve `isar_default`). Sin este filtro, un
+  /// usuario que quedó de un negocio anterior sigue apareciendo en el
+  /// selector del negocio nuevo, y con su PIN se puede entrar.
   Future<void> loadUsuarios() async {
     try {
       // Llamada corregida sin argumentos posicionales obligatorios
       final usuarios = await _isarService.obtenerTodosLosUsuarios();
-      state = state.copyWith(usuarios: usuarios);
+
+      final tenantActual = _ref.read(tenantActualProvider).tenantId;
+      if (tenantActual != null && tenantActual.isNotEmpty) {
+        debugPrint(
+          '🔒 [loadUsuarios] Filtrando por tenant $tenantActual '
+          'sobre ${usuarios.length} usuario(s) en Isar',
+        );
+      }
+
+      // Saneado de la lista que ve el selector de login.
+      //
+      // ⚠️ NO se filtra por `estado == 'desconectado'` ni por `activo`:
+      //    un usuario que solo cerró sesión debe seguir siendo
+      //    seleccionable (ver el docstring de este método).
+      final saneados = usuarios.where((u) {
+        // Solo los del tenant activo.
+        //
+        // Se exige `u.tenantId != null` para no descartar usuarios
+        // legítimos: si el sync todavía no hidrató el campo, la entity
+        // queda en `null` y sin este chequeo desaparecería del login
+        // dejándolo sin forma de entrar.
+        if (tenantActual != null &&
+            tenantActual.isNotEmpty &&
+            u.tenantId != null &&
+            u.tenantId != tenantActual) {
+          return false;
+        }
+
+        // Placeholder que crea el sync para pedidos con usuario borrado.
+        if (u.nombre.trim().isEmpty) return false;
+        if (u.nombre == 'Usuario eliminado') return false;
+        return true;
+      }).toList();
+
+      final descartados = usuarios.length - saneados.length;
+      if (descartados > 0) {
+        debugPrint(
+          '🧹 [loadUsuarios] $descartados usuario(s) saneado(s) del selector',
+        );
+      }
+
+      state = state.copyWith(usuarios: saneados);
     } catch (e) {
       state = state.copyWith(errorMessage: 'Error cargando usuarios: $e');
     }
