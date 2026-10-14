@@ -211,9 +211,44 @@ shorebird release android
 # Release Windows (Shorebird + Inno)
 shorebird release windows
 dart run inno_bundle --no-app --release
-
 # Parche OTA
 shorebird patch android --release-version=X.Y.Z+B
+```
+
+### ⚠️ Shorebird en Windows — la ExecutionPolicy rompe todo
+
+`shorebird.bat` no quotea args (`%1..%9`) y destruye
+`--dart-define-from-file`. Encima, la ExecutionPolicy bloquea invocar
+`shorebird.ps1` directo: el comando **falla en silencio** (exit 0, output
+vacío) y parece que no pasó nada. La única forma que funciona:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  "$env:USERPROFILE\.shorebird\bin\shorebird.ps1" patch android `
+  --flavor client --target lib/main_client.dart `
+  --dart-define-from-file=env.json --allow-asset-diffs
+```
+
+`--allow-asset-diffs` **siempre**: el tree-shaking de íconos produce un
+`MaterialIcons-Regular.otf` distinto en cada build y Shorebird lo reporta
+como asset diff. Sin la flag se cuelga pidiendo confirmación por stdin y
+aborta con *"Input was required … non-interactive context"*.
+
+### ⚠️ Un patch NO cambia recursos Android
+
+Un patch empaqueta **código Dart + assets**. `android:label`, los íconos de
+`mipmap-*` y `colors.xml` quedan congelados en el APK base. Cambiar el ícono
+del launcher o el nombre visible de la app **exige `shorebird release`**.
+
+Los patches además son **por release**: uno publicado sobre `894041` no se
+aplica a un release posterior. Para pasar a un release nuevo hay que
+instalar el APK encima, y volver a correr `get-apks` (devuelve el APK del
+release pedido, no el "latest").
+
+```powershell
+# APK distribuible de un release concreto (autocontenida, sin OTA)
+shorebird releases get-apks --flavor client `
+  --release-version 1.1.1+7 --out build\apks
 ```
 
 ## 9. Errores comunes y cómo evitarlos
@@ -226,6 +261,13 @@ shorebird patch android --release-version=X.Y.Z+B
 | `SyncService` en bucle | Anti-eco mal puesto | Verificar `_escribiendoX` |
 | `Realtime` no dispara | Tabla no suscrita | Añadir `_suscribirATabla` |
 | RLS bloquea 42501 | Sin JWT o policy mal | Verificar `current_tenant_id()` |
+| `asset not found` al buildear | Se borró un archivo declarado en `pubspec.yaml: assets:` | Sacar la línea del `pubspec` **o** restaurar el archivo |
+| `inno_bundle` falla sin error claro | `installer_icon` apunta a un `.ico` inexistente | Regenerar con `tools\gen_ico.ps1` |
+| El ícono no cambia en el launcher | En Android 8+ se usa `app_icon_foreground`, no `app_icon.png` | Regenerar con `tools\gen_launcher_foreground.ps1` |
+| Ícono cortado en el launcher | El foreground excede la zona segura (61% del lienzo) | `tools\gen_launcher_foreground.ps1` lo escala al 62% |
+| `RangeError` al pintar iniciales | `''.split(regex)` devuelve `['']`, no `[]`; el `isEmpty` nunca se cumple | Validar `trimmed.isEmpty` **antes** del split |
+| `shorebird` no hace nada, exit 0 | ExecutionPolicy bloquea `shorebird.ps1` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File shorebird.ps1` |
+| Patch aborta pidiendo input | Tree-shaking de íconos siempre marca asset diff | Agregar `--allow-asset-diffs` |
 
 ## 10. Git y versionado
 
@@ -234,6 +276,12 @@ shorebird patch android --release-version=X.Y.Z+B
 - Los `.g.dart` **sí** se suban (son necesarios para compilar).
 - Bump de versión en `pubspec.yaml` **antes** de cada release.
 - Un commit por feature/refactor. Mensajes en español.
+- **El nombre de la app NO es el `name:` del `pubspec`.** Ese es el paquete
+  Dart (`app_boosti_v2`); cambiarlo rompe todos los imports. El nombre
+  visible vive en `android:label`, `inno_bundle.name` y los textos Dart.
+- Si se cambia el ícono, regenerar **los tres** artefactos:
+  `flutter_launcher_icons` (los `mipmap-*`), `tools\gen_launcher_foreground.ps1`
+  y `tools\gen_ico.ps1`.
 
 ### 10.1 Prohibido exponer datos sensibles en git
 

@@ -594,6 +594,37 @@ restaurantes con venta por unidad preparada).
       mismo negocio no comparten inventario. Post-v1 evaluar Camino C
       (varios locales por tenant, con `local_id`).
 
+## Aplicado en Supabase (2026-10-13) ✅
+
+- [x] **`20261012000001_crear_local_con_logo.sql`** — RPC con `p_logo_path`.
+      Incluía el `DROP FUNCTION` de la firma vieja de 5 args, que sin él
+      dejaba una sobrecarga ambigua y PostgREST devolvía *"function is not
+      unique"*. Verificar igual que
+      `pg_get_function_identity_arguments` devuelve **una sola fila con 6 args**.
+- [x] **`20261012000002_locales_razon_social.sql`** — sin esto el logo del
+      comprobante sale sin razón social.
+- [x] **`20261012000003_ventas_numero_factura.sql`** — sin esto todas las
+      ventas salen con `N° pendiente`.
+- [x] **Edge Function `create-tenant` deployada.** Lleva el alta en
+      `tenants` + `suscripciones` y ya **no** hardcodea `pin: "1234"`
+      (que dejaba a todo tenant nuevo del SaaS con un PIN adivinable).
+- [x] **`supabase secrets set TRIAL_PLAN_ID=trial`**
+
+### ⚠️ Verificar que `TRIAL_PLAN_ID` sea un id real de `planes`
+
+La EF inserta en `suscripciones.plan_id`, que es **FK a `planes.id`**. Si el
+valor `trial` no existe en `planes`, el insert falla por violación de FK y el
+tenant queda **sin suscripción**. La EF lo loguea y NO aborta el signup, a
+propósito, así que el síntoma es invisible: el alta funciona pero la consola
+SaaS no muestra plan.
+
+```sql
+-- Si no devuelve filas, usar el id real:
+SELECT id, nombre FROM planes;
+-- Verificar el plan_id que se está guardando:
+SELECT tenant_id, estado, plan_id, trial_vence_en FROM suscripciones;
+```
+
 ## Pendiente de aplicar en Supabase
 
 - [ ] **`20261012000001_crear_local_con_logo.sql`** — redefine la RPC con
@@ -675,3 +706,121 @@ funcionando para stock real, pero las recetas no descuentan.
     `flavors:` es el UUID (no el path al entrypoint).
   · Windows usa el app_id base (no tiene flavors).
   · `shorebird init --force` es interactivo: pipe `"y`n"` para confirmar.
+  · **La ExecutionPolicy bloquea la invocación directa.** Hay que llamar
+    `powershell.exe -NoProfile -ExecutionPolicy Bypass -File shorebird.ps1 …`
+    o el comando falla en silencio (exit 0, output vacío).
+  · `shorebird patch` **siempre** reporta `MaterialIcons-Regular.otf` como
+    asset diff (es el tree-shaking de íconos, no un cambio real). Sin
+    `--allow-asset-diffs` se cuelga pidiendo confirmación por stdin y
+    aborta con "Input was required … non-interactive context".
+    **Pasar la flag siempre.**
+  · `shorebird releases get-apks` genera el APK **del release pedido**, no
+    un "latest". Cada release nuevo hay que volver a correrlo.
+
+## Cerrado en 2026-10-13 (patches + identidad visual)
+
+### Releases y patches Android (client `0738ce2f-…`)
+
+| ID | Versión | Qué contiene |
+|---|---|---|
+| `894041` | 1.0.1+5 | Release base. Patches #1, #2 y #3 encima |
+| — | 1.1.0+6 | Ícono nuevo (azul `#2F81D3`). Sin patches |
+| — | 1.1.1+7 | Nombre `BoostiPos`. Sin patches |
+
+⚠️ **Los patches son POR RELEASE.** El #1/#2/#3 quedaron atados a `894041`
+y **no** se aplican a `1.1.0+6` ni a `1.1.1+7`. Un tablet con `894041` +
+patch 3 **no migra solo** a un release nuevo: hay que instalar el APK
+encima. Por eso se hicieron 2 releases seguidos en vez de patches: cambiar
+el ícono y el `android:label` son **recursos Android**, y un patch solo
+empaqueta código Dart + assets.
+
+### APK distribuible
+
+```powershell
+shorebird releases get-apks --flavor client --release-version 1.1.1+7 --out build\apks
+```
+
+→ `build\apks\universal.apk` (~114 MB, arm32+arm64+x86_64). Es
+**autocontenida**: no necesita red ni patches. `build/` está en
+`.gitignore`, así que nunca se commitea por accidente.
+
+⚠️ **Android no refresca ícono ni label de una app ya instalada.** Para ver
+el ícono azul y el nombre `BoostiPos` hay que **desinstalar la app vieja**
+primero. No tocar "borrar datos" si querés conservar Isar.
+
+### Identidad visual — `BoostiPos`
+
+Nombre unificado en `android:label` (AndroidManifest), `inno_bundle.name`
+(instalador Windows) y 10 textos Dart (splash, login, welcome, registro,
+export CSV, bot de Telegram, tutorial).
+
+⛔ **NO se toca `pubspec.yaml: name:`** (`app_boosti_v2`): es el nombre del
+paquete Dart. Cambiarlo rompe todos los imports `package:app_boosti_v2/…`.
+
+### 🔴 El secret `TRIAL_PLAN_ID` es una FK, no una etiqueta
+
+`supabase secrets set TRIAL_PLAN_ID=trial` — si la tabla `planes` no tiene
+una fila con `id = 'trial'`, el `INSERT INTO suscripciones` falla por
+violación de FK. La EF **no aborta el signup** por diseño (el local y el
+usuario ya están creados; perder el alta del cliente sería peor), así que
+el tenant queda sin suscripción y nadie se entera hasta que se mira la
+consola SaaS.
+
+```sql
+SELECT id, nombre FROM planes;   -- ← confirmar el id real
+```
+
+### Pendiente de commitear
+
+El release `1.1.1+7` ya está publicado y la APK generada, pero los 54
+archivos del ícono + nombre **siguen sin commitear**:
+`android/app/src/main/res/**`, `assets/icon/**`, `ios/…/AppIcon*`, `web/**`,
+`windows/runner/resources/app_icon.ico`, `pubspec.yaml`, 7 `.dart` con los
+textos, los 3 `.md` y `tools/` (nuevo).
+
+### 3 archivos de ícono, no uno
+
+| Archivo | Para qué | Cómo se genera |
+|---|---|---|
+| `assets/icon/app_icon.png` | Legacy (Android < 8), Windows, web | A mano (1025×1025) |
+| `assets/icon/app_icon_foreground.png` | **Adaptive icon, Android 8+** | `tools\gen_launcher_foreground.ps1` |
+| `assets/icon/app_icon.ico` | Instalador Windows / accesos directos | `tools\gen_ico.ps1` |
+
+⚠️ **En Android 8+ el launcher NO usa `app_icon.png`.** Usa
+`adaptive_icon_background` (un color) + `adaptive_icon_foreground` (la
+imagen). Cambiar solo el PNG deja el ícono viejo en el launcher.
+
+⚠️ **El foreground va al ~62% del lienzo.** Los adaptive icons tienen zona
+segura 66/108 (61%) y máscara visible 72/108 (67%). Un logo más grande se
+recorta. `tools\gen_launcher_foreground.ps1` transparenta el fondo y
+reescala solo.
+
+⚠️ **`assets/icon/app_icon.ico` está declarado en
+`inno_bundle.installer_icon`. Borrarlo rompe `dart run inno_bundle`**, y el
+error no dice qué archivo falta.
+
+⚠️ Borrar cualquier asset declarado en `pubspec.yaml: assets:` **rompe el
+build de Flutter**. Si se elimina el archivo, sacar la línea también.
+
+### Fotos de empleados — ocultas en TODAS las superficies
+
+- [x] **Subida** congelada (política de datos sensibles). El botón abre un
+      diálogo "Próximamente" (`empleado_form_dialog.dart`).
+- [x] **Lectura** también apagada desde 2026-10-13. `empleado_card`,
+      `employees_detail_screen` y `empleado_form_dialog` siempre pintan
+      iniciales. El `Image.network` quedó comentado en los 3.
+- `UsuarioEntity.fotoUrl` **sigue poblándose y sincronizándose** (push
+  comentado, pull activo). Es lo que hace la decisión reversible sin
+  volver a subir nada.
+- Bug de paso: `_initials` hacía `''.split(RegExp(r'\s+'))`, que devuelve
+  `['']` y nunca `[]`. El `if (parts.isEmpty)` no se cumplía nunca y
+  `''.substring(0, 1)` lanzaba `RangeError`: **cualquier empleado sin
+  nombre reventaba la pantalla de empleados.** Ahora devuelve `'?'`.
+
+### Bug abierto — lock screen exige 4 dígitos, el PIN admite hasta 6
+
+`rest_screen.dart:88` → `if (_enteredPin.length != 4) return;` y `:152` →
+`if (_enteredPin.length < 4)`. Pero `SecureCredentials.validatePin` acepta
+4-6 y `cambiar_pin_dialog` deja elegir. **Un usuario con PIN de 5 o 6
+dígitos queda soft-loqueado en cada descanso**, sin mensaje que lo explique.
+El mismo bug se corrige cambiando el bound de `RestScreen` a 6.

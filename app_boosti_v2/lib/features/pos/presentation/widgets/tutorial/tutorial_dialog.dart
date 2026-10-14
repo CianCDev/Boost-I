@@ -165,7 +165,7 @@ class _TutorialDialogState extends State<TutorialDialog> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Guía rápida de BoostI POS',
+                    'Guía rápida de BoostiPos',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,

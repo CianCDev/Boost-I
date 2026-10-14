@@ -9,6 +9,11 @@
 
 ## Pila Técnica y Versiones Base
 - **Flutter SDK:** 3.47.2 (Channel stable)
+- **Versión de la app:** `1.1.1+7` (`pubspec.yaml`)
+- **Nombre visible:** `BoostiPos` — vive en `android:label`, `inno_bundle.name`
+  y 10 textos Dart. ⛔ `pubspec.yaml: name:` sigue siendo `app_boosti_v2`
+  (es el paquete Dart; cambiarlo rompe todos los imports).
+- **Color de marca / adaptive icon:** `#2F81D3` (era `#10B981` verde)
 - **Dart SDK:** 3.13.2
 - **Lenguaje Kotlin:** 2.1.10 (KGP)
 - **Android Gradle Plugin (AGP):** 8.11.1
@@ -284,6 +289,78 @@ desde `String.fromEnvironment('SENTRY_DSN')` en `bootstrap.dart` §4.
 | `assets/logo.svg` | Duplicado **byte a byte** de `logoboosti300px.svg` (mismo SHA256 `343FA29D...`, 1826 bytes). No lo usa ningún archivo y no está en `pubspec.yaml`, así que no está en el bundle. Declararlo metía una copia muerta | No declarado. Queda pendiente borrarlo o renombrarlo (`AGENTS.md` prohíbe borrar sin confirmación) |
 | `.sentry-native/` | Estaba **trackeado**: `installation_id` es un identificador de máquina y los `.run/` son sesiones efímeras. `AGENTS.md §10.1` prohíbe subir identificadores | Agregado a `.gitignore` + `git rm -r --cached`. `git ls-files | grep sentry-native` → 0 |
 | `CustomAppBar` (`widgets/appbar.dart`) | Se intentó agregar una variante clara (fondo blanco, contenido oscuro). El widget lo usan **~30 pantallas** y tiene el contenido hardcodeado a blanco (`foregroundColor`, `iconTheme`, `ColorFilter` del logo): tocarlo rompía las otras 30 | Revertido (`git diff` vacío). La variante clara quedó **local en `main_pos_screen.dart`**, que es la única pantalla con `extendBodyBehindAppBar: true` sobre `_WelcomeBackground` |
+
+---
+
+## Cierre sesión 2026-10-13 (Shorebird + identidad visual)
+
+**Tags:** `v1.0.2` (`2e0b5c7`) · `v1.0.3` (`c303fda`)
+
+### Estado de Supabase al cierre (2026-10-13)
+
+- Migraciones `20261012000001`, `...0002`, `...0003` **aplicadas**.
+- Edge Function `create-tenant` **deployada** (ya sin `pin: "1234"`).
+- `supabase secrets set TRIAL_PLAN_ID=trial` — ⚠️ es **FK a `planes.id`**,
+  no una etiqueta. Si no existe esa fila, el `INSERT INTO suscripciones`
+  falla por FK y el tenant queda sin plan en la consola SaaS **sin que
+  nada falle visiblemente** (la EF no aborta el signup a propósito).
+  Verificar con `SELECT id, nombre FROM planes;`.
+
+### Regla que costó 2 releases: los patches son POR RELEASE
+
+Un patch de Shorebird solo empaqueta **código Dart + assets**. Los
+**recursos Android** (`android:label`, íconos de `mipmap-*`, `colors.xml`)
+quedan congelados en el APK base.
+
+Por eso, cambiar el ícono del launcher o el nombre visible **exige un
+release nuevo**, no un patch:
+
+| ID | Versión | Contenido |
+|---|---|---|
+| `894041` | 1.0.1+5 | Base + patches #1, #2, #3 |
+| — | 1.1.0+6 | Ícono azul (nuevo release) |
+| — | 1.1.1+7 | Nombre `BoostiPos` (otro release) |
+
+Un tablet con `894041` + patch 3 **no migra solo** a `1.1.1+7`: hay que
+instalar el APK encima. Y `shorebird releases get-apks` hay que volver a
+correrlo por cada release, no devuelve el "latest".
+
+### El ícono del app son 3 archivos, no uno
+
+| Archivo | Para qué |
+|---|---|
+| `assets/icon/app_icon.png` | Legacy (Android < 8), Windows, web |
+| `assets/icon/app_icon_foreground.png` | **Adaptive icon, Android 8+** |
+| `assets/icon/app_icon.ico` | Instalador Windows |
+
+En Android 8+ el launcher **ignora `app_icon.png`**: usa
+`adaptive_icon_background` (color) + `adaptive_icon_foreground` (imagen).
+Cambiar solo el PNG deja el ícono viejo en pantalla.
+
+El foreground va al **62%** del lienzo: zona segura 66/108 (61%), máscara
+visible 72/108 (67%). Un logo más grande se recorta.
+`tools\gen_launcher_foreground.ps1` y `tools\gen_ico.ps1` regeneran ambos.
+
+⚠️ Borrar un asset declarado en `pubspec.yaml: assets:` rompe el build.
+⚠️ Borrar `app_icon.ico` rompe `dart run inno_bundle` sin error claro.
+
+### Bug que casi pasa: `''.split(regex)` devuelve `['']`, nunca `[]`
+
+`EmployeeCard._initials` hacía:
+
+```dart
+final parts = u.nombre.trim().split(RegExp(r'\s+'));
+if (parts.isEmpty) return '?';                        // ← nunca se cumplía
+if (parts.length == 1) return parts[0].substring(0, 1);  // ← RangeError
+```
+
+`split` **siempre** devuelve al menos un elemento. Para `''` devuelve `['']`,
+así que caía en el `substring` y lanzaba `RangeError`. Como
+`_initialsAvatar` se llama siempre (con foto o sin foto), **cualquier
+empleado con `nombre == ''` reventaba la pantalla**.
+
+El `if (parts.isEmpty)` sobre un `split` es un no-op silencioso: lee como
+una guarda y no protege nada.
 
 ---
 

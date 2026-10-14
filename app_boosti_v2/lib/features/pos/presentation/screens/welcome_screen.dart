@@ -150,7 +150,7 @@ class WelcomeScreen extends StatelessWidget {
 
                             Center(
                               child: Text(
-                                'Bienvenido a BoostI POS',
+                                'Bienvenido a BoostiPos',
                                 style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.9),
                                   fontSize: isMobile ? 16 : 18,
@@ -314,7 +314,7 @@ class WelcomeScreen extends StatelessWidget {
             colors: [Colors.white, Color(0xFF6EE7B7)],
           ).createShader(bounds),
           child: Text(
-            'BoostI POS',
+            'BoostiPos',
             style: TextStyle(
               fontSize: isMobile ? 28 : 36,
               fontWeight: FontWeight.w900,

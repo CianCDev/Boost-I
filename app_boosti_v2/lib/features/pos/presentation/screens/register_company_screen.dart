@@ -10,7 +10,7 @@ import '../utils/responsive_helper.dart';
 import 'inventory_catalog_screen.dart';
 import 'setup_pin_screen.dart';
 
-/// Pantalla para registrar una nueva empresa (tenant) en BoostI POS.
+/// Pantalla para registrar una nueva empresa (tenant) en BoostiPos.
 ///
 /// Flujo:
 /// 1. Usuario rellena formulario.
@@ -271,7 +271,7 @@ class _RegisterCompanyScreenState
                               const SizedBox(height: 8),
                               Center(
                                 child: Text(
-                                  'Registra tu negocio en BoostI POS',
+                                  'Registra tu negocio en BoostiPos',
                                   style: TextStyle(
                                     fontSize: isMobile ? 13 : 15,
                                     fontWeight: FontWeight.w500,

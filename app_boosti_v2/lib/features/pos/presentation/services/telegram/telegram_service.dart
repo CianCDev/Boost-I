@@ -449,7 +449,7 @@ $lista
   }
 
   String _bienvenida() {
-    return '👋 <b>Bot de BoostI POS activo.</b>\n'
+    return '👋 <b>Bot de BoostiPos activo.</b>\n'
         'Escribe /ayuda para ver los comandos disponibles.';
   }
 

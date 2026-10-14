@@ -1,7 +1,7 @@
 name: "app_boosti_v2"
 description: "A new Flutter project."
 publish_to: "none"
-version: "1.0.1+5"
+version: "1.1.1+7"
 environment:
   sdk: "^3.3.0"
 dependencies:
@@ -80,19 +80,21 @@ flutter:
     - "assets/logoboosti300px.svg"
     - "shorebird.yaml"
     - "assets/icon/app_icon.png"
-    - "assets/icon/app_icon.ico"
     - "assets/icon/app_icon_foreground.png"
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icon/app_icon.png"
-  adaptive_icon_background: "#10B981"
+  # Antes #10B981 (verde). El logo nuevo es azul (#2F81D3) y el fondo del
+  # adaptive icon tiene que acompañar, o el launcher muestra un recuadro
+  # verde con un logo azul.
+  adaptive_icon_background: "#2F81D3"
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
   web:
     generate: true
     image_path: "assets/icon/app_icon.png"
-    background_color: "#10B981"
-    theme_color: "#10B981"
+    background_color: "#2F81D3"
+    theme_color: "#2F81D3"
   windows:
     generate: true
     image_path: "assets/icon/app_icon.png"
@@ -113,10 +115,11 @@ inno_bundle:
   id: "f18d8f66-b846-4f2b-9cee-306d1579da1f"
 
   # Nombre visible en el instalador, menú inicio y accesos directos.
-  name: "Boosti POS"
+  name: "BoostiPos"
 
   # Publisher (aparece en las propiedades del .exe).
   publisher: "JAH Lab"
 
   # Ruta al archivo .ico (debe existir y ser un .ico real).
+  # Regenerar con `tools\gen_ico.ps1` cuando cambie el logo.
   installer_icon: "assets/icon/app_icon.ico"

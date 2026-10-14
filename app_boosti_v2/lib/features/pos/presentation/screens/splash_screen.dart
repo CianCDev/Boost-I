@@ -432,7 +432,7 @@ Future<void> _precargarDatosOnboarding() async {
               ),
               const SizedBox(height: 20),
               const Text(
-                'BoostI POS',
+                'BoostiPos',
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.bold,

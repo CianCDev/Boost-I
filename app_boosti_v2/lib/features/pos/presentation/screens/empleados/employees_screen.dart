@@ -906,7 +906,7 @@ class _EmployeesScreenState extends ConsumerState<EmployeesScreen>
 
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'text/csv')],
-        subject: 'Empleados — BoostI POS',
+        subject: 'Empleados — BoostiPos',
       );
     } catch (e) {
       if (!mounted) return;

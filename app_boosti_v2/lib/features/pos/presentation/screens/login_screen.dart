@@ -892,7 +892,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             colors: [Colors.white, Color(0xFF6EE7B7)],
           ).createShader(bounds),
           child: Text(
-            'BoostI POS',
+            'BoostiPos',
             style: TextStyle(
               fontSize: isMobile ? 28 : 36,
               fontWeight: FontWeight.w900,
