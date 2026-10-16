@@ -3067,7 +3067,37 @@ Future<void> subirUsuariosPendientes() async {
           .from('locales')
           .select()
           .order('nombre', ascending: true);
-      debugPrint('🔄 Descargando ${response.length} locales desde Supabase...');
+
+      // 🔴 DEFENSA EN PROFUNDIDAD (2026-10-15)
+      //
+      // `locales.id` ES el `tenant_id`. El RLS debería devolver solo la
+      // fila del claim, pero con `SET role authenticated` + el JWT real
+      // la tabla devuelve las 5 filas de los 5 tenants: el RLS está
+      // habilitado (`relrowsecurity = true`) y aun así no filtra.
+      //
+      // Antes de arreglar el backend, la app deja de confiar en que él
+      // filtre. Es el mismo criterio que ya usan el resto de las tablas
+      // (`tenant_id = current_tenant_id()`), y no depende de que alguien
+      // vuelva a tocar la policy desde el dashboard — que es lo que pasó
+      // dos veces hoy.
+      //
+      // ⚠️ Si el claim no se puede leer NO se filtra: deny-by-default
+      // dejaría al usuario sin su local y sin forma de recuperar.
+      final tenantJwt = getTenantIdFromJWT();
+      final visibles = (tenantJwt == null || tenantJwt.isEmpty)
+          ? response
+          : response
+              .where((l) => l['id'] == tenantJwt)
+              .toList(growable: false);
+
+      if (visibles.length != response.length) {
+        debugPrint(
+          '🔒 [locales] RLS devolvió ${response.length} filas; '
+          'filtradas a ${visibles.length} por tenantId=$tenantJwt',
+        );
+      }
+      debugPrint(
+          '🔄 Descargando ${visibles.length} locales desde Supabase...');
 
       final localesLocales =
           await _isarService.obtenerLocales(soloActivos: false);
@@ -3079,7 +3109,7 @@ Future<void> subirUsuariosPendientes() async {
         for (var l in localesLocales) l.id: l
       };
 
-      for (var data in response) {
+      for (var data in visibles) {
         final supabaseId = data['id'] as String?;
         if (supabaseId == null) continue;
 

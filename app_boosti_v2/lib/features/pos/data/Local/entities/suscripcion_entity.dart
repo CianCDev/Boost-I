@@ -33,11 +33,31 @@ class SuscripcionEntity {
   // ── Helpers ──
 
   /// ¿La suscripción está vigente hoy?
+  ///
+  /// 🔴 COMPARACIÓN NORMALIZADA (2026-10-15)
+  ///
+  /// Este getter comparaba solo contra `'activa'` (femenino), pero el
+  /// valor que hay en `suscripciones.estado` es **`'activo'`**
+  /// (masculino). No es una fila mal puesta: es lo que escriben la
+  /// Edge Function (`create-tenant/index.ts:370` → `"trial"`), lo que
+  /// documenta la migración `20261015000002` y lo que se insertó a mano
+  /// para dar de alta a JAHTLABS y al tenant del centro.
+  ///
+  /// El síntoma era invisible y total: `estado = 'activo'` caía en el
+  /// `return false` de la última línea, `planActivo` quedaba `false` y
+  /// `FeatureFlags._plan()` cortaba en el primer `&&`, así que el menú
+  /// perdía los ~8 módulos con gate (dashboard, historial, gastos,
+  /// proveedores, locales, departamentos, pedidos) con un tenant
+  /// perfectamente pagado.
+  ///
+  /// Se aceptan ambas grafías y se normaliza el case: el enum no tiene
+  /// CHECK en la BD, así que nada garantiza que no llegue `Activa`.
   bool get activa {
-    if (estado == 'activa') {
+    final estadoNormalizado = estado.trim().toLowerCase();
+    if (estadoNormalizado == 'activa' || estadoNormalizado == 'activo') {
       return periodoFin == null || periodoFin!.isAfter(DateTime.now());
     }
-    if (estado == 'trial') {
+    if (estadoNormalizado == 'trial') {
       return trialHasta == null || trialHasta!.isAfter(DateTime.now());
     }
     return false;

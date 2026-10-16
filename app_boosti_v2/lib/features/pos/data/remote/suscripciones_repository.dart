@@ -64,14 +64,25 @@ class SuscripcionesRepository {
   /// Sincroniza planes: descarga desde Supabase y devuelve la lista
   /// más fresca. Si falla la red, devuelve caché local.
   Future<List<PlanEntity>> obtenerPlanes() async {
-    final locales = await obtenerPlanesLocal();
-    if (locales.isEmpty) {
-      return descargarPlanesDesdeSupabase();
-    }
-
-    // Hay caché → devolver rápido + refrescar en background
-    descargarPlanesDesdeSupabase(); // fire-and-forget
-    return locales;
+    // 🔴 YA NO SERVE LA CACHÉ COMO RESPUESTA (2026-10-15)
+    //
+    // Antes: si Isar tenía filas, devolvía esas y disparaba la descarga
+    // con fire-and-forget. El dato fresco llegaba a Isar pero NADIE lo
+    // volvía a leer: `planesProvider` ya había resuelto con la lista
+    // vieja y `planPorIdProvider` la daba por buena toda la sesión.
+    //
+    // Síntoma real: `planes.features` tenía 12 claves en `true` y la
+    // app veía 3 (`offline`, `reports`, `multi_local` — las 3 del
+    // catálogo original que quedaron en true). Las 9 de
+    // `20261015000002` nunca llegaban a Dart. El menú no se notaba
+    // porque esos getters usan `defaultVisible: true`: el gate por plan
+    // no gateaba nada, se veían igual por casualidad y no por el plan.
+    //
+    // `descargarPlanesDesdeSupabase()` ya cae a `obtenerPlanesLocal()`
+    // en el `catch`, así que no se agrega un modo de fallo nuevo:
+    // offline sigue devolviendo la caché, después de intentar la red.
+    // Son 4 filas; una ida al servidor no cambia el arranque.
+    return descargarPlanesDesdeSupabase();
   }
 
   // ══════════════════════════════════════════════════════════════

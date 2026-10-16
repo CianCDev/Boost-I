@@ -594,7 +594,215 @@ restaurantes con venta por unidad preparada).
       mismo negocio no comparten inventario. Post-v1 evaluar Camino C
       (varios locales por tenant, con `local_id`).
 
-## Aplicado en Supabase (2026-10-13) ✅
+## 🔴 Fuga cross-tenant en `locales` (2026-10-15) — CORREGIDA
+
+**Síntoma:** el menú mostraba solo 9 módulos (Punto de venta, Cierre de
+caja, Productos, Proveedores, Empleados, Personal, Impresoras, Telegram,
+Backup, Sincronizar, Mi perfil). Faltaban Dashboard, Historial de ventas,
+Gastos, Locales, Departamentos. Además el badge del AppBar mostraba
+`pruebapostdeploy` en vez del local del usuario.
+
+### Causa 1 — policy con brazo `EXISTS` no versionada
+
+El repo (`baseline.sql:2380`) define:
+```sql
+USING ((id = public.current_tenant_id()))
+```
+
+La BD remota tenía:
+```sql
+USING ((id = current_tenant_id())
+       OR EXISTS (SELECT 1 FROM usuarios_locales ul
+                  WHERE ul.usuario_id = auth.uid()
+                    AND ul.tenant_id = locales.id
+                    AND ul.activo = true))
+```
+
+Ese brazo deja ver **todo local del que el usuario tenga fila en
+`usuarios_locales`**, no solo el del claim. Con filas de tenants de
+prueba acumuladas, el JWT de un tenant descargaba los 5 locales:
+
+```
+✅ Tenant cargado de prefs: TenantState(tenantId: 9c7380a4-…)   ← JAHTLABS
+🔄 Descargando 5 locales desde Supabase...
+🔄 Local centro / JAHTLABS / prueba 2 / prueba 3 / pruebapostdeploy
+```
+
+**La modificación se hizo a mano en el dashboard. Ninguna migración la
+registró**, por eso repo y BD divergieron en silencio.
+
+**Fix:** `20261015000001_cerrar_fuga_locales.sql` (restaura el baseline).
+
+⚠️ **No rompe multi-local:** cambiar de local usa la RPC
+`set_active_tenant()` + `refreshSession()`, y el listado del selector
+viene de `mis_locales()` (`SECURITY DEFINER`). Ninguna usa `SELECT`
+directo sobre `locales`.
+
+**Verificado que el `EXISTS` solo estaba en `locales`:**
+```sql
+SELECT tablename, policyname FROM pg_policies WHERE qual ILIKE '%usuarios_locales%';
+-- → solo locales.locales_tenant_select
+```
+Y `ventas`, `productos`, `pedidos`, `lotes`, `marcas`, `categorias`,
+`departamentos`, `clientes`, `proveedores` usan solo
+`tenant_id = current_tenant_id()`. **No hubo fuga de datos operativos.**
+
+### Causa 2 — el menú vacío era fail-closed por suscripción ausente
+
+```
+ℹ️ [SuscripcionesRepository] Sin suscripción para 9c7380a4-…
+```
+
+```dart
+// business_mode_provider.dart:208
+bool _plan(String f, {bool defaultVisible = false}) =>
+    planActivo && (featuresHabilitadas.contains(f) || defaultVisible);
+```
+
+`planActivo` es un `&&` corto: sin suscripción activa **no se ve nada**,
+ni siquiera las features con `defaultVisible: true`. Por eso los 9 módulos
+que sí aparecían son los que no pasan por `_plan()`.
+
+`suscripciones` no está versionada y la EF `create-tenant` solo empezó a
+poblarla el 2026-10-13. **Los tenants anteriores no tienen fila.**
+
+### Causa 3 — las claves de `FeatureFlags` no existían en `planes.features`
+
+La tabla tenía 4 claves: `offline`, `reports`, `multi_local`,
+`priority_support`. El menú consulta ~20. Las huérfanas (cada getter
+tenía un `TODO(R.0)`) nunca se activaban.
+
+**Fix:** `20261015000002_plan_features.sql` agrega las claves y las
+reparte. Producto (2026-10-15): **básico SÍ ve el dashboard; básico NO
+ve proveedores, pedidos ni locales.**
+
+| clave | trial | basico | pro | corporativo |
+|---|:--:|:--:|:--:|:--:|
+| `offline`, `reports` | ✅ | ✅ | ✅ | ✅ |
+| `dashboard`, `historial_ventas`, `historial_gastos` | ✅ | ✅ | ✅ | ✅ |
+| `departamentos`, `lotes`, `monitor_empleados` | ✅ | ✅ | ✅ | ✅ |
+| `proveedores`, `pedidos_proveedores`, `ventas_mayor`, `multi_local` | ❌ | ❌ | ✅ | ✅ |
+| `priority_support` | ❌ | ❌ | ❌ | ✅ |
+
+### Causa 4 — `'proveedores'` no consultaba ningún flag de plan
+
+```dart
+// menu_config.dart — antes
+'proveedores' => !flags.esServicios,     // solo modo, nada de plan
+```
+
+El plan básico veía Proveedores. Ahora es
+`flags.proveedores && !flags.esServicios` (flag nuevo en `FeatureFlags`).
+
+### Causa 5 — el wipe borraba catálogo global (error mío)
+
+`wipeAll()` incluía `planEntitys.clear()` y `suscripcionEntitys.clear()`.
+Los **planes son catálogo global de la plataforma**, no datos del
+negocio. Corregido: el wipe ya no toca ninguna de las dos.
+
+### Causa 6 — `activa` comparaba contra un valor que el CHECK prohíbe
+
+```dart
+// suscripcion_entity.dart — antes
+if (estado == 'activa') { ... }   // femenino
+```
+
+```sql
+CHECK (estado = ANY (ARRAY['trial','activo','vencido','cancelado','expirado']))
+```
+
+**`'activa'` es imposible en la base.** El getter caía siempre en
+`return false` → `planActivo = false` para todos los tenants. Esta era
+la causa real del menú vacío; las causas 2 y 3 lo agravaban.
+
+Se detectó recién el 2026-10-15 con un log nuevo:
+`🔎 [featureFlags] DENEGADO · suscripcion=pro(activo) activa=false`.
+
+### Causa 7 — `defaultVisible: true` volvía inoperante el gate
+
+`planActivo && (features.contains(f) || defaultVisible)` con
+`defaultVisible: true` es `planActivo` y nada más. Los **9 getters** de
+la tabla de arriba lo traían, así que la columna ❌ no ocultaba nada.
+
+Ahora los 9 usan `defaultVisible: false` y el reparto de la tabla se
+respeta de verdad. `test/features/pos/feature_flags_plan_test.dart`
+fija el contrato con los valores reales de `planes`.
+
+### Causa 8 — `obtenerPlanes()` devolvía caché vieja para toda la sesión
+
+```dart
+descargarPlanesDesdeSupabase(); // fire-and-forget, actualiza Isar
+return locales;                  // ← el valor viejo
+```
+
+Supabase tenía **12** features en `true` y Dart veía **3**. El menú no
+se notaba por el `defaultVisible` de la causa 7: se veían todos, pero
+por casualidad y no por el plan.
+
+### Causa 9 — `super_admin_read_locales` era un OR que ganaba
+
+`locales` tenía 2 policies de SELECT y Postgres las une con **OR**:
+
+```
+locales_tenant_select     {authenticated}  (id = current_tenant_id())  → 1
+super_admin_read_locales  {public}        is_super_admin()             → todas
+```
+
+El POS y el `admin_console` comparten `Supabase.instance.client` → mismo
+JWT → el owner veía los 5 locales. Dropeada en `20261015000004`.
+
+⚠️ Mientras esa policy exista, el filtro por `claim` de
+`sync_service.dart:3071` es **defensa en profundidad**, no el fix.
+
+### Causa 10 — `prefs['localActualId']` es un int de Isar, no un tenant
+
+La prioridad 1 de `cargarLocalActual()` no validaba el tenant del id
+guardado. Quedó el `1` = `pruebapostdeploy` de cuando el RLS bajaba
+los 5 locales, y el badge lo mostraba con el JWT de JAHTLABS.
+
+### Verificación — simular PostgREST
+
+La query que destapó todo. Antes daba **5 locales** con un tenant
+correcto; después de `20261015000004` debe dar **1**:
+
+```sql
+SET role authenticated;
+SET request.jwt.claims = '{"tenant_id":"9c7380a4-14be-41c2-88db-07606c2a6489","sub":"604e9b98-354b-4fd6-b816-af97b47c1b0e","role":"authenticated"}';
+SELECT id, nombre FROM locales ORDER BY nombre;
+RESET ROLE;
+```
+
+## 🔴 Datos pendientes en Supabase (2026-10-15)
+
+Las migraciones arreglan el código pero **no los datos**. Falta:
+
+```sql
+-- 1. ¿Qué tenants siguen sin suscripción?
+SELECT l.nombre, l.id FROM locales l
+  LEFT JOIN suscripciones s ON s.tenant_id = l.id
+ WHERE s.tenant_id IS NULL;
+
+-- 2. Alta de JAHTLABS (9c7380a4-14be-41c2-88db-07606c2a6489) en pro
+INSERT INTO public.suscripciones (tenant_id, plan_id, estado,
+    iniciado_en, auto_renovar)
+  VALUES ('9c7380a4-14be-41c2-88db-07606c2a6489', 'pro', 'activo',
+          now(), true)
+  ON CONFLICT (tenant_id) DO UPDATE
+    SET plan_id = EXCLUDED.plan_id, estado = 'activo';
+
+-- 3. Filas de prueba en usuarios_locales (CON BACKUP ya creado:
+--    _backup_usuarios_locales). Auditar antes de borrar.
+SELECT ul.usuario_id, u.email, ul.tenant_id, l.nombre, ul.es_default
+FROM usuarios_locales ul
+JOIN locales  l ON l.id = ul.tenant_id
+JOIN usuarios u ON u.id = ul.usuario_id
+ORDER BY u.email, l.nombre;
+```
+
+⚠️ El paso 3 borra datos. **No ejecutarlo sin revisar el SELECT primero.**
+La query del paso 1 es la que confirma si el menú se va a llenar.
+
+## Aplicado en Supabase (2026-10-15) ✅
 
 - [x] **`20261012000001_crear_local_con_logo.sql`** — RPC con `p_logo_path`.
       Incluía el `DROP FUNCTION` de la firma vieja de 5 args, que sin él

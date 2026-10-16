@@ -416,6 +416,20 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
         .where((s) => s.options.isNotEmpty)
         .toList();
 
+    // 🔎 DIAGNÓSTICO (2026-10-15): el menú se armaba sin dejar rastro de
+    // qué opción se cayó ni por qué. Con un gate de plan activo, "no
+    // aparece" y "apareció y después se perdió" son indistinguibles.
+    final ocultas = todasLasSecciones
+        .expand((s) => s.options)
+        .where((o) => !MenuBuilder.puedeVerOpcion(role, o.id, flags))
+        .map((o) => o.id)
+        .toList();
+    debugPrint(
+      '🔎 [menú] rol=${role.name} planActivo=${flags.planActivo} '
+      'visibles=${seccionesConPermisos.expand((s) => s.options).length} '
+      'ocultas=$ocultas',
+    );
+
     // Filtrar por búsqueda
     final secciones = _filtrarSecciones(seccionesConPermisos, _searchQuery);
 

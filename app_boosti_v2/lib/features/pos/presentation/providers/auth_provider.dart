@@ -375,6 +375,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
                 .setLocalActual(nuevoLocal.id);
             debugPrint('📍 Local activo forzado a: ${nuevoLocal.nombre} '
                 '(id=${nuevoLocal.id})');
+
+            // El wipe borró `prefs['localActualId']` y `cargarLocalActual()`
+            // ya había corrido con Isar vacío (quedó en `null`), así que su
+            // prioridad-2 —el JWT— nunca se reintentó. Se re-resuelve acá
+            // para dejar `state` y prefs alineados con el local correcto.
+            await _ref
+                .read(localActualProvider.notifier)
+                .cargarLocalActual();
           } else {
             debugPrint('⚠️ No se encontró el local del tenant $tenantId '
                 'después del sync. Fallback a obtenerLocalActivo.');

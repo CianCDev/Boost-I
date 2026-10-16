@@ -1,36 +1,76 @@
 // test/features/pos/feature_flags_retail_test.dart
 //
-// PASO 2.2 · P1 · Tests de las 9 features reactivadas en P0-3 (PASO 1).
+// PASO 2.2 · P1 · Tests del gate por plan en modo retail.
 //
 // Estos tests son 100% puros: no tocan Isar, ni Supabase, ni widgets.
-// Blindan el cambio de P0-3, que fue el que dejó de esconder 9 opciones de
-// menú. Si alguien vuelve a poner `defaultVisible: false` o cambia una clave,
-// estos tests lo detectan sin necesidad de arrancar la app.
+//
+// ⚠️ HISTORIAL — el contrato de este archivo CAMBIÓ el 2026-10-15.
+//
+// La versión anterior blindaba P0-3, un arreglo que puso
+// `defaultVisible: true` en 9 getters para "dejar de esconder 9 opciones
+// de menú". Era el arreglo sintomático, aplicado antes de encontrar la
+// causa real del menú vacío (`SuscripcionEntity.activa` comparaba
+// contra `'activa'`, un valor que el CHECK de la base prohíbe, así que
+// `planActivo` era `false` para todos los tenants).
+//
+// Con la causa ya corregida, `defaultVisible: true` sereve como lo que
+// era: `planActivo && (contains(f) || true)` = `planActivo`. El gate no
+// gateaba, y la columna ❌ de la tabla de planes no ocultaba nada.
+//
+// Ahora los 9 getters leen la clave real. Este archivo fija el
+// contrato NUEVO. El complementario, con el catálogo real de cada plan
+// leído de la base, está en `feature_flags_plan_test.dart`.
 import 'package:app_boosti_v2/features/pos/presentation/providers/business_mode_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  // Las 4 claves que REALMENTE existen en `planes.features` (Supabase).
-  const soloClavesReales = <String>{'offline', 'reports'};
+  /// Catálogo REAL de `basico` en `public.planes`, leído el 2026-10-15.
+  ///
+  /// Antes este helper usaba `{offline, reports}`, que era el catálogo
+  /// de `trial` — y por eso el test passing no significaba nada: un plan
+  /// con 2 de 12 claves no representa a ningún plan que exista.
+  const basico = <String>{
+    'lotes',
+    'offline',
+    'reports',
+    'dashboard',
+    'departamentos',
+    'historial_gastos',
+    'historial_ventas',
+    'monitor_empleados',
+  };
 
-  FeatureFlags retail() => FeatureFlags(
+  /// Catálogo real de `trial`, que tras `20261015000003` es idéntico a
+  /// `basico`. Antes tenía `{offline, reports}` y dejaba el POS vacío.
+  const catalogoMinimo = <String>{'offline', 'reports'};
+
+  FeatureFlags retail({
+    Set<String> features = basico,
+    String planId = 'basico',
+  }) =>
+      FeatureFlags(
         mode: BusinessMode.retail,
         planActivo: true,
-        planId: 'basico',
-        featuresHabilitadas: soloClavesReales,
+        planId: planId,
+        featuresHabilitadas: features,
       );
 
   group('P0-3 · Modo minorista (retail) con plan activo', () {
-    test('las 4 claves reales de planes.features se leen bien', () {
+    test('las claves de infraestructura se leen bien', () {
       final f = retail();
       expect(f.modoOffline, isTrue, reason: 'lee la clave "offline"');
       expect(f.reportes, isTrue, reason: 'lee la clave "reports"');
     });
 
     test('multi_local NO se activa si la clave no viene (basico/pro)', () {
-      // `soloClavesReales` no trae multi_local, y no es huérfana:
+      // `basico` no trae multi_local, y no es huérfana:
       // debe quedar oculta. Este es el comportamiento correcto.
       expect(retail().multiLocal, isFalse);
+      expect(
+        retail(features: {...basico, 'multi_local'}).multiLocal,
+        isTrue,
+        reason: 'pro sí la trae y debe verse',
+      );
     });
 
     test('priority_support activa soportePrioritario', () {
@@ -48,16 +88,39 @@ void main() {
       );
     });
 
-    test('las 8 features huérfanas quedan visibles sin depender del jsonb', () {
+    test('las 6 features que basico contrata quedan visibles', () {
       final f = retail();
-      expect(f.ventasAlMayor, isTrue);
       expect(f.dashboard, isTrue);
       expect(f.historialVentas, isTrue);
       expect(f.historialGastos, isTrue);
       expect(f.lotes, isTrue);
-      expect(f.pedidosProveedores, isTrue);
+      expect(f.mostrarLotes, isTrue);
       expect(f.monitorEmpleados, isTrue);
       expect(f.departamentos, isTrue);
+    });
+
+    test('las 4 que basico NO contrata quedan ocultas', () {
+      // Este es el fix. Antes `defaultVisible: true` las dejaba
+      // visibles igual y el gate era decorativo.
+      final f = retail();
+      expect(f.ventasAlMayor, isFalse, reason: 'basico: ventas_mayor=false');
+      expect(f.pedidosProveedores, isFalse,
+          reason: 'basico: pedidos_proveedores=false');
+      expect(f.proveedores, isFalse,
+          reason: 'basico: proveedores=false');
+      expect(f.multiLocal, isFalse, reason: 'basico: multi_local=false');
+    });
+
+    test('un plan con catálogo mínimo NO ve el producto (por qué 20261015000003)', () {
+      // Documenta el riesgo: `trial` tenía {offline, reports} y con el
+      // gate efectivo le quedaba un POS vacío. Hay 4 tenants en trial.
+      final f = retail(features: catalogoMinimo);
+      expect(f.dashboard, isFalse);
+      expect(f.lotes, isFalse);
+      expect(f.departamentos, isFalse);
+      expect(f.monitorEmpleados, isFalse);
+      expect(f.modoOffline, isTrue, reason: 'offline sí está en el catálogo');
+      expect(f.reportes, isTrue, reason: 'reports sí está en el catálogo');
     });
 
     test('telegram SIGUE visible (decisión de producto)', () {
@@ -80,7 +143,7 @@ void main() {
         mode: BusinessMode.retail,
         planActivo: true,
         planId: 'corporativo',
-        featuresHabilitadas: soloClavesReales,
+        featuresHabilitadas: catalogoMinimo,
       );
       expect(sinClave.telegram, isTrue);
 
@@ -92,7 +155,7 @@ void main() {
       expect(sinPlan.telegram, isTrue);
     });
 
-    test('sin plan activo TODO queda cerrado, incluidas las huérfanas', () {
+    test('sin plan activo TODO queda cerrado, sin excepción', () {
       final f = const FeatureFlags(
         mode: BusinessMode.retail, planActivo: false);
       expect(f.ventasAlMayor, isFalse);
@@ -118,7 +181,7 @@ void main() {
         FeatureFlags(
           mode: BusinessMode.servicios,
           planActivo: true,
-          featuresHabilitadas: soloClavesReales,
+          featuresHabilitadas: basico,
         ).mostrarInventario,
         isFalse,
       );

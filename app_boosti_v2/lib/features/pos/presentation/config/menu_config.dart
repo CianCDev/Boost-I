@@ -166,7 +166,9 @@ class MenuBuilder {
       'inventario' => flags.mostrarInventario,
       'lotes' => flags.mostrarLotes,
       'pedidos' => flags.pedidosProveedores && !flags.esServicios,
-      'proveedores' => !flags.esServicios,
+      // Antes: `!flags.esServicios` a secas. El plan básico veía
+      // Proveedores aunque no lo contrate (2026-10-15).
+      'proveedores' => flags.proveedores && !flags.esServicios,
       'diagnostico' => flags.mostrarLotes,
 
       // ── Reportes ──
@@ -287,7 +289,10 @@ class MenuBuilder {
           ),
           MenuOption(
             id: 'caja',
-            icon: Icons.point_of_sale_rounded,
+            // Antes `Icons.point_of_sale_rounded`, el MISMO que "Punto de
+            // venta" (menu_config.dart:234). En el menú se veían dos tiles
+            // idénticos y no se distinguían.
+            icon: Icons.savings_rounded,
             title: 'Cierre de caja',
             subtitle: 'Corte del día y arqueo',
             color: const Color(0xFF10B981),

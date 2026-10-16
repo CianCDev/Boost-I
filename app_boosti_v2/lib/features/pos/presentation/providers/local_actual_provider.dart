@@ -84,18 +84,50 @@ class LocalActualNotifier extends StateNotifier<int?> {
     final prefs = await SharedPreferences.getInstance();
 
     // ── Prioridad 1: prefs (elección explícita del usuario) ──
+    //
+    // 🔴 VALIDACIÓN DE TENANT (2026-10-15)
+    //
+    // Antes esta rama aceptaba CUALQUIER `localActualId` guardado, sin
+    // comprobar a qué tenant pertenece. `prefs` es un `int` de Isar, no
+    // un uuid de Supabase: cuando el RLS de `locales` devolvió los 5
+    // locales de los 5 tenants (ver `sync_service.dart:3071`), el id 1
+    // —`pruebapostdeploy`— quedó guardado como "local actual" y el badge
+    // del AppBar lo mostraba mientras el JWT y `locales.id` eran
+    // `9c7380a4` (JAHTLABS).
+    //
+    // La preferencia solo es válida si su `supabaseId` es el tenant del
+    // claim. Si no lo es, es residue de otro tenant: se descarta y se
+    // cae a la prioridad 2, que sí usa el JWT.
+    //
+    // ⚠️ No rompe el hot-switch: `setLocalActual()` NO pasa por acá
+    // (escribe `state` directo en el paso 3, línea ~205), y a esta
+    // altura ya awaited `cambiarLocal()`, o sea el JWT ya es el nuevo.
+    final tenantJwt = getTenantIdFromJWT();
     final idPreferido = prefs.getInt('localActualId');
     if (idPreferido != null) {
       final local = await _isar.obtenerLocalPorId(idPreferido);
       if (!mounted) return;
       if (local != null && local.activo) {
-        state = idPreferido;
-        return;
+        final esDeOtroTenant = tenantJwt != null &&
+            tenantJwt.isNotEmpty &&
+            local.supabaseId != null &&
+            local.supabaseId!.isNotEmpty &&
+            local.supabaseId != tenantJwt;
+
+        if (esDeOtroTenant) {
+          debugPrint(
+            '🔀 [localActual] prefs apunta a "${local.nombre}" '
+            '(supabaseId=${local.supabaseId}), pero el claim es '
+            '$tenantJwt. Se descarta la preferencia.',
+          );
+        } else {
+          state = idPreferido;
+          return;
+        }
       }
     }
 
     // ── Prioridad 2: JWT ──
-    final tenantJwt = getTenantIdFromJWT();
     if (tenantJwt != null && tenantJwt.isNotEmpty) {
       final local = await _isar.obtenerLocalPorSupabaseId(tenantJwt);
       if (!mounted) return;

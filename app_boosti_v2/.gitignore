@@ -44,6 +44,16 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Gradle y reportes de build de Android.
+#
+# `/build/` de arriba solo cubre la raíz del paquete. `android/build/`
+# NO lo cubría y `reports/problems/problems-report.html` terminó
+# trackeado en 64f0336: cada `flutter build android` lo modificaba y
+# ensuciaba el diff.
+/android/build/
+/android/.gradle/
+/android/local.properties
+
 # Environment variables
 .env
 .env.*

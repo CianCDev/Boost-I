@@ -2892,6 +2892,15 @@ Future<List<ClienteEntity>> buscarClientes(
   /// selectivo dejaría residuos de tablas que hoy no figuran en el
   /// wipe y que volverían a filtrarse.
   ///
+  /// 🔴 NO BORRAR `planEntitys` (catálogo global de la plataforma):
+  /// `basico`/`pro`/`corporativo`/`trial` son de TODOS los tenants, no
+  /// del negocio que se da de alta. Borrarlos deja a
+  /// `planPorIdProvider` sin fuente y `featureFlagsProvider` cae en
+  /// `planActivo = false`, que esconde el menú entero.
+  ///
+  /// ⚠️ `suscripcionEntitys` tampoco: es por tenant y
+  /// `obtenerSuscripcion(tenantId)` ya filtra por `tenantId`.
+  ///
   /// ⚠️ No rethrow: si una colección falla, se reporta a Sentry y se
   /// sigue. Dejar al usuario con datos stale es preferible a dejarlo
   /// sin cuenta creada.
@@ -2928,14 +2937,12 @@ Future<List<ClienteEntity>> buscarClientes(
         await isar.cotizacionMayorEntitys.clear();
         await isar.autorizacionDescuentoEntitys.clear();
         await isar.configDescuentoMayoristaEntitys.clear();
-        await isar.planEntitys.clear();
-        await isar.suscripcionEntitys.clear();
         await isar.ventaAnuladaEntitys.clear();
         await isar.gastoAnuladoEntitys.clear();
         await isar.mesaEntitys.clear();
         await isar.recetaEntitys.clear();
       });
-      debugPrint('🧹 [wipeAll] Isar limpio completamente');
+      debugPrint('🧹 [wipeAll] Isar limpio (sin tocar planes ni suscripciones)');
     } catch (e, stack) {
       ErrorService.captureError(e,
           stack: stack, hint: 'wipeAll_fallo');

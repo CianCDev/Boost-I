@@ -193,6 +193,167 @@ Llama a un método `.refrescar()` del notifier.
 Si un super admin necesita algo, se hace vía **RPC con validación
 explícita**, no vía policy abierta.
 
+## 7.3 Nunca ocultar el producto por un flag que no existe
+
+`FeatureFlags._plan()` es:
+
+```dart
+bool _plan(String f, {bool defaultVisible = false}) =>
+    planActivo && (featuresHabilitadas.contains(f) || defaultVisible);
+```
+
+`planActivo` es un `&&` corto. Si el tenant no tiene suscripción activa
+—o si no se pudo leer— **no se ve NADA**, ni siquiera las features con
+`defaultVisible: true`. El menú entero desaparece con una línea de error
+en el log y nada en pantalla.
+
+Tres reglas:
+
+1. **La clave en Dart tiene que existir en `planes.features`.** La tabla
+   tenía 4 claves (`offline`, `reports`, `multi_local`,
+   `priority_support`) y el menú consultaba ~20. Las getters "huérfanas"
+   chaqueaban con `defaultVisible: true` y un `TODO(R.0)`, pero **nunca
+   se activaban**. Cada getter nuevo necesita su clave en la BD o queda
+   muerto. Reparto vigente: `20261015000002_plan_features.sql`.
+2. **Un tenant sin fila en `suscripciones` no ve nada.** Fail-closed a
+   propósito (cobrar sin plan debe negar acceso), pero dar de alta un
+   tenant sin suscripción **oculta el producto entero**. La tabla la
+   puebla la Edge Function `create-tenant`; los tenants anteriores a su
+   deploy no tienen fila.
+3. **Antes de agregar un gate de plan, verificá si el módulo hoy está
+   abierto a todos.** `'proveedores' => !flags.esServicios` consultaba
+   solo el modo: el plan básico veía Proveedores sin haberlo contratado.
+
+## 7.4 La policy de `locales` es una fila por tenant
+
+En este modelo **`locales.id` ES el `tenant_id`**: cada local es un
+tenant. El baseline define `USING ((id = public.current_tenant_id()))`.
+
+⚠️ **Se modificó a mano en el dashboard** (2026-10-15) agregando un brazo
+`EXISTS` sobre `usuarios_locales` que hacía que un usuario viera todo
+local del que tuviera fila. No estaba versionado: repo y BD divergieron
+en silencio y con el JWT de un tenant se descargaron los locales de 5.
+
+**El multi-local no necesita ese brazo:** cambiar de local usa la RPC
+`set_active_tenant()` + `refreshSession()`, y el selector se alimenta de
+`mis_locales()` (`SECURITY DEFINER`). Ninguna hace `SELECT` directo.
+
+**Toda policy tocada en el dashboard va en una migración el mismo día.**
+Para auditar drift:
+
+```sql
+SELECT tablename, policyname, cmd, qual FROM pg_policies
+ WHERE schemaname = 'public' ORDER BY tablename;
+```
+
+El `EXISTS` con `usuarios_locales` solo aparecía en `locales`; el resto
+de las tablas usa `tenant_id = current_tenant_id()`.
+
+### 7.4.1 Las policies permisivas se ORean
+
+`locales` tenía DOS policies de SELECT:
+
+```sql
+locales_tenant_select     roles = {authenticated}  (id = current_tenant_id())
+super_admin_read_locales  roles = {public}        is_super_admin()
+```
+
+Postgres combina las policies permisivas con **OR**, no con AND. Con el
+JWT de un tenant, `current_tenant_id()` devolvía bien `9c7380a4` pero
+la segunda policy ganaba: **5 locales de 5 tenants**.
+
+Probado el 2026-10-15 con `SET role authenticated` + `request.jwt.claims`.
+
+⚠️ El POS y el `admin_console` comparten `Supabase.instance.client`, o
+sea **la misma sesión y el mismo JWT**. El owner del SaaS tiene
+`is_superadmin = true`, así que dentro del POS veía todos los locales.
+
+`super_admin_read_locales` se dropeó en `20261015000004`: no tenía
+consumidor (`admin_console` usa `tenants`, no `locales`) y `service_role`
+ya bypasea RLS. Cuando se implemente la Subfase 3.3.3 del Control
+Center, el camino es una **RPC `SECURITY DEFINER` con validación
+explícita**, no reactivar la policy.
+
+## 7.5 Un gate que parece existir y no existe
+
+Tres bugs del 2026-10-15, los tres con la misma forma: **una condición
+que parecía gatear y no gateaba nada**. Salieron todos en cadena, uno
+destapando al siguiente.
+
+### 7.5.1 `activa` comparaba contra un valor que el CHECK prohíbe
+
+```dart
+if (estado == 'activa') { ... }   // femenino, NO existe en la base
+```
+
+`suscripciones_estado_check` solo admite `('trial','activo','vencido',
+'cancelado','expirado')`. **`'activa'` es imposible en la base.** El
+getter caía siempre en `return false`, o sea `planActivo = false` para
+todos los tenants desde el día uno.
+
+`FeatureFlags._plan()` arranca con `planActivo &&`, así que sin plan
+activo no se ve NADA. El síntoma era un POS vacío con la suscripción
+pagada y el log diciendo `pro (activo)`.
+
+**Regla:** el valor de un enum en Dart tiene que existir en la base.
+Verificá los dos lados:
+
+```sql
+SELECT pg_get_constraintdef(oid) FROM pg_constraint
+ WHERE conrelid = 'public.suscripciones'::regclass;
+```
+
+### 7.5.2 `defaultVisible: true` hace el gate inoperante
+
+```dart
+bool _plan(String f, {bool defaultVisible = false}) =>
+    planActivo && (featuresHabilitadas.contains(f) || defaultVisible);
+```
+
+Con `defaultVisible: true` la expresión queda `planActivo && (...)`:
+da igual si el plan contrató la feature o no. **9 getters** usaban ese
+default (dashboard, historial de ventas, historial de gastos,
+proveedores, pedidos a proveedores, departamentos, lotes, monitor,
+ventas al mayor), así que el gate por plan era decorativo.
+
+Se justificó con "las claves no existen en `planes.features`". Cuando
+existan, el default tiene que ser `false`. **Regla:** `defaultVisible`
+solo para features sin clave posible; una feature con clave en la BD
+siempre gatea.
+
+### 7.5.3 La caché vieja gana para siempre
+
+```dart
+Future<List<PlanEntity>> obtenerPlanes() async {
+  final locales = await obtenerPlanesLocal();
+  if (locales.isEmpty) return descargarPlanesDesdeSupabase();
+  descargarPlanesDesdeSupabase(); // fire-and-forget
+  return locales;                  // ← el dato fresco nunca se relee
+}
+```
+
+Supabase tenía **12** features en `true` y Dart veía **3**. El refresh
+en background actualizaba Isar, pero `planesProvider` ya había resuelto
+y `planPorIdProvider` daba esa lista por buena toda la sesión.
+
+**Regla:** un fire-and-forget que actualiza caché tiene que re-disparar el
+provider, o el consumidor se queda con el valor viejo hasta el próximo
+arranque. Alternativa: delegar en la descarga y que ella caiga a caché
+en el `catch` (4 filas: una ida al servidor no cambia el arranque).
+
+### 7.5.4 La rama que no logueaba es la que fallaba
+
+Los tres bugs anteriores eran invisibles porque `featureFlagsProvider`
+tenía una rama sin `debugPrint`:
+
+```dart
+final planActivo = cachePlanActivo ?? false;   // null && null = false, mudo
+```
+
+El log `🔎 [featureFlags] DENEGADO · …` destapó los tres de una. **Si
+un gate decide si el usuario ve el producto, la rama que lo denies
+tiene que decir por qué.**
+
 ## 8. Comandos útiles
 
 ```bash

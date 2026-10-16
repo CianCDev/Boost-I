@@ -292,6 +292,182 @@ desde `String.fromEnvironment('SENTRY_DSN')` en `bootstrap.dart` §4.
 
 ---
 
+## Cierre sesión 2026-10-15 — fuga cross-tenant + menú vacío
+
+**Tags:** `v1.1.1` (`79c46e9`) · release Android `1.1.1+7` + Windows `1.1.1+7`
+
+Cuatro fallas encadenadas hacían que el menú mostrara 9 de ~20 módulos y
+que el badge del AppBar mostrara el local equivocado.
+
+### 1. Policy de `locales` con brazo `EXISTS` no versionada
+
+El baseline dice `USING ((id = current_tenant_id()))`. La BD tenía un
+`OR EXISTS (SELECT 1 FROM usuarios_locales ul WHERE ul.usuario_id =
+auth.uid() AND ul.tenant_id = locales.id …)`. Eso hace que un usuario vea
+todo local del que tenga fila, no solo el del claim. **En este modelo
+`locales.id` ES el `tenant_id`.**
+
+Modificado a mano en el dashboard, sin migración → el repo y la BD
+divergieron en silencio. Con el JWT de JAHTLABS se descargaron los 5
+locales de 5 tenants.
+
+**Auditoría:** el `EXISTS` solo estaba en `locales`. `ventas`,
+`productos`, `pedidos`, `lotes`, `marcas`, `categorias`, `departamentos`,
+`clientes` y `proveedores` usan solo `tenant_id = current_tenant_id()`.
+**No hubo fuga de datos operativos**, solo de metadatos de local.
+
+**Fix:** `20261015000001_cerrar_fuga_locales.sql`.
+
+### 2. `planActivo` es un `&&` corto: sin suscripción no se ve nada
+
+```dart
+bool _plan(String f, {bool defaultVisible = false}) =>
+    planActivo && (featuresHabilitadas.contains(f) || defaultVisible);
+```
+
+El log decía `Sin suscripción para 9c7380a4…`. `suscripciones` no está
+versionada y la EF `create-tenant` solo empezó a poblarla el 2026-10-13:
+**los tenants anteriores no tienen fila.** El fail-closed es correcto
+para no regalar producto sin plan, pero el síntoma es un menú vacío sin
+explicación en pantalla.
+
+### 3. Las claves de `FeatureFlags` no existían en `planes.features`
+
+La tabla tenía 4 claves y el menú consultaba ~20. Las getters huérfanas
+tenían `defaultVisible: true` + `TODO(R.0)`, pero con `planActivo = false`
+nunca se activaban. **Aunque se arreglara la suscripción, el Dashboard
+seguiría sin aparecer.**
+
+**Fix:** `20261015000002_plan_features.sql`. Producto: básico ve el
+dashboard; básico NO ve proveedores, pedidos ni locales.
+
+### 4. `'proveedores'` no consultaba ningún flag de plan
+
+`menu_config.dart` tenía `'proveedores' => !flags.esServicios`, solo
+modo. El plan básico veía Proveedores. Ahora usa
+`flags.proveedores && !flags.esServicios` (flag nuevo).
+
+### 5. El wipe borraba catálogo global de la plataforma
+
+`wipeAll()` incluía `planEntitys.clear()` y `suscripcionEntitys.clear()`.
+Los **planes son catálogo global**, no datos del negocio. Corregido: el
+wipe ya no toca ninguna de las dos.
+
+---
+
+### 6. `SuscripcionEntity.activa` comparaba contra un valor imposible
+
+El getter comparaba `estado == 'activa'` (femenino). El
+`suscripciones_estado_check` solo admite:
+
+```
+('trial','activo','vencido','cancelado','expirado')
+```
+
+**`'activa'` no puede existir en la base.** El getter caía siempre en
+`return false` → `planActivo = false` para **todos los tenants desde el
+día uno**. Con `planActivo &&` cortocircuiteando, el POS se quedaba
+vacío con la suscripción pagada y el log diciendo `pro (activo)`.
+
+Era el bug de fondo del menú. El diagnosticado por un log nuevo:
+`🔎 [featureFlags] DENEGADO · suscripcion=pro(activo) activa=false`.
+
+### 7. `defaultVisible: true` volvía inoperante el gate por plan
+
+```dart
+planActivo && (featuresHabilitadas.contains(f) || defaultVisible)
+```
+
+Con `defaultVisible: true` el `||` es siempre verdadero: da igual si
+el plan contrató la feature. **9 getters** lo usaban (dashboard,
+historial de ventas, historial de gastos, proveedores, pedidos a
+proveedores, departamentos, lotes, monitor, ventas al mayor).
+
+Se justificó porque las claves no existían en `planes.features`. Ya
+existen (`20261015000002`) → todos a `defaultVisible: false`.
+
+`basico` tiene `proveedores`, `pedidos_proveedores`, `multi_local` y
+`ventas_mayor` en `false`: el básico efectivamente no los ve.
+
+⚠️ Efecto colateral: `trial` tenía `{offline, reports}` y se quedaba
+**sin producto entero**. De ahí `20261015000003`, que sube `trial` al
+catálogo de `basico`. Un trial es un básico con fecha de vencimiento.
+
+### 8. `obtenerPlanes()` servía caché vieja con refresh fire-and-forget
+
+```dart
+final locales = await obtenerPlanesLocal();
+if (locales.isEmpty) return descargarPlanesDesdeSupabase();
+descargarPlanesDesdeSupabase(); // actualiza Isar…
+return locales;                  // …pero devuelve la vieja
+```
+
+Supabase tenía **12** features en `true` y Dart veía **3** (`offline`,
+`reports`, `multi_local`). `planPorIdProvider` daba esa lista por buena
+toda la sesión. Ahora `obtenerPlanes()` delega en
+`descargarPlanesDesdeSupabase()`, que ya cae a Isar en el `catch`.
+
+### 9. `super_admin_read_locales` era un OR que gainsaba el gate
+
+`locales` tenía 2 policies de SELECT y Postgres las combina con **OR**:
+
+```
+locales_tenant_select     {authenticated}  (id = current_tenant_id())  → 1
+super_admin_read_locales  {public}        is_super_admin()             → todas
+```
+
+`current_tenant_id()` devolvía bien el tenant; perdía el segundo brazo.
+El POS y el `admin_console` comparten `Supabase.instance.client` → mismo
+JWT → el owner con `is_superadmin = true` veía los 5 locales.
+
+Dropeada en `20261015000004`: sin consumidor (`admin_console` usa
+`tenants`) y `service_role` ya bypasea RLS. Para la Subfase 3.3.3 del
+Control Center: RPC `SECURITY DEFINER` con validación explícita.
+
+### 10. `prefs['localActualId']` es un int de Isar, no un tenant
+
+La prioridad 1 de `cargarLocalActual()` aceptaba cualquier id guardado
+sin validar a qué tenant pertenecía. El id 1 (`pruebapostdeploy`) quedó
+guardado cuando el RLS bajaba los 5 locales, y el badge lo mostraba
+mientras el JWT era JAHTLABS. Ahora se descarta si `supabaseId` no
+coincide con el claim y se cae a la prioridad 2.
+
+No rompe el hot-switch: `setLocalActual()` escribe `state` directo y ya
+awaited `cambiarLocal()`, así que el JWT ya es el nuevo.
+
+---
+
+### Reglas que quedan
+
+| Regla | Por qué |
+|---|---|
+| Toda policy tocada en el dashboard va en una migración el día mismo | El drift no delata nada hasta que un usuario ve datos de otro tenant |
+| El nombre de la clave de un flag tiene que existir en `planes.features` | Si no existe, el getter es código muerto con appearance de feature |
+| `planActivo == false` esconde el producto entero, no solo un módulo | Es fail-closed, pero hay que tenerlo presente al dar de alta tenants |
+| `wipeAll()` nunca toca `planEntitys` / `suscripcionEntitys` | Planes son catálogo global; suscripciones ya se filtran por `tenantId` |
+| **El valor de un enum en Dart tiene que existir en la base** | `'activa'` estaba en el getter y el CHECK lo prohíbe: `planActivo` fue `false` para todos, siempre |
+| **`defaultVisible: true` anula el gate** | `\|\| defaultVisible` es siempre verdadero: 9 módulos se veían en cualquier plan |
+| **Un fire-and-forget que escribe caché tiene que re-disparar el provider** | `obtenerPlanes()` dejaba 9 de 12 features afuera toda la sesión |
+| **Las policies permisivas se ORean** | Una policy `{public}` gana sobre una `{authenticated}` bien escrita |
+| **POS y `admin_console` comparten JWT** | Un `is_superadmin` del owner se colaba al POS; por eso el filtro por `claim` en `sync_service` |
+| **La rama que denies tiene que loguear** | Los 3 bugs eran invisibles por una rama sin `debugPrint`; el log nuevo los destapó en cadena |
+
+### Pendiente de datos (no lo arregla código)
+
+```sql
+-- tenants sin suscripción
+SELECT l.nombre, l.id FROM locales l
+  LEFT JOIN suscripciones s ON s.tenant_id = l.id
+ WHERE s.tenant_id IS NULL;
+
+-- alta de JAHTLABS en pro
+INSERT INTO public.suscripciones (tenant_id, plan_id, estado, iniciado_en, auto_renovar)
+ VALUES ('9c7380a4-14be-41c2-88db-07606c2a6489','pro','activo',now(),true)
+ ON CONFLICT (tenant_id) DO UPDATE SET plan_id=EXCLUDED.plan_id, estado='activo';
+```
+
+---
+
 ## Cierre sesión 2026-10-13 (Shorebird + identidad visual)
 
 **Tags:** `v1.0.2` (`2e0b5c7`) · `v1.0.3` (`c303fda`)

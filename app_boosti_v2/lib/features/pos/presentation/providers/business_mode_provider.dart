@@ -194,17 +194,32 @@ class FeatureFlags {
 
   /// Evalúa una feature del plan.
   ///
-  /// Las features que existen como columna/clave real en `planes.features`
-  /// usan `defaultVisible: false`: si el jsonb no trae la clave, la feature
-  /// queda oculta (el plan no la contrató).
+  /// 🔴 `defaultVisible` está en `false` en TODOS los getters (2026-10-15)
   ///
-  /// Las features HUÉRFANAS —sin clave posible en `planes.features` porque
-  /// la base de datos nunca las definio— usan `defaultVisible: true`: no hay
-  /// forma de que un plan las "*no* contrate", así que arrancan visibles
-  /// para que el menú no esconda pantallas que ya funcionan.
+  /// Antes cada feature usaba `defaultVisible: true` salvo cuatro, con la
+  /// idea de no esconder pantallas que ya funcionan. El problema es que
+  /// `|| defaultVisible` hace el gate INOPERANTE: con `true`, la
+  /// expresión queda `planActivo && (...)` y da lo mismo el plan que
+  /// contrate o no la feature. Los 9 getters que la usaban eran
+  /// dashboard, historial de ventas, historial de gastos, proveedores,
+  /// pedidos a proveedores, departamentos, lotes, monitor de empleados y
+  /// ventas al mayor.
   ///
-  /// TODO(R.0): cuando se agreguen las claves correspondientes a
-  /// `planes.features`, cambiar estos `defaultVisible: true` por `false`.
+  /// El `defaultVisible: true` se justifiqué porque las claves no
+  /// existían en `planes.features`. Ya existen (migración
+  /// `20261015000002`), así que el gate tiene que valer de verdad: el
+  /// plan `basico` tiene `proveedores`, `pedidos_proveedores`,
+  /// `multi_local` y `ventas_mayor` en `false` y esos cuatro módulos
+  /// tienen que desaparecerle del menú.
+  ///
+  /// El parámetro se conserva para que una feature realmente huérfana
+  /// —sin clave posible en `planes.features`— pueda declararse visible
+  /// de forma explícita.Hoy no lo usa ningún getter, y esa es la
+  /// intención: cada línea dice qué contrató el plan.
+  ///
+  /// ⚠️ `planActivo &&` sigue siendo cortocircuito: sin suscripción
+  /// activa no se ve NADA, ni siquiera una feature que marcase
+  /// `defaultVisible: true`. Es fail-closed a propósito (AGENTS.MD §7.3).
   bool _plan(String feature, {bool defaultVisible = false}) =>
       planActivo && (featuresHabilitadas.contains(feature) || defaultVisible);
 
@@ -228,10 +243,9 @@ class FeatureFlags {
 
   // ── POS ──
 
-  // TODO(R.0): huérfana — no hay clave `ventas_mayor` en `planes.features`.
-  // La pantalla `WholesaleScreen` ya está implementada y no depende de
-  // backend adicional, por eso arranca visible.
-  bool get ventasAlMayor => _plan('ventas_mayor', defaultVisible: true);
+  // `ventas_mayor` figura en `basico: false`. El gate es real desde
+  // 2026-10-15: el básico no ve Ventas al Mayor.
+  bool get ventasAlMayor => _plan('ventas_mayor');
 
   // Sin uso en la UI. Se mantiene oculta hasta que exista la pantalla de
   // carritos múltiples (fuera del alcance de Modo Restaurante).
@@ -239,31 +253,35 @@ class FeatureFlags {
 
   // ── Inventario ──
 
-  // TODO(R.0): huérfanas — sin clave en `planes.features`.
-  // `LotesScreen` + `DiagnosticoLotesDialog` ya funcionan con datos locales.
-  bool get lotes => _plan('lotes', defaultVisible: true);
-  bool get pedidosProveedores =>
-      _plan('pedidos_proveedores', defaultVisible: true);
+  // Claves reales en `planes.features` desde 2026-10-15
+  // (migración 20261015000002_plan_features.sql).
+  bool get lotes => _plan('lotes');
+  bool get pedidosProveedores => _plan('pedidos_proveedores');
+
+  /// Antes esta pantalla no consultaba NINGÚN flag de plan: el gate era
+  /// solo `!esServicios`, así que el plan básico veía Proveedores.
+  /// Producto (2026-10-15): básico NO ve proveedores.
+  bool get proveedores => _plan('proveedores');
 
   // ── Organización ──
 
-  // TODO(R.0): huérfanas — sin clave en `planes.features`.
-  // `DepartamentosScreen`, `EmployeeMonitorDialog` y el selector de local
-  // ya funcionan.
-  bool get departamentos => _plan('departamentos', defaultVisible: true);
+  // `DepartamentosScreen` y el selector de local ya funcionan.
+  bool get departamentos => _plan('departamentos');
 
   /// Única feature de organización con clave REAL en `plans.features`.
   bool get multiLocal => _plan('multi_local');
 
-  bool get monitorEmpleados => _plan('monitor_empleados', defaultVisible: true);
+  bool get monitorEmpleados => _plan('monitor_empleados');
 
   // ── Reportes ──
 
-  // TODO(R.0): huérfanas — sin clave en `plans.features`.
-  // `DashboardScreen`, `SalesHistoryScreen` y `GastosScreen` ya funcionan.
-  bool get dashboard => _plan('dashboard', defaultVisible: true);
-  bool get historialVentas => _plan('historial_ventas', defaultVisible: true);
-  bool get historialGastos => _plan('historial_gastos', defaultVisible: true);
+  // Claves reales en `planes.features` desde 2026-10-15
+  // (20261015000002_plan_features.sql). Antes no existían y con
+  // `planActivo = false` estos tres módulos desaparecían del menú.
+  // `DashboardScreen`, `SalesHistoryScreen` y `GastosScreen` funcionan.
+  bool get dashboard => _plan('dashboard');
+  bool get historialVentas => _plan('historial_ventas');
+  bool get historialGastos => _plan('historial_gastos');
 
   // Sin uso en la UI.
   bool get estadisticasAdmin => _plan('estadisticas_admin');
@@ -339,6 +357,14 @@ final featureFlagsProvider = Provider<FeatureFlags>((ref) {
     // fetch falla (timeout/error). `null` = nunca se pudo determinar, y
     // ahí se deniega (fail-closed), igual que antes de este cambio.
     final planActivo = cachePlanActivo ?? false;
+    // 🔎 DIAGNÓSTICO (2026-10-15): esta rama era la única SIN log.
+    // Con `suscripcion == null` y `cachePlanActivo == null` el menú
+    // quedaba entero oculto y no había forma de saber por qué.
+    debugPrint(
+      '🔎 [featureFlags] DENEGADO · suscripcion=${suscripcion?.planId}'
+      '(${suscripcion?.estado}) activa=${suscripcion?.activa} '
+      'cache=$cachePlanActivo → planActivo=$planActivo',
+    );
     if (suscripcion == null && cachePlanActivo != null) {
       debugPrint(
         '📦 [featureFlags] Suscripción no disponible. Usando cache: '
@@ -364,6 +390,14 @@ final featureFlagsProvider = Provider<FeatureFlags>((ref) {
       if (value == true) features.add(key);
     });
   }
+
+  // 🔎 DIAGNÓSTICO (2026-10-15): sin esto no se distinguía "el plan no
+  // trae la clave" de "el plan no se pudo cargar" — ambos dan `features`
+  // vacío y el mismo menú mudo.
+  debugPrint(
+    '🔎 [featureFlags] planActivo=true plan=${suscripcion.planId} '
+    'planCargado=${plan != null} features=${features.length}',
+  );
 
   return FeatureFlags(
     mode: mode,
