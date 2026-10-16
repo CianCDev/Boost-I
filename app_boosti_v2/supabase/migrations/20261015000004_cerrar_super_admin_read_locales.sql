@@ -63,6 +63,15 @@
 -- ═══════════════════════════════════════════════════════════════
 -- 1. BACKUP (idempotente)
 -- ═══════════════════════════════════════════════════════════════
+--
+-- ⚠️ La tabla puede YA existir de una corrida anterior con un esquema
+-- más chico. `CREATE TABLE IF NOT EXISTS` NO la altera: se salta el
+-- bloque entero en silencio y el INSERT revienta con
+--
+--   42703: column "note" of relation "_backup_locales_policies" does not exist
+--
+-- Por eso el `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` va después y
+-- cubre cada columna que usa el INSERT.
 
 CREATE TABLE IF NOT EXISTS public._backup_locales_policies (
   id           bigserial PRIMARY KEY,
@@ -74,6 +83,22 @@ CREATE TABLE IF NOT EXISTS public._backup_locales_policies (
   with_check   text,
   note         text
 );
+
+-- Agrega lo que le falte a una tabla preexistente.
+ALTER TABLE public._backup_locales_policies
+  ADD COLUMN IF NOT EXISTS taken_at   timestamptz NOT NULL DEFAULT now();
+ALTER TABLE public._backup_locales_policies
+  ADD COLUMN IF NOT EXISTS policyname text;
+ALTER TABLE public._backup_locales_policies
+  ADD COLUMN IF NOT EXISTS cmd        text;
+ALTER TABLE public._backup_locales_policies
+  ADD COLUMN IF NOT EXISTS roles      text[];
+ALTER TABLE public._backup_locales_policies
+  ADD COLUMN IF NOT EXISTS qual       text;
+ALTER TABLE public._backup_locales_policies
+  ADD COLUMN IF NOT EXISTS with_check text;
+ALTER TABLE public._backup_locales_policies
+  ADD COLUMN IF NOT EXISTS note       text;
 
 INSERT INTO public._backup_locales_policies
   (policyname, cmd, roles, qual, with_check, note)
