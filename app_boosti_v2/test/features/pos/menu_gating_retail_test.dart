@@ -15,8 +15,36 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/business_mode_
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  // Mismo jsonb real del plan "basico" (solo 2 de las 4 claves).
-  const clavesBasico = <String>{'offline', 'reports'};
+  // ⚠️ Catálogo REAL de `public.planes` leído el 2026-10-15.
+  //
+  // Antes este fixture usaba `{offline, reports}`, que NO es `basico`:
+  // es el catálogo de `trial`. Un plan con 2 de 12 claves no
+  // representa a ningún plan que exista, y los tests pasaban sin
+  // comprobar nada real.
+  //
+  // Consecuencia directa: como el gate era decorativo
+  // (`defaultVisible: true`), esos tests solo veían el comportamiento
+  // viejo. Al arreglar el gate, el fixture mintió y aparecieron 6
+  // fallos — todos por esto, ninguno por el fix.
+  const clavesBasico = <String>{
+    'lotes',
+    'offline',
+    'reports',
+    'dashboard',
+    'departamentos',
+    'historial_gastos',
+    'historial_ventas',
+    'monitor_empleados',
+  };
+
+  /// Catálogo real de `pro`: `basico` + las 4 features de pago.
+  const clavesPro = <String>{
+    ...clavesBasico,
+    'multi_local',
+    'proveedores',
+    'ventas_mayor',
+    'pedidos_proveedores',
+  };
 
   final flagsRetail = FeatureFlags(
     mode: BusinessMode.retail,
@@ -25,30 +53,64 @@ void main() {
     featuresHabilitadas: clavesBasico,
   );
 
+  /// Flags de `pro`, para lo que el básico no contrata.
+  final flagsPro = FeatureFlags(
+    mode: BusinessMode.retail,
+    planActivo: true,
+    planId: 'pro',
+    featuresHabilitadas: clavesPro,
+  );
+
   bool visible(String id, {UserRole role = UserRole.admin}) =>
       MenuBuilder.puedeVerOpcion(role, id, flagsRetail);
 
-  group('Las 9 opciones reactivadas en P0-3', () {
-    test('son visibles para el admin en retail', () {
-      // Las 8 reactivadas + 'diagnostico', que se desbloquea con mostrarLotes.
-      const reactivadas = <String>[
-        'ventas_mayor',
+  bool visiblePro(String id, {UserRole role = UserRole.admin}) =>
+      MenuBuilder.puedeVerOpcion(role, id, flagsPro);
+
+  group('Lo que el plan básico SÍ contrata se ve', () {
+    test('las 7 features de basico dan visibilidad al admin en retail', () {
+      // `ventas_mayor`, `pedidos` y `proveedores` NO entran acá:
+      // `basico` las tiene en false. Ver el test siguiente.
+      const contratadas = <String>[
         'dashboard',
         'ventas',
         'gastos',
         'lotes',
-        'pedidos',
         'monitor',
         'departamentos',
-        'diagnostico',
+        'diagnostico', // se desbloquea con mostrarLotes
       ];
-      for (final id in reactivadas) {
+      for (final id in contratadas) {
         expect(
           visible(id),
           isTrue,
-          reason: '"$id" debe verse en retail tras P0-3, pero está oculta',
+          reason: '"$id" está en el catálogo de basico y debe verse',
         );
       }
+    });
+
+    test('lo que basico NO contrata queda oculto (gate real)', () {
+      // Esto es lo que arregló el 2026-10-15: antes
+      // `defaultVisible: true` los dejaba visibles igual.
+      const noContratadas = <String>[
+        'ventas_mayor',
+        'pedidos',
+        'proveedores',
+      ];
+      for (final id in noContratadas) {
+        expect(
+          visible(id),
+          isFalse,
+          reason: '"$id" está en false para basico y no debe verse',
+        );
+      }
+    });
+
+    test('con pro las cuatro de pago aparecen', () {
+      expect(visiblePro('ventas_mayor'), isTrue);
+      expect(visiblePro('pedidos'), isTrue);
+      expect(visiblePro('proveedores'), isTrue);
+      expect(visiblePro('locales'), isTrue);
     });
 
     test('"pedidos" sigue oculta en modo servicios por diseño', () {
@@ -56,7 +118,7 @@ void main() {
         mode: BusinessMode.servicios,
         planActivo: true,
         planId: 'pro',
-        featuresHabilitadas: clavesBasico,
+        featuresHabilitadas: clavesPro,
       );
       expect(
         MenuBuilder.puedeVerOpcion(UserRole.admin, 'pedidos', flagsServicios),
@@ -112,7 +174,7 @@ void main() {
         mode: BusinessMode.retail,
         planActivo: true,
         planId: 'pro',
-        featuresHabilitadas: const {...clavesBasico, 'multi_local'},
+        featuresHabilitadas: clavesPro,
       );
       expect(MenuBuilder.puedeVerOpcion(UserRole.admin, 'locales', flagsPro),
           isTrue);
@@ -244,11 +306,16 @@ void main() {
   group('R.5 · "Ventas al Mayor" (id: ventas_mayor) es retail puro', () {
     // Mayor = precios por volumen + lista de clientes mayoristas. En
     // restaurante la venta es por mesa/comanda: no hay nada que aplicar.
+    //
+    // ⚠️ Usa `clavesPro`, no `clavesBasico`: `basico` tiene
+    // `ventas_mayor: false`. Estos tests miden el gate por MODO, y para
+    // eso hace falta un plan que contrate la feature — si no, todos
+    // darían false y "no se ve en restaurante" pasaría sin comprobar nada.
     FeatureFlags flagsModo(BusinessMode modo) => FeatureFlags(
           mode: modo,
           planActivo: true,
           planId: 'pro',
-          featuresHabilitadas: clavesBasico,
+          featuresHabilitadas: clavesPro,
         );
 
     test('el criterio vive en FeatureFlags, no en el switch del menú', () {
@@ -280,26 +347,32 @@ void main() {
     });
 
     test('SIGUE viéndose en retail (el gate nuevo no la rompió)', () {
-      expect(visible('ventas_mayor'), isTrue);
+      // Usa `visiblePro`, no `visible`: `basico` tiene `ventas_mayor: false`.
+      expect(visiblePro('ventas_mayor'), isTrue);
       // ...y solo para los roles que puede aplicar el módulo (roles.dart:106).
       for (final role in const [
         UserRole.admin,
         UserRole.supervisor,
         UserRole.cajero,
       ]) {
-        expect(visible('ventas_mayor', role: role), isTrue,
+        expect(visiblePro('ventas_mayor', role: role), isTrue,
             reason: '$role sí accede a mayor');
       }
-      expect(visible('ventas_mayor', role: UserRole.rrhh), isFalse);
+      expect(visiblePro('ventas_mayor', role: UserRole.rrhh), isFalse);
+      // Y el básico no la ve, porque no la contrató.
+      expect(visible('ventas_mayor'), isFalse);
     });
   });
 
   group('Opciones sin gate de plan (siempre disponibles para admin)', () {
-    test('caja, proveedores, inventario, backup, sync y perfil se ven', () {
+    test('caja, inventario, backup, sync y perfil se ven', () {
+      // ⚠️ `proveedores` salió de esta lista el 2026-10-15: antes era
+      // `'proveedores' => !flags.esServicios`, solo modo. Ahora consulta
+      // `flags.proveedores`, o sea que SÍ gatea por plan y `basico` la
+      // tiene en false.
       const siempre = <String>[
         'caja',
         'inventario',
-        'proveedores',
         'auditoria',
         'empleados',
         'personal',
@@ -315,6 +388,11 @@ void main() {
           reason: '"$id" debería verse sin gate extra',
         );
       }
+    });
+
+    test('proveedores tiene gate de plan: basico no lo contrata', () {
+      expect(visible('proveedores'), isFalse);
+      expect(visiblePro('proveedores'), isTrue);
     });
   });
 
