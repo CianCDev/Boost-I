@@ -2967,6 +2967,64 @@ Future<List<ClienteEntity>> buscarClientes(
     }
   }
 
+  /// Elimina los locales cuyo `supabaseId` NO está en [permitidos].
+  ///
+  /// 🎯 Por qué existe (2026-10-15)
+  ///
+  /// La policy `locales` tenía un segundo brazo que le devolvía los
+  /// locales de todos los tenants al owner del SaaS. Esos locales
+  /// quedaron cacheados en Isar de este dispositivo y, cuando el RLS
+  /// se cerró, siguieron ahí: datos de otros tenants en una base local.
+  ///
+  /// ⚠️ Por qué NO se purga "lo que no sea el tenant del claim"
+  ///
+  /// El usuario puede tener varios locales legítimos (`usuarios_locales`
+  /// le asigna uno por fila, y `mis_locales()` devuelve 2 para JAHTLABS).
+  /// Borrar todo lo que no sea el claim DEJARÍA FUERA el local alterno y
+  /// `setLocalActual()` fallaría al intentar cambiar a él, porque exige
+  /// que el local exista en Isar.
+  ///
+  /// La lista blanca sale de `mis_locales()` — el mismo RPC que
+  /// alimenta el selector de local — así que por construcción nunca
+  /// borra un local al que el usuario tiene derecho, y sí borra el
+  /// residuo de otras cuentas con las que se usó este dispositivo.
+  ///
+  /// Si [permitidos] viene vacío NO borra nada: una RPC caída por red no
+  /// puede convertirse en un borrado masivo.
+  ///
+  /// Devuelve cuántos locales eliminó.
+  Future<int> purgarLocalesFueraDe(Set<String> permitidos) async {
+    if (permitidos.isEmpty) return 0;
+    try {
+      final isar = await db;
+      final todos = await isar.localEntitys.where().findAll();
+
+      final aBorrar = todos.where((l) {
+        final sid = l.supabaseId;
+        // Sin supabaseId no se puede Emiliar a qué tenant pertenece:
+        // es residuo de una versión anterior y no se puede sincronizar.
+        if (sid == null || sid.isEmpty) return true;
+        return !permitidos.contains(sid);
+      }).toList(growable: false);
+
+      if (aBorrar.isEmpty) return 0;
+
+      await isar.writeTxn(() async {
+        await isar.localEntitys.deleteAll(aBorrar.map((l) => l.id).toList());
+      });
+
+      debugPrint(
+        '🧹 [locales] Purgados ${aBorrar.length} local(es) fuera de '
+        'mis_locales(): ${aBorrar.map((l) => l.nombre).join(', ')}',
+      );
+      return aBorrar.length;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'purgarLocalesFueraDe_fallo');
+      return 0;
+    }
+  }
+
   Future<List<LocalEntity>> obtenerLocales({bool soloActivos = true}) async {
     try {
       final isar = await db;

@@ -139,8 +139,32 @@ class LocalActualNotifier extends StateNotifier<int?> {
     }
 
     // ── Prioridad 3: primer activo ──
-    final locales = await _isar.obtenerLocales(soloActivos: true);
+    //
+    // Se filtra por el claim antes de elegir. `obtenerLocales()` no mira
+    // el tenant, y en este dispositivo hay más de un local cacheado:
+    // sin este filtro, un claim ilegible o ausente elegía el primero de
+    // la lista y el badge mostraba el local equivocado — que es
+    // justamente el síntoma que se 보고 el 2026-10-15.
+    final todos = await _isar.obtenerLocales(soloActivos: true);
     if (!mounted) return;
+
+    final locales = (tenantJwt != null && tenantJwt.isNotEmpty)
+        ? todos.where((l) => l.supabaseId == tenantJwt).toList(growable: false)
+        : todos;
+
+    if (locales.isEmpty) {
+      // Sin claim legible y sin local que coincida: es preferible
+      // quedarse sin local activo que apuntar a otro tenant.
+      if (tenantJwt != null && tenantJwt.isNotEmpty) {
+        debugPrint(
+          '⚠️ [localActual] Ningún local local coincide con el claim '
+          '$tenantJwt. Se deja sin local activo.',
+        );
+        state = null;
+        return;
+      }
+    }
+
     if (locales.isNotEmpty) {
       state = locales.first.id;
       // Usa el valor local, no `state!`: si el notifier se disposed entre

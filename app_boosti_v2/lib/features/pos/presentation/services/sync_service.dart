@@ -3187,12 +3187,50 @@ Future<void> subirUsuariosPendientes() async {
           debugPrint('📥 Local ${localNube.nombre} creado');
         }
       }
+
+      await _purgarLocalesResiduo();
       onDataChanged?.call();
     } catch (e, stack) {
       debugPrint('❌ Error descargando locales: $e');
       ErrorService.captureError(e,
           stack: stack, hint: 'descargarLocalesDesdeSupabase_fallo');
       rethrow;
+    }
+  }
+
+  /// 🧹 Purga los locales de Isar que este usuario no puede usar.
+  ///
+  /// La lista blanca sale de `mis_locales()` (RPC `SECURITY DEFINER`),
+  /// el mismo origen que alimenta el selector de local. Nunca borra un
+  /// local asignado al usuario, y sí borra el residuo que dejaron otras
+  /// cuentas con las que se usó este dispositivo — que es lo que pasó con
+  /// el brazo abierto de la policy `locales` (ver AGENTS.MD §7.4.1).
+  ///
+  /// ⚠️ Si la RPC falla o vuelve vacía, NO purga. Una caída de red no
+  /// puede convertirse en un borrado masivo.
+  Future<void> _purgarLocalesResiduo() async {
+    try {
+      final rpc = await _supabase.rpc('mis_locales').timeout(
+            const Duration(seconds: 8),
+          );
+
+      if (rpc is! List || rpc.isEmpty) {
+        debugPrint(
+          '🧹 [locales] mis_locales() vacío o no-list: se omite la purga.',
+        );
+        return;
+      }
+
+      final permitidos = <String>{};
+      for (final row in rpc) {
+        if (row is Map && row['id'] is String) permitidos.add(row['id'] as String);
+      }
+
+      if (permitidos.isEmpty) return;
+
+      await _isarService.purgarLocalesFueraDe(permitidos);
+    } catch (e) {
+      debugPrint('🧹 [locales] Purga omitida por error: $e');
     }
   }
 
