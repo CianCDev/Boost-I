@@ -1,0 +1,107 @@
+name: Shorebird Build
+
+# 🐧 ubuntu-latest, no windows-latest.
+#
+# Gradle 8.14 en Windows falla con "Could not move temporary workspace"
+# (gradle#38921). No hay fix en la línea 8.x y Flutter 3.47 exige Gradle
+# >= 8.14, así que no hay versión intermedia que funcione. El runner de
+# Linux no toca esa línea, así que el build pasa.
+#
+# Para el artefacto Android da igual: Dart compila igual en cualquier OS
+# y el AAB no depende del runner.
+#
+# ⚠️ Esto NO sirve para el patch de la app DESKTOP Windows. Ese va por
+# CMake/MSBuild, no por Gradle — el bug no le aplica — pero tampoco se
+# puede generar desde Linux. Para eso, runner Windows.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Acción (release o patch)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - release
+          - patch
+      flavor:
+        description: 'Flavor (client o admin)'
+        required: true
+        default: 'client'
+        type: choice
+        options:
+          - client
+          - admin
+      release_version:
+        description: 'Versión de release (solo para patch, ej: 1.1.1+7)'
+        required: false
+        default: '1.1.1+7'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      # Va en app_boosti_v2/, NO en la raíz: Shorebird corre con
+      # working-directory ./app_boosti_v2 y el --dart-define-from-file
+      # se resuelve relativo al cwd del build.
+      - name: Materializar env.json
+        run: echo '${{ secrets.ENV_JSON }}' > app_boosti_v2/env.json
+
+      # El keystore va en android/boostikeystore.jks, igual que en el
+      # build local. `storeFile=../boostikeystore.jks` es relativo a
+      # android/app/ porque `file()` en app/build.gradle:68 resuelve
+      # contra el módulo, no contra la raíz de android/.
+      - name: Decodificar keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app_boosti_v2/android/boostikeystore.jks
+
+      - name: Crear key.properties
+        run: |
+          cat <<EOF > app_boosti_v2/android/key.properties
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=../boostikeystore.jks
+          EOF
+
+      - name: Setup Shorebird
+        uses: shorebirdtech/setup-shorebird@v1
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+
+      - name: Shorebird Release
+        if: ${{ inputs.action == 'release' }}
+        uses: shorebirdtech/shorebird-release@v1
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+        with:
+          platform: android
+          working-directory: ./app_boosti_v2
+          args: >-
+            --flavor=${{ inputs.flavor }}
+            --target=lib/main_${{ inputs.flavor }}.dart
+            -- --dart-define-from-file=env.json
+
+      - name: Shorebird Patch
+        if: ${{ inputs.action == 'patch' }}
+        uses: shorebirdtech/shorebird-patch@v1
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+        with:
+          platform: android
+          release-version: ${{ inputs.release_version }}
+          working-directory: ./app_boosti_v2
+          args: >-
+            --flavor=${{ inputs.flavor }}
+            --target=lib/main_${{ inputs.flavor }}.dart
+            -- --dart-define-from-file=env.json
