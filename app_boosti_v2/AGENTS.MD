@@ -354,7 +354,32 @@ El log `🔎 [featureFlags] DENEGADO · …` destapó los tres de una. **Si
 un gate decide si el usuario ve el producto, la rama que lo denies
 tiene que decir por qué.**
 
-## 8. Comandos útiles
+## 7.6 — CI/CD y build de Android release
+
+- **Los builds de release y patch se hacen EXCLUSIVAMENTE vía GitHub
+  Actions**, en `.github/workflows/shorebird.yml` con runner
+  `ubuntu-latest`. Se disparan a mano desde la pestaña **Actions** de
+  GitHub, nunca desde la CLI.
+- **Nunca buildear release localmente en Windows.** Gradle 8.14 falla en
+  Windows con `Could not move temporary workspace`
+  (gradle/gradle#27844). Flutter 3.47 exige Gradle >= 8.14 y el fix está
+  en 9.1.0, que rompe AGP 8.11.1 y los plugins con KGP. El runner de
+  Linux evade el bug por completo.
+- **Secretos requeridos** (Settings > Secrets and variables > Actions):
+  `SHOREBIRD_TOKEN`, `ENV_JSON`, `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
+  `KEY_ALIAS`, `KEY_PASSWORD`.
+- **El workflow valida antes de compilar:** `jq empty` sobre `env.json` y
+  el magic number `0xFEEDFEED` del keystore. Un secreto con CRLF o
+  truncado falla en 1 segundo en lugar de romper la firma 10 minutos
+  después.
+- ⚠️ **Esto no sirve para el patch de la app DESKTOP Windows.** Ese va
+  por CMake/MSBuild — el bug no le aplica — pero tampoco se genera
+  desde Linux. Para eso, runner Windows.
+- Para cargar un secret desde un archivo local, el comando depende de la
+  shell: en **PowerShell** es `Get-Content -Raw`, en **bash** es `cat`.
+  Usar el equivocado falla en silencio y deja el secret vacío.
+
+## 8. Comandos úteis
 
 ```bash
 # Análisis estático

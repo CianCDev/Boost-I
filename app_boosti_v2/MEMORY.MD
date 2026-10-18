@@ -468,6 +468,37 @@ INSERT INTO public.suscripciones (tenant_id, plan_id, estado, iniciado_en, auto_
 
 ---
 
+## Solución al bug de Gradle en CI (octubre 2026)
+
+- **Problema:** el build de Android fallaba en local con `Could not move
+  temporary workspace`, sin dejar compilar ni un patch de Shorebird.
+- **Causa:** bug de Gradle 8.x en Windows (gradle/gradle#27844). No hay
+  fix en la línea 8.x, y Flutter 3.47 exige Gradle >= 8.14, así que no
+  hay versión intermedia posible.
+- **Lo que se descartó, con evidencia y no por suposición:**
+
+  | Hipótesis | Resultado |
+  |---|---|
+  | Caché corrupta | `.gradle\caches` y `daemon` borrados al 100%, falla igual |
+  | Versión de Gradle | Probado 8.13 (Flutter lo rechaza) y 8.14 (falla) |
+  | JDK | `Files.move(ATOMIC_MOVE)` OK en 21.0.2 y en el JBR 21.0.10 de Android Studio |
+  | Filesystem | `Directory.Move` de .NET OK, incluso dentro de `.gradle\caches` |
+  | Antivirus | Avast desactivado, sin cambio |
+  | Daemons / watcher | Detenidos y deshabilitados, sin cambio |
+
+- **Solución:** migrar los builds de release y patch a GitHub Actions
+  con `ubuntu-latest`. Para el AAB da igual el runner: Dart compila
+  igual en cualquier OS.
+- **Robustez en el workflow:** los secretos llegan por `env:` y no
+  interpolados con `${{ }}`, porque un `$` dentro del JSON lo expandiría
+  bash. Se materializan con `printf '%s'` en vez de `echo`, y se validan
+  con `jq empty` y el magic number `0xFEEDFEED` del keystore. Todo falla
+  en 1 segundo en vez de a los 10 minutos.
+- **Trampa real que costó un run:** `gh secret set X -b "$(Get-Content
+  -Raw f)"` ejecutado en **bash** deja el secret **vacío** sin error
+  visible, porque `Get-Content` no existe ahí. El síntoma es un JSON
+  inválido tres pasos más tarde, en el build. En bash va `cat`.
+
 ## Cierre sesión 2026-10-13 (Shorebird + identidad visual)
 
 **Tags:** `v1.0.2` (`2e0b5c7`) · `v1.0.3` (`c303fda`)
