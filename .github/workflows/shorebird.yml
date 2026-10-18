@@ -43,14 +43,53 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Printing the commit BEFORE the build, on purpose.
+      #
+      # "Re-run jobs" keeps the original headSha, and a dispatch fired
+      # right after a push can pick up the previous ref. Both happened
+      # here: three runs failed diagnosing code that was already fixed,
+      # because the log only showed the symptom and never which commit
+      # was actually compiled.
+      #
+      # First thing in the log: which code is this run really building.
+      - name: Que commit se esta compilando
+        run: |
+          echo "::notice::commit  = ${GITHUB_SHA}"
+          echo "::notice::workflow= ${GITHUB_WORKFLOW}"
+          echo "::notice::event   = ${GITHUB_EVENT}"
+          echo "::notice::Si el commit no es el que esperabas, el push todavia no llego."
+        shell: bash
+
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Estado del checkout
+        run: |
+          git log -1 --format='commit  = %H%nautor  = %an%nmensaje= %s'
+          echo ""
+          echo "wrapper de Gradle:"
+          grep distributionUrl app_boosti_v2/android/gradle/wrapper/gradle-wrapper.properties
+          echo ""
+          echo "keystore PKCS12 (debe existir en minusculas):"
+          ls -la app_boosti_v2/lib/features/pos/presentation/widgets/pedidos/multi_select_dialog.dart
+        shell: bash
+
+      # Falla en 2 segundos si el casteo del archivo no coincide con lo
+      # que espera el import. Antes tardaba 6 minutos de build.
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '21'
+
+      # Falla en ~1 minuto si hay un import roto o un casteo que no
+      # coincide. Antes tardaba 6 minutos de build para decir lo mismo.
+      - name: Verificar que el project compila
+        working-directory: ./app_boosti_v2
+        run: |
+          flutter pub get
+          flutter analyze --no-pub
+        shell: bash
 
       # Va en app_boosti_v2/, NO en la raíz: Shorebird corre con
       # working-directory ./app_boosti_v2 y el --dart-define-from-file
