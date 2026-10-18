@@ -86,11 +86,22 @@ jobs:
       - name: Decodificar keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > app_boosti_v2/android/boostikeystore.jks
-          # Un .jks arranca con magic 0xFEEDFEED. Si no, no es un keystore.
-          if ! head -c 4 app_boosti_v2/android/boostikeystore.jks | od -An -tx1 | grep -qi 'feed feed'; then
-            echo "::error::KEYSTORE_BASE64 no decodifica a un keystore valido. Revisa el secreto en GitHub."
+          # Valida con keytool y no con los magic bytes a mano.
+          #
+          # Un keystore arranca con 0xFEEDFEED (JKS legacy) o con
+          # 0x30 0x82 (PKCS12 / ASN.1 SEQUENCE). El de este proyecto es
+          # PKCS12, asi que una comprobacion de "feed feed" rechazaba un
+          # keystore perfectamente valido: fue lo que rompio el primer
+          # run en CI.
+          #
+          # keytool ademas valida el storePassword contra el archivo, asi
+          # que un secret equivocado se detecta aqui y no en la firma.
+          if ! keytool -list -keystore app_boosti_v2/android/boostikeystore.jks -storepass "$KEYSTORE_PASSWORD" > /dev/null 2>&1; then
+            echo "::error::KEYSTORE_BASE64 no abre como keystore, o KEYSTORE_PASSWORD no coincide."
+            echo "::error::Si es PKCS12 el archivo empieza en 30 82, no en fe ed. keytool acepta ambos."
             exit 1
           fi
 
