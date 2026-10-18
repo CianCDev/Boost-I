@@ -82,11 +82,24 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
+      # El runner de Linux NO trae Flutter. Sin esto el analyze de abajo
+      # falla con "flutter: command not found" en el primer segundo.
+      #
+      # La version no tiene que coincidir con la de Shorebird: este
+      # Flutter solo se usa para el analyze previo. El build del patch
+      # lo hace setup-shorebird con el suyo.
+      - name: Setup Flutter para el analyze
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: 'stable'
+
       # Falla en ~1 minuto si hay un import roto o un casteo que no
       # coincide. Antes tardaba 6 minutos de build para decir lo mismo.
       - name: Verificar que el project compila
         working-directory: ./app_boosti_v2
         run: |
+          flutter --version
           flutter pub get
           flutter analyze --no-pub
         shell: bash
