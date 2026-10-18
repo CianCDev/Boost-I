@@ -197,7 +197,17 @@ jobs:
           platform: android
           release-version: ${{ inputs.release_version }}
           working-directory: ./app_boosti_v2
+          # --allow-asset-diffs es obligatorio en CI.
+          #
+          # Sin el, Shorebird aborta con "Not publishing" porque el
+          # tree-shaking produce assets distintos en cada build:
+          #   base/assets/flutter_assets/NOTICES.Z
+          #   base/assets/flutter_assets/assets/config.json
+          #
+          # En un terminal interactivo Shorebird pregunta y uno acepta.
+          # En un runner no hay stdin, asi que aborta con exit 70.
           args: >-
             --flavor=${{ inputs.flavor }}
             --target=lib/main_${{ inputs.flavor }}.dart
+            --allow-asset-diffs
             -- --dart-define-from-file=env.json
