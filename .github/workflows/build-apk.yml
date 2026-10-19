@@ -1,0 +1,96 @@
+name: Build APK Only
+
+on:
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Flavor (client o admin)'
+        required: true
+        default: 'client'
+        type: choice
+        options:
+          - client
+          - admin
+
+jobs:
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: 'stable'
+
+      - name: Materializar env.json
+        env:
+          ENV_JSON: ${{ secrets.ENV_JSON }}
+        run: |
+          printf '%s' "$ENV_JSON" > app_boosti_v2/env.json
+          if ! jq empty app_boosti_v2/env.json; then
+            echo "::error::ENV_JSON no es JSON valido."
+            exit 1
+          fi
+
+      - name: Decodificar keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > app_boosti_v2/android/boostikeystore.jks
+          if ! keytool -list -keystore app_boosti_v2/android/boostikeystore.jks -storepass "$KEYSTORE_PASSWORD" > /dev/null 2>&1; then
+            echo "::error::KEYSTORE_BASE64 no abre como keystore, o KEYSTORE_PASSWORD no coincide."
+            exit 1
+          fi
+
+      - name: Crear key.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          cat > app_boosti_v2/android/key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=../boostikeystore.jks
+          EOF
+
+      - name: Flutter pub get
+        working-directory: ./app_boosti_v2
+        run: flutter pub get
+
+      - name: Construir APK
+        working-directory: ./app_boosti_v2
+        run: |
+          flutter build apk --release --flavor=${{ inputs.flavor }} --target=lib/main_${{ inputs.flavor }}.dart --dart-define-from-file=env.json
+
+      - name: Localizar APK
+        id: find-apk
+        run: |
+          APK=$(find app_boosti_v2/build/app/outputs/flutter-apk -name "*.apk" -type f | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error::No se encontro ningun APK"
+            exit 1
+          fi
+          echo "apk=$APK" >> $GITHUB_OUTPUT
+          echo "Encontrado: $APK"
+
+      - name: Subir APK como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boosti-${{ inputs.flavor }}-apk
+          path: ${{ steps.find-apk.outputs.apk }}
+          retention-days: 90
+          compression-level: 0
