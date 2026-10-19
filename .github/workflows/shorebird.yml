@@ -39,19 +39,14 @@ on:
         default: '1.1.1+7'
 
 jobs:
-  build:
+  build-android:
+    name: Build Android (APK + AAB)
     runs-on: ubuntu-latest
+    outputs:
+      apk-path: ${{ steps.upload-apk.outputs.apk-path }}
+      aab-path: ${{ steps.upload-aab.outputs.aab-path }}
 
     steps:
-      # Printing the commit BEFORE the build, on purpose.
-      #
-      # "Re-run jobs" keeps the original headSha, and a dispatch fired
-      # right after a push can pick up the previous ref. Both happened
-      # here: three runs failed diagnosing code that was already fixed,
-      # because the log only showed the symptom and never which commit
-      # was actually compiled.
-      #
-      # First thing in the log: which code is this run really building.
       - name: Que commit se esta compilando
         run: |
           echo "::notice::commit  = ${GITHUB_SHA}"
@@ -74,28 +69,18 @@ jobs:
           ls -la app_boosti_v2/lib/features/pos/presentation/widgets/pedidos/multi_select_dialog.dart
         shell: bash
 
-      # Falla en 2 segundos si el casteo del archivo no coincide con lo
-      # que espera el import. Antes tardaba 6 minutos de build.
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '21'
 
-      # El runner de Linux NO trae Flutter. Sin esto el analyze de abajo
-      # falla con "flutter: command not found" en el primer segundo.
-      #
-      # La version no tiene que coincidir con la de Shorebird: este
-      # Flutter solo se usa para el analyze previo. El build del patch
-      # lo hace setup-shorebird con el suyo.
       - name: Setup Flutter para el analyze
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.2'
           channel: 'stable'
 
-      # Falla en ~1 minuto si hay un import roto o un casteo que no
-      # coincide. Antes tardaba 6 minutos de build para decir lo mismo.
       - name: Verificar que el project compila
         working-directory: ./app_boosti_v2
         run: |
@@ -104,53 +89,22 @@ jobs:
           flutter analyze --no-pub
         shell: bash
 
-      # Va en app_boosti_v2/, NO en la raíz: Shorebird corre con
-      # working-directory ./app_boosti_v2 y el --dart-define-from-file
-      # se resuelve relativo al cwd del build.
-      #
-      # El secreto va por `env:` y NO interpolado con ${{ }}: si el JSON
-      # tuviera un `$` (un precio, una clave), bash lo expandiría y
-      # corrompería el archivo. Con `env:` el valor llega intacto.
-      #
-      # `printf '%s'` en vez de `echo`: no interpreta flags si el valor
-      # empieza con `-` ni agrega un salto de línea extra.
       - name: Materializar env.json
         env:
           ENV_JSON: ${{ secrets.ENV_JSON }}
         run: |
           printf '%s' "$ENV_JSON" > app_boosti_v2/env.json
-          # jq empty valida la sintaxis. ubuntu-latest trae jq
-          # preinstalado. Falla acá en 1 segundo en vez de perder 10
-          # minutos en descubrir el problema en medio del build.
           if ! jq empty app_boosti_v2/env.json; then
             echo "::error::ENV_JSON no es JSON valido. Suele ser un salto de linea o CRLF pegado al copiarlo en GitHub Secrets."
             exit 1
           fi
 
-      # El keystore va en android/boostikeystore.jks, igual que en el
-      # build local. `storeFile=../boostikeystore.jks` es relativo a
-      # android/app/ porque `file()` en app/build.gradle:68 resuelve
-      # contra el módulo, no contra la raíz de android/.
-      #
-      # Misma trumpa del env: el base64 se pega en GitHub y suele
-      # arrastrar saltos de linea, que `base64 --decode` no tolera
-      # salvo con -i. Se normalizan antes de decodificar.
       - name: Decodificar keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > app_boosti_v2/android/boostikeystore.jks
-          # Valida con keytool y no con los magic bytes a mano.
-          #
-          # Un keystore arranca con 0xFEEDFEED (JKS legacy) o con
-          # 0x30 0x82 (PKCS12 / ASN.1 SEQUENCE). El de este proyecto es
-          # PKCS12, asi que una comprobacion de "feed feed" rechazaba un
-          # keystore perfectamente valido: fue lo que rompio el primer
-          # run en CI.
-          #
-          # keytool ademas valida el storePassword contra el archivo, asi
-          # que un secret equivocado se detecta aqui y no en la firma.
           if ! keytool -list -keystore app_boosti_v2/android/boostikeystore.jks -storepass "$KEYSTORE_PASSWORD" > /dev/null 2>&1; then
             echo "::error::KEYSTORE_BASE64 no abre como keystore, o KEYSTORE_PASSWORD no coincide."
             echo "::error::Si es PKCS12 el archivo empieza en 30 82, no en fe ed. keytool acepta ambos."
@@ -197,17 +151,150 @@ jobs:
           platform: android
           release-version: ${{ inputs.release_version }}
           working-directory: ./app_boosti_v2
-          # --allow-asset-diffs es obligatorio en CI.
-          #
-          # Sin el, Shorebird aborta con "Not publishing" porque el
-          # tree-shaking produce assets distintos en cada build:
-          #   base/assets/flutter_assets/NOTICES.Z
-          #   base/assets/flutter_assets/assets/config.json
-          #
-          # En un terminal interactivo Shorebird pregunta y uno acepta.
-          # En un runner no hay stdin, asi que aborta con exit 70.
           args: >-
             --flavor=${{ inputs.flavor }}
             --target=lib/main_${{ inputs.flavor }}.dart
             --allow-asset-diffs
             -- --dart-define-from-file=env.json
+
+      # ──────────────────────────────────────────────────────────────
+      # SUBIR APK COMO ARTIFACT (para que lo bajes de la pestaña Artifacts)
+      # ──────────────────────────────────────────────────────────────
+      - name: Localizar APK firmado
+        id: find-apk
+        if: success()
+        run: |
+          APK=$(find app_boosti_v2/build/app/outputs/flutter-apk -name "*.apk" -type f | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error::No se encontro ningun APK en build/app/outputs/flutter-apk"
+            exit 1
+          fi
+          echo "apk=$APK" >> $GITHUB_OUTPUT
+          echo "Encontrado: $APK"
+
+      - name: Subir APK como artifact
+        id: upload-apk
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boosti-${{ inputs.flavor }}-apk
+          path: ${{ steps.find-apk.outputs.apk }}
+          retention-days: 90
+          compression-level: 0
+
+      - name: Localizar AAB (para Play Console)
+        id: find-aab
+        if: ${{ inputs.action == 'release' }}
+        run: |
+          AAB=$(find app_boosti_v2/build/app/outputs/bundle -name "*.aab" -type f | head -1)
+          if [ -z "$AAB" ]; then
+            echo "::warning::No se encontro AAB en build/app/outputs/bundle"
+          else
+            echo "aab=$AAB" >> $GITHUB_OUTPUT
+            echo "Encontrado: $AAB"
+          fi
+
+      - name: Subir AAB como artifact
+        id: upload-aab
+        if: ${{ inputs.action == 'release' && steps.find-aab.outputs.aab != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: boosti-${{ inputs.flavor }}-aab
+          path: ${{ steps.find-aab.outputs.aab }}
+          retention-days: 90
+          compression-level: 0
+
+  build-windows:
+    name: Build Windows Desktop (.exe)
+    runs-on: windows-latest
+    if: ${{ inputs.action == 'release' }}
+    needs: build-android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: 'stable'
+
+      - name: Materializar env.json
+        env:
+          ENV_JSON: ${{ secrets.ENV_JSON }}
+        shell: pwsh
+        run: |
+          $env:ENV_JSON | Out-File -Encoding utf8 -NoNewline app_boosti_v2/env.json
+          if (-not (Get-Content app_boosti_v2/env.json | ConvertFrom-Json)) {
+            Write-Error "ENV_JSON no es JSON valido"
+            exit 1
+          }
+
+      - name: Decodificar keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("app_boosti_v2/android/boostikeystore.jks",
+            [Convert]::FromBase64String(($env:KEYSTORE_BASE64 -replace '\s','')))
+          if (-not (keytool -list -keystore app_boosti_v2/android/boostikeystore.jks -storepass $env:KEYSTORE_PASSWORD 2>$null)) {
+            Write-Error "KEYSTORE_BASE64 no abre como keystore, o KEYSTORE_PASSWORD no coincide."
+            exit 1
+          }
+
+      - name: Crear key.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        shell: pwsh
+        run: |
+          @"
+          storePassword=$env:KEYSTORE_PASSWORD
+          keyPassword=$env:KEY_PASSWORD
+          keyAlias=$env:KEY_ALIAS
+          storeFile=../boostikeystore.jks
+          "@ | Out-File -Encoding ascii app_boosti_v2/android/key.properties
+
+      - name: Setup Shorebird
+        uses: shorebirdtech/setup-shorebird@v1
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+
+      - name: Shorebird Release Windows
+        uses: shorebirdtech/shorebird-release@v1
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+        with:
+          platform: windows
+          working-directory: ./app_boosti_v2
+          args: >-
+            --flavor=${{ inputs.flavor }}
+            --target=lib/main_${{ inputs.flavor }}.dart
+            -- --dart-define-from-file=env.json
+
+      - name: Localizar .exe firmado
+        id: find-exe
+        run: |
+          $exe = Get-ChildItem "app_boosti_v2/build/windows/x64/runner/Release" -Filter "*.exe" -Recurse | Select-Object -First 1
+          if (-not $exe) {
+            Write-Error "No se encontro .exe en build/windows/x64/runner/Release"
+            exit 1
+          }
+          echo "exe=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Encontrado: $($exe.FullName)"
+
+      - name: Subir .exe como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boosti-${{ inputs.flavor }}-windows-exe
+          path: ${{ steps.find-exe.outputs.exe }}
+          retention-days: 90
+          compression-level: 0
