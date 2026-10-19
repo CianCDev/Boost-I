@@ -161,6 +161,17 @@ jobs:
       # ──────────────────────────────────────────────────────────────
       # SUBIR APK COMO ARTIFACT (para que lo bajes de la pestaña Artifacts)
       # ──────────────────────────────────────────────────────────────
+      # ──────────────────────────────────────────────────────────────
+      # Shorebird release genera AAB. Para tener el APK instalable, lo
+      # construimos explícitamente con `flutter build apk` (usa la misma
+      # configuración de firma que el release).
+      # ──────────────────────────────────────────────────────────────
+      - name: Construir APK instalable
+        if: ${{ inputs.action == 'release' }}
+        working-directory: ./app_boosti_v2
+        run: |
+          flutter build apk --release --flavor=${{ inputs.flavor }} --target=lib/main_${{ inputs.flavor }}.dart --dart-define-from-file=env.json
+
       - name: Localizar APK firmado
         id: find-apk
         if: success()
