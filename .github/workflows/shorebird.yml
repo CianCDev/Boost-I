@@ -140,6 +140,7 @@ jobs:
           args: >-
             --flavor=${{ inputs.flavor }}
             --target=lib/main_${{ inputs.flavor }}.dart
+            --flutter-version=3.47.2
             -- --dart-define-from-file=env.json
 
       - name: Shorebird Patch
