@@ -237,6 +237,12 @@ jobs:
           flutter-version: '3.47.2'
           channel: 'stable'
 
+      - name: Enable Git long paths
+        shell: pwsh
+        run: |
+          git config --system core.longpaths true
+          git config --system --get core.longpaths
+
       - name: Materializar env.json
         env:
           ENV_JSON: ${{ secrets.ENV_JSON }}
