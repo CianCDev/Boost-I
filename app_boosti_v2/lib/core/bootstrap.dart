@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'config/supabase_config.dart';
+import 'security/pii_scrubber.dart';
 import '../features/pos/data/Local/entities/isar_service.dart';
 import '../features/pos/presentation/services/backup_service.dart';
 import '../features/pos/presentation/services/error_service.dart';
@@ -129,7 +130,12 @@ Future<BootstrapResult> bootstrap() async {
           return null;
         }
 
-        return event;
+        // El filtro de arriba decide por TIPO; este decide por CONTENIDO.
+        // Un `throwable.toString()` de una consulta a Supabase puede llevar
+        // dentro el SQL de una venta, el RIF de un cliente o un teléfono.
+        // Los cuatro filtros no limpian nada: solo descartan el evento
+        // entero cuando el error es de red, que no es informacion util.
+        return PiiScrubber.scrubEvent(event);
       };
 
       if (kDebugMode) {
