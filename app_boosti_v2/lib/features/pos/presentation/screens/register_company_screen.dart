@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../../legal/presentation/terminos_aceptacion_screen.dart';
 import '../providers/auth_provider.dart';
 import '../utils/responsive_helper.dart';
 import 'inventory_catalog_screen.dart';
@@ -18,7 +19,18 @@ import 'setup_pin_screen.dart';
 /// 3. La Edge Function crea tenant + admin + usuarios_locales.
 /// 4. Hace login con email/password → obtiene JWT con tenant_id.
 /// 5. Guarda el tenant.
-/// 6. Navega DIRECTAMENTE al POS (el admin ya está autenticado).
+/// 6. Muestra los terminos y la politica de privacidad.
+/// 7. Si el usuario NO acepta, vuelve a esta pantalla.
+/// 8. Si acepta, navega al PIN y despues al POS.
+///
+/// El paso 6 es bloqueante: el PIN habilita el acceso al POS, asi que la
+/// aceptacion tiene que ocurrir antes. Aceptar despues del PIN dejaria una
+/// puerta por la que se entra sin haber visto nunca el documento.
+///
+/// La cuenta ya quedo creada en el paso 3 cuando el usuario rechaza. Eso es
+/// intencional: no se borra una cuenta recien creada desde la pantalla de
+/// aceptacion, porque eso podria dejar un tenant huerfano en Supabase sin
+/// administrador. El tenant queda inactivo hasta que se acepte.
 class RegisterCompanyScreen extends ConsumerStatefulWidget {
   const RegisterCompanyScreen({super.key});
 
@@ -92,15 +104,26 @@ class _RegisterCompanyScreenState
           return;
         }
 
-        Navigator.of(context).pushReplacement(
+        // `push`, no `pushReplacement`: el registro tiene que quedar DEBAJO para
+        // que el boton "Volver al registro" de la pantalla de aceptacion
+        // tenga a donde volver. Con `replace` la pantalla de aceptacion
+        // seria la primera de la pila y `pop` la cerraria dejando al
+        // usuario sin formulario.
+        Navigator.of(context).push(
           MaterialPageRoute(
             // El usuario nuevo nace SIN PIN (la Edge Function `create-tenant`
             // ya no pone `pin: "1234"`). Sin configurarlo, el primer bloqueo
             // por inactividad lo deja soft-loqueado para siempre:
             // `IsarService.validarLogin` ignora los usuarios con pin vacío y
             // `RestScreen` le responde "PIN incorrecto" sin salida.
-            builder: (_) => SetupPinScreen(
-              destino: InventoryCatalogScreen(usuarioLogueado: user),
+            //
+            // La aceptacion de terminos va ANTES del PIN: si el usuario no
+            // acepta, `TerminosAceptacionScreen` devuelve el control y el
+            // usuario vuelve a esta pantalla con el mismo formulario.
+            builder: (_) => TerminosAceptacionScreen(
+              destino: SetupPinScreen(
+                destino: InventoryCatalogScreen(usuarioLogueado: user),
+              ),
             ),
           ),
         );
