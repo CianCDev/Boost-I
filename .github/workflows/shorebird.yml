@@ -18,13 +18,14 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'Acción (release o patch)'
+        description: 'Acción (release, patch o solo windows)'
         required: true
         default: 'patch'
         type: choice
         options:
           - release
           - patch
+          - windows
       flavor:
         description: 'Flavor (client o admin)'
         required: true
@@ -34,14 +35,15 @@ on:
           - client
           - admin
       release_version:
-        description: 'Versión de release (solo para patch, ej: 1.1.1+7)'
+        description: 'Versión de release ya publicada (solo para patch)'
         required: false
-        default: '1.1.1+7'
+        default: '1.1.5+11'
 
 jobs:
   build-android:
     name: Build Android (APK + AAB)
     runs-on: ubuntu-latest
+    if: ${{ inputs.action != 'windows' }}
     outputs:
       apk-path: ${{ steps.upload-apk.outputs.apk-path }}
       aab-path: ${{ steps.upload-aab.outputs.aab-path }}
@@ -219,8 +221,7 @@ jobs:
   build-windows:
     name: Build Windows Desktop (.exe)
     runs-on: windows-latest
-    if: ${{ inputs.action == 'release' }}
-    needs: build-android
+    if: ${{ inputs.action == 'release' || inputs.action == 'windows' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -254,70 +255,47 @@ jobs:
             exit 1
           }
 
-      - name: Decodificar keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        shell: pwsh
+      - name: Flutter pub get
+        working-directory: ./app_boosti_v2
+        run: flutter pub get
+
+      - name: Construir .exe de Windows
+        working-directory: ./app_boosti_v2
         run: |
-          [IO.File]::WriteAllBytes("app_boosti_v2/android/boostikeystore.jks",
-            [Convert]::FromBase64String(($env:KEYSTORE_BASE64 -replace '\s','')))
-          if (-not (keytool -list -keystore app_boosti_v2/android/boostikeystore.jks -storepass $env:KEYSTORE_PASSWORD 2>$null)) {
-            Write-Error "KEYSTORE_BASE64 no abre como keystore, o KEYSTORE_PASSWORD no coincide."
-            exit 1
-          }
+          flutter build windows --release --target=lib/main_${{ inputs.flavor }}.dart --dart-define-from-file=env.json
 
-      - name: Crear key.properties
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        shell: pwsh
-        run: |
-          @"
-          storePassword=$env:KEYSTORE_PASSWORD
-          keyPassword=$env:KEY_PASSWORD
-          keyAlias=$env:KEY_ALIAS
-          storeFile=../boostikeystore.jks
-          "@ | Out-File -Encoding ascii app_boosti_v2/android/key.properties
-
-      - name: Enable Git long paths
-        shell: pwsh
-        run: |
-          git config --system core.longpaths true
-          git config --system --get core.longpaths
-
-      - name: Setup Shorebird
-        uses: shorebirdtech/setup-shorebird@v1
-        env:
-          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
-
-      - name: Shorebird Release Windows
-        uses: shorebirdtech/shorebird-release@v1
-        env:
-          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
-        with:
-          platform: windows
-          working-directory: ./app_boosti_v2
-          args: >-
-            --target=lib/main_${{ inputs.flavor }}.dart
-            -- --dart-define-from-file=env.json
-
-      - name: Localizar .exe firmado
+      - name: Localizar .exe compilado
         id: find-exe
+        shell: pwsh
         run: |
-          $exe = Get-ChildItem "app_boosti_v2/build/windows/x64/runner/Release" -Filter "*.exe" -Recurse | Select-Object -First 1
+          $exe = Get-ChildItem "app_boosti_v2/build/windows" -Filter "*.exe" -File -Recurse -EA SilentlyContinue |
+            Where-Object { $_.FullName -notmatch '\\(CMakeFiles|_deps|intermediates)\\' } |
+            Select-Object -First 1
           if (-not $exe) {
-            Write-Error "No se encontro .exe en build/windows/x64/runner/Release"
+            Write-Error "No se encontro ningun .exe en app_boosti_v2/build/windows"
             exit 1
           }
-          echo "exe=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           Write-Host "Encontrado: $($exe.FullName)"
+          "exe=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "dir=$($exe.Directory.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Subir .exe como artifact
+      # Un ejecutable de Flutter Windows NO es un solo archivo: necesita
+      # flutter_windows.dll y la carpeta data/ al lado. Se empaqueta la
+      # carpeta Release completa para que sea distribuible tal cual.
+      - name: Empaquetar carpeta Release en ZIP
+        id: zip-exe
+        shell: pwsh
+        run: |
+          $dir = "${{ steps.find-exe.outputs.dir }}"
+          $zip = Join-Path $env:RUNNER_TEMP "boosti-${{ inputs.flavor }}-windows.zip"
+          Compress-Archive -Path (Join-Path $dir "*") -DestinationPath $zip -CompressionLevel Optimal
+          Write-Host "ZIP generado: $zip"
+          "zip=$zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Subir .exe Windows como artifact
         uses: actions/upload-artifact@v4
         with:
-          name: boosti-${{ inputs.flavor }}-windows-exe
-          path: ${{ steps.find-exe.outputs.exe }}
+          name: boosti-${{ inputs.flavor }}-windows
+          path: ${{ steps.zip-exe.outputs.zip }}
           retention-days: 90
           compression-level: 0
