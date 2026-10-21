@@ -432,10 +432,34 @@ instalar el APK encima, y volver a correr `get-apks` (devuelve el APK del
 release pedido, no el "latest").
 
 ```powershell
-# APK distribuible de un release concreto (autocontenida, sin OTA)
+# APK de un release concreto (trae el motor con OTA, pero firmado en DEBUG)
 shorebird releases get-apks --flavor client `
   --release-version 1.1.1+7 --out build\apks
 ```
+
+⚠️ **`get-apks` firma con la llave de debug** (`CN=Android Debug`). Ese APK
+no se puede instalar encima de la app real y cualquiera podría reemplazarlo.
+Para distribuirlo hay que re-firmarlo con `boostikeystore.jks`:
+
+```powershell
+zipalign -f -p 4 build\apks\universal.apk build\apks\aligned.apk
+apksigner sign --ks android\boostikeystore.jks --ks-key-alias boostiapp `
+  --out build\apks\boosti-ota.apk build\apks\aligned.apk
+apksigner verify --print-certs build\apks\boosti-ota.apk
+# La huella tiene que ser 8a189763... (la misma del AAB)
+```
+
+⚠️ **`flutter build apk` NO sirve para distribuir con OTA.** Usa el motor
+estándar de Flutter (`libflutter.so` de 11,20 MB, sin updater), así que
+nunca recibe parches. El de Shorebird mide 13,37 MB y sí lo trae. La forma
+de comprobarlo:
+
+```powershell
+# Tiene que decir True
+Select-String -Path libflutter.so -Pattern 'shorebird' -SimpleMatch -Quiet
+```
+
+El paso "Obtener APK instalable con OTA" del workflow ya hace todo esto.
 
 ## 9. Errores comunes y cómo evitarlos
 
