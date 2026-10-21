@@ -18,13 +18,14 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'Acción (release, patch o solo windows)'
+        description: 'Acción (release, patch, apk o solo windows)'
         required: true
         default: 'patch'
         type: choice
         options:
           - release
           - patch
+          - apk
           - windows
       flavor:
         description: 'Flavor (client o admin)'
@@ -161,18 +162,22 @@ jobs:
             -- --dart-define-from-file=env.json
 
       # ──────────────────────────────────────────────────────────────
-      # SUBIR APK COMO ARTIFACT (para que lo bajes de la pestaña Artifacts)
+      # APK instalable CON el motor de Shorebird (OTA).
+      #
+      # OJO: `flutter build apk` usa el motor estandar de Flutter, asi que
+      # produce un APK SIN capacidad de recibir parches. Solo el AAB que
+      # genera `shorebird release` lleva el motor parcheado.
+      # `shorebird build apk` compila el APK con el mismo motor que el
+      # release, de modo que el APK instalado a mano tambien recibe OTA.
       # ──────────────────────────────────────────────────────────────
-      # ──────────────────────────────────────────────────────────────
-      # Shorebird release genera AAB. Para tener el APK instalable, lo
-      # construimos explícitamente con `flutter build apk` (usa la misma
-      # configuración de firma que el release).
-      # ──────────────────────────────────────────────────────────────
-      - name: Construir APK instalable
-        if: ${{ inputs.action == 'release' }}
+      - name: Construir APK instalable (con OTA)
+        if: ${{ inputs.action == 'release' || inputs.action == 'apk' }}
         working-directory: ./app_boosti_v2
         run: |
-          flutter build apk --release --flavor=${{ inputs.flavor }} --target=lib/main_${{ inputs.flavor }}.dart --dart-define-from-file=env.json
+          shorebird build apk --release \
+            --flavor=${{ inputs.flavor }} \
+            --target=lib/main_${{ inputs.flavor }}.dart \
+            -- --dart-define-from-file=env.json
 
       - name: Localizar APK firmado
         id: find-apk
