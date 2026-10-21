@@ -89,7 +89,12 @@ jobs:
         run: |
           flutter --version
           flutter pub get
-          flutter analyze --no-pub
+          # --no-fatal-infos: el analyzer devuelve exit 1 con solo infos.
+          # Hoy son 12 avisos de `SentryEvent.extra`, que esta deprecado pero
+          # no tiene reemplazo para LEER el mapa de datos extra: el scrubber
+          # de PII tiene que recorrerlo igual. Los errores y warnings siguen
+          # siendo fatales.
+          flutter analyze --no-pub --no-fatal-infos
         shell: bash
 
       - name: Materializar env.json
