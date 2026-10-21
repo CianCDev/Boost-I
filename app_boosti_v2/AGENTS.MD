@@ -374,7 +374,15 @@ tiene que decir por qué.**
   después.
 - ⚠️ **Esto no sirve para el patch de la app DESKTOP Windows.** Ese va
   por CMake/MSBuild — el bug no le aplica — pero tampoco se genera
-  desde Linux. Para eso, runner Windows.
+  desde Linux. Para eso, runner Windows: `.github/workflows/shorebird-windows.yml`.
+  Es un workflow **aparte** a propósito: `shorebird release` publica la
+  versión y, si el paso siguiente falla, la quema. Un MSBuild roto dejaría
+  quemada la versión de Windows, no la de Android. Se dispara a mano,
+  después del release de Android, y no acepta `--flavor` (Shorebird no
+  soporta flavors en Windows: el punto de entrada va por `--target`).
+  El workflow falla a propósito si `flutter_windows.dll` no trae la cadena
+  `shorebird`, para no entregar un `.exe` sin OTA sin darse cuenta. Los
+  binarios con OTA pesan ~2 MB más (motor de 22,46 MB contra 20,29 MB).
 - Para cargar un secret desde un archivo local, el comando depende de la
   shell: en **PowerShell** es `Get-Content -Raw`, en **bash** es `cat`.
   Usar el equivocado falla en silencio y deja el secret vacío.

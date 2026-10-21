@@ -601,3 +601,40 @@ Cierra el caso "Isar devuelve vacío". **No verificado en device.** Si el sínto
 era "datos presentes en Isar pero no aparecen", este fix no lo resuelve y el ítem 6.5
 del smoke test va a fallar. El paso 2.5 del smoke test registra el síntoma exacto para
 no volver a diagnosticar a ciegas.
+---
+
+## Cierre sesión 2026-10-20 — OTA real en Android y Windows
+
+**Commits:** `f2fc1af`, `a00e25c`, `b6d959f`, `d1eb38d`, `497d300`, `2643cd5`, `6ee5b14`, `39ae444`.
+
+### El APK que se iba a vender no tenía OTA
+
+Se compilaba con `flutter build apk`, que usa el motor **estándar** de Flutter.
+Verificado leyendo el binario: su `libflutter.so` pesa 11,20 MB y no contiene la
+cadena `shorebird`; el del AAB pesa 13,37 MB y sí la contiene. Un cliente con ese
+APK nunca habría recibido un patch, aunque el AAB publicado sí los recibiera.
+
+**Arreglo:** paso `Obtener APK instalable con OTA` en `shorebird.yml:185`.
+`shorebird releases get-apks` descarga el AAB publicado y lo convierte en APK
+universal, pero **firma con la llave de debug** (`CN=Android Debug`), así que el
+paso lo re-firma con `boostikeystore.jks` (zipalign + apksigner). No publica y no
+gasta número de versión. Verificado: firma `8a189763…`, idéntica al AAB, y
+`versionCode` 11 igual al anterior, así que se instala encima sin desinstalar.
+
+### Windows con OTA
+
+Workflow nuevo `.github/workflows/shorebird-windows.yml`. Usa
+`shorebird release windows` (y `shorebird patch windows` para parches) **sin
+`--flavor`**: Shorebird no soporta flavors en Windows, el punto de entrada va por
+`--target`. Falla a propósito si `flutter_windows.dll` no contiene la cadena
+`shorebird`, para no entregar un `.exe` sin OTA sin darse cuenta.
+
+Release `1.1.5+11` de Windows publicado el 2026-10-20. El binario pasó de 20,29 MB
+de motor a 22,46 MB: esos ~2 MB son el updater.
+
+### Trampas confirmadas
+
+- `shorebird build apk` **no existe** en la CLI 1.6.128 (falla con "Could not find an option named --release").
+- `get-apks` entrega el APK firmado en debug: hay que re-firmar siempre.
+- `flutter analyze` devuelve exit 1 con solo infos; el CI usa `--no-fatal-infos`.
+- `releases list` en Windows solo muestra las releases de Windows (1.1.1+7 y 1.0.1+5).

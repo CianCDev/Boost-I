@@ -353,10 +353,14 @@ jobs:
           Write-Host "ZIP generado: $zip ($([math]::Round((Get-Item $zip).Length / 1MB, 2)) MB)"
           "zip=$zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Subir .exe Windows como artifact
+      # ⚠️ SIN OTA. Esta salida se compila con `flutter build windows`, que
+      # usa el motor estandar de Flutter: el .exe NUNCA recibe parches.
+      # Solo sirve como respaldo si Shorebird Windows esta roto.
+      # Para distribuir con OTA usar el workflow "Shorebird Windows (OTA)".
+      - name: Subir .exe Windows como artifact (sin OTA)
         uses: actions/upload-artifact@v4
         with:
-          name: boosti-${{ inputs.flavor }}-windows
+          name: boosti-${{ inputs.flavor }}-windows-sin-ota
           path: ${{ steps.zip-exe.outputs.zip }}
           retention-days: 90
           compression-level: 0
