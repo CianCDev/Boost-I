@@ -349,7 +349,7 @@ salida de la pantalla de aceptación sin volver al registro.
 | 1 | **Licencias de las 4 animaciones** | §4.1. Bloqueante para cliente corporativo |
 | 2 | **Registro de la marca** ante la OCI | §6.1. Costo diferido por decisión del dueño |
 | 3 | **Validación jurídica de los textos** | Los marcadores `[REVISAR: ...]` son puntos abiertos |
-| 4 | **Aplicar la migración** `20261018000001` | Es del owner (§4.5: RLS es manual) |
+| 4 | ~~Aplicar la migración `20261018000001`~~ | **Aplicada el 2026-10-20.** Verificada en remoto: la tabla `legal_acceptance` responde y la RPC `registrar_legal_acceptance` existe (rechaza al rol anónimo con 401, mientras una función inexistente da 404) |
 | 5 | **Publicar los documentos** en la web de JAHTLABS | Hoy solo viven dentro de la app |
 | 6 | **Un resto de `Arial-Bold`** en el manual | Un peso sin declaración exacta cae al fallback del stack |
 

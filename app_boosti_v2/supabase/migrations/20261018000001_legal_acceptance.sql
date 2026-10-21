@@ -20,6 +20,12 @@
 --   supabase migration repair --status applied 20261018000001
 --
 -- (ver AGENTS.md: `migration repair` NO ejecuta el SQL).
+--
+-- ESTADO: aplicada en produccion el 2026-10-20 por el owner.
+-- Verificada desde el cliente anonimo:
+--   GET  /rest/v1/legal_acceptance          -> 200 (la tabla existe)
+--   POST /rest/v1/rpc/registrar_legal_acceptance -> 401 (existe y esta
+--        protegida; una funcion inexistente devuelve 404 PGRST202)
 
 -- ─────────────────────────────────────────────────────────────
 -- Tabla

@@ -638,3 +638,16 @@ de motor a 22,46 MB: esos ~2 MB son el updater.
 - `get-apks` entrega el APK firmado en debug: hay que re-firmar siempre.
 - `flutter analyze` devuelve exit 1 con solo infos; el CI usa `--no-fatal-infos`.
 - `releases list` en Windows solo muestra las releases de Windows (1.1.1+7 y 1.0.1+5).
+
+### Migración aplicada y limpieza de artefactos (2026-10-20)
+
+- `20261018000001_legal_acceptance` **aplicada en producción** por el owner.
+  Verificada desde el cliente anónimo: `GET /rest/v1/legal_acceptance` → 200,
+  y `POST /rest/v1/rpc/registrar_legal_acceptance` → 401 (existe y está
+  protegida contra el rol anónimo), mientras una función inexistente
+  devuelve 404 `PGRST202`.
+- Se borraron ~923 MB de artefactos sin OTA: los ZIP de Windows de 17,58 y
+  19,48 MB, la carpeta `Boosti_POS_Windows_1.1.5+11`, el APK `1.1.2+8`, el
+  APK y la carpeta de Windows de `1.1.5+11`, y las copias de trabajo del APK.
+- Entregables vigentes: `Boosti_POS_1.1.5+11_OTA.apk`,
+  `Boosti_POS_1.1.5+11_windows_OTA.zip` y `Boosti_POS_Windows_1.1.5+11_OTA\`.
