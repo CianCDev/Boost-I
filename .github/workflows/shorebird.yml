@@ -187,6 +187,9 @@ jobs:
         working-directory: ./app_boosti_v2
         env:
           SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           VERSION=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '\r')
           echo "Version de pubspec: $VERSION"
@@ -199,13 +202,36 @@ jobs:
             --release-version "$VERSION" \
             --out build/apks
 
+          # get-apks firma el APK con la llave de DEBUG ("CN=Android Debug").
+          # Instalarlo encima de la app real falla con firma distinta, y ademas
+          # cualquiera podria reemplazar el binario. Se re-firma con la llave
+          # del proyecto, la misma del AAB y del APK historico.
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign -type f | sort -V | tail -1)
+          if [ -z "$APKSIGNER" ] || [ -z "$ZIPALIGN" ]; then
+            echo "::error::No se encontro apksigner/zipalign en $ANDROID_HOME/build-tools"
+            exit 1
+          fi
+
+          "$ZIPALIGN" -f -p 4 build/apks/universal.apk build/apks/aligned.apk
+          "$APKSIGNER" sign \
+            --ks android/boostikeystore.jks \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --out build/apks/boosti-ota.apk \
+            build/apks/aligned.apk
+
+          echo "--- firma del APK final ---"
+          "$APKSIGNER" verify --print-certs build/apks/boosti-ota.apk
+
       - name: Localizar APK firmado
         id: find-apk
         if: success()
         run: |
-          APK=$(find app_boosti_v2/build/apks -name "*.apk" -type f | head -1)
-          if [ -z "$APK" ]; then
-            echo "::error::No se encontro ningun APK en build/apks"
+          APK=app_boosti_v2/build/apks/boosti-ota.apk
+          if [ ! -f "$APK" ]; then
+            echo "::error::No se genero build/apks/boosti-ota.apk"
             exit 1
           fi
           echo "apk=$APK" >> $GITHUB_OUTPUT
