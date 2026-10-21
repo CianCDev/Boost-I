@@ -169,28 +169,43 @@ jobs:
       # ──────────────────────────────────────────────────────────────
       # APK instalable CON el motor de Shorebird (OTA).
       #
-      # OJO: `flutter build apk` usa el motor estandar de Flutter, asi que
-      # produce un APK SIN capacidad de recibir parches. Solo el AAB que
-      # genera `shorebird release` lleva el motor parcheado.
-      # `shorebird build apk` compila el APK con el mismo motor que el
-      # release, de modo que el APK instalado a mano tambien recibe OTA.
+      # OJO: `flutter build apk` usa el motor ESTANDAR de Flutter, asi que
+      # produce un APK que NUNCA recibe parches. Solo los binarios que
+      # construye Shorebird llevan el motor parcheado.
+      #
+      # `shorebird build apk` ya no existe en la CLI 1.6.x. La via correcta
+      # es `shorebird releases get-apks`: descarga el AAB publicado de esta
+      # version y lo convierte en un APK universal con bundletool. Ese APK
+      # sale del mismo AAB que ya tiene OTA, asi que instalandolo a mano
+      # tambien se reciben parches.
+      #
+      # No publica nada ni gasta numero de version: se puede correr las
+      # veces que haga falta sobre un release ya existente.
       # ──────────────────────────────────────────────────────────────
-      - name: Construir APK instalable (con OTA)
+      - name: Obtener APK instalable con OTA
         if: ${{ inputs.action == 'release' || inputs.action == 'apk' }}
         working-directory: ./app_boosti_v2
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
         run: |
-          shorebird build apk --release \
+          VERSION=$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | tr -d '"' | tr -d "'" | tr -d '\r')
+          echo "Version de pubspec: $VERSION"
+          if [ -z "$VERSION" ]; then
+            echo "::error::No se pudo leer la version de pubspec.yaml"
+            exit 1
+          fi
+          shorebird releases get-apks \
             --flavor=${{ inputs.flavor }} \
-            --target=lib/main_${{ inputs.flavor }}.dart \
-            -- --dart-define-from-file=env.json
+            --release-version "$VERSION" \
+            --out build/apks
 
       - name: Localizar APK firmado
         id: find-apk
         if: success()
         run: |
-          APK=$(find app_boosti_v2/build/app/outputs/flutter-apk -name "*.apk" -type f | head -1)
+          APK=$(find app_boosti_v2/build/apks -name "*.apk" -type f | head -1)
           if [ -z "$APK" ]; then
-            echo "::error::No se encontro ningun APK en build/app/outputs/flutter-apk"
+            echo "::error::No se encontro ningun APK en build/apks"
             exit 1
           fi
           echo "apk=$APK" >> $GITHUB_OUTPUT
