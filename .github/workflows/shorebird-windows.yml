@@ -1,0 +1,197 @@
+name: Shorebird Windows (OTA)
+
+# Release de la app DESKTOP con el motor de Shorebird, para que el .exe
+# pueda recibir parches sin reinstalar.
+#
+# Va en su propio workflow a proposito: `shorebird release` publica la
+# version y, si el paso siguiente falla, esa version queda quemada ("It
+# looks like you have an existing android release for version X"). Si
+# Windows viviera dentro de `shorebird.yml`, un fallo de MSBuild
+# bloquearia el release de Android aunque ya hubiera salido bien.
+#
+# Aca Windows publica solo su propia plataforma: un fallo deja quemada la
+# version de Windows, no la de Android. Por eso este workflow se dispara
+# a mano y despues de que Android ya este publicado.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Acción'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - patch
+      flavor:
+        description: 'Punto de entrada'
+        required: true
+        default: 'client'
+        type: choice
+        options:
+          - client
+          - admin
+      release_version:
+        description: 'Solo para patch: versión ya publicada (ej. 1.1.5+11)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shorebird-windows
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows con OTA
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # Shorebird clona el engine de Flutter y en Windows revienta con
+      # "Filename too long" si no se habilita antes.
+      - name: Enable Git long paths
+        run: |
+          git config --system core.longpaths true
+          git config --system --get core.longpaths
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: 'stable'
+
+      - name: Setup Shorebird
+        uses: shorebirdtech/setup-shorebird@v1
+        with:
+          cache: true
+
+      - name: Materializar env.json
+        env:
+          ENV_JSON: ${{ secrets.ENV_JSON }}
+        run: |
+          $env:ENV_JSON | Out-File -Encoding utf8 -NoNewline app_boosti_v2/env.json
+          try {
+            $null = Get-Content app_boosti_v2/env.json -Raw | ConvertFrom-Json
+          } catch {
+            Write-Error "ENV_JSON no es JSON valido. Suele ser un salto de linea o CRLF pegado al copiarlo en GitHub Secrets."
+            exit 1
+          }
+
+      - name: Flutter pub get
+        working-directory: ./app_boosti_v2
+        run: flutter pub get
+
+      - name: Verificar que el project compila
+        working-directory: ./app_boosti_v2
+        run: |
+          flutter analyze --no-pub --no-fatal-infos
+
+      # ⚠️ Sin --flavor: Shorebird no soporta flavors en Windows y aborta
+      # con "Flavors are not supported on this platform". El punto de
+      # entrada se elige con --target.
+      - name: Release Windows (publica la version)
+        if: ${{ inputs.action == 'release' }}
+        working-directory: ./app_boosti_v2
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+        run: |
+          shorebird release windows `
+            --target=lib/main_${{ inputs.flavor }}.dart `
+            -- --dart-define-from-file=env.json
+
+      - name: Patch Windows (parche OTA sobre una version publicada)
+        if: ${{ inputs.action == 'patch' }}
+        working-directory: ./app_boosti_v2
+        env:
+          SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+        run: |
+          $v = "${{ inputs.release_version }}"
+          if (-not $v) {
+            Write-Error "Para action=patch hay que indicar release_version (ej. 1.1.5+11)"
+            exit 1
+          }
+          shorebird patch windows `
+            --release-version $v `
+            --target=lib/main_${{ inputs.flavor }}.dart `
+            -- --dart-define-from-file=env.json
+
+      # ────────────────────────────────────────────────────────────────
+      # La razon de ser de este workflow. Si el .dll del motor NO trae el
+      # updater, el .exe es indistinguible de uno compilado con
+      # `flutter build windows` y no recibiria nunca un parche. Se falla
+      # antes de empaquetar para no entregar un binario sin OTA.
+      # ────────────────────────────────────────────────────────────────
+      - name: Verificar que el motor trae el updater de Shorebird
+        id: check-ota
+        run: |
+          $dll = Get-ChildItem "app_boosti_v2/build/windows" -Filter "flutter_windows.dll" -File -Recurse -EA SilentlyContinue |
+            Select-Object -First 1
+          if (-not $dll) {
+            Write-Error "No se encontro flutter_windows.dll en build/windows"
+            exit 1
+          }
+          Write-Host "Motor: $($dll.FullName) ($([math]::Round($dll.Length / 1MB, 2)) MB)"
+          $texto = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($dll.FullName))
+          if ($texto -notmatch '(?i)shorebird') {
+            Write-Error "El motor NO tiene el updater de Shorebird: este .exe no recibiria parches OTA."
+            exit 1
+          }
+          Write-Host "OK: el motor trae el updater de Shorebird."
+          "ota=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Localizar carpeta Release
+        id: find-exe
+        run: |
+          # Solo vale un .exe dentro de runner\Release: es la salida real de
+          # la app. build\windows contiene ademas herramientas del build
+          # (cppwinrt.exe, etc.) que no deben empaquetarse nunca.
+          $exe = Get-ChildItem "app_boosti_v2/build/windows" -Filter "*.exe" -File -Recurse -EA SilentlyContinue |
+            Where-Object { $_.DirectoryName -match '\\runner\\Release$' } |
+            Select-Object -First 1
+          if (-not $exe) {
+            Write-Error "No se encontro ningun .exe en build/windows/*/runner/Release"
+            exit 1
+          }
+
+          # El nombre del binario lo fija windows/CMakeLists.txt. Se renombra
+          # al nombre comercial: Flutter no depende de como se llame el .exe.
+          $destino = Join-Path $exe.Directory.FullName "Boosti POS.exe"
+          if ($exe.FullName -ne $destino) {
+            Move-Item $exe.FullName $destino -Force
+          }
+          Write-Host "Ejecutable: $destino"
+          "dir=$($exe.Directory.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Empaquetar carpeta Release en ZIP
+        id: zip-exe
+        run: |
+          $dir = "${{ steps.find-exe.outputs.dir }}"
+          $files = Get-ChildItem $dir -Recurse -File
+          Write-Host "Contenido a empaquetar ($($files.Count) archivos):"
+          $files | ForEach-Object { Write-Host ("  " + $_.FullName.Substring($dir.Length + 1)) }
+          if ($files.Count -lt 3) {
+            Write-Error "La carpeta Release tiene $($files.Count) archivos: demasiado pocos para ser una app Flutter Windows."
+            exit 1
+          }
+          $zip = Join-Path $env:RUNNER_TEMP "boosti-${{ inputs.flavor }}-windows-ota.zip"
+          Compress-Archive -Path (Join-Path $dir "*") -DestinationPath $zip -CompressionLevel Optimal
+          Write-Host "ZIP generado: $zip ($([math]::Round((Get-Item $zip).Length / 1MB, 2)) MB)"
+          "zip=$zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Subir Windows con OTA como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boosti-${{ inputs.flavor }}-windows-ota
+          path: ${{ steps.zip-exe.outputs.zip }}
+          retention-days: 90
+          compression-level: 0
