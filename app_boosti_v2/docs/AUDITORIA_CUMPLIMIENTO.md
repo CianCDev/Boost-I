@@ -10,6 +10,13 @@
 > (LOPDP, Código de Comercio, normas de la SENIAT) requieren validación
 > con un abogado en Venezuela antes de firmar nada.
 
+> **Estado de los T&C (2026-10-20).** Hasta que el abogado revise y confirme
+> los textos, lo que se presenta al cliente es un **acuerdo entre las partes**,
+> no un contrato validado legalmente. Los siete marcadores `[REVISAR: ...]`
+> de `legal_texts.dart` siguen abiertos y se resuelven con el abogado, no en
+> el código. La aceptación ya queda registrada (local + Supabase), así que
+> cuando llegue la versión definitiva hay evidencia de quién aceptó y cuándo.
+
 ---
 
 ## 1. Resumen ejecutivo
