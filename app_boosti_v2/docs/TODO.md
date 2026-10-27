@@ -448,9 +448,14 @@ retail (~15 archivos usan `ProductItem`).
       `SyncService.sincronizarRecetasPendientes` /
       `descargarRecetasDesdeSupabase` (enganchados en `sincronizarTodo` y en
       `sincronizarTodoConResumen`).
-      ⚠️ **Pendiente del owner**: correr el SQL en Supabase y verificar con
-      las queries del final del archivo. Hasta entonces el push detecta
-      "tabla ausente", avisa UNA vez y no ensucia Sentry.
+      ✅ **Aplicada y verificada en el remoto el 2026-10-27**: las 2 tablas con
+      `rowsecurity = true`, una policy `tenant_isolation` (`cmd = ALL`) en cada
+      una y `guardar_receta` con `prosecdef = false` (invoker).
+      ⚠️ La consulta de prueba de la RPC del final del archivo NO sirve tal
+      cual: los placeholders `<...>` no son JSON válido (22P02) y el SQL
+      Editor no trae JWT, así que `current_tenant_id()` es NULL (42501). El
+      bloque de verificación ya trae la versión corregida con
+      `SET LOCAL request.jwt.claims` + `BEGIN/ROLLBACK`.
       ⚠️ Los borrados NO se sincronizan: `eliminarReceta` no tiene callers
       (la UI marca `activo = false`). El día que se use hace falta un
       tombstone, o el pull la resucita.

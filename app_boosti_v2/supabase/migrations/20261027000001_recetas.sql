@@ -246,12 +246,18 @@ NOTIFY pgrst, 'reload schema';
 -- ═══════════════════════════════════════════════════════════════
 -- VERIFICACIÓN (correr a mano después de aplicar)
 --
+--   Resultado esperado de 1-3 (verificado el 2026-10-27 en el remoto):
+--     recetas             → rowsecurity = true
+--     receta_ingredientes → rowsecurity = true
+--     policy `tenant_isolation` (cmd = ALL) en cada una
+--     guardar_receta      → security_definer = false
+--
 --   -- 1. Las 2 tablas existen y tienen RLS
 --   SELECT tablename, rowsecurity FROM pg_tables
 --    WHERE schemaname = 'public'
 --      AND tablename IN ('recetas', 'receta_ingredientes');
 --
---   -- 2. Las 4 policies (2 por tabla: el ALL cuenta como una)
+--   -- 2. Las policies (1 por tabla: una sola policy FOR ALL)
 --   SELECT tablename, policyname, cmd FROM pg_policies
 --    WHERE schemaname = 'public'
 --      AND tablename IN ('recetas', 'receta_ingredientes');
@@ -263,15 +269,68 @@ NOTIFY pgrst, 'reload schema';
 --    WHERE n.nspname = 'public' AND p.proname = 'guardar_receta';
 --   -- prosecdef debe ser FALSE (invoker).
 --
---   -- 4. Prueba real con el JWT del tenant (SQL Editor usa service_role,
---   --    así que esto solo valida la RPC, no la RLS):
+--   -- 4. Prueba de la RPC. ⚠️ Dos trampas que ya hicieron fallar esta
+--   --    consulta:
+--   --
+--   --    a) Los placeholders `<...>` NO son JSON válido: el editor
+--   --       intenta castear el texto tal cual y responde
+--   --         22P02: invalid input syntax for type json ... Token "<" is invalid
+--   --       Por eso aquí los ids se resuelven con subselects dentro de
+--   --       `jsonb_build_object`, en vez de escribirlos a mano.
+--   --
+--   --    b) El SQL Editor corre como `service_role` y NO trae JWT, así
+--   --       que `current_tenant_id()` devuelve NULL y la RPC aborta con
+--   --         42501: guardar_receta: el JWT no trae tenant_id.
+--   --       Hay que simular el claim en la sesión con `SET LOCAL`.
+--   --
+--   --    El `BEGIN ... ROLLBACK` deja la base como estaba: no queda la
+--   --    receta de prueba ni sus ingredientes.
+--
+--   BEGIN;
+--   SET LOCAL request.jwt.claims =
+--     '{"tenant_id":"<uuid-del-tenant>"}';
+--
 --   SELECT public.guardar_receta(
---     '{"id_isar": 999001, "producto_id_fk": <id_isar_de_un_plato>,
---       "nombre_plato": "Prueba", "rinde_porciones": 1, "activo": true}'::jsonb,
---     '[{"orden": 0, "ingrediente_id_fk": <id_isar_de_un_ingrediente>,
---        "ingrediente_nombre": "Queso", "cantidad": 0.15,
---        "unidad": "kg", "es_opcional": false}]'::jsonb
+--     jsonb_build_object(
+--       'id_isar', 999001,
+--       'producto_id_fk', (
+--         SELECT id_isar FROM public.productos
+--          WHERE tenant_id = '<uuid-del-tenant>' AND activo
+--          ORDER BY id_isar LIMIT 1
+--       ),
+--       'nombre_plato', 'Prueba',
+--       'rinde_porciones', 1,
+--       'activo', true
+--     ),
+--     jsonb_build_array(
+--       jsonb_build_object(
+--         'orden', 0,
+--         'ingrediente_id_fk', (
+--           SELECT id_isar FROM public.productos
+--            WHERE tenant_id = '<uuid-del-tenant>'
+--            ORDER BY id_isar DESC LIMIT 1
+--         ),
+--         'ingrediente_nombre', 'Queso',
+--         'cantidad', 0.15,
+--         'unidad', 'kg',
+--         'es_opcional', false
+--       )
+--     )
 --   );
---   -- Limpiar después:
---   DELETE FROM public.recetas WHERE id_isar = 999001;
+--
+--   -- Tiene que devolver 1 fila con la receta y 1 ingrediente:
+--   SELECT r.id, r.nombre_plato, count(i.id) AS ingredientes
+--     FROM public.recetas r
+--     LEFT JOIN public.receta_ingredientes i ON i.receta_id = r.id
+--    WHERE r.id_isar = 999001
+--    GROUP BY r.id, r.nombre_plato;
+--
+--   ROLLBACK;
+--
+--   Errores típicos de esta prueba:
+--     42501 → falta el `SET LOCAL request.jwt.claims`.
+--     23503 → el `producto_id_fk` no existe en `productos.id_isar`
+--             (la FK es contra esa columna, no contra el uuid).
+--     23514 → `rinde_porciones <= 0`. La RPC ya normaliza a 1, así que
+--             solo aparece si se toca la función.
 -- ═══════════════════════════════════════════════════════════════

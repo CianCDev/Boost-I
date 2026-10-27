@@ -1142,12 +1142,56 @@ commits temáticos (los tres primeros son los de esta sesión):
 
 ### Pendiente del owner
 
-1. Correr `supabase/migrations/20261027000001_recetas.sql` en el SQL Editor.
-2. Verificar con las queries del final del archivo (tablas, policies, RPC
-   `prosecdef = false`, prueba con `guardar_receta`).
-3. **Después** `supabase migration repair --status applied 20261027000001`.
-4. Pendiente de permiso: borrar `assets/animations/succes.json` (huérfano;
-   el código usa `success.json`) y las 3 carpetas `.bak-202610261858`.
+1. ~~Correr `supabase/migrations/20261027000001_recetas.sql`~~ → **aplicada el
+   2026-10-27**.
+2. ~~Verificar tablas, policies y RPC~~ → **verificado**: `recetas` y
+   `receta_ingredientes` con `rowsecurity = true`, una policy
+   `tenant_isolation` (`cmd = ALL`) en cada una, y `guardar_receta(p_receta
+   jsonb, p_ingredientes jsonb)` con `prosecdef = false`.
+3. `supabase migration repair --status applied 20261027000001` si el
+   historial todavía no la tiene (el `repair` no ejecuta SQL; va después).
+4. ~~Borrar `succes.json` y las 3 carpetas `.bak-202610261858`~~ → **hecho**
+   (2026-10-27, con permiso del owner).
+
+### La consulta 4 de verificación estaba rota
+
+Al correrla en el SQL Editor falló con `22P02: invalid input syntax for type
+json ... Token "<" is invalid`. Dos causas, las dos del propio snippet:
+
+- Los placeholders `<id_isar_de_un_plato>` viajaban dentro del literal JSON.
+  **No son JSON válido.** Ahora los ids se resuelven con subselects sobre
+  `productos` dentro de `jsonb_build_object`.
+- El SQL Editor corre como `service_role` y **no trae JWT**, así que
+  `current_tenant_id()` es NULL y la RPC habría abortado con `42501`. Ahora
+  el snippet abre `BEGIN`, hace `SET LOCAL request.jwt.claims =
+  '{"tenant_id":"..."}'` y cierra con `ROLLBACK`, así no deja la receta de
+  prueba en la base.
+
+### Plan 2026-10-28 (orden propuesto)
+
+1. **Cerrar recetas de punta a punta** (30 min): crear una receta en la app,
+   sincronizar, verla en Supabase y comprobar que el pull la deja en otro
+   local. Es lo único que falta para dar por cerrado el frente.
+2. **`procesarVenta` sin transacción** (`venta_service.dart:31`). Hoy descuenta
+   lotes en `writeTxn` separados (`:93`, `:106`) y recién después inserta la
+   venta: si falla en el medio, el stock queda descontado sin venta. Plan:
+   mover el descuento + inserción a un único `writeTxn` en `IsarService`
+   (método nuevo, p. ej. `registrarVentaConDescuento`), con los helpers de
+   lote recibiendo el `Isar` en vez de abrir su propia transacción. Requiere
+   confirmación porque toca un camino caliente.
+3. **Rotar credenciales expuestas** (TODO:85): PAT de Supabase, password de
+   la base y DSN de Sentry. Es del owner y no bloquea código.
+4. **Sanear lotes + CHECK `restante <= inicial`** (TODO:71, :90): migración de
+   limpieza de las 6 filas corruptas y después el `ALTER TABLE ... CHECK`.
+   Toca datos, así que necesita OK explícito.
+5. **Estaciones de cocina** (TODO:266, :270, :316): seed de Cocina/Barra/
+   Postres con `orden` 0/1/2, selector "Sin estación (N)" en el KDS y
+   `agregarItem` propagando `estacionId`.
+6. **`productos.departamento_id` a Supabase** (TODO:312): columna + los 3
+   sitios del sync.
+7. Si sobra tiempo: `ProductDataTab` sin sección de receta en retail
+   (TODO:891) y los confirmadores duplicados (TODO:98).
+
 
 
 
