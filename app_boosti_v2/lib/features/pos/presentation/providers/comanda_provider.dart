@@ -12,6 +12,7 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/mesa_entity.dart'
 import 'package:app_boosti_v2/features/pos/data/Local/entities/movimiento_inventario_entity.dart';
 
 import '../controllers/cart_controller.dart';
+import '../services/conversion_unidades.dart';
 import '../services/ticket_cocina_service.dart';
 import '../services/ventas_calculator.dart';
 import '../../domain/models/cart_item.dart';
@@ -414,6 +415,38 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
     return await Future.wait(items.map(_cartItemToSessionItem));
   }
 
+  /// Copia a [nuevo] la trazabilidad de cocina de [previo].
+  ///
+  /// Se usa al re-volcar el carrito sobre una comanda ya enviada. Si el
+  /// plato previo seguía en `pendiente` no hay nada que conservar (el
+  /// `pendiente` es justo el valor por defecto del item nuevo), así que
+  /// el método sale sin tocar nada.
+  static void _conservarTrazabilidadCocina(
+    CartSessionItem nuevo,
+    CartSessionItem previo,
+  ) {
+    // La nota no viaja en el carrito (`CartItem` no la tiene): si el mesero
+    // ya la escribió en la comanda, se conserva.
+    nuevo.nota ??= previo.nota;
+    nuevo.productoIdLocal ??= previo.productoIdLocal;
+    nuevo.estacionId ??= previo.estacionId;
+    nuevo.estacionNombre ??= previo.estacionNombre;
+
+    if (previo.estadoPlato == EstadoPlato.pendiente && !previo.pausado) {
+      return;
+    }
+
+    nuevo
+      ..estadoPlato = previo.estadoPlato
+      ..enviadoACocinaAt = previo.enviadoACocinaAt
+      ..preparacionIniciadaAt = previo.preparacionIniciadaAt
+      ..listoAt = previo.listoAt
+      ..entregadoAt = previo.entregadoAt
+      ..pausado = previo.pausado
+      ..pausadoEn = previo.pausadoEn
+      ..motivoPausa = previo.motivoPausa;
+  }
+
   /// `sessionId` determinístico de una mesa.
   static String sessionIdDeMesa(int mesaId) => 'mesa:$mesaId';
 
@@ -520,6 +553,21 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
       }
       if (!activa.comandaEditable) {
         return _fallarBool('Esta comanda ya no admite cambios.');
+      }
+
+      // ⚠️ No pisar lo que la cocina ya avanzó.
+      //
+      // `_cartItemToSessionItem` siempre construye items en `pendiente`.
+      // Si la comanda ya se envió y el mesero vuelve a tocar el carrito
+      // (agrega una bebida), un volcado a ciegas devolvería a `pendiente`
+      // los platos que ya están en cola, en preparación o entregados:
+      // reaparecerían en el KDS como nuevos y se cocinarían dos veces.
+      final previos = <String, CartSessionItem>{
+        for (final p in activa.items) p.productoId: p,
+      };
+      for (final item in items) {
+        final previo = previos[item.productoId];
+        if (previo != null) _conservarTrazabilidadCocina(item, previo);
       }
 
       activa.items = items;
@@ -649,11 +697,31 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
       final mesaViejaId = activa.mesaId;
       final nombreViejo = activa.mesaNombre;
 
-      // La comanda se mueve: actualizamos el destino.
-      activa.mesaId = nuevoMesaId;
-      activa.mesaNombre = nueva.nombre;
-      activa.nombre = 'Comanda ${nueva.nombre}';
-      await _isar.guardarComanda(activa);
+      // ⚠️ `sessionId` es determinístico (`mesa:<id>`) y tiene índice
+      // ÚNICO. Si se mueve la comanda sin recalcularlo, queda una comanda
+      // "fantasma" ligada a la mesa vieja (abrir esa mesa entonces retoma
+      // una comanda que pertenece a otra). Y si el destino ya tiene una
+      // comanda viva, el índice único con `replace: true` borraría una de
+      // las dos en silencio al guardar, así que se rechaza el destino
+      // ocupado antes de tocar nada.
+      if (nuevoMesaId != mesaViejaId) {
+        final enDestino =
+            await _isar.obtenerComandaPorSessionId(sessionIdDeMesa(nuevoMesaId));
+        if (enDestino != null && enDestino.id != activa.id) {
+          return '${nueva.nombre} ya tiene una comanda abierta.';
+        }
+      }
+
+      // La comanda se mueve: actualizamos el destino y su sessionId.
+      // Se relee de Isar antes de escribir: si la cocina avanzó algún plato
+      // mientras el diálogo estaba abierto, guardar la copia del estado lo
+      // devolvería a `pendiente`.
+      final fresca = await _isar.obtenerComandaPorId(activa.id) ?? activa;
+      fresca.mesaId = nuevoMesaId;
+      fresca.mesaNombre = nueva.nombre;
+      fresca.nombre = 'Comanda ${nueva.nombre}';
+      fresca.sessionId = sessionIdDeMesa(nuevoMesaId);
+      await _isar.guardarComanda(fresca);
 
       await _marcarMesaOcupada(nuevoMesaId);
       if (mesaViejaId != null && mesaViejaId != nuevoMesaId) {
@@ -785,13 +853,27 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
       return null;
     }
 
-    activa.comandaEstado = ComandaEstado.enviada;
-    activa.enviadaCocinaAt = ahora;
-    // Q10: snapshot del mesero al enviar.
-    activa.meseroId = usuario?.id ?? activa.meseroId;
-    activa.meseroNombre = usuario?.nombre ?? activa.meseroNombre;
+    // ⚠️ RELEER antes de volver a guardar.
+    //
+    // `marcarPendientesComoEnCola` escribió sobre OTRA instancia (la que
+    // leyó dentro de su `writeTxn`), no sobre `activa`. Si guardáramos
+    // `activa` aquí, su lista de items —todavía en `pendiente`— pisaría
+    // el `enCola` recién escrito y el KDS nunca vería el pedido. Es el
+    // bug "envío a cocina, se imprime el ticket, pero el preparador
+    // sigue vacío".
+    final actualizada = await _isar.obtenerComandaPorId(activa.id);
+    if (actualizada == null) {
+      _fallarBool('La comanda ya no existe.');
+      return null;
+    }
 
-    await _isar.guardarComanda(activa);
+    actualizada.comandaEstado = ComandaEstado.enviada;
+    actualizada.enviadaCocinaAt = ahora;
+    // Q10: snapshot del mesero al enviar.
+    actualizada.meseroId = usuario?.id ?? actualizada.meseroId;
+    actualizada.meseroNombre = usuario?.nombre ?? actualizada.meseroNombre;
+
+    await _isar.guardarComanda(actualizada);
     await cargar();
 
     // ── R.3.3 · Ticket de cocina ──
@@ -1315,7 +1397,9 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
   /// Descuenta del inventario los ingredientes de la receta de un item.
   ///
   /// Cantidad real de cada ingrediente:
-  /// `item.cantidad × recetaItem.cantidad ÷ receta.rindePorciones`.
+  /// `item.cantidad × recetaItem.cantidad × factor(unidad receta → unidad
+  /// stock) ÷ receta.rindePorciones`. El factor vive en
+  /// [ConversionUnidades] y es 1 cuando ambos lados usan la misma unidad.
   /// Los no opcionales (`esOpcional`) NO se descuentan: son extras que el
   /// cocinero puede no poner.
   ///
@@ -1365,7 +1449,32 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
     for (final recItem in receta.items) {
       if (recItem.esOpcional) continue;
 
-      final cantidadReal = (item.cantidad * recItem.cantidad) / divisor;
+      // Unidad de la RECETA → unidad del INVENTARIO.
+      //
+      // Sin esto, "150 g de queso" con el stock en kg descontaba 150 kg.
+      // `ConversionUnidades` devuelve null cuando las dimensiones no
+      // coinciden (p. ej. receta en 'unidad' y stock en 'kg'): ahí se cae al
+      // 1:1 de antes y se deja rastro en el log, porque bloquear la entrega
+      // de un plato ya cocinado está descartado (Q3).
+      final ingrediente =
+          await _isar.obtenerProductoPorId(recItem.ingredienteId);
+      final factorUnidad = ConversionUnidades.factor(
+        recItem.unidad,
+        ingrediente?.unidad,
+      );
+      double cantidadEnStock;
+      if (factorUnidad == null) {
+        debugPrint(
+          '⚠️ Receta "${receta.nombrePlato}": no se puede convertir '
+          '"${recItem.unidad}" a "${ingrediente?.unidad}" '
+          '(${recItem.ingredienteNombre}). Se descuenta 1:1.',
+        );
+        cantidadEnStock = recItem.cantidad;
+      } else {
+        cantidadEnStock = recItem.cantidad * factorUnidad;
+      }
+
+      final cantidadReal = (item.cantidad * cantidadEnStock) / divisor;
       var pendiente = cantidadReal;
 
       // FEFO: se pide el próximo lote hasta cubrir la cantidad, porque el

@@ -98,12 +98,14 @@ Future<ProductoEntity> crearProducto({
   required String nombre,
   double stock = 0,
   bool esIngrediente = true,
+  String unidad = 'unidad',
 }) async {
   final producto = ProductoEntity(
     codigoBarras: 'test-${_secuenciaProducto++}',
     nombre: nombre,
     stock: stock,
     esIngrediente: esIngrediente,
+    unidad: unidad,
   );
   await IsarService().guardarProducto(producto);
   return producto;
@@ -132,17 +134,23 @@ Future<LoteEntity> crearLote({
 }
 
 /// Un ingrediente dentro de la receta.
+///
+/// `unidad` se deja en `'unidad'` por defecto porque es el default de
+/// `ProductoEntity.unidad`: así estos tests recorren la conversión normal
+/// (1:1) y no el fallback de dimensiones incompatibles. El caso `g → kg`
+/// tiene su propio test (2b).
 RecetaItemEntity ingrediente(
   ProductoEntity producto, {
   required double cantidad,
   bool opcional = false,
   String? nombre,
+  String unidad = 'unidad',
 }) {
   return RecetaItemEntity()
     ..ingredienteId = producto.id
     ..ingredienteNombre = nombre ?? producto.nombre
     ..cantidad = cantidad
-    ..unidad = 'kg'
+    ..unidad = unidad
     ..esOpcional = opcional;
 }
 
@@ -373,6 +381,39 @@ void main() {
 
       expect(await stockTotal(queso.id), closeTo(4.8, kEpsilon));
       expect(await stockTotal(jamon.id), closeTo(4.9, kEpsilon));
+    });
+
+    test('2b · receta en gramos descuenta kilos del inventario', () async {
+      // El bug original: 150 g se restaban como 150 kg porque la unidad de
+      // la receta y la del stock nunca se convertían.
+      final queso = await crearProducto(
+        nombre: 'Queso',
+        stock: 5,
+        unidad: 'kg',
+      );
+      await crearLote(productoId: queso.id, cantidad: 5);
+
+      final pizza = await crearProducto(
+        nombre: 'Pizza',
+        esIngrediente: false,
+      );
+      await crearReceta(
+        plato: pizza,
+        items: [ingrediente(queso, cantidad: 150, unidad: 'g')],
+      );
+
+      final comandaId = await crearComandaCon(platoListo(plato: pizza));
+
+      await conNotifier((notifier) async {
+        await notifier.marcarEntregado(comandaId, 0);
+      });
+
+      // 150 g = 0.15 kg, no 150 kg.
+      expect(await stockTotal(queso.id), closeTo(4.85, kEpsilon));
+
+      final movimientos = await leerMovimientos();
+      expect(movimientos, hasLength(1));
+      expect(movimientos.single.cantidad, closeTo(0.15, kEpsilon));
     });
 
     test('3b · la cantidad del item multiplica la de la receta', () async {

@@ -17,6 +17,12 @@
       vieja, `00002` la renombra. `movimientos_lote` **no** está en ninguna de estas (es
       una tabla no versionada), así que el rename `'traspaso'` → `'baja'` no depende de
       migraciones.
+      ⚠️ **Lista desactualizada desde 2026-10-27**: después de `00006` hay migraciones
+      versionadas posteriores (`20261010*`, `20261012*`, `20261015*`, `20261018*` y
+      `20261027000001_recetas.sql`). Antes de asumir que el remoto está al día:
+      ```sql
+      SELECT version FROM supabase_migrations.schema_migrations ORDER BY version;
+      ```
 - [x] **`local_switching_test.dart` fallaba en la suite completa** (pasa 8/8 aislado).
       `IsarError: Isar instance has already been closed`, vía
       `local_actual_provider.dart:227` → `invalidate(marcasProvider)` → `IsarService().db`.
@@ -336,10 +342,10 @@ Prioridad: esto es lo que pidió el negocio. El logo de marca es accesorio.
 - [ ] `suscripcion_historial`: exponer historial de cambios en el tab Suscripción
 - [ ] Implementar lógica real de extenderTrial / cambiarPlan / cancelar / registrarPago / agregarNota (actualmente stubs)
 
-## Tests pre-existentes fallando (heredado, no bloquea)
-- [ ] local_catalog_test.dart / local_switching_test.dart — **RESUELTO en hot-switch**: eran placeholders que nunca esperaban la carga async. Reescritos con `IsarService` inyectable. Pendiente confirmar que pasan.
-- [ ] inventory_catalog_screen_test.dart × 4 — `BcvController used after disposed`
-- [ ] rebuild_audit_test.dart — `TimeoutException` 30s
+## Tests pre-existentes fallando (RESUELTO · suite verde 2026-10-27)
+- [x] local_catalog_test.dart / local_switching_test.dart — **RESUELTO en hot-switch**: eran placeholders que nunca esperaban la carga async. Reescritos con `IsarService` inyectable. Confirmado: pasan en la suite completa (902 pasan, 1 omitida, 0 fallos).
+- [x] inventory_catalog_screen_test.dart × 4 — `BcvController used after disposed`. Ya no falla.
+- [x] rebuild_audit_test.dart — `TimeoutException` 30s. Ya no falla.
 - Riesgo: los 2 de hot-switch podían indicar bug en multi-local. **Confirmado: sí lo había** (`state = id` se aplicaba después de los `invalidate`). Corregido.
 
 ## 📌 Otros pendientes acumulados
@@ -431,10 +437,24 @@ retail (~15 archivos usan `ProductItem`).
 
 ### R.4 G.1 · Recetas · deuda
 
-- [ ] `RecetaEntity` NO viaja a Supabase. `sync_service` no la empuja y
-      `isar_service` no tiene `toSupabaseJson`/`fromSupabase` para ella.
-      Requiere crear `recetas` + `receta_ingredientes` en Supabase, igual
-      que hizo `LoteEntity`.
+- [x] `RecetaEntity` viaja a Supabase (2026-10-27).
+      `supabase/migrations/20261027000001_recetas.sql` crea `recetas` +
+      `receta_ingredientes`, su RLS por tenant y la RPC
+      `guardar_receta(p_receta, p_ingredientes)`, que hace el upsert de la
+      fila y el REEMPLAZO COMPLETO de los ingredientes en una transacción.
+      Lado Dart: `RecetaEntity.toSupabaseJson` / `ingredientesToSupabaseJson`
+      / `fromSupabase`, `IsarService.obtenerRecetasPendientesSync` /
+      `marcarRecetaSincronizada` y
+      `SyncService.sincronizarRecetasPendientes` /
+      `descargarRecetasDesdeSupabase` (enganchados en `sincronizarTodo` y en
+      `sincronizarTodoConResumen`).
+      ⚠️ **Pendiente del owner**: correr el SQL en Supabase y verificar con
+      las queries del final del archivo. Hasta entonces el push detecta
+      "tabla ausente", avisa UNA vez y no ensucia Sentry.
+      ⚠️ Los borrados NO se sincronizan: `eliminarReceta` no tiene callers
+      (la UI marca `activo = false`). El día que se use hace falta un
+      tombstone, o el pull la resucita.
+      ⚠️ Sin control de conflictos por `updated_at`: gana el que sube último.
 - [ ] `ProductoEntity.esIngrediente` y `.unidad` son LOCAL-ONLY, igual que
       `departamentoId` (D2a). Cuando existan las columnas
       `es_ingrediente` y `unidad` en `productos`, anadirlas al par
@@ -445,11 +465,14 @@ retail (~15 archivos usan `ProductItem`).
       de cualquier producto". `stockMinimoAlerta` seria "cuanto
       ingrediente debe quedar para no quedarse sin platos". Si se anade
       sin documentar la diferencia, la UI acabara usando el equivocado.
-- [ ] `RecetaItemEntity.unidad` no tiene validacion: es `String` libre. Y
-      `ProductoEntity.unidad` acaba de nacer, asi que la conversion de
-      unidades para el descuento de stock de G.3 se asume 1:1. Si un
-      ingrediente se guarda en `kg` y la receta pide `g`, G.3 restara mal.
-      Hace falta un factor de conversion.
+- [x] `RecetaItemEntity.unidad` no tiene validacion: es `String` libre. La
+      conversion a la unidad del inventario vive en
+      `presentation/services/conversion_unidades.dart` (`kg`↔`g`,
+      `lt`↔`ml`, sinonimos y fallback 1:1 avisado cuando las dimensiones no
+      coinciden). Los tests estan en `test/services/conversion_unidades_test.dart`
+      y `descuento_receta_test.dart` (caso 2b: 150 g descuentan 0.15 kg).
+      Sigue pendiente normalizar el valor al GUARDARLO, para que la UI no
+      acepte texto libre arbitrario.
 - [ ] `MovimientoInventarioEntity.localId` se anadio con default 0. Los
       movimientos legacy (anteriores a R.4) siguen en 0 = "local
       desconocido". Habria que migrarlos al local real si se quiere que el
@@ -483,13 +506,17 @@ retail (~15 archivos usan `ProductItem`).
 - [ ] `MovimientoInventarioEntity.tipoMovimiento` sigue siendo `String`
       libre y ahora tiene un valor mas ('Consumo receta'). No hay
       constantes ni enum. Con 6 valores ya merece la pena.
-- [ ] Sin tests de G.3. `_descontarRecetaDeItem` es privado y no hay
-      cobertura de: FEFO multi-lote, `rindePorciones`, falta parcial,
-      ingredientes opcionales, ni el calculo
-      `cantidad * cantidad / rindePorciones`.
-- [ ] El aviso va en `ComandasState.avisoReceta` y comparte
-      `ScaffoldMessenger` con el aviso de pedido nuevo: si llegan juntos,
-      el segundo Snackbar pisa al primero.
+- [x] Tests de G.3. `_descontarRecetaDeItem` es privado, así que se prueba
+      por la puerta pública `marcarEntregado` en
+      `test/features/pos/descuento_receta_test.dart` (21 tests): FEFO
+      multi-lote, `rindePorciones`, falta parcial, ingredientes opcionales,
+      idempotencia, movimiento de auditoría y conversión de unidades
+      (caso 2b).
+- [x] El aviso va en `ComandasState.avisoReceta` y antes compartía
+      `ScaffoldMessenger` con el aviso de pedido nuevo: si llegaban juntos,
+      el segundo Snackbar pisaba al primero. Ahora es un `AlertDialog`
+      (`widgets/restaurante/aviso_stock_receta_dialog.dart`), no se cierra
+      solo y no compite con nada.
 
 ## Exponer recetas como productos retail
 
@@ -878,14 +905,15 @@ funcionando para stock real, pero las recetas no descuentan.
 - [ ] Fase 2 (post-producción): reserva proactiva de stock por dispositivo
 - [ ] Tests: escenario 2 dispositivos offline + sincronización
 
-## 📌 Deuda detectada — suite completo (fuera de G.3.3)
-- [ ] BcvController disposed en cobrar_dialog_test e inventory_catalog_screen_test (~40 fallos).
-      Riverpod scope roto. Ciclo de vida del provider.
-- [ ] Textos/widgets desactualizados en parked_carts_dialog, save_cart_dialog, quantity_dialog (~12).
-- [ ] CircularDependencyError en local_actual_provider.dart:219 (9 fallos, BUG REAL).
-- [ ] lote_tenant_id_contract_test.dart: path hardcodeado c:\Users\torre\... — no portable.
-- [ ] sync_services_test.dart: mock HTTP no intercepta (~5).
-- [ ] Test colgado: "... guarda 1 venta + N detalles en Isar" (integración Isar).
+## 📌 Deuda detectada — suite completo (RESUELTO · verde 2026-10-27)
+- [x] BcvController disposed en cobrar_dialog_test e inventory_catalog_screen_test (~40 fallos).
+      Riverpod scope roto. Ciclo de vida del provider. Ya no falla.
+- [x] Textos/widgets desactualizados en parked_carts_dialog, save_cart_dialog, quantity_dialog (~12). Ya no fallan.
+- [x] CircularDependencyError en local_actual_provider.dart:219 (9 fallos, BUG REAL). Ya no falla.
+- [x] lote_tenant_id_contract_test.dart: path hardcodeado c:\Users\torre\... — no portable. Ya no falla.
+- [x] sync_services_test.dart: mock HTTP no intercepta (~5). Ya no falla.
+- [x] Test colgado: "... guarda 1 venta + N detalles en Isar" (integración Isar). Ya no se cuelga.
+- Verificación: `flutter test` completo → 902 pasan, 1 omitida, 0 fallos.
 
 ## Cerrado en 2026-10-12 (Shorebird)
 

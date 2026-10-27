@@ -19,6 +19,7 @@ import '../../data/Local/entities/categoria_entity.dart';
 import '../../data/Local/entities/gasto_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
+import '../../data/Local/entities/receta_entity.dart';
 import '../../data/Local/entities/venta_entity.dart';
 import '../../data/Local/entities/movimiento_inventario_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
@@ -4038,6 +4039,215 @@ Future<void> subirMovimientosLotePendientes() async {
   }
 
   // ============================================================
+  // RECETAS
+  // ============================================================
+
+  /// `true` si el error es "esa tabla/función no existe todavía".
+  ///
+  /// Sirve para que un entorno sin la migración `20261027000001_recetas`
+  /// avise UNA vez y no una por receta, todos los ciclos, además de no
+  /// mandar el ruido a Sentry. Códigos: `42P01` (tabla), `PGRST205`
+  /// (tabla fuera del schema cache) y `PGRST202` (función inexistente).
+  bool _esquemaRecetasAusente(Object error) {
+    final texto = error.toString().toLowerCase();
+    return texto.contains('42p01') ||
+        texto.contains('pgrst205') ||
+        texto.contains('pgrst202') ||
+        texto.contains('does not exist') ||
+        texto.contains('schema cache');
+  }
+
+  /// Sube las recetas pendientes con la RPC `guardar_receta`.
+  ///
+  /// La receta viaja como UN payload (fila + ingredientes) y el reemplazo de
+  /// ingredientes ocurre dentro de la transacción de la RPC. Hacerlo desde
+  /// el cliente (upsert + delete + insert) dejaría recetas sin ingredientes
+  /// si se corta la red en medio, y esa versión vacía se propagaría al resto
+  /// de dispositivos.
+  ///
+  /// ⚠️ No se manda `tenant_id`: lo pone `current_tenant_id()` en el server.
+  Future<void> sincronizarRecetasPendientes() async {
+    try {
+      final pendientes = await _isarService.obtenerRecetasPendientesSync();
+      if (pendientes.isEmpty) {
+        debugPrint('ℹ️ No hay recetas pendientes para sincronizar');
+        return;
+      }
+
+      debugPrint(
+          '🔄 Sincronizando ${pendientes.length} recetas con Supabase...');
+
+      int upsertadas = 0, fallidas = 0, omitidas = 0;
+
+      for (final receta in pendientes) {
+        if (receta.productoId <= 0) {
+          debugPrint('⚠️ Receta ${receta.id} omitida: sin productoId.');
+          omitidas++;
+          continue;
+        }
+
+        // La receta apunta al plato por id local. Si el producto no existe
+        // en Isar tampoco puede existir en la nube, y la FK de `recetas`
+        // rechazaría el insert.
+        final producto =
+            await _isarService.obtenerProductoPorId(receta.productoId);
+        if (producto == null) {
+          debugPrint('⚠️ Receta ${receta.id} omitida: el producto '
+              '${receta.productoId} no existe en Isar.');
+          omitidas++;
+          continue;
+        }
+
+        try {
+          final respuesta = await _supabase.rpc(
+            'guardar_receta',
+            params: {
+              'p_receta': receta.toSupabaseJson(),
+              'p_ingredientes': receta.ingredientesToSupabaseJson(),
+            },
+          );
+
+          await _isarService.marcarRecetaSincronizada(
+            receta.id,
+            supabaseId: respuesta is String ? respuesta : respuesta?.toString(),
+          );
+          upsertadas++;
+          debugPrint('✅ Receta de "${receta.nombrePlato}" '
+              '(${receta.items.length} ingredientes) sincronizada');
+        } catch (e) {
+          if (_esquemaRecetasAusente(e)) {
+            debugPrint('⚠️ Recetas: las tablas `recetas` / '
+                '`receta_ingredientes` no existen todavía en Supabase. '
+                'Aplicá supabase/migrations/20261027000001_recetas.sql. '
+                'Push omitido.');
+            return;
+          }
+          debugPrint('❌ Error sincronizando receta ${receta.id}: $e');
+          fallidas++;
+        }
+      }
+
+      if (fallidas > 0 || omitidas > 0) {
+        debugPrint('⚠️ Recetas: $upsertadas sincronizadas, '
+            '$fallidas fallidas, $omitidas omitidas.');
+      } else {
+        debugPrint('✅ Recetas sincronizadas: $upsertadas');
+      }
+    } catch (e, stack) {
+      if (_esquemaRecetasAusente(e)) {
+        debugPrint('⚠️ Recetas: tablas ausentes en Supabase. Push omitido.');
+        return;
+      }
+      debugPrint('❌ Error sincronizando recetas: $e');
+      ErrorService.captureError(e,
+          stack: stack, hint: 'sincronizarRecetasPendientes_fallo');
+      rethrow;
+    }
+  }
+
+  /// Baja las recetas con sus ingredientes embebidos.
+  ///
+  /// Reglas de cruce:
+  ///   · `id_isar` de la nube es el id de Isar del dispositivo que la creó,
+  ///     así que se busca por id local (mismo criterio que los lotes).
+  ///   · Si el id ya existe pero apunta a OTRO plato, se descarta la fila:
+  ///     son dos dispositivos que crearon recetas en paralelo y el
+  ///     autoincrement de Isar chocó. Pisar la receta local del plato B con
+  ///     la del plato A sería peor que no sincronizar.
+  ///   · Si no hay fila con ese id pero el local YA tiene una receta para ese
+  ///     plato, también se descarta: si no, quedarían dos recetas del mismo
+  ///     plato en el mismo dispositivo.
+  Future<void> descargarRecetasDesdeSupabase() async {
+    try {
+      final tenantUuid = getTenantIdFromJWT() ??
+          (await _isarService.obtenerLocalActivo())?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin tenant. '
+            'Descarga de recetas omitida.');
+        return;
+      }
+
+      // `*, receta_ingredientes(*)` usa la FK `receta_ingredientes_receta_fk`.
+      final response = await _supabase
+          .from('recetas')
+          .select('*, receta_ingredientes(*)')
+          .eq('tenant_id', tenantUuid)
+          .order('updated_at', ascending: false);
+
+      if (response.isEmpty) {
+        debugPrint('ℹ️ No hay recetas en Supabase para descargar');
+        return;
+      }
+
+      debugPrint('🔄 Descargando ${response.length} recetas desde Supabase...');
+
+      int creadas = 0, actualizadas = 0, omitidas = 0, conflictos = 0;
+
+      for (final data in response) {
+        final idIsar = _toInt(data['id_isar']);
+        if (idIsar <= 0) {
+          omitidas++;
+          continue;
+        }
+
+        final tenantFila = data['tenant_id']?.toString();
+        final localId = tenantFila == null || tenantFila.isEmpty
+            ? 0
+            : await _obtenerIsarIdLocal(tenantFila);
+        if (localId <= 0) {
+          continue;
+        }
+
+        final recetaNube =
+            RecetaEntity.fromSupabase(data, localIdResuelto: localId);
+
+        final existente = await _isarService.obtenerRecetaPorId(idIsar);
+        if (existente != null) {
+          if (existente.productoId != recetaNube.productoId) {
+            conflictos++;
+            continue;
+          }
+          // `marcarPendiente: false`: esta receta acaba de venir de la nube.
+          // Marcarla pendiente la haría empujarse sola en cada ciclo.
+          await _isarService.guardarReceta(recetaNube, marcarPendiente: false);
+          actualizadas++;
+        } else {
+          final yaHayParaElPlato = await _isarService.obtenerRecetaPorProducto(
+            localId,
+            recetaNube.productoId,
+          );
+          if (yaHayParaElPlato != null) {
+            conflictos++;
+            continue;
+          }
+          await _isarService.guardarReceta(recetaNube, marcarPendiente: false);
+          creadas++;
+        }
+      }
+
+      onDataChanged?.call();
+
+      if (conflictos > 0 || omitidas > 0) {
+        debugPrint('⚠️ Recetas descargadas: $creadas creadas, '
+            '$actualizadas actualizadas, $omitidas omitidas, '
+            '$conflictos en conflicto (id_isar de otro dispositivo).');
+      } else {
+        debugPrint('✅ Recetas descargadas: $creadas creadas, '
+            '$actualizadas actualizadas');
+      }
+    } catch (e, stack) {
+      if (_esquemaRecetasAusente(e)) {
+        debugPrint('⚠️ Recetas: tablas ausentes en Supabase. '
+            'Descarga omitida.');
+        return;
+      }
+      debugPrint('❌ Error descargando recetas: $e');
+      ErrorService.captureError(e,
+          stack: stack, hint: 'descargarRecetasDesdeSupabase_fallo');
+    }
+  }
+
+  // ============================================================
   // TELEGRAM CONFIG
   // ============================================================
 
@@ -4947,6 +5157,14 @@ Future<void> subirMovimientosLotePendientes() async {
       //    usuario pero aún no sincronizado).
       await _safe('sincronizarLocales', sincronizarLocalesPendientes);
       await _safe('descargarLocales', descargarLocalesDesdeSupabase);
+
+      // Recetas DESPUÉS de productos y de locales:
+      //   · el plato y los ingredientes ya existen en la nube (la RPC
+      //     valida la FK contra productos.id_isar),
+      //   · el pull necesita resolver el `tenant_id` a un local de Isar.
+      await _safe('sincronizarRecetas', sincronizarRecetasPendientes);
+      await _safe('descargarRecetas', descargarRecetasDesdeSupabase);
+
       await _safe(
           'sincronizarDepartamentos', sincronizarDepartamentosPendientes);
       await _safe(
@@ -4969,7 +5187,7 @@ Future<void> subirMovimientosLotePendientes() async {
   Future<Map<String, int>> sincronizarTodoConResumen() async {
     int ventas = 0, productos = 0, proveedores = 0, gastos = 0;
     int pedidos = 0, lotes = 0, marcas = 0, locales = 0;
-    int departamentos = 0, telegram = 0;
+    int departamentos = 0, telegram = 0, recetas = 0;
 
     try {
       await descargarCategoriasDesdeSupabase();
@@ -4995,6 +5213,13 @@ Future<void> subirMovimientosLotePendientes() async {
       if (productosPend.isNotEmpty) {
         await sincronizarProductosASupabase();
         productos = productosPend.length;
+      }
+
+      // Recetas: DESPUÉS de productos (la RPC valida la FK del plato).
+      final recetasPend = await _isarService.obtenerRecetasPendientesSync();
+      if (recetasPend.isNotEmpty) {
+        await sincronizarRecetasPendientes();
+        recetas = recetasPend.length;
       }
 
       final proveedoresPend =
@@ -5047,6 +5272,7 @@ Future<void> subirMovimientosLotePendientes() async {
       await descargarProductosDesdeSupabase();
       await descargarProveedoresDesdeSupabase();
       await descargarLocalesDesdeSupabase();
+      await descargarRecetasDesdeSupabase();
       await descargarDepartamentosDesdeSupabase();
       await descargarTelegramConfigDesdeSupabase();
       await descargarMarcasDesdeSupabase();
@@ -5063,6 +5289,7 @@ Future<void> subirMovimientosLotePendientes() async {
         'locales': locales,
         'departamentos': departamentos,
         'telegram': telegram,
+        'recetas': recetas,
       };
     } catch (e, stack) {
       debugPrint('❌ Error en sincronización completa con resumen: $e');

@@ -3568,12 +3568,26 @@ Future<bool> eliminarLocal(int id) async {
   /// El sello `createdAt`/`updatedAt` se pone aquí (no en la UI) para que
   /// sea imposible guardar una receta sin auditar. Mismo criterio que
   /// `guardarMesa`.
-  Future<int> guardarReceta(RecetaEntity receta) async {
+  ///
+  /// ⚠️ Marca la receta como NO sincronizada. Sin esto, editar una receta
+  /// que ya había subido dejaba `sincronizado` en `true` y el push la
+  /// ignoraba para siempre: el cambio se veía en este dispositivo y en
+  /// ningún otro.
+  ///
+  /// [marcarPendiente] existe para el PULL de `sync_service`, que escribe
+  /// datos que vienen de la nube: ahí la receta ya está sincronizada y
+  /// marcarla pendiente la haría empujarse sola en el siguiente ciclo,
+  /// para siempre.
+  Future<int> guardarReceta(
+    RecetaEntity receta, {
+    bool marcarPendiente = true,
+  }) async {
     try {
       final isar = await db;
       return await isar.writeTxn<int>(() async {
         receta.updatedAt = DateTime.now();
         receta.createdAt ??= DateTime.now();
+        if (marcarPendiente) receta.sincronizado = false;
         return await isar.recetaEntitys.put(receta);
       });
     } catch (e, stack) {
@@ -3586,6 +3600,67 @@ Future<bool> eliminarLocal(int id) async {
             'productoId': receta.productoId,
           });
       rethrow;
+    }
+  }
+
+  /// Receta por id de Isar, o `null`.
+  ///
+  /// Lo usa el pull del sync: el `id_isar` de la nube es el id local del
+  /// dispositivo que la creó, así que es la clave de cruce.
+  Future<RecetaEntity?> obtenerRecetaPorId(int id) async {
+    try {
+      final isar = await db;
+      return await isar.recetaEntitys.get(id);
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerRecetaPorId_fallo',
+          extras: {'id': id});
+      return null;
+    }
+  }
+
+  /// Recetas pendientes de subir.
+  ///
+  /// Filtra por `sincronizado == false`. `guardarReceta` es quien lo pone en
+  /// `false`, incluso al editar una receta ya sincronizada.
+  Future<List<RecetaEntity>> obtenerRecetasPendientesSync() async {
+    try {
+      final isar = await db;
+      return await isar.recetaEntitys
+          .filter()
+          .sincronizadoEqualTo(false)
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerRecetasPendientesSync_fallo');
+      return [];
+    }
+  }
+
+  /// Marca una receta como sincronizada, sin tocar `updatedAt`.
+  ///
+  /// ⚠️ Relee la fila dentro de la transacción. `items` es `@embedded`: si
+  /// se hiciera `put` de una instancia vieja se perderían los ingredientes
+  /// que se hubieran guardado mientras tanto.
+  Future<void> marcarRecetaSincronizada(int id, {String? supabaseId}) async {
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        final receta = await isar.recetaEntitys.get(id);
+        if (receta == null) return;
+        receta.sincronizado = true;
+        receta.fechaSincronizacion = DateTime.now();
+        if (supabaseId != null && supabaseId.isNotEmpty) {
+          receta.supabaseId = supabaseId;
+        }
+        await isar.recetaEntitys.put(receta);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'marcarRecetaSincronizada_fallo',
+          extras: {'id': id});
     }
   }
 
@@ -4946,15 +5021,15 @@ Future<bool> eliminarLocal(int id) async {
 
   /// Obtiene lotes con stock restante que ya pasaron su fecha de vencimiento.
   ///
-  /// ├Ütil para alertas en inventario: muestra productos que hay que retirar
+  /// Útil para alertas en inventario: muestra productos que hay que retirar
   /// o consumir urgentemente.
   ///
-  /// ÔÜá´©Å El `fechaVencimientoIsNotNull()` NO es decorativo. En Isar un
-  /// `null` ordena como "menor que cualquier valor", as├¡ que un lote SIN
+  /// ⚠️ El `fechaVencimientoIsNotNull()` NO es decorativo. En Isar un
+  /// `null` ordena como "menor que cualquier valor", así que un lote SIN
   /// fecha de vencimiento cumple `fechaVencimientoLessThan(hoy)` y entraba
-  /// en la lista. El di├ílogo de inventario hac├¡a `lote.fechaVencimiento!`
+  /// en la lista. El diálogo de inventario hacía `lote.fechaVencimiento!`
   /// y estallaba con "Null check operator used on a null value" (visto
-  /// 2026-10-26: 18 de 19 lotes sin fecha). Un lote sin fecha no est├í
+  /// 2026-10-26: 18 de 19 lotes sin fecha). Un lote sin fecha no está
   /// vencido; simplemente no se controla por vencimiento.
   Future<List<LoteEntity>> obtenerLotesVencidosConStock() async {
     try {
@@ -5538,7 +5613,7 @@ Future<bool> eliminarLocal(int id) async {
               includeLower: true, includeUpper: true)
           .count();
 
-      // ÔöÇÔöÇ Comparativas reales (no dependen del largo de ventasPorDia) ÔöÇÔöÇ
+      // ── Comparativas reales (no dependen del largo de ventasPorDia) ──
       final inicioSemanaAnterior =
           inicioSemana.subtract(const Duration(days: 7));
       final finSemanaAnterior =
@@ -5563,7 +5638,7 @@ Future<bool> eliminarLocal(int id) async {
           .findAll();
       final ventasMes = ventasDelMes.length;
 
-      // ÔöÇÔöÇ Ventas por hora de HOY (horas pico) ÔöÇÔöÇ
+      // ── Ventas por hora de HOY (horas pico) ──
       final ventasDeHoy = await isar.ventaEntitys
           .filter()
           .fechaBetween(inicioHoy, finDia,
@@ -5580,7 +5655,7 @@ Future<bool> eliminarLocal(int id) async {
         for (var h = 0; h < 24; h++) {'hora': h, 'total': porHora[h]},
       ];
 
-      // ÔöÇÔöÇ M├®todos de pago del mes ÔöÇÔöÇ
+      // ── Métodos de pago del mes ──
       final metodos = <String, Map<String, double>>{};
       for (final v in ventasDelMes) {
         final clave = v.metodoPago.trim().isEmpty
@@ -5592,20 +5667,20 @@ Future<bool> eliminarLocal(int id) async {
         actual['count'] = actual['count']! + 1;
       }
 
-      // ÔöÇÔöÇ Top productos del MES (no de toda la historia) ÔöÇÔöÇ
+      // ── Top productos del MES (no de toda la historia) ──
       final topProductosMes = await obtenerProductosMasVendidosEnRango(
         inicioMes,
         finDia,
         limite: 5,
       );
 
-      // ÔöÇÔöÇ Productos activos sin ninguna venta en 30 d├¡as ÔöÇÔöÇ
+      // ── Productos activos sin ninguna venta en 30 días ──
       final sinRotacion = await obtenerProductosSinRotacion(
         inicioHoy.subtract(const Duration(days: 30)),
         finDia,
       );
 
-      // ÔöÇÔöÇ Anulaciones del mes ÔöÇÔöÇ
+      // ── Anulaciones del mes ──
       final todasAnuladas = await isar.ventaAnuladaEntitys.where().findAll();
       final anuladasMes = todasAnuladas
           .where((a) =>
@@ -5615,7 +5690,7 @@ Future<bool> eliminarLocal(int id) async {
       final montoAnuladoMes =
           anuladasMes.fold<double>(0, (s, a) => s + a.montoOriginal);
 
-      // ÔöÇÔöÇ Estado del sal├│n (solo hay filas en modo restaurante) ÔöÇÔöÇ
+      // ── Estado del salón (solo hay filas en modo restaurante) ──
       final mesas = await isar.mesaEntitys.where().findAll();
       final mesasOcupadas =
           mesas.where((m) => m.estado == MesaEstado.ocupada).length;
@@ -5638,23 +5713,23 @@ Future<bool> eliminarLocal(int id) async {
         'stockBajo': stockBajo,
         'ventasPorEmpleado': ventasPorEmpleado,
         'ventasPorDia': ventasPorDia,
-        // ÔöÇÔöÇ Comparativas ÔöÇÔöÇ
+        // ── Comparativas ──
         'totalAyer': totalVentasAyer,
         'totalSemanaAnterior': totalSemanaAnterior,
         'totalMesAnterior': totalMesAnterior,
         'gastosHoy': gastosHoy,
-        // ÔöÇÔöÇ Tickets ÔöÇÔöÇ
+        // ── Tickets ──
         'ventasMes': ventasMes,
         'ticketPromedioHoy': ventasHoy > 0 ? totalHoy / ventasHoy : 0.0,
         'ticketPromedioMes': ventasMes > 0 ? totalMes / ventasMes : 0.0,
-        // ÔöÇÔöÇ Distribuciones ÔöÇÔöÇ
+        // ── Distribuciones ──
         'ventasPorHora': ventasPorHora,
         'ventasPorMetodoPago': metodos,
-        // ÔöÇÔöÇ Calidad de la operaci├│n ÔöÇÔöÇ
+        // ── Calidad de la operación ──
         'productosSinRotacion': sinRotacion,
         'anulacionesMes': anuladasMes.length,
         'montoAnuladoMes': montoAnuladoMes,
-        // ÔöÇÔöÇ Sal├│n ÔöÇÔöÇ
+        // ── Salón ──
         'mesasTotales': mesas.length,
         'mesasOcupadas': mesasOcupadas,
         'comandasAbiertas': comandasAbiertas,
@@ -5669,7 +5744,7 @@ Future<bool> eliminarLocal(int id) async {
   /// Top de productos vendidos DENTRO de un rango de fechas.
   ///
   /// A diferencia de [obtenerProductosMasVendidos], que suma toda la
-  /// historia, este acota a las ventas del per├¡odo. Devuelve
+  /// historia, este acota a las ventas del período. Devuelve
   /// `{nombre, cantidad, monto}`.
   Future<List<Map<String, dynamic>>> obtenerProductosMasVendidosEnRango(
     DateTime inicio,
@@ -5722,7 +5797,7 @@ Future<bool> eliminarLocal(int id) async {
   /// Productos activos que NO registraron ninguna venta en el rango.
   ///
   /// Sirve para detectar inventario inmovilizado: producto que existe,
-  /// est├í activo y no se vendi├│ ni una vez en 30 d├¡as.
+  /// está activo y no se vendió ni una vez en 30 días.
   Future<List<ProductoEntity>> obtenerProductosSinRotacion(
     DateTime inicio,
     DateTime fin, {
