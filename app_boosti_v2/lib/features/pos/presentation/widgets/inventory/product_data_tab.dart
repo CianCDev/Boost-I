@@ -1,4 +1,4 @@
-﻿// lib/features/pos/presentation/widgets/product/product_data_tab.dart
+// lib/features/pos/presentation/widgets/product/product_data_tab.dart
 import 'dart:io';
 import 'package:app_boosti_v2/features/pos/presentation/providers/marca_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/common/persona_form_template.dart';
@@ -1550,14 +1550,20 @@ class _EstadoDialogoIngredienteState
     extends State<_EstadoDialogoIngrediente> {
   final _formKey = GlobalKey<FormState>();
   final _cantidadCtrl = TextEditingController(text: '1');
+  final _buscarCtrl = TextEditingController();
 
   ProductoEntity? _seleccionado;
   String _unidad = 'unidad';
   bool _opcional = false;
 
+  /// Texto del buscador. Se guarda aparte del controller para poder
+  /// filtrar en el `build` sin escuchar al controller.
+  String _busqueda = '';
+
   @override
   void dispose() {
     _cantidadCtrl.dispose();
+    _buscarCtrl.dispose();
     super.dispose();
   }
 
@@ -1569,6 +1575,51 @@ class _EstadoDialogoIngredienteState
   /// sección de arriba, así que no se pierde información.
   List<ProductoEntity> get _disponibles =>
       widget.disponibles.where((p) => !widget.yaUsados.contains(p.id)).toList();
+
+  /// Lista ya filtrada por el buscador.
+  ///
+  /// Busca en nombre, categoría y código de barras. Un restaurante con 100
+  /// ingredientes no se recorre con el ojo: se escribe "queso" y listo.
+  List<ProductoEntity> get _filtrados {
+    final q = _normalizar(_busqueda.trim());
+    if (q.isEmpty) return _disponibles;
+    return _disponibles.where((p) {
+      return _normalizar(p.nombre).contains(q) ||
+          _normalizar(p.categoria).contains(q) ||
+          p.codigoBarras.toLowerCase().contains(q);
+    }).toList();
+  }
+
+  /// Minúsculas y sin tildes, para que "cesar" encuentre "Ensalada César"
+  /// y "arroz" encuentre "Arroz".
+  ///
+  /// Es local y no un helper compartido a propósito: el proyecto no tiene
+  /// un normalizador común y esto es lo único que lo necesita.
+  String _normalizar(String texto) {
+    const conTilde = 'áàäâãéèëêíìïîóòöôõúùüûñç';
+    const sinTilde = 'aaaaaeeeeiiiiooooouuuunc';
+    final buffer = StringBuffer();
+    for (final rune in texto.toLowerCase().runes) {
+      final ch = String.fromCharCode(rune);
+      final i = conTilde.indexOf(ch);
+      buffer.write(i >= 0 ? sinTilde[i] : ch);
+    }
+    return buffer.toString();
+  }
+
+  /// Selecciona un ingrediente y arrastra su unidad base a la receta.
+  ///
+  /// Si el producto se mide en gramos (`ProductoEntity.unidad == 'g'`),
+  /// pedir la cantidad en "unidad" obligaría a convertir a mano. El
+  /// usuario puede cambiarla después en el desplegable.
+  void _seleccionar(ProductoEntity producto) {
+    setState(() {
+      _seleccionado = producto;
+      if (widget.unidades.contains(producto.unidad)) {
+        _unidad = producto.unidad;
+      }
+    });
+  }
 
   void _agregar() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -1588,133 +1639,92 @@ class _EstadoDialogoIngredienteState
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final disponibles = _disponibles;
+    final filtrados = _filtrados;
+
+    // Tamaño: en escritorio el diálogo es amplio porque la lista puede
+    // tener decenas de ingredientes; en móvil ocupa el ancho disponible.
+    final media = MediaQuery.sizeOf(context);
+    final ancho = (media.width - 48).clamp(300.0, 560.0);
+    final altoLista = (media.height * 0.42).clamp(140.0, 380.0);
 
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      title: const Text('Agregar ingrediente'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
+      titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 0),
+      contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      // En pantallas bajas el contenido scrollea en vez de desbordar.
+      scrollable: true,
+      title: Row(
+        children: [
+          Icon(Icons.restaurant_menu_rounded, color: cs.primary, size: 24),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Agregar ingrediente')),
+        ],
+      ),
+      content: SizedBox(
+        width: ancho,
+        child: Form(
+          key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (disponibles.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.no_food_outlined,
-                        size: 36,
-                        color: cs.onSurfaceVariant,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        widget.yaUsados.isEmpty
-                            ? 'No hay ingredientes configurados. Marca '
-                                'productos como "Es ingrediente" para '
-                                'usarlos aquí.'
-                            : 'Todos los ingredientes disponibles ya '
-                                'están en esta receta.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
+                _sinIngredientes(cs)
               else ...[
-                DropdownButtonFormField<ProductoEntity>(
-                  initialValue: _seleccionado,
-                  isExpanded: true,
+                TextField(
+                  controller: _buscarCtrl,
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  onChanged: (v) => setState(() => _busqueda = v),
                   decoration: buildInputDecoration(
-                    label: 'Ingrediente *',
-                    icon: Icons.restaurant_menu_rounded,
+                    label: 'Buscar ingrediente',
+                    icon: Icons.search_rounded,
                     accentColor: cs.primary,
                     colorScheme: cs,
+                  ).copyWith(
+                    hintText: 'Nombre, categoría o código',
+                    suffixIcon: _busqueda.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Limpiar búsqueda',
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            onPressed: () {
+                              _buscarCtrl.clear();
+                              setState(() => _busqueda = '');
+                            },
+                          ),
                   ),
-                  hint: const Text('Selecciona un ingrediente'),
-                  items: [
-                    for (final p in disponibles)
-                      DropdownMenuItem<ProductoEntity>(
-                        value: p,
-                        child: Text(
-                          p.nombre,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  validator: (v) =>
-                      v == null ? 'Selecciona un ingrediente' : null,
-                  onChanged: (v) => setState(() => _seleccionado = v),
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _cantidadCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: buildInputDecoration(
-                    label: 'Cantidad por porción *',
-                    icon: Icons.numbers_rounded,
-                    accentColor: cs.primary,
-                    colorScheme: cs,
-                  ),
-                  validator: (v) {
-                    final n = double.tryParse((v ?? '').trim());
-                    if (n == null) return 'Escribe un número';
-                    if (n <= 0) return 'La cantidad debe ser mayor que 0';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 14),
-                DropdownButtonFormField<String>(
-                  initialValue: _unidad,
-                  isExpanded: true,
-                  decoration: buildInputDecoration(
-                    label: 'Unidad',
-                    icon: Icons.straighten_rounded,
-                    accentColor: cs.primary,
-                    colorScheme: cs,
-                  ),
-                  items: [
-                    for (final u in widget.unidades)
-                      DropdownMenuItem<String>(
-                        value: u,
-                        child: Text(widget.etiquetas[u] ?? u),
-                      ),
-                  ],
-                  onChanged: (v) {
-                    if (v == null) return;
-                    setState(() => _unidad = v);
-                  },
                 ),
                 const SizedBox(height: 6),
-                SwitchListTile(
-                  value: _opcional,
-                  onChanged: (v) => setState(() => _opcional = v),
-                  title: const Text(
-                    'Opcional',
-                    style: TextStyle(fontSize: 13.5),
-                  ),
-                  subtitle: Text(
-                    _opcional
-                        ? 'Sí falta, se avisa pero no se bloquea la entrega'
-                        : 'Sí falta, se avisa al entregar el plato',
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 6),
+                  child: Text(
+                    _busqueda.trim().isEmpty
+                        ? '${disponibles.length} ingrediente(s) disponible(s)'
+                        : '${filtrados.length} de ${disponibles.length} '
+                            'ingrediente(s)',
                     style: TextStyle(
                       fontSize: 11,
                       color: cs.onSurfaceVariant,
                     ),
                   ),
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
                 ),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: 140,
+                    maxHeight: altoLista,
+                  ),
+                  child: _listaIngredientes(filtrados, cs, isDark),
+                ),
+                if (_seleccionado != null) ...[
+                  const SizedBox(height: 12),
+                  _panelCantidad(cs),
+                ],
               ],
             ],
           ),
@@ -1728,10 +1738,272 @@ class _EstadoDialogoIngredienteState
         if (disponibles.isNotEmpty)
           FilledButton(
             key: const Key('btn-confirmar-ingrediente'),
-            onPressed: _agregar,
+            // Deshabilitado hasta elegir: antes el botón vivía y el
+            // formulario escupía "Selecciona un ingrediente" al pulsar.
+            onPressed: _seleccionado == null ? null : _agregar,
             child: const Text('Agregar'),
           ),
       ],
     );
   }
+
+  /// Estado vacío: no hay ingredientes que ofrecer.
+  Widget _sinIngredientes(ColorScheme cs) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.no_food_outlined,
+            size: 40,
+            color: cs.onSurfaceVariant,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            widget.yaUsados.isEmpty
+                ? 'No hay ingredientes configurados. Marca productos como '
+                    '"Es ingrediente" para usarlos aquí.'
+                : 'Todos los ingredientes disponibles ya están en esta '
+                    'receta.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Lista con scroll propio de los ingredientes que pasan el filtro.
+  Widget _listaIngredientes(
+    List<ProductoEntity> items,
+    ColorScheme cs,
+    bool isDark,
+  ) {
+    if (items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            'Ningún ingrediente coincide con «$_busqueda».',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.03)
+            : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: cs.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Scrollbar(
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          itemCount: items.length,
+          separatorBuilder: (_, __) => Divider(
+            height: 1,
+            thickness: 1,
+            color: cs.outlineVariant.withValues(alpha: 0.35),
+          ),
+          itemBuilder: (_, i) => _filaIngrediente(items[i], cs),
+        ),
+      ),
+    );
+  }
+
+  Widget _filaIngrediente(ProductoEntity p, ColorScheme cs) {
+    final activo = _seleccionado?.id == p.id;
+    final stock = p.stock % 1 == 0
+        ? p.stock.toStringAsFixed(0)
+        : p.stock.toStringAsFixed(2);
+
+    return InkWell(
+      onTap: () => _seleccionar(p),
+      child: Container(
+        color: activo ? cs.primary.withValues(alpha: 0.10) : null,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        child: Row(
+          children: [
+            Icon(
+              activo ? Icons.check_circle_rounded : Icons.circle_outlined,
+              size: 18,
+              color: activo ? cs.primary : cs.outlineVariant,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    p.nombre,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: activo ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    '${p.categoria} · stock $stock ${_unidadCorta(p.unidad)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Cantidad, unidad y opcional del ingrediente ya elegido.
+  ///
+  /// Se pinta en un bloque con fondo para que no se confunda con los
+  /// campos de arriba: arriba se filtra, abajo se guarda.
+  Widget _panelCantidad(ColorScheme cs) {
+    final producto = _seleccionado!;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.restaurant_rounded, size: 15, color: cs.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  producto.nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: _cantidadCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: buildInputDecoration(
+                    label: 'Cantidad por porción *',
+                    icon: Icons.numbers_rounded,
+                    accentColor: cs.primary,
+                    colorScheme: cs,
+                  ),
+                  validator: (v) {
+                    final n = double.tryParse((v ?? '').trim());
+                    if (n == null) return 'Escribe un número';
+                    if (n <= 0) return 'Debe ser mayor que 0';
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 3,
+                child: DropdownButtonFormField<String>(
+                  // La key re-sincroniza el campo cuando la unidad cambia
+                  // por código al elegir el ingrediente.
+                  key: ValueKey('unidad-receta-$_unidad'),
+                  initialValue:
+                      widget.unidades.contains(_unidad) ? _unidad : 'unidad',
+                  isExpanded: true,
+                  decoration: buildInputDecoration(
+                    label: 'Unidad',
+                    icon: Icons.straighten_rounded,
+                    accentColor: cs.primary,
+                    colorScheme: cs,
+                  ),
+                  items: [
+                    for (final u in widget.unidades)
+                      DropdownMenuItem<String>(
+                        value: u,
+                        child: Text(
+                          widget.etiquetas[u] ?? u,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => _unidad = v);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Switch(
+                value: _opcional,
+                onChanged: (v) => setState(() => _opcional = v),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  _opcional
+                      ? 'Opcional · si falta, se avisa pero no bloquea la '
+                          'entrega'
+                      : 'Obligatorio · si falta, se avisa al entregar el '
+                          'plato',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Abreviatura de la unidad para la línea de stock.
+  ///
+  /// `widget.etiquetas` devuelve "Gramo (g)", que en una fila de 11 px
+  /// ocupa media línea. Aquí importa el código, no el nombre largo.
+  String _unidadCorta(String unidad) => switch (unidad) {
+        'kg' => 'kg',
+        'g' => 'g',
+        'lt' => 'lt',
+        'ml' => 'ml',
+        _ => 'u',
+      };
 }

@@ -4944,6 +4944,38 @@ Future<bool> eliminarLocal(int id) async {
     }
   }
 
+  /// Obtiene lotes con stock restante que ya pasaron su fecha de vencimiento.
+  ///
+  /// ├Ütil para alertas en inventario: muestra productos que hay que retirar
+  /// o consumir urgentemente.
+  ///
+  /// ÔÜá´©Å El `fechaVencimientoIsNotNull()` NO es decorativo. En Isar un
+  /// `null` ordena como "menor que cualquier valor", as├¡ que un lote SIN
+  /// fecha de vencimiento cumple `fechaVencimientoLessThan(hoy)` y entraba
+  /// en la lista. El di├ílogo de inventario hac├¡a `lote.fechaVencimiento!`
+  /// y estallaba con "Null check operator used on a null value" (visto
+  /// 2026-10-26: 18 de 19 lotes sin fecha). Un lote sin fecha no est├í
+  /// vencido; simplemente no se controla por vencimiento.
+  Future<List<LoteEntity>> obtenerLotesVencidosConStock() async {
+    try {
+      final isar = await db;
+      final ahora = DateTime.now();
+      final inicioDia = DateTime(ahora.year, ahora.month, ahora.day);
+      return await isar.loteEntitys
+          .filter()
+          .cantidadRestanteGreaterThan(0)
+          .and()
+          .fechaVencimientoIsNotNull()
+          .and()
+          .fechaVencimientoLessThan(inicioDia)
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerLotesVencidosConStock_fallo');
+      return [];
+    }
+  }
+
   Future<bool> verificarLote({
     required int loteId,
     required String codigoBarras,

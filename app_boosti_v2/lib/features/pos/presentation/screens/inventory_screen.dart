@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
 
+import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/lote_entity.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/inventory_provider.dart';
@@ -79,6 +81,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
         _mostrarFormularioProducto(codigoBarrasPrecargado: codigo);
       });
     }
+
+    // ✅ Verificar lotes vencidos con stock al abrir el inventario.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final isar = IsarService();
+      final lotesVencidos = await isar.obtenerLotesVencidosConStock();
+      if (!mounted) return;
+      if (lotesVencidos.isNotEmpty) {
+        _mostrarAlertaLotesVencidos(lotesVencidos);
+      }
+    });
   }
 
   @override
@@ -198,6 +211,109 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// Muestra un diálogo de alerta con los lotes que ya vencieron y todavía
+  /// tienen stock. Se lanza desde `initState` del inventario.
+  void _mostrarAlertaLotesVencidos(List<LoteEntity> lotes) {
+    if (!mounted) return;
+
+    const ambar = Color(0xFFF59E0B);
+    // Blindaje: la consulta ya excluye los lotes sin fecha (ver
+    // `IsarService.obtenerLotesVencidosConStock`), pero este diálogo no
+    // puede reventar si alguien lo llama con una lista armada a mano. Se
+    // filtran ANTES de contar: un `SizedBox.shrink()` dentro del
+    // `itemBuilder` dejaría huecos y descuadraría el "… y N más".
+    final conFecha =
+        lotes.where((l) => l.fechaVencimiento != null).toList();
+    if (conFecha.isEmpty) return;
+    final visibles = conFecha.take(20).toList();
+    final resto = conFecha.length - visibles.length;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: ambar, size: 28),
+            SizedBox(width: 10),
+            Expanded(child: Text('Lotes vencidos con stock')),
+          ],
+        ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                conFecha.length == 1
+                    ? 'Hay 1 lote vencido que todavía tiene stock:'
+                    : 'Hay ${conFecha.length} lotes vencidos que todavía '
+                        'tienen stock:',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 320),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: visibles.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      final lote = visibles[i];
+                      // Ya filtrados arriba: aquí no puede ser null.
+                      final vence = lote.fechaVencimiento!;
+                      final dias = DateTime.now().difference(vence).inDays;
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          backgroundColor: ambar.withValues(alpha: 0.15),
+                          child: Text(
+                            '$dias',
+                            style: const TextStyle(
+                              color: ambar,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          'Lote ${lote.codigoLoteProveedor ?? lote.id}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          'Vencido hace $dias día(s) · '
+                          'Stock: ${lote.cantidadRestante.toStringAsFixed(2)}',
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              if (resto > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    '… y $resto más',
+                    style: TextStyle(
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Entendido'),
+          ),
+        ],
       ),
     );
   }
