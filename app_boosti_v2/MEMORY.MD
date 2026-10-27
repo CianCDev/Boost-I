@@ -651,3 +651,503 @@ de motor a 22,46 MB: esos ~2 MB son el updater.
   APK y la carpeta de Windows de `1.1.5+11`, y las copias de trabajo del APK.
 - Entregables vigentes: `Boosti_POS_1.1.5+11_OTA.apk`,
   `Boosti_POS_1.1.5+11_windows_OTA.zip` y `Boosti_POS_Windows_1.1.5+11_OTA\`.
+
+## Cierre sesión 2026-10-23 — Entorno de pruebas reales
+
+**Estado:** cambios sin commitear (dashboard + herramientas de seed).
+
+### Datos de prueba inyectados en la base local
+
+- `tool/seed_demo.dart` puebla la base Isar **sin tocar Supabase**: todo lo
+  creado lleva `syncStatus/sincronizado = synced`, así que `SyncService` no
+  lo sube. Antes de abrir Isar copia `default.isar` a
+  `default.isar.bak-<fecha>`.
+- Aplicado sobre el local JAHTLABS (id 2): modo `restaurante`, estaciones
+  Cocina/Barra/Postres, 14 productos de menú, 8 mesas, 3 comandas abiertas
+  (una sin enviar, dos en cocina con estados distintos), 8 clientes y 120
+  ventas repartidas en 30 días.
+- `tool/db_dump.dart` audita la base (conteos, locales, usuarios, planes,
+  suscripciones, mesas) sin abrir la app.
+
+### Dashboard: de 4 métricas a 8 + 3 paneles
+
+- **Bug corregido:** `variacionSemana` y `variacionMes` pedían 14 y 60 días
+  a `ventasPorDia`, que devuelve 7 → **siempre 0%**. Ahora comparan contra
+  `totalSemanaAnterior` / `totalMesAnterior`, calculados en `IsarService`
+  con `obtenerTotalVentasPorRango`.
+- **Bug corregido:** `variacion` devolvía 0 cuando ayer no hubo ventas.
+  Ahora devuelve +100% si hoy sí hubo: 0% mentía diciendo "sin cambios".
+- **Bug corregido:** el "top de productos" sumaba **toda la historia**.
+  Ahora existe `obtenerProductosMasVendidosEnRango()` y el dashboard usa
+  el mes en curso.
+- Métricas nuevas: ticket promedio (hoy y mes), gastos de hoy, anulaciones
+  del mes, ocupación del salón (o productos sin rotación en retail).
+- Paneles nuevos: ventas por hora con hora pico, métodos de pago del mes y
+  estado del salón (solo aparece si el local tiene mesas).
+- Widgets nuevos en `widgets/dashboard/`: `dashboard_card.dart`,
+  `hourly_sales_chart.dart`, `payment_methods_card.dart`,
+  `restaurant_status_card.dart`.
+- Los mapas nuevas del resumen se castean explícitamente en el provider:
+  un `resumen['x'] ?? []` sobre un `dynamic` revienta con TypeError cuando
+  el servicio devuelve `{}` en su rama de error.
+
+### Hallazgo pendiente (no corregido)
+
+`VentaEntity` **no tiene `localId` ni `tenantId`** y las consultas del
+dashboard filtran solo por fecha. Con varios locales en la misma base
+(`isar_default`), los totales suman ventas de todos. En el esquema real
+cada tenant debería usar su propio dispositivo/base; con multi-local en
+un mismo equipo sí mezcla. Corregirlo exige migración de entidad + sync,
+no es un cambio de UI.
+
+### Reglas que quedan
+
+| Regla | Por qué |
+|---|---|
+| Un seed de pruebas escribe `syncStatus: 'synced'` | Si no, `SyncService` sube data falsa a producción |
+| Respaldar el `.isar` antes de inyectar | Isar no tiene rollback: el archivo es la única copia |
+| `ventasPorDia` devuelve 7 días: no sirve para comparar semanas | Dos getters murieron por asumir 14 y 60 |
+| Un `?? []` sobre `dynamic` no infiere el tipo | El cast de `List<dynamic>` a `List<T>` falla en runtime |
+
+---
+
+## Cierre sesión 2026-10-26 · Bugs del modo restaurante
+
+**Estado:** cambios sin commitear (Lotties + bugs de comanda/KDS).
+
+### Bug A · Comanda en blanco (solo appbar + total)
+
+`ComandaScreen._barraAcciones` envolvía la barra en un `Center` dentro de
+`bottomNavigationBar`. `Scaffold` mide ese slot con **ancho tight y alto
+loose**, así que el `Center` se expandía hasta el alto completo de la
+ventana: el `body` quedaba con 0 px y no se pintaba ni el header ni la
+lista (el total y los botones sí, centrados verticalmente). Arreglado con
+`Center(heightFactor: 1)`. **Regla:** en `bottomNavigationBar` /
+`bottomNavigationBar` de cualquier `Scaffold`, un `Center`/`Align` sin
+`heightFactor` se come la pantalla.
+
+⚠️ El body se veía vacío pero `comanda.items` SÍ tenía datos (el total
+mostraba $3.50): era layout, no provider.
+
+### Bug B · KDS no mostraba las comandas nuevas
+
+`enviarACocina()` seguía este orden:
+
+1. `marcarPendientesComoEnCola()` → abre su propio `writeTxn`, lee la
+   comanda, pone los items en `enCola` y hace `put`.
+2. `activa.comandaEstado = enviada; guardarComanda(activa)` → pero
+   `activa` es la instancia del **estado del provider**, todavía con los
+   items en `pendiente`. El `put` pisaba el `enCola` del paso 1.
+
+Resultado: el PDF de cocina se imprimía (usa la lista en memoria) y la
+comanda quedaba `enviada`, pero sus platos volvían a `pendiente`, que NO
+es visible en el KDS. Arreglado releyendo con `obtenerComandaPorId` antes
+de guardar.
+
+**Regla:** `CartSessionItem` es `@embedded`. Ningún método puede escribir
+dos veces seguidas la misma comanda desde dos instancias distintas: la
+segunda pisa la primera. Después de un `marcar*`/`actualizar*Item` de
+`IsarService`, **releer** antes de volver a guardar.
+
+### Bug C · `cambiarMesa` dejaba comandas fantasma
+
+Movía `mesaId` pero no `sessionId` (`mesa:<id>`, índice ÚNICO), así que
+la comanda quedaba ligada a la mesa vieja. La BD del usuario tenía una
+comanda `mesa:3` con `mesaId=8`. Ahora se recalcula `sessionId` y se
+rechaza mover a una mesa que ya tiene comanda viva (el `replace: true`
+del índice único borraría una de las dos en silencio).
+
+### Mejora · Re-volcar el carrito ya no resetea la cocina
+
+`guardarDesdeCarrito` reconstruía todos los items en `pendiente`. Si el
+mesero agregaba una bebida a una comanda ya enviada, los platos en
+`enCola`/`enPreparacion`/`entregado` volvían a la cola (se cocinaban dos
+veces). Ahora `_conservarTrazabilidadCocina` copia estado, timestamps de
+cocina, pausa, nota y estación del item previo del mismo `productoId`.
+
+### Bug D · Aviso de lotes vencidos (inventario)
+
+`IsarService.obtenerLotesVencidosConStock()` (`cantidadRestante > 0` y
+`fechaVencimiento < inicio de hoy`) + diálogo al abrir inventario.
+
+### Herramientas de diagnóstico
+
+- `tool/db_dump.dart` ahora imprime **comandas** con el estado de cada
+  plato: es lo que permitió ver que la comanda estaba `enviada` con el
+  item en `pendiente`.
+- Se puede dumpear con la app ABIERTA copiando `default.isar` a otra
+  carpeta y pasándola como argumento (Isar no permite dos procesos sobre
+  el mismo archivo).
+- Tests nuevos: `test/features/pos/kds_envio_test.dart` (3 casos contra
+  Isar real; fallan si vuelve el doble `put` sobre la comanda).
+
+---
+
+## Cierre sesión 2026-10-26 · Caja del cajero (Fase 1)
+
+### Avisos: SnackBar → diálogo
+
+El SnackBar tapaba la barra de Total/Enviar/Cobrar y se iba solo en 4 s.
+Ahora `ComandaScreen._enviar` abre `ResultadoEnvioCocinaDialog` (lista de
+platos con estación) y `_aviso` usa `ErrorDialog`. Se mantiene `AlertDialog`
+plano y no `GlassDialog`: mismo criterio que
+`confirmar_cobro_pendientes_dialog.dart` (legibilidad bajo luz de cocina).
+
+De paso se corrigió el resumen: antes decía `enviados.length`, que es
+cuántos items entraron en ESE envío, no los platos de la comanda.
+
+### Caja Fase 1 · tablero de cobro
+
+Pantalla nueva `screens/caja/caja_screen.dart` con tres pestañas
+(**Mesas**, **Por cobrar**, **Cocina de solo lectura**) y un resumen de
+métricas (libres / ocupadas / por cobrar / platos en cocina).
+
+Decisiones:
+
+- **No hay provider nuevo.** Las fuentes son `mesasProvider` y
+  `comandasProvider`; el índice `mesaId → comanda` se deriva en cada build.
+  Un `CajaNotifier` sería un tercer sitio que refrescar.
+- **El cobro reutiliza el flujo del POS**: `mostrarModalCobro` +
+  `procesarVenta`, igual que el mesero. Antes de volcar la comanda al
+  carrito se guarda el carrito de retail; si el cajero cancela, se
+  restaura. Sin eso, cobrar desde la caja pisaba una venta a medias.
+- **`ComandaCobroUtils`** (`utils/comanda_cobro_utils.dart`) concentra
+  `enCocina`, `listos`, `sinEnviar`, `listaParaCobrar` y `aCarrito`, para
+  que mesero y cajero no dupliquen el criterio. `ComandaScreen._cobrar` ya
+  lo usa. Tests: `test/features/pos/comanda_cobro_utils_test.dart` (11).
+- **Avisos antes de cobrar**: `ConfirmarCobroPendientesDialog` (en cocina /
+  listos) y un diálogo extra si hay platos `pendiente` que nunca salieron.
+- **Aterrizaje del cajero**: `utils/home_por_rol.dart` es el punto único
+  (`app.dart`, `login_screen`, `splash_screen`). Cajero + `requiereMesa` →
+  `CajaScreen`; roles de solo-personal → `EmployeesScreen`; resto → POS.
+  En `splash` se hace `businessModeProvider.recargar()` antes de decidir
+  porque el modo se carga en async y en frío llegaría como `retail`.
+- Menú: nueva opción `caja_operativa` ("Caja · Mesas, cocina y cobros").
+  `caja` sigue siendo **Cierre de caja** (arqueo), no operación.
+
+### Pendiente
+
+- Reservas (Fase 2): no existe `ReservaEntity`; `MesaEstado.reservada` y
+  `Mesa.reservaId` están declarados desde R.1 esperando esa fase.
+- Turno por cajero (Fase 3): `TurnoEntity` y `pos_menu_provider.abrirTurno`
+  existen, pero la caja no exige turno abierto para cobrar.
+
+## Cierre sesión 2026-10-26 · Limpieza demo, lotes vencidos y diálogo de ingrediente
+
+### Comandas de demostración borradas
+
+La caja mostraba 8 comandas del seed del 23/10 en mesas que ya nadie ocupaba.
+Se creó `tool/limpiar_demo.dart` (simulación por defecto, `--apply` escribe).
+
+Reglas del script: borra comandas con **0 items** o creadas **antes de
+`--antes`** (default: hoy) y después libera las mesas que se quedaron sin
+comanda viva. No toca ventas, detalles, lotes, productos, clientes ni usuarios.
+
+Resultado real: **8 comandas borradas, 4 mesas liberadas**. Estado final
+verificado con `tool/db_dump.dart`: `comandas: 0` y las 8 mesas en `libre`.
+
+Por qué sobrevivían al catálogo: `CartSessionItem` es `@embedded` y guarda
+snapshot (nombre, precio, estación), así que la comanda no depende de que el
+producto siga existiendo (`cart_session_entity.dart:153`).
+
+### Lotes vencidos: el `null` ordena primero
+
+`IsarService.obtenerLotesVencidosConStock` ya filtraba con
+`fechaVencimientoIsNotNull()`; el diálogo de `inventory_screen.dart` volvió a
+hacer `lote.fechaVencimiento!` sobre una lista que podía traer nulos. Ahora
+filtra `conFecha` **antes** de contar (un `SizedBox.shrink()` en el
+`itemBuilder` dejaría huecos y descuadraría el "… y N más") y usa
+`fechaVencimiento!` con seguridad. Test de regresión:
+`test/features/pos/lotes_vencidos_test.dart` (2).
+
+Contexto de la base real: 18 de 19 lotes tienen `fechaVencimiento == null`
+y solo el `id=1` vencía el 2026-10-20.
+
+### Diálogo "Agregar ingrediente" con buscador
+
+Un restaurante puede tener 100 ingredientes, así que el desplegable se
+cambió por una lista con scroll y buscador (`product_data_tab.dart:~1549`):
+
+- Ancho hasta 560 px y lista de 140–380 px de alto.
+- Búsqueda por nombre, categoría y código de barras, sin tildes ni
+  mayúsculas (`_normalizar`): "cesar" encuentra "Ensalada César".
+- Contador "N de M ingrediente(s)" y botón para limpiar la búsqueda.
+- Filas seleccionables con categoría y stock abreviado.
+- Al elegir, arrastra el `ProductoEntity.unidad` del ingrediente.
+- Panel inferior con cantidad + unidad + switch de opcional; el botón
+  "Agregar" queda deshabilitado hasta que hay selección.
+
+### Entorno de tests tras `flutter clean`
+
+`flutter clean` dejó el hook de `objective_c` atascado y **todo** `flutter
+test` moría en "loading" (incluso tests que no tocan Isar). Se arregló
+apartando (renombrando, no borrando) `.dart_tool/hooks_runner`,
+`.dart_tool/native_assets` y `build/native_assets` con `Move-Item` y ruta
+absoluta; `Rename-Item` con subcarpeta en el destino falla en PowerShell.
+
+⚠️ Además, el runner de la herramienta mata cualquier comando que pase más
+de ~1 s sin escribir en stdout. Para pruebas largas hay que lanzarlas
+**desprendidas**:
+
+```powershell
+Start-Process -FilePath "$env:ComSpec" -ArgumentList '/c',
+  'cd /d <proyecto> && flutter test <archivo> > %TEMP%\t.txt 2>&1' -WindowStyle Hidden
+```
+
+### Recetas: dos huecos conocidos (no se tocaron)
+
+- **No sincronizan con Supabase.** `RecetaEntity` no tiene
+  `toSupabaseJson`/`fromSupabase` y `sync_service.dart` no la empuja
+  (`receta_entity.dart:18-24`). Faltan las tablas `recetas` y
+  `receta_ingredientes`.
+- **No hay conversión de unidades.** `_descontarRecetaDeItem` usa
+  `item.cantidad * recItem.cantidad` 1:1 (`comanda_provider.dart:1449`): si
+  la receta pide 150 g y el stock está en kg, descuenta 150 kg
+  (`receta_entity.dart:129-132`).
+
+Ambos están ya listados en `docs/TODO.md` (líneas 434-451).
+
+## Cierre sesión 2026-10-26 · Propina y mesero antes del cobro
+
+### Modelo: sin tocar entidades
+
+La propina se decide al cobrar, no al abrir la mesa, así que no vive en la
+comanda. Viaja como parámetro del cobro y termina en la venta:
+
+- **Propina** → una línea más de `DetalleVentaEntity` con
+  `nombreProducto = 'Propina'` y `productoId = null`.
+  `detalle_ventas.producto_id` es `bigint` **sin NOT NULL**
+  (`20260912213435_baseline.sql:508`), así que sincroniza sin cambiar el
+  esquema. Cero migraciones.
+- **Mesero** → `VentaEntity.empleado`, que el sync ya empuja como
+  `empleado_nombre` (`sync_service.dart:2017`).
+- `VentaEntity.total` **incluye** la propina; `subtotal` e `impuesto`
+  siguen siendo los del consumo. Consecuencia aceptada: "ventas del día"
+  y "productos más vendidos" suman la propina. El IVA queda correcto
+  porque los reportes leen `venta.impuesto`.
+
+Se descartó añadir `propina`/`meseroNombre` a `VentaEntity` porque exigía
+`build_runner` + `ALTER TABLE` y el usuario pidió expresamente no tocar
+entidades. Si algún día se quiere separar consumo de propina en reportes,
+ese es el camino.
+
+### Dónde vive el flujo
+
+| Pieza | Archivo | Nota |
+|---|---|---|
+| Diálogo | `widgets/restaurante/propina_mesero_dialog.dart` | chips 0/5/10/15 %, monto libre, total en vivo, selector de mesero obligatorio |
+| Orquestación | `catalog_actions.dart:449-487` | único embudo de cobro; solo abre el diálogo si `flags.requiereMesa && comanda != null` |
+| Persistencia | `venta_service.dart:114-190` | `propina`, `meseroNombre`; línea "Propina" en el detalle |
+| Callers | `caja_screen.dart:217`, `comanda_screen.dart:330` | pasan `comanda:` |
+
+Reglas que quedaron:
+
+- **El paso se omite entero** si el local no tiene empleados habilitados.
+  El mesero es obligatorio, y pedir uno inexistente dejaría la mesa sin
+  poder cobrarse. `_meserosDelLocal()` (`catalog_actions.dart:520`) filtra
+  por `activo` (provider) **y** por `estado == 'activo'`, y si el segundo
+  filtro vacía la lista devuelve los `activo` para no bloquear el cobro.
+- **Cancelar el diálogo de propina aborta el cobro**, igual que cancelar
+  `CobrarDialog`. La caja restaura el carrito de retail por su camino de
+  siempre.
+- **El POS de mostrador no pregunta**: no hay `comanda`, no hay mesa que
+  atender.
+- En restaurante `empleado` pasa a decir **quién atendió**, no quién cobró.
+  No hay campo para ambos sin tocar la entidad.
+- La propina se **normaliza** (negativa/NaN → 0) y se redondea a 2
+  decimales antes de sumar, para que `total - subtotal - impuesto` dé el
+  monto exacto.
+
+### Tests
+
+- `test/services/ventas_service_test.dart` +4: total con propina, línea
+  "Propina" (producto nulo, `ventaIdFk`, `syncStatus`), sin propina, monto
+  negativo ignorado y `empleado` según haya mesero o no.
+- `test/features/pos/propina_mesero_dialog_test.dart` (nuevo, 4 tests):
+  sin mesero no se puede continuar, porcentaje calcula y actualiza el
+  total, monto libre reemplaza al porcentaje, `Sin propina` limpia.
+
+## Cierre sesión 2026-10-27 · Unidades de receta y verificación final
+
+### Bug: gramos restados como kilos
+
+`ComandasNotifier._descontarRecetaDeItem` restaba `RecetaItemEntity.cantidad`
+tal cual, sin mirar `RecetaItemEntity.unidad` ni `ProductoEntity.unidad`. Una
+receta de "150 g de queso" con el stock en kg descontaba **150 kg**.
+
+La conversión vive ahora en un único sitio:
+
+- `presentation/services/conversion_unidades.dart` — clase pura (sin Flutter
+  ni Isar) con `normalizar`, `factor` y `convertir`. Cubre `kg`↔`g`,
+  `lt`↔`ml`, sinónimos (`kilos`, `gr`, `lts`, `und`…) y devuelve `null`
+  cuando las dimensiones no coinciden (masa ↔ volumen ↔ conteo).
+- `comanda_provider.dart:~1440` lee el ingrediente con
+  `obtenerProductoPorId(recItem.ingredienteId)` y aplica el factor. Si no
+  hay factor posible cae al 1:1 de antes y deja `debugPrint`, porque
+  bloquear la entrega de un plato ya cocinado está descartado (Q3).
+- `receta_entity.dart:129-132` documenta el comportamiento en el campo
+  `unidad`. En `docs/TODO.md` el ítem quedó marcado `[x]`; sigue pendiente
+  **normalizar el valor al guardarlo**, para que la UI no acepte texto libre.
+
+Nota práctica: en el caso normal no hay conversión que hacer, porque
+`product_data_tab.dart:1618-1619` inicializa `unidad` con
+`producto.unidad`. La conversión cubre el caso en que el ingrediente cambió
+de unidad después de escribirse la receta.
+
+### Tests nuevos
+
+- `test/services/conversion_unidades_test.dart` (13 tests): misma unidad,
+  sinónimos, `g`↔`kg`, `ml`↔`lt`, mayúsculas/espacios, dimensiones
+  incompatibles, `normalizar` con vacío y unidad desconocida, `convertir`.
+- `test/features/pos/descuento_receta_test.dart` caso **2b**: receta en
+  gramos descuenta `0.15` kg (no 150) y el movimiento queda por `0.15`.
+  Los helpers `crearProducto` / `ingrediente` ahora aceptan `unidad`.
+
+### Aviso de stock del KDS: Snackbar → AlertDialog
+
+El aviso de "se descontó lo que había" compartía `ScaffoldMessenger` con el
+aviso de pedido nuevo, así que **el segundo Snackbar pisaba al primero** y el
+faltante se perdía. Ahora es un `AlertDialog`:
+
+- `widgets/restaurante/aviso_stock_receta_dialog.dart` — deduplica los
+  ingredientes (el provider los manda repetidos cuando un ingrediente se
+  queda corto en varios lotes), los lista y no se cierra solo. Mismo patrón
+  que `ResultadoEnvioCocinaDialog`: `AlertDialog` plano, no `GlassDialog`.
+- `kds_screen.dart:217` — `_avisarStockInsuficiente` ahora es `Future` con
+  guard `_avisoStockVisible` para no apilar diálogos si llegan dos entregas
+  seguidas. El `ref.listenManual` lo lanza con `unawaited(...)`.
+- `test/features/pos/aviso_stock_receta_dialog_test.dart` (4 tests): título
+  y lista, deduplicado, no se cierra solo a los 10 s, "Entendido" cierra.
+
+### Docs saneados
+
+`docs/TODO.md` tenía entradas que ya no eran ciertas y se marcaron:
+
+- "Sin tests de G.3" → hay 21 tests en `descuento_receta_test.dart`.
+- "El aviso comparte Snackbar" → resuelto con el diálogo.
+- Las dos listas de "tests pre-existentes fallando" (líneas ~339 y ~884,
+  ~60 fallos entre las dos) → la suite está verde.
+
+### Verificación de cierre
+
+- `flutter analyze` → **17 issues, todos `info` preexistentes**, cero
+  errores ni warnings nuevos.
+- Suite completa → **920 pasan, 1 omitida, 0 fallos** (antes 902: +18 de
+  conversión de unidades, caso 2b y el diálogo del KDS).
+- `flutter test test/services/conversion_unidades_test.dart
+  test/features/pos/descuento_receta_test.dart` → **34 pasan**.
+- Commiteado el 2026-10-27 (ver el cierre (3) al final del archivo).
+
+## Cierre sesión 2026-10-27 (2) · Recetas en Supabase
+
+### El bloqueo
+
+`RecetaEntity` era 100% local: `sync_service` no la empujaba y la entidad no
+tenía `toSupabaseJson` / `fromSupabase`. Una receta capturada en un
+dispositivo no existía en el otro y una reinstalación se la llevaba.
+
+### Migración (el owner la corre)
+
+`supabase/migrations/20261027000001_recetas.sql`:
+
+| Objeto | Para qué |
+|---|---|
+| `recetas` | fila del plato: `producto_id_fk`, `nombre_plato`, `rinde_porciones`, `activo`. `UNIQUE (tenant_id, id_isar)` como `lotes`. |
+| `receta_ingredientes` | hijos con `orden`, `ingrediente_id_fk`, `ingrediente_nombre`, `cantidad`, `unidad`, `es_opcional`. FK a `recetas` `ON DELETE CASCADE`. |
+| `guardar_receta(jsonb, jsonb)` | upsert de la fila + REEMPLAZO COMPLETO de ingredientes, en una transacción. |
+| RLS `tenant_isolation` | `FOR ALL` en ambas tablas. |
+
+Decisiones que importan:
+
+- **RPC y no 3 llamadas del cliente.** Un corte entre el `DELETE` y el
+  `INSERT` de ingredientes dejaría la receta vacía en la nube, y esa versión
+  se propaga a los otros dispositivos al hacer pull. Descontar stock con una
+  receta vacía es peor que no sincronizar.
+- **`SECURITY INVOKER`**, así la RLS aplica de verdad. El tenant sale siempre
+  de `current_tenant_id()` (JWT); el cliente NO lo manda. Es la lección del
+  bug de lotes subidos al tenant equivocado durante el hot-switch.
+- **Sin FK en `ingrediente_id_fk`**: la receta tiene que viajar aunque ese
+  producto no haya subido. El snapshot `ingrediente_nombre` la mantiene
+  legible. El plato (`producto_id_fk`) sí lleva FK: una receta sin plato no
+  significa nada.
+- `rinde_porciones` se normaliza a 1 si llega 0 o negativo, en el cliente
+  **y** en la RPC, porque la columna tiene `CHECK (> 0)`.
+
+### Lado Dart
+
+- `RecetaEntity.toSupabaseJson()` / `ingredientesToSupabaseJson()` /
+  `fromSupabase(json, localIdResuelto:)` y
+  `RecetaItemEntity.toSupabaseJson({orden})` / `fromSupabase`.
+- El `orden` de los ingredientes es implícito en Isar (posición del array);
+  en la nube hay columna y el pull reordena con `sort` porque PostgREST no
+  garantiza el orden de las filas embebidas.
+- `IsarService`: `obtenerRecetaPorId`, `obtenerRecetasPendientesSync`,
+  `marcarRecetaSincronizada` y `guardarReceta(..., marcarPendiente:)`.
+- `SyncService`: `sincronizarRecetasPendientes` (RPC) y
+  `descargarRecetasDesdeSupabase` (`select('*, receta_ingredientes(*)')`),
+  enganchados en `sincronizarTodo` (después de productos y locales) y en
+  `sincronizarTodoConResumen` (contador `recetas`).
+
+### El bug que casi se cuela
+
+`guardarReceta` **no** marcaba la receta como pendiente. Editar una receta ya
+sincronizada dejaba `sincronizado = true`, así que el push la ignoraba para
+siempre: el cambio se veía en el dispositivo que lo hizo y en ningún otro.
+Ahora `guardarReceta` pone `sincronizado = false` y el pull escribe con
+`marcarPendiente: false` (si no, cada receta bajada se re-subiría en bucle).
+
+### Conflictos y límites conocidos
+
+- **Cruce por `id_isar`** (el id de Isar del dispositivo que creó la receta),
+  igual que lotes. Si el id ya existe apuntando a OTRO plato, la fila se
+  descarta y se cuenta como conflicto: son dos dispositivos creando recetas
+  en paralelo y el autoincrement chocó. Pisar la receta del plato B con la
+  del plato A sería peor que no sincronizar.
+- Si no hay fila con ese id pero el local ya tiene receta para ese plato,
+  también se descarta (si no, quedarían dos recetas del mismo plato).
+- **Borrados no sincronizados**: `eliminarReceta` no tiene callers (la UI
+  marca `activo = false`). El día que se use hace falta un tombstone.
+- **Sin LWW por `updated_at`**: gana el que sube último.
+
+### Si el owner todavía no aplicó el SQL
+
+El push detecta "tabla/función ausente" (`42P01`, `PGRST205`, `PGRST202`,
+`schema cache`), avisa **una vez** y aborta el bucle, sin mandar el ruido a
+Sentry ni repetir el error por cada receta. La app sigue funcionando igual:
+la receta se queda pendiente en Isar.
+
+## Cierre sesión 2026-10-27 (3) · Commits del trabajo pendiente
+
+Se cerró el working tree que llevaba varias sesiones sin commitear, en 7
+commits temáticos (los tres primeros son los de esta sesión):
+
+| Commit | Contenido |
+|---|---|
+| `2d3b4ad` `feat(assets)` | Lotties nuevos (`clock`, `error`, `Clock Alarm`, `success.json`), `pubspec.yaml` y `tool/` (seed, dump, limpieza, verificación de Lotties). |
+| `b343c61` `feat(restaurante)` | Caja del cajero (`caja_screen`, `panel_cobro_comanda`, `comanda_cobro_utils`), acciones de mesa en `salon_screen` y `home_por_rol` (el cajero aterriza en la caja); login/splash/menu_config/app. |
+| `29dc6bc` `feat(dashboard)` | `dashboard_provider` (comparativos, ventas por hora, métodos de pago, sin rotación, anulaciones, salón) y los 4 widgets de `widgets/dashboard`. |
+| `07c04fe` `fix(inventario)` | `obtenerLotesVencidosConStock` + aviso de lotes vencidos al abrir inventario; buscador de ingredientes en `product_data_tab`. |
+| `c8499f3` `feat(restaurante)` | Propina + mesero antes del cobro, `resultado_envio_cocina_dialog` y el aviso de stock del KDS en `AlertDialog`. |
+| `80e152a` `feat(recetas)` | Conversión de unidades, sync de recetas a Supabase y su migración. |
+| (este) `docs(memoria)` | Este cierre. |
+
+### Verificación antes de commitear
+
+- `flutter analyze` → **17 issues, todos `info` preexistentes**.
+- Suite completa → **946 pasan, 1 omitida, 0 fallos**.
+- Escaneo de secretos sobre las líneas añadidas de cada commit: sin
+  hallazgos.
+- `isar_service.dart` se repartió por hunks (`git apply --cached` con un
+  patch filtrado) para que cada commit llevara solo sus métodos.
+
+### Pendiente del owner
+
+1. Correr `supabase/migrations/20261027000001_recetas.sql` en el SQL Editor.
+2. Verificar con las queries del final del archivo (tablas, policies, RPC
+   `prosecdef = false`, prueba con `guardar_receta`).
+3. **Después** `supabase migration repair --status applied 20261027000001`.
+4. Pendiente de permiso: borrar `assets/animations/succes.json` (huérfano;
+   el código usa `success.json`) y las 3 carpetas `.bak-202610261858`.
+
+
+
