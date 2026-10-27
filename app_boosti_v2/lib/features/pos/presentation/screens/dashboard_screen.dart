@@ -11,6 +11,9 @@ import '../widgets/dashboard/low_stock_list.dart';
 import '../widgets/dashboard/employee_activity.dart';
 import '../widgets/dashboard/recent_sales_list.dart';
 import '../widgets/dashboard/dashboard_skeleton.dart';
+import '../widgets/dashboard/hourly_sales_chart.dart';
+import '../widgets/dashboard/payment_methods_card.dart';
+import '../widgets/dashboard/restaurant_status_card.dart';
 import '../widgets/appbar.dart';
 import '../utils/responsive_helper.dart';
 
@@ -143,6 +146,44 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               ),
                               const SizedBox(height: 16),
 
+                              // ✅ Ventas por hora + métodos de pago
+                              if (isMobile) ...[
+                                HourlySalesChart(datos: estado.ventasPorHora),
+                                const SizedBox(height: 16),
+                                PaymentMethodsCard(
+                                  datos: estado.ventasPorMetodoPago,
+                                ),
+                              ] else
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: HourlySalesChart(
+                                        datos: estado.ventasPorHora,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: PaymentMethodsCard(
+                                        datos: estado.ventasPorMetodoPago,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                              // ✅ Salón (solo si el local tiene mesas)
+                              if (notifier.haySalon) ...[
+                                const SizedBox(height: 16),
+                                RestaurantStatusCard(
+                                  mesasTotales: estado.mesasTotales,
+                                  mesasOcupadas: estado.mesasOcupadas,
+                                  comandasAbiertas: estado.comandasAbiertas,
+                                  ticketPromedioFormateado:
+                                      notifier.ticketPromedioHoyFormateado,
+                                ),
+                              ],
+                              const SizedBox(height: 16),
+
                               // ✅ Grid inferior (2 columnas en escritorio)
                               if (isMobile) ...[
                                 TopProductsList(productos: estado.topProductos),
@@ -269,6 +310,54 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         subtituloColor: notifier.variacionColor,
         index: 3,
       ),
+      // ── Indicadores de calidad de la operación ──
+      MetricCard(
+        titulo: 'Ticket Prom. Hoy',
+        valor: notifier.ticketPromedioHoyFormateado,
+        icono: Icons.receipt_long_rounded,
+        color: const Color(0xFFFF9100),
+        subtitulo: 'Mes: ${notifier.ticketPromedioMesFormateado}',
+        index: 4,
+      ),
+      MetricCard(
+        titulo: 'Gastos Hoy',
+        valor: notifier.gastosHoyFormateado,
+        icono: Icons.payments_rounded,
+        color: const Color(0xFFFF5252),
+        subtitulo: 'Mes: ${notifier.totalGastosMesFormateado}',
+        index: 5,
+      ),
+      MetricCard(
+        titulo: 'Anulaciones (mes)',
+        valor: '${estado.anulacionesMes}',
+        icono: Icons.block_rounded,
+        color: const Color(0xFFE040FB),
+        subtitulo: estado.anulacionesMes == 0
+            ? 'Sin anulaciones'
+            : 'Monto: ${notifier.montoAnuladoMesFormateado}',
+        subtituloColor:
+            estado.anulacionesMes == 0 ? null : Colors.red.shade400,
+        index: 6,
+      ),
+      if (notifier.haySalon)
+        MetricCard(
+          titulo: 'Ocupación Salón',
+          valor: '${notifier.ocupacionSalon.toStringAsFixed(0)}%',
+          icono: Icons.table_restaurant_rounded,
+          color: const Color(0xFF40C4FF),
+          subtitulo: '${estado.mesasOcupadas}/${estado.mesasTotales} mesas · '
+              '${estado.comandasAbiertas} comandas',
+          index: 7,
+        )
+      else
+        MetricCard(
+          titulo: 'Sin Rotación 30d',
+          valor: '${estado.productosSinRotacion.length}',
+          icono: Icons.inventory_2_outlined,
+          color: const Color(0xFF40C4FF),
+          subtitulo: 'productos sin ventas',
+          index: 7,
+        ),
     ];
 
     return GridView.count(

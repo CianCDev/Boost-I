@@ -31,6 +31,31 @@ class DashboardState {
   final List<Map<String, dynamic>> ventasPorDia;
   final DateTime ultimaActualizacion;
 
+  // ── Comparativas (para variaciones reales) ──
+  final double totalAyer;
+  final double totalSemanaAnterior;
+  final double totalMesAnterior;
+  final double gastosHoy;
+
+  // ── Tickets ──
+  final int ventasMes;
+  final double ticketPromedioHoy;
+  final double ticketPromedioMes;
+
+  // ── Distribuciones ──
+  final List<Map<String, dynamic>> ventasPorHora;
+  final Map<String, Map<String, double>> ventasPorMetodoPago;
+
+  // ── Calidad de la operación ──
+  final List<ProductoEntity> productosSinRotacion;
+  final int anulacionesMes;
+  final double montoAnuladoMes;
+
+  // ── Salón (modo restaurante) ──
+  final int mesasTotales;
+  final int mesasOcupadas;
+  final int comandasAbiertas;
+
   DashboardState({
     this.isLoading = false,
     this.error,
@@ -45,6 +70,21 @@ class DashboardState {
     this.stockBajo = const [],
     this.ventasPorEmpleado = const {},
     this.ventasPorDia = const [],
+    this.totalAyer = 0,
+    this.totalSemanaAnterior = 0,
+    this.totalMesAnterior = 0,
+    this.gastosHoy = 0,
+    this.ventasMes = 0,
+    this.ticketPromedioHoy = 0,
+    this.ticketPromedioMes = 0,
+    this.ventasPorHora = const [],
+    this.ventasPorMetodoPago = const {},
+    this.productosSinRotacion = const [],
+    this.anulacionesMes = 0,
+    this.montoAnuladoMes = 0,
+    this.mesasTotales = 0,
+    this.mesasOcupadas = 0,
+    this.comandasAbiertas = 0,
     DateTime? ultimaActualizacion,
   }) : ultimaActualizacion = ultimaActualizacion ?? DateTime.now();
 
@@ -62,6 +102,21 @@ class DashboardState {
     List<ProductoEntity>? stockBajo,
     Map<String, double>? ventasPorEmpleado,
     List<Map<String, dynamic>>? ventasPorDia,
+    double? totalAyer,
+    double? totalSemanaAnterior,
+    double? totalMesAnterior,
+    double? gastosHoy,
+    int? ventasMes,
+    double? ticketPromedioHoy,
+    double? ticketPromedioMes,
+    List<Map<String, dynamic>>? ventasPorHora,
+    Map<String, Map<String, double>>? ventasPorMetodoPago,
+    List<ProductoEntity>? productosSinRotacion,
+    int? anulacionesMes,
+    double? montoAnuladoMes,
+    int? mesasTotales,
+    int? mesasOcupadas,
+    int? comandasAbiertas,
     DateTime? ultimaActualizacion,
   }) {
     return DashboardState(
@@ -78,6 +133,23 @@ class DashboardState {
       stockBajo: stockBajo ?? this.stockBajo,
       ventasPorEmpleado: ventasPorEmpleado ?? this.ventasPorEmpleado,
       ventasPorDia: ventasPorDia ?? this.ventasPorDia,
+      totalAyer: totalAyer ?? this.totalAyer,
+      totalSemanaAnterior: totalSemanaAnterior ?? this.totalSemanaAnterior,
+      totalMesAnterior: totalMesAnterior ?? this.totalMesAnterior,
+      gastosHoy: gastosHoy ?? this.gastosHoy,
+      ventasMes: ventasMes ?? this.ventasMes,
+      ticketPromedioHoy: ticketPromedioHoy ?? this.ticketPromedioHoy,
+      ticketPromedioMes: ticketPromedioMes ?? this.ticketPromedioMes,
+      ventasPorHora: ventasPorHora ?? this.ventasPorHora,
+      ventasPorMetodoPago:
+          ventasPorMetodoPago ?? this.ventasPorMetodoPago,
+      productosSinRotacion:
+          productosSinRotacion ?? this.productosSinRotacion,
+      anulacionesMes: anulacionesMes ?? this.anulacionesMes,
+      montoAnuladoMes: montoAnuladoMes ?? this.montoAnuladoMes,
+      mesasTotales: mesasTotales ?? this.mesasTotales,
+      mesasOcupadas: mesasOcupadas ?? this.mesasOcupadas,
+      comandasAbiertas: comandasAbiertas ?? this.comandasAbiertas,
       ultimaActualizacion: ultimaActualizacion ?? DateTime.now(),
     );
   }
@@ -99,46 +171,34 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   String get totalSemanaFormateado => _formatearMoneda(state.totalSemana);
   String get totalMesFormateado => _formatearMoneda(state.totalMes);
   String get totalGastosMesFormateado => _formatearMoneda(state.totalGastosMes);
+  String get gastosHoyFormateado => _formatearMoneda(state.gastosHoy);
+  String get ticketPromedioHoyFormateado =>
+      _formatearMoneda(state.ticketPromedioHoy);
+  String get ticketPromedioMesFormateado =>
+      _formatearMoneda(state.ticketPromedioMes);
+  String get montoAnuladoMesFormateado =>
+      _formatearMoneda(state.montoAnuladoMes);
 
   // ============================================================
-  // 🆕 GETTERS PARA VARIACIONES ESPECÍFICAS
+  // VARIACIONES
   // ============================================================
 
-  /// Variación de Ventas Hoy vs Ayer
-  double get variacionHoy {
-    final dias = state.ventasPorDia;
-    if (dias.length < 2) return 0.0;
-    final hoy = dias.last; // último día
-    final ayer = dias[dias.length - 2]; // penúltimo día
-    final totalHoy = (hoy['total'] as num).toDouble();
-    final totalAyer = (ayer['total'] as num).toDouble();
-    if (totalAyer == 0) return 0.0;
-    return ((totalHoy - totalAyer) / totalAyer) * 100;
-  }
+  /// Variación de Ventas Hoy vs Ayer.
+  double get variacionHoy => _pct(state.totalHoy, state.totalAyer);
 
-  /// Variación de Ventas Semana vs Semana Anterior
-  double get variacionSemana {
-    final dias = state.ventasPorDia;
-    if (dias.length < 14) return 0.0;
-    final semanaActual = dias.sublist(dias.length - 7);
-    final semanaAnterior = dias.sublist(dias.length - 14, dias.length - 7);
-    final totalActual = semanaActual.fold(0.0, (sum, d) => sum + (d['total'] as num).toDouble());
-    final totalAnterior = semanaAnterior.fold(0.0, (sum, d) => sum + (d['total'] as num).toDouble());
-    if (totalAnterior == 0) return 0.0;
-    return ((totalActual - totalAnterior) / totalAnterior) * 100;
-  }
+  /// Variación de la semana actual vs la semana anterior.
+  double get variacionSemana =>
+      _pct(state.totalSemana, state.totalSemanaAnterior);
 
-  /// Variación de Ventas Mes vs Mes Anterior
-  double get variacionMes {
-    // Para simplificar, usamos los datos disponibles (suponiendo 30 días)
-    final dias = state.ventasPorDia;
-    if (dias.length < 60) return 0.0;
-    final mesActual = dias.sublist(dias.length - 30);
-    final mesAnterior = dias.sublist(dias.length - 60, dias.length - 30);
-    final totalActual = mesActual.fold(0.0, (sum, d) => sum + (d['total'] as num).toDouble());
-    final totalAnterior = mesAnterior.fold(0.0, (sum, d) => sum + (d['total'] as num).toDouble());
-    if (totalAnterior == 0) return 0.0;
-    return ((totalActual - totalAnterior) / totalAnterior) * 100;
+  /// Variación del mes actual vs el mes anterior.
+  double get variacionMes => _pct(state.totalMes, state.totalMesAnterior);
+
+  /// Porcentaje de cambio. Contra base 0 no hay porcentaje posible:
+  /// si hubo ventas hoy y ayer no, se informa +100% (no 0%, que mentiría
+  /// diciendo "sin cambios").
+  double _pct(double actual, double anterior) {
+    if (anterior <= 0) return actual > 0 ? 100.0 : 0.0;
+    return ((actual - anterior) / anterior) * 100;
   }
 
   // ============================================================
@@ -166,6 +226,55 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
   }
 
   // ============================================================
+  // INDICADORES DERIVADOS
+  // ============================================================
+
+  /// Hora del día con mayor facturación (0-23), o null si no hubo ventas.
+  int? get horaPico {
+    int? mejorHora;
+    double mejorTotal = 0;
+    for (final fila in state.ventasPorHora) {
+      final total = (fila['total'] as num?)?.toDouble() ?? 0;
+      final hora = fila['hora'] as int?;
+      if (hora != null && total > mejorTotal) {
+        mejorTotal = total;
+        mejorHora = hora;
+      }
+    }
+    return mejorHora;
+  }
+
+  /// "14:00 – 15:00" o "Sin ventas todavía".
+  String get horaPicoFormateada {
+    final h = horaPico;
+    if (h == null) return 'Sin ventas todavía';
+    return '${h.toString().padLeft(2, '0')}:00 – '
+        '${(h + 1).toString().padLeft(2, '0')}:00';
+  }
+
+  /// Método de pago con mayor facturación del mes, o null.
+  String? get metodoPagoTop {
+    String? mejor;
+    double mejorTotal = 0;
+    state.ventasPorMetodoPago.forEach((nombre, datos) {
+      final total = (datos['total'] ?? 0).toDouble();
+      if (total > mejorTotal) {
+        mejorTotal = total;
+        mejor = nombre;
+      }
+    });
+    return mejor;
+  }
+
+  /// Ocupación del salón en porcentaje (0-100).
+  double get ocupacionSalon {
+    if (state.mesasTotales <= 0) return 0;
+    return (state.mesasOcupadas / state.mesasTotales) * 100;
+  }
+
+  bool get haySalon => state.mesasTotales > 0;
+
+  // ============================================================
   // MÉTODOS PÚBLICOS
   // ============================================================
 
@@ -187,6 +296,27 @@ class DashboardNotifier extends StateNotifier<DashboardState> {
         stockBajo: resumen['stockBajo'] ?? [],
         ventasPorEmpleado: resumen['ventasPorEmpleado'] ?? {},
         ventasPorDia: resumen['ventasPorDia'] ?? [],
+        totalAyer: resumen['totalAyer'] ?? 0,
+        totalSemanaAnterior: resumen['totalSemanaAnterior'] ?? 0,
+        totalMesAnterior: resumen['totalMesAnterior'] ?? 0,
+        gastosHoy: resumen['gastosHoy'] ?? 0,
+        ventasMes: resumen['ventasMes'] ?? 0,
+        ticketPromedioHoy: resumen['ticketPromedioHoy'] ?? 0,
+        ticketPromedioMes: resumen['ticketPromedioMes'] ?? 0,
+        ventasPorHora: (resumen['ventasPorHora'] as List?)
+                ?.cast<Map<String, dynamic>>() ??
+            const [],
+        ventasPorMetodoPago: (resumen['ventasPorMetodoPago'] as Map?)
+                ?.cast<String, Map<String, double>>() ??
+            const {},
+        productosSinRotacion: (resumen['productosSinRotacion'] as List?)
+                ?.cast<ProductoEntity>() ??
+            const [],
+        anulacionesMes: resumen['anulacionesMes'] ?? 0,
+        montoAnuladoMes: resumen['montoAnuladoMes'] ?? 0,
+        mesasTotales: resumen['mesasTotales'] ?? 0,
+        mesasOcupadas: resumen['mesasOcupadas'] ?? 0,
+        comandasAbiertas: resumen['comandasAbiertas'] ?? 0,
         ultimaActualizacion: DateTime.now(),
       );
     } catch (e) {

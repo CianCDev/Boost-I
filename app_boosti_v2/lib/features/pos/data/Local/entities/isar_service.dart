@@ -5487,9 +5487,9 @@ Future<bool> eliminarLocal(int id) async {
         inicioHoy.subtract(const Duration(days: 1)),
         inicioHoy.subtract(const Duration(seconds: 1)),
       );
-      final variacion = totalHoy > 0 && totalVentasAyer > 0
+      final variacion = totalVentasAyer > 0
           ? ((totalHoy - totalVentasAyer) / totalVentasAyer) * 100
-          : 0.0;
+          : (totalHoy > 0 ? 100.0 : 0.0);
 
       final ultimasVentas = await obtenerUltimasVentas(5);
       final topProductos = await obtenerProductosMasVendidos(5);
@@ -5506,6 +5506,94 @@ Future<bool> eliminarLocal(int id) async {
               includeLower: true, includeUpper: true)
           .count();
 
+      // ÔöÇÔöÇ Comparativas reales (no dependen del largo de ventasPorDia) ÔöÇÔöÇ
+      final inicioSemanaAnterior =
+          inicioSemana.subtract(const Duration(days: 7));
+      final finSemanaAnterior =
+          inicioSemana.subtract(const Duration(milliseconds: 1));
+      final inicioMesAnterior = DateTime(hoy.year, hoy.month - 1, 1);
+      final finMesAnterior = inicioMes.subtract(const Duration(milliseconds: 1));
+
+      final totalSemanaAnterior = await obtenerTotalVentasPorRango(
+        inicioSemanaAnterior,
+        finSemanaAnterior,
+      );
+      final totalMesAnterior = await obtenerTotalVentasPorRango(
+        inicioMesAnterior,
+        finMesAnterior,
+      );
+      final gastosHoy = await obtenerTotalGastosPorRango(inicioHoy, finDia);
+
+      final ventasDelMes = await isar.ventaEntitys
+          .filter()
+          .fechaBetween(inicioMes, finDia,
+              includeLower: true, includeUpper: true)
+          .findAll();
+      final ventasMes = ventasDelMes.length;
+
+      // ÔöÇÔöÇ Ventas por hora de HOY (horas pico) ÔöÇÔöÇ
+      final ventasDeHoy = await isar.ventaEntitys
+          .filter()
+          .fechaBetween(inicioHoy, finDia,
+              includeLower: true, includeUpper: true)
+          .findAll();
+      final porHora = List<double>.filled(24, 0);
+      for (final v in ventasDeHoy) {
+        final hora = v.fecha?.hour;
+        if (hora != null && hora >= 0 && hora < 24) {
+          porHora[hora] += v.total;
+        }
+      }
+      final ventasPorHora = <Map<String, dynamic>>[
+        for (var h = 0; h < 24; h++) {'hora': h, 'total': porHora[h]},
+      ];
+
+      // ÔöÇÔöÇ M├®todos de pago del mes ÔöÇÔöÇ
+      final metodos = <String, Map<String, double>>{};
+      for (final v in ventasDelMes) {
+        final clave = v.metodoPago.trim().isEmpty
+            ? 'Sin especificar'
+            : v.metodoPago.trim();
+        final actual =
+            metodos.putIfAbsent(clave, () => {'total': 0.0, 'count': 0.0});
+        actual['total'] = actual['total']! + v.total;
+        actual['count'] = actual['count']! + 1;
+      }
+
+      // ÔöÇÔöÇ Top productos del MES (no de toda la historia) ÔöÇÔöÇ
+      final topProductosMes = await obtenerProductosMasVendidosEnRango(
+        inicioMes,
+        finDia,
+        limite: 5,
+      );
+
+      // ÔöÇÔöÇ Productos activos sin ninguna venta en 30 d├¡as ÔöÇÔöÇ
+      final sinRotacion = await obtenerProductosSinRotacion(
+        inicioHoy.subtract(const Duration(days: 30)),
+        finDia,
+      );
+
+      // ÔöÇÔöÇ Anulaciones del mes ÔöÇÔöÇ
+      final todasAnuladas = await isar.ventaAnuladaEntitys.where().findAll();
+      final anuladasMes = todasAnuladas
+          .where((a) =>
+              !a.fechaAnulacion.isBefore(inicioMes) &&
+              !a.fechaAnulacion.isAfter(finDia))
+          .toList();
+      final montoAnuladoMes =
+          anuladasMes.fold<double>(0, (s, a) => s + a.montoOriginal);
+
+      // ÔöÇÔöÇ Estado del sal├│n (solo hay filas en modo restaurante) ÔöÇÔöÇ
+      final mesas = await isar.mesaEntitys.where().findAll();
+      final mesasOcupadas =
+          mesas.where((m) => m.estado == MesaEstado.ocupada).length;
+      final comandas = await isar.cartSessionEntitys.where().findAll();
+      final comandasAbiertas = comandas.where((c) {
+        if (c.mesaId == null) return false;
+        return c.comandaEstado == ComandaEstado.abierta ||
+            c.comandaEstado == ComandaEstado.enviada;
+      }).length;
+
       return {
         'totalHoy': totalHoy,
         'totalSemana': totalSemana,
@@ -5514,15 +5602,137 @@ Future<bool> eliminarLocal(int id) async {
         'variacion': variacion,
         'ventasHoy': ventasHoy,
         'ultimasVentas': ultimasVentas,
-        'topProductos': topProductos,
+        'topProductos': topProductosMes.isEmpty ? topProductos : topProductosMes,
         'stockBajo': stockBajo,
         'ventasPorEmpleado': ventasPorEmpleado,
         'ventasPorDia': ventasPorDia,
+        // ÔöÇÔöÇ Comparativas ÔöÇÔöÇ
+        'totalAyer': totalVentasAyer,
+        'totalSemanaAnterior': totalSemanaAnterior,
+        'totalMesAnterior': totalMesAnterior,
+        'gastosHoy': gastosHoy,
+        // ÔöÇÔöÇ Tickets ÔöÇÔöÇ
+        'ventasMes': ventasMes,
+        'ticketPromedioHoy': ventasHoy > 0 ? totalHoy / ventasHoy : 0.0,
+        'ticketPromedioMes': ventasMes > 0 ? totalMes / ventasMes : 0.0,
+        // ÔöÇÔöÇ Distribuciones ÔöÇÔöÇ
+        'ventasPorHora': ventasPorHora,
+        'ventasPorMetodoPago': metodos,
+        // ÔöÇÔöÇ Calidad de la operaci├│n ÔöÇÔöÇ
+        'productosSinRotacion': sinRotacion,
+        'anulacionesMes': anuladasMes.length,
+        'montoAnuladoMes': montoAnuladoMes,
+        // ÔöÇÔöÇ Sal├│n ÔöÇÔöÇ
+        'mesasTotales': mesas.length,
+        'mesasOcupadas': mesasOcupadas,
+        'comandasAbiertas': comandasAbiertas,
       };
     } catch (e, stack) {
       ErrorService.captureError(e,
           stack: stack, hint: 'obtenerResumenDashboard_fallo');
       return {};
+    }
+  }
+
+  /// Top de productos vendidos DENTRO de un rango de fechas.
+  ///
+  /// A diferencia de [obtenerProductosMasVendidos], que suma toda la
+  /// historia, este acota a las ventas del per├¡odo. Devuelve
+  /// `{nombre, cantidad, monto}`.
+  Future<List<Map<String, dynamic>>> obtenerProductosMasVendidosEnRango(
+    DateTime inicio,
+    DateTime fin, {
+    int limite = 5,
+  }) async {
+    try {
+      final isar = await db;
+      final ventas = await isar.ventaEntitys
+          .filter()
+          .fechaBetween(inicio, fin,
+              includeLower: true, includeUpper: true)
+          .findAll();
+      final ids = ventas
+          .map((v) => v.idSupabase)
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      if (ids.isEmpty) return [];
+
+      final detalles = await isar.detalleVentaEntitys.where().findAll();
+      final cantidades = <String, double>{};
+      final montos = <String, double>{};
+      for (final d in detalles) {
+        if (!ids.contains(d.ventaIdFk)) continue;
+        cantidades[d.nombreProducto] =
+            (cantidades[d.nombreProducto] ?? 0) + d.cantidad;
+        montos[d.nombreProducto] =
+            (montos[d.nombreProducto] ?? 0) + d.subtotal;
+      }
+
+      final lista = cantidades.entries
+          .map((e) => <String, dynamic>{
+                'nombre': e.key,
+                'cantidad': e.value,
+                'monto': montos[e.key] ?? 0.0,
+              })
+          .toList()
+        ..sort((a, b) =>
+            (b['cantidad'] as double).compareTo(a['cantidad'] as double));
+
+      return lista.take(limite).toList();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerProductosMasVendidosEnRango_fallo');
+      return [];
+    }
+  }
+
+  /// Productos activos que NO registraron ninguna venta en el rango.
+  ///
+  /// Sirve para detectar inventario inmovilizado: producto que existe,
+  /// est├í activo y no se vendi├│ ni una vez en 30 d├¡as.
+  Future<List<ProductoEntity>> obtenerProductosSinRotacion(
+    DateTime inicio,
+    DateTime fin, {
+    int limite = 8,
+  }) async {
+    try {
+      final isar = await db;
+      final ventas = await isar.ventaEntitys
+          .filter()
+          .fechaBetween(inicio, fin,
+              includeLower: true, includeUpper: true)
+          .findAll();
+      final ids = ventas
+          .map((v) => v.idSupabase)
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      final vendidos = <int>{};
+      if (ids.isNotEmpty) {
+        final detalles = await isar.detalleVentaEntitys.where().findAll();
+        for (final d in detalles) {
+          if (!ids.contains(d.ventaIdFk)) continue;
+          final pid = d.productoId;
+          if (pid != null) vendidos.add(pid);
+        }
+      }
+
+      final productos = await isar.productoEntitys
+          .filter()
+          .activoEqualTo(true)
+          .findAll();
+      final sinVenta = productos
+          .where((p) => !vendidos.contains(p.id))
+          .toList()
+        ..sort((a, b) => a.nombre.compareTo(b.nombre));
+
+      return sinVenta.take(limite).toList();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerProductosSinRotacion_fallo');
+      return [];
     }
   }
 
