@@ -36,6 +36,7 @@ import '../../utils/responsive_helper.dart';
 import '../../widgets/appbar.dart';
 import '../../widgets/common/animated_appbar_icon.dart';
 import '../../widgets/common/filtro_chip_template.dart';
+import '../../widgets/restaurante/aviso_stock_receta_dialog.dart';
 import 'configurar_estaciones_dialog.dart';
 import 'kds_ticket_card.dart';
 
@@ -96,6 +97,10 @@ class _KdsScreenState extends ConsumerState<KdsScreen> {
   /// sin que nadie lo hubiera pedido hoy.
   bool _sonidoActivo = true;
 
+  /// Evita apilar diálogos de stock si llegan dos entregas seguidas con
+  /// faltantes mientras el primero sigue abierto.
+  bool _avisoStockVisible = false;
+
   @override
   void initState() {
     super.initState();
@@ -133,7 +138,7 @@ class _KdsScreenState extends ConsumerState<KdsScreen> {
         // `listenManual` no dispara con el valor inicial, así que si el KDS
         // se abre con un aviso viejo pendiente no lo repite.
         if (nuevo == null || nuevo.completo) return;
-        _avisarStockInsuficiente(nuevo);
+        unawaited(_avisarStockInsuficiente(nuevo));
       },
     );
 
@@ -206,32 +211,23 @@ class _KdsScreenState extends ConsumerState<KdsScreen> {
   /// PITIDO DE PEDIDO NUEVO, y este aviso es un problema de almacén, no
   /// algo que deba interrumpir al Cocinero cada vez que entra un plato.
   ///
-  /// ⚠️ Con el mismo `ScaffoldMessenger` que el aviso de pedido nuevo: si
-  /// llegan casi juntos, el segundo Snackbar sustituye al primero. Se
-  /// acepta; separar mensajes exigiría una cola propia.
-  void _avisarStockInsuficiente(ResultadoDescuento resultado) {
-    if (!mounted) return;
+  /// ⚠️ Es un DIÁLOGO, no un Snackbar. Antes compartía `ScaffoldMessenger`
+  /// con el aviso de pedido nuevo y, si llegaban casi juntos, el segundo
+  /// mensaje pisaba al primero: el faltante se perdía. El diálogo no se
+  /// cierra solo y no compite con nada. Ver
+  /// `widgets/restaurante/aviso_stock_receta_dialog.dart`.
+  Future<void> _avisarStockInsuficiente(ResultadoDescuento resultado) async {
+    if (!mounted || _avisoStockVisible) return;
 
-    // `.toSet()` porque un ingrediente puede quedarse corto en varios lotes
-    // seguidos y saldría repetido en el texto.
-    final nombres = resultado.faltantes.toSet().toList()..sort();
-
-    final plural = nombres.length == 1 ? 'ingrediente' : 'ingredientes';
-    final texto = nombres.length <= 2
-        ? nombres.join(' y ')
-        : '${nombres.take(2).join(', ')} y ${nombres.length - 2} más';
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '⚠️ Stock insuficiente en $texto ($plural). '
-          'Se descontó lo que había.',
-        ),
-        duration: const Duration(seconds: 4),
-        // Ámbar: es un aviso, no un error ni un éxito.
-        backgroundColor: const Color(0xFFE8A33D),
-      ),
-    );
+    _avisoStockVisible = true;
+    try {
+      await AvisoStockRecetaDialog.mostrar(
+        context,
+        faltantes: resultado.faltantes,
+      );
+    } finally {
+      _avisoStockVisible = false;
+    }
   }
 
   // ════════════════════════════════════════════════════════════════

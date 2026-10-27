@@ -9,8 +9,12 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/codigo_barra_alia
 import 'package:app_boosti_v2/features/pos/domain/models/product_item.dart';
 import 'package:app_boosti_v2/features/pos/presentation/controllers/cart_controller.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/bcv_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/business_mode_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/local_actual_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/productos_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/cart_session_entity.dart';
+import 'package:app_boosti_v2/features/pos/presentation/widgets/restaurante/propina_mesero_dialog.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/sync_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/venta_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/catalog/quantity_dialog.dart';
@@ -415,10 +419,15 @@ class CatalogActions {
 /// retorno, así que no se rompen.
 ///
 /// Lo usa `ComandaScreen` para decidir si cerrar la comanda.
+///
+/// [comanda] es la comanda de mesa que se está cobrando. Solo se pasa
+/// desde el salón y desde la caja; el POS de mostrador no la tiene y por
+/// eso no pregunta propina: sin mesa no hay mesero que registrar.
 Future<bool> mostrarModalCobro(
     BuildContext context,
-    UsuarioEntity? usuarioLogueado,
-  ) async {
+    UsuarioEntity? usuarioLogueado, {
+    CartSessionEntity? comanda,
+  }) async {
     final cartState = _ref.read(cartProvider);
     if (cartState.total <= 0) return false;
 
@@ -437,12 +446,47 @@ Future<bool> mostrarModalCobro(
     double tasaActual = _ref.read(bcvProvider).tasa;
     if (tasaActual.isNaN || tasaActual <= 0) tasaActual = 0.0;
 
+    // ── R.4 · Propina + mesero (solo cobro de mesa) ──────────────────
+    //
+    // El paso se omite entero cuando no aplica: local que no es
+    // restaurante, venta de mostrador sin comanda, o local sin empleados
+    // habilitados. Pedir un mesero inexistente dejaría la mesa sin poder
+    // cobrarse, que es peor que no registrar la propina.
+    ResultadoPropina? resultadoPropina;
+    if (_ref.read(featureFlagsProvider).requiereMesa && comanda != null) {
+      final meseros = await _meserosDelLocal();
+      if (meseros.isNotEmpty) {
+        if (!context.mounted) return false;
+        resultadoPropina = await showDialog<ResultadoPropina>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => PropinaMeseroDialog(
+            totalConsumo: cartState.total,
+            meseros: meseros,
+          ),
+        );
+        // Cerró el diálogo: no se cobra. Mismo criterio que `CobrarDialog`.
+        if (resultadoPropina == null) return false;
+      } else {
+        debugPrint('ℹ️ Cobro sin paso de propina: el local no tiene '
+            'empleados habilitados.');
+      }
+    }
+
+    // El paso de propina es asíncrono: el contexto pudo morir mientras
+    // estaba abierto (p. ej. cambio de sesión).
+    if (!context.mounted) return false;
+
+    final propina = resultadoPropina?.propina ?? 0.0;
+    final totalAPagar = _redondearDosDecimales(cartState.total + propina);
+
     final resultado = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
       builder: (context) => CobrarDialog(
-        totalAPagar: cartState.total,
+        totalAPagar: totalAPagar,
         productos: const [],
+        propina: propina,
       ),
     );
 
@@ -451,7 +495,7 @@ Future<bool> mostrarModalCobro(
         context.mounted) {
       final String metodoPago = resultado['metodoPago'] ?? 'Efectivo';
       final double montoRecibido =
-          resultado['montoRecibido'] ?? cartState.total;
+          resultado['montoRecibido'] ?? totalAPagar;
       final double cambio = resultado['vuelto'] ?? 0.0;
 
       final ventaService = _ref.read(ventaServiceProvider);
@@ -462,6 +506,8 @@ Future<bool> mostrarModalCobro(
         recibido: montoRecibido,
         tasaActual: tasaActual,
         usuarioLogueado: usuarioLogueado,
+        propina: propina,
+        meseroNombre: resultadoPropina?.meseroNombre,
       );
       return true;
     }
@@ -469,7 +515,31 @@ Future<bool> mostrarModalCobro(
     // El usuario cerró el diálogo sin cobrar.
     return false;
   }
+
+  /// Empleados habilitados del local activo, para el selector de mesero.
+  ///
+  /// `empleadosPorLocalProvider` filtra por `activo`, pero el campo que
+  /// habilita la cuenta en este proyecto es `estado == 'activo'`
+  /// (lo usan Gestión de personal y el monitor). Se aplican los dos.
+  ///
+  /// Si el filtro por `estado` deja la lista vacía se devuelve la lista
+  /// completa: un local con todos sus usuarios en `inactivo` seguiría
+  /// necesitando cobrar, y el paso de propina se omite solo si de verdad
+  /// no hay nadie.
+  Future<List<UsuarioEntity>> _meserosDelLocal() async {
+    final localId = _ref.read(localActualProvider);
+    final usuarios = localId == null
+        ? await _ref.read(usuariosProvider.future)
+        : await _ref.read(empleadosPorLocalProvider(localId).future);
+
+    final habilitados =
+        usuarios.where((u) => u.estado == 'activo').toList(growable: false);
+    return habilitados.isEmpty ? usuarios : habilitados;
+  }
 }
+
+double _redondearDosDecimales(double valor) =>
+    (valor * 100).roundToDouble() / 100;
 
 final catalogActionsProvider = Provider<CatalogActions>((ref) {
   final isar = IsarService();

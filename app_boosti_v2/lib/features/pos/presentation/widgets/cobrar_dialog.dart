@@ -18,10 +18,15 @@ class CobrarDialog extends ConsumerStatefulWidget {
   final double totalAPagar;
   final List<Map<String, dynamic>> productos;
 
+  /// R.4 · Propina ya incluida en [totalAPagar]. Solo informativa: sirve
+  /// para que el cajero vea por qué el total no coincide con el consumo.
+  final double propina;
+
   const CobrarDialog({
     super.key,
     required this.totalAPagar,
     required this.productos,
+    this.propina = 0.0,
   });
 
   @override
@@ -1750,6 +1755,14 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                 const SizedBox(height: 4),
                 _totalRow('TOTAL EN BS', 'Bs. ${totalBs.toStringAsFixed(2)}',
                     colorScheme.primary, 16),
+                if (widget.propina > 0) ...[
+                  const SizedBox(height: 4),
+                  _totalRow(
+                      'INCLUYE PROPINA',
+                      '\$${widget.propina.toStringAsFixed(2)}',
+                      Colors.white70,
+                      12),
+                ],
               ],
             )
           : Row(
@@ -1769,6 +1782,14 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                             color: colorScheme.primary,
                             fontSize: 26,
                             fontWeight: FontWeight.bold)),
+                    if (widget.propina > 0)
+                      Text(
+                          'Incluye \$${widget.propina.toStringAsFixed(2)} '
+                          'de propina',
+                          style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500)),
                   ],
                 ),
                 Column(

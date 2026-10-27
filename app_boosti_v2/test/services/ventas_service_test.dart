@@ -310,4 +310,136 @@ void main() {
 
     expect(container.read(cartProvider).items, isEmpty);
   });
+
+  // ════════════════════════════════════════════════════════════
+  // PROPINA Y MESERO (R.4)
+  //
+  // La propina se guarda como una línea "Propina" del detalle y el mesero
+  // en `VentaEntity.empleado`. Sin entidades nuevas: se verifica el
+  // contrato completo (total, detalle, empleado e IVA intacto).
+  // ════════════════════════════════════════════════════════════
+
+  test('con propina: suma al total, la registra como detalle y guarda '
+      'el mesero', () async {
+    final p = await seedProducto(id: 60, precio: 10.0, stock: 20);
+
+    final container = mountContainer();
+    container.read(cartProvider.notifier).agregarItem(p, 2.0);
+
+    // El IVA del consumo se congela: la propina no lo altera.
+    final carrito = container.read(cartProvider);
+    expect(carrito.total, closeTo(20.0, 0.01));
+
+    final service = container.read(ventaServiceProvider);
+    await service.procesarVenta(
+      null,
+      metodoPago: 'Efectivo',
+      cambio: 0,
+      recibido: 22.0,
+      tasaActual: 36.5,
+      usuarioLogueado: buildUsuario(),
+      propina: 2.0,
+      meseroNombre: 'Ana Mesera',
+    );
+
+    final db = await IsarService().db;
+    final venta = (await db.ventaEntitys.where().findAll()).single;
+
+    expect(venta.total, closeTo(22.0, 0.01));
+    expect(venta.totalBolivares, closeTo(22.0 * 36.5, 0.01));
+    // El IVA sigue siendo el del consumo: 22 - subtotal - impuesto = 2.
+    expect(venta.subtotal, closeTo(carrito.subtotal, 0.001));
+    expect(venta.impuesto, closeTo(carrito.impuesto, 0.001));
+    expect(
+      venta.total - venta.subtotal - venta.impuesto,
+      closeTo(2.0, 0.01),
+    );
+    // En restaurante la columna dice quién atendió, no quién cobró.
+    expect(venta.empleado, 'Ana Mesera');
+
+    final detalles = await db.detalleVentaEntitys.where().findAll();
+    expect(detalles.length, 2);
+
+    final propinaDetalle =
+        detalles.firstWhere((d) => d.nombreProducto == 'Propina');
+    expect(propinaDetalle.productoId, isNull);
+    expect(propinaDetalle.cantidad, closeTo(1.0, 0.001));
+    expect(propinaDetalle.precioUnidad, closeTo(2.0, 0.01));
+    expect(propinaDetalle.subtotal, closeTo(2.0, 0.01));
+    expect(propinaDetalle.ventaIdFk, venta.idSupabase);
+    expect(propinaDetalle.syncStatus, 'pending');
+  });
+
+  test('sin propina: no crea la línea "Propina"', () async {
+    final p = await seedProducto(id: 61, precio: 10.0, stock: 20);
+
+    final container = mountContainer();
+    container.read(cartProvider.notifier).agregarItem(p, 2.0);
+
+    final service = container.read(ventaServiceProvider);
+    await service.procesarVenta(
+      null,
+      metodoPago: 'Efectivo',
+      cambio: 0,
+      recibido: 20.0,
+      tasaActual: 36.5,
+      meseroNombre: 'Ana Mesera',
+    );
+
+    final db = await IsarService().db;
+    final venta = (await db.ventaEntitys.where().findAll()).single;
+    expect(venta.total, closeTo(20.0, 0.01));
+
+    final detalles = await db.detalleVentaEntitys.where().findAll();
+    expect(detalles.length, 1);
+    expect(
+      detalles.where((d) => d.nombreProducto == 'Propina'),
+      isEmpty,
+    );
+    expect(venta.empleado, 'Ana Mesera');
+  });
+
+  test('propina negativa o inválida: se ignora y el total no baja',
+      () async {
+    final p = await seedProducto(id: 62, precio: 10.0, stock: 20);
+
+    final container = mountContainer();
+    container.read(cartProvider.notifier).agregarItem(p, 2.0);
+
+    final service = container.read(ventaServiceProvider);
+    await service.procesarVenta(
+      null,
+      metodoPago: 'Efectivo',
+      cambio: 0,
+      recibido: 20.0,
+      tasaActual: 36.5,
+      propina: -5.0,
+    );
+
+    final db = await IsarService().db;
+    final venta = (await db.ventaEntitys.where().findAll()).single;
+    expect(venta.total, closeTo(20.0, 0.01));
+    expect(await db.detalleVentaEntitys.where().count(), 1);
+  });
+
+  test('sin mesero: la venta queda a nombre de quien cobró', () async {
+    final p = await seedProducto(id: 63, precio: 10.0, stock: 20);
+
+    final container = mountContainer();
+    container.read(cartProvider.notifier).agregarItem(p, 1.0);
+
+    final service = container.read(ventaServiceProvider);
+    await service.procesarVenta(
+      null,
+      metodoPago: 'Efectivo',
+      cambio: 0,
+      recibido: 10.0,
+      tasaActual: 36.5,
+      usuarioLogueado: buildUsuario(),
+    );
+
+    final db = await IsarService().db;
+    final venta = (await db.ventaEntitys.where().findAll()).single;
+    expect(venta.empleado, 'Cajero Test');
+  });
 }

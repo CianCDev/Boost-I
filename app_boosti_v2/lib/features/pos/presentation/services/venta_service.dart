@@ -7,6 +7,7 @@ import 'documento_fiscal_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/venta_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/detalle_venta_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/cliente_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/controllers/cart_controller.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/esc_pos_provider.dart';
@@ -35,6 +36,19 @@ class VentaService {
     required double tasaActual,
     UsuarioEntity? usuarioLogueado,
     ClienteEntity? cliente,
+    /// R.4 · Propina voluntaria del cobro de mesa. Se suma al total y se
+    /// registra como una línea "Propina" en el detalle (sin producto).
+    ///
+    /// No se grava con IVA: `subtotal` e `impuesto` se quedan como los
+    /// calculó el carrito. Son 0 en ventas de retail y de mostrador.
+    double propina = 0.0,
+    /// R.4 · Mesero que atendió la mesa, si la venta viene de una comanda.
+    ///
+    /// Se guarda en `VentaEntity.empleado`, que es el campo que el sync ya
+    /// empuja como `empleado_nombre` y que agrupa "ventas por empleado".
+    /// Consecuencia: en restaurante esa columna pasa a decir quién atendió,
+    /// no quién cobró (no hay campo para ambos sin tocar la entidad).
+    String? meseroNombre,
   }) async {
     final isar = _ref.read(isarServiceProvider);
     final cartState = _ref.read(cartProvider);
@@ -96,7 +110,17 @@ class VentaService {
       // ============================================================
       final nuevoUuidVenta = const Uuid().v4();
       final ahora = DateTime.now();
-      final totalBsCalculado = cartState.total * tasaActual;
+
+      // R.4 · La propina se suma al total pero NO al IVA ni al subtotal.
+      // Se normaliza a 0 si llega negativa o NaN: un total menor que el
+      // consumo dejaría el vuelto mal calculado sin ningún aviso.
+      final propinaAplicada = (propina.isFinite && propina > 0)
+          ? _redondearDosDecimales(propina)
+          : 0.0;
+      final totalConPropina =
+          _redondearDosDecimales(cartState.total + propinaAplicada);
+      final totalBsCalculado =
+          _redondearDosDecimales(totalConPropina * tasaActual);
 
       final itemsIsar = VentaCalculator.cartItemsADetalles(
         cartItems: cartState.items,
@@ -116,7 +140,7 @@ class VentaService {
       final nuevaVenta = VentaEntity()
         ..idSupabase = nuevoUuidVenta
         ..fecha = ahora
-        ..total = cartState.total
+        ..total = totalConPropina
         ..subtotal = cartState.subtotal
         ..impuesto = cartState.impuesto
         ..tasaBcv = tasaActual
@@ -124,7 +148,9 @@ class VentaService {
         ..metodoPago = metodoPago
         ..numeroFactura = numeroFactura
         ..documento = 0
-        ..empleado = usuarioLogueado?.nombre ?? 'Administrador / Catálogo'
+        ..empleado = meseroNombre ??
+            usuarioLogueado?.nombre ??
+            'Administrador / Catálogo'
         ..syncStatus = 'pending'
         ..tieneDescuentoEspecial = resultadoDescuentos.tieneDescuento
         ..montoDescuentoTotal = resultadoDescuentos.montoDescuentoTotal;
@@ -138,12 +164,32 @@ class VentaService {
         nuevaVenta.clienteRazonSocial = cliente.razonSocial;
       }
 
+      // ── R.4 · Línea de propina ────────────────────────────────────
+      //
+      // `DetalleVentaEntity.productoId` es nullable y
+      // `detalle_ventas.producto_id` es `bigint` sin NOT NULL, así que
+      // esta línea sincroniza igual que cualquier otra. Va SIN IVA: el
+      // impuesto de la venta es el del consumo.
+      final detallesVenta = List<DetalleVentaEntity>.of(itemsIsar);
+      if (propinaAplicada > 0) {
+        detallesVenta.add(
+          DetalleVentaEntity()
+            ..productoId = null
+            ..nombreProducto = 'Propina'
+            ..precioUnidad = propinaAplicada
+            ..cantidad = 1
+            ..subtotal = propinaAplicada
+            ..ventaIdFk = nuevoUuidVenta
+            ..syncStatus = 'pending',
+        );
+      }
+
       // ============================================================
       // 4. Guardar venta con sus detalles
       // ============================================================
-      await isar.guardarVenta(nuevaVenta, detalles: itemsIsar);
+      await isar.guardarVenta(nuevaVenta, detalles: detallesVenta);
       debugPrint(
-          '✅ Venta guardada localmente con ${itemsIsar.length} detalles');
+          '✅ Venta guardada localmente con ${detallesVenta.length} detalles');
 
       // ============================================================
       // 4.1 Actualizar fidelización del cliente
@@ -203,7 +249,7 @@ class VentaService {
       // omitir esto no deja datos inconsistentes.
       if (context != null) {
         try {
-          final ticketItems = itemsIsar.map((detalle) {
+          final ticketItems = detallesVenta.map((detalle) {
             return TicketItem(
               nombre: detalle.nombreProducto,
               precio: detalle.precioUnidad,
@@ -238,7 +284,7 @@ class VentaService {
             items: ticketItems,
             subtotal: cartState.subtotal,
             impuesto: cartState.impuesto,
-            total: cartState.total,
+            total: totalConPropina,
             metodoPago: metodoPago,
             montoRecibido: recibido,
             cambio: cambio,
@@ -280,3 +326,6 @@ class VentaService {
 }
 
 final ventaServiceProvider = Provider<VentaService>((ref) => VentaService(ref));
+
+double _redondearDosDecimales(double valor) =>
+    (valor * 100).roundToDouble() / 100;

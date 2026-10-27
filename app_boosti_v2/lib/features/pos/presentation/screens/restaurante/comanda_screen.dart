@@ -11,9 +11,8 @@ import 'package:app_boosti_v2/features/pos/presentation/providers/catalog/catalo
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 
 import '../../controllers/cart_controller.dart';
-import '../../../domain/models/cart_item.dart';
-import '../../../domain/models/product_item.dart';
 import '../../providers/kds_ticket.dart';
+import '../../utils/comanda_cobro_utils.dart';
 import '../../utils/duracion_utils.dart';
 import '../../utils/responsive_helper.dart';
 import '../../widgets/appbar.dart';
@@ -27,7 +26,9 @@ import '../../widgets/common/quantity_control.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../widgets/common/sticky_note.dart';
 import '../../widgets/common/time_badge.dart';
+import '../../widgets/dialogos_genericos/error_dialog.dart';
 import '../../widgets/restaurante/confirmar_cobro_pendientes_dialog.dart';
+import '../../widgets/restaurante/resultado_envio_cocina_dialog.dart';
 import '../../widgets/salon/mesa_card.dart';
 
 /// Pantalla de comanda de una mesa.
@@ -120,9 +121,8 @@ class _ComandaScreenState extends ConsumerState<ComandaScreen> {
     final notifier = ref.read(comandasProvider.notifier);
     await notifier.cargar();
 
-    // Seleccionar la comanda de esta pantalla. Si aún no existe (el
-    // usuario entró directo sin abrirla desde el salón), se queda en null
-    // y la pantalla muestra el estado vacío.
+    // Sincronizar comandaActivaId en el provider para otros consumidores
+    // (KDS, badges, etc.) que usen `comandaActiva`.
     CartSessionEntity? encontrada;
     for (final c in ref.read(comandasProvider).comandas) {
       if (c.sessionId == widget.sessionId) {
@@ -212,21 +212,30 @@ class _ComandaScreenState extends ConsumerState<ComandaScreen> {
     // R.3.3: la impresión del ticket de cocina NO es de aquí. Ocurre dentro
     // de `ComandasNotifier.enviarACocina()` (ver `comanda_provider.dart`),
     // que llama a `TicketCocinaService.procesarEnvio` en modo fire-and-
-    // forget. Esta pantalla solo recibe la lista para el Snackbar.
+    // forget. Esta pantalla solo recibe la lista para el diálogo.
+    //
+    // ⚠️ El resultado va en un DIÁLOGO, no en un SnackBar. El SnackBar
+    // tapaba la barra de Total/Enviar/Cobrar y se iba solo; con el diálogo
+    // el mesero ve qué platos salieron y decide cuándo continuar.
+    final mesa = ref.read(comandasProvider).comandaActiva?.mesaNombre ??
+        'la mesa';
+
     final enviados =
         await ref.read(comandasProvider.notifier).enviarACocina();
     if (!mounted) return;
 
-    final ok = enviados != null;
-    final mensaje = ok
-        ? '${enviados.length} plato(s) enviado(s) a cocina'
-        : _errorActual();
+    if (enviados == null) {
+      await ResultadoEnvioCocinaDialog.mostrarError(
+        context,
+        mensaje: _errorActual(),
+      );
+      return;
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: ok ? _colorEnviar : _colorCancelar,
-      ),
+    await ResultadoEnvioCocinaDialog.mostrarExito(
+      context,
+      mesa: mesa,
+      platos: enviados,
     );
   }
 
@@ -301,29 +310,12 @@ class _ComandaScreenState extends ConsumerState<ComandaScreen> {
     setState(() => _procesando = true);
 
     // 1. Volcar la comanda en el carrito vivo.
-    final items = comanda.items
-        .map(
-          (s) => CartItem(
-            producto: ProductItem(
-              id: s.productoId,
-              nombre: s.productoNombre,
-              codigoBarras: s.productoCodigoBarras,
-              categoria: s.productoCategoria,
-              precioUnidad: s.precioUnidad,
-              esPesado: s.esPesado,
-            ),
-            cantidad: s.cantidad,
-            precioOriginal: s.precioOriginal,
-            esDescuentoEspecial: s.esDescuentoEspecial,
-            // R.3: rehidrata la estación para que el cobro no pierda el
-            // destino de preparación del plato.
-            estacionId: s.estacionId,
-          ),
-        )
-        .toList();
-
+    //
+    // El mapeo vive en `ComandaCobroUtils` porque la caja del cajero hace
+    // exactamente lo mismo. Aquí solo se aplica la configuración de IVA
+    // congelada en la comanda.
     ref.read(cartProvider.notifier).reemplazarItems(
-          items,
+          ComandaCobroUtils.aCarrito(comanda),
           configIva: ConfiguracionIva(
             codigoPais: comanda.configIvaPais,
             porcentajeIva: comanda.configIvaPorcentaje,
@@ -337,7 +329,7 @@ class _ComandaScreenState extends ConsumerState<ComandaScreen> {
     final usuario = ref.read(usuarioActualProvider);
     final cobrado = await ref
         .read(catalogActionsProvider)
-        .mostrarModalCobro(context, usuario);
+        .mostrarModalCobro(context, usuario, comanda: comanda);
 
     if (!mounted) return;
     setState(() => _procesando = false);
@@ -389,11 +381,19 @@ class _ComandaScreenState extends ConsumerState<ComandaScreen> {
 
   // ── Utilidades ──────────────────────────────────────────────────
 
+  /// Muestra un aviso al usuario.
+  ///
+  /// Antes era un `SnackBar` rojo. En una comanda el SnackBar aparece
+  /// pegado al borde inferior, justo encima de Total/Enviar/Cobrar, y
+  /// desaparece solo: el mesero puede estar mirando la mesa y perderse el
+  /// motivo. Los avisos de esta pantalla son pocos y accionables (comanda
+  /// vacía, cobro no completado, Isar falló), así que van en diálogo.
   void _aviso(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: _colorCancelar,
+    showDialog<void>(
+      context: context,
+      builder: (_) => ErrorDialog(
+        title: 'No se pudo continuar',
+        content: msg,
       ),
     );
   }
@@ -411,16 +411,18 @@ class _ComandaScreenState extends ConsumerState<ComandaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(comandasProvider);
     final esMobile = ResponsiveHelper.isMobile(context);
 
-    CartSessionEntity? comanda;
-    for (final c in state.comandas) {
-      if (c.sessionId == widget.sessionId) {
-        comanda = c;
-        break;
+    // Usar select para reaccionar solo cuando cambie la comanda de este sessionId.
+    // Así evitamos rebuilds innecesarios y el race condition del primer frame.
+    final comanda = ref.watch(comandasProvider.select((state) {
+      for (final c in state.comandas) {
+        if (c.sessionId == widget.sessionId) return c;
       }
-    }
+      return null;
+    }));
+
+    final isLoading = ref.watch(comandasProvider.select((s) => s.isLoading));
 
     return Scaffold(
       appBar: CustomAppBar(
@@ -439,7 +441,7 @@ class _ComandaScreenState extends ConsumerState<ComandaScreen> {
       ),
 
       body: SafeArea(
-        child: state.isLoading
+        child: isLoading
             ? const Center(child: CircularProgressIndicator())
             : comanda == null
                 ? _vacio(
@@ -449,7 +451,7 @@ class _ComandaScreenState extends ConsumerState<ComandaScreen> {
                 : _cuerpo(context, comanda, esMobile),
       ),
 
-      bottomNavigationBar: comanda == null || state.isLoading
+      bottomNavigationBar: comanda == null || isLoading
           ? null
           : _barraAcciones(context, comanda),
     );
@@ -704,7 +706,18 @@ class _ComandaScreenState extends ConsumerState<ComandaScreen> {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(_padH, 8, _padH, 12),
+        // ⚠️ `heightFactor: 1` NO es cosmético: es lo que evita que la
+        // barra se coma la pantalla.
+        //
+        // `Scaffold` mide `bottomNavigationBar` con ancho TIGHT y alto
+        // LOOSE (0..alto disponible). Un `Center` sin `heightFactor` se
+        // expande hasta el máximo permitido, así que la barra medía el
+        // alto completo de la ventana: el `body` se quedaba con 0 px y la
+        // comanda se veía en blanco (solo el appbar y el total, centrado
+        // verticalmente). Con `heightFactor: 1` el `Center` mide lo que
+        // mide su hijo y el `body` recupera el resto.
         child: Center(
+          heightFactor: 1,
           // Mismo tope que `_cuerpo`. Es otra rama del árbol
           // (`bottomNavigationBar`, no `body`), pero si solo se limitara
           // una de las dos el header y los botones no caerían en la misma
