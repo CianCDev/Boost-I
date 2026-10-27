@@ -74,9 +74,10 @@ flutter:
   uses-material-design: true
   assets:
     - "assets/config.json"
-    - "assets/animations/succes.json"
+    - "assets/animations/success.json"
     - "assets/animations/error.json"
     - "assets/animations/clock.json"
+    - "assets/animations/Clock Alarm Animation.json"
     - "assets/logoboosti300px.svg"
     - "shorebird.yaml"
     - "assets/icon/app_icon.png"
