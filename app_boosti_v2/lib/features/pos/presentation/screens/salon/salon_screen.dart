@@ -67,11 +67,15 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
 
   /// R.2 · Comportamiento del tap en una mesa, según su estado.
   ///
-  /// `libre` y `ocupada` abren la comanda. Los otros dos estados solo
-  /// avisan de por qué no se puede abrir.
+  /// `libre` → muestra diálogo con opciones.
+  /// `ocupada` → abre la comanda existente directamente.
+  /// `reservada` / `porLimpiar` → solo avisan.
   Future<void> _tapMesa(MesaEntity mesa) async {
     switch (mesa.estado) {
       case MesaEstado.libre:
+        await _mostrarDialogoMesaLibre(mesa);
+        return;
+
       case MesaEstado.ocupada:
         await _abrirComanda(mesa);
         return;
@@ -90,6 +94,84 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
         );
         return;
     }
+  }
+
+  /// Diálogo que se muestra al tocar una mesa LIBRE.
+  ///
+  /// Permite elegir: nueva comanda, ver detalles, unir mesas o cancelar.
+  Future<void> _mostrarDialogoMesaLibre(MesaEntity mesa) async {
+    if (!mounted) return;
+
+    final accion = await showModalBottomSheet<AccionMesaLibre>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _DialogoMesaLibre(mesa: mesa),
+    );
+
+    if (!mounted) return;
+
+    switch (accion) {
+      case AccionMesaLibre.nuevaComanda:
+        await _abrirComanda(mesa);
+      case AccionMesaLibre.verDetalles:
+        _mostrarDetallesMesa(mesa);
+      case AccionMesaLibre.unirMesas:
+        _abrirForm(mesa: mesa); // reutiliza el formulario para unir
+      case AccionMesaLibre.cancelar:
+      case null:
+        return;
+    }
+  }
+
+  void _mostrarDetallesMesa(MesaEntity mesa) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Detalles de ${mesa.nombre}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _detalleFila('Zona', etiquetaZona(mesa.zona)),
+            _detalleFila('Capacidad', '${mesa.capacidad} pax'),
+            _detalleFila('Estado', MesasNotifier.etiquetaEstado(mesa.estado)),
+            if (mesa.estaUnida) _detalleFila('Unida a', 'Mesa ID ${mesa.unidaConMesaId}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detalleFila(String etiqueta, String valor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              etiqueta,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(valor, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
   }
 
   /// Abre (o retoma) la comanda de la mesa y navega a su pantalla.
@@ -313,6 +395,175 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
               const SizedBox(height: 20),
               accion,
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Qué hacer con una mesa libre.
+enum AccionMesaLibre { nuevaComanda, verDetalles, unirMesas, cancelar }
+
+/// Bottom sheet que aparece al tocar una mesa libre.
+class _DialogoMesaLibre extends StatelessWidget {
+  final MesaEntity mesa;
+
+  const _DialogoMesaLibre({required this.mesa});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Arrastre
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Título
+            Text(
+              mesa.nombre,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Mesa libre · ${mesa.capacidad} pax · ${etiquetaZona(mesa.zona)}',
+              style: TextStyle(
+                fontSize: 14,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Opciones
+            _OpcionMesaLibre(
+              icon: Icons.add_rounded,
+              iconColor: MesaCard.colorLibre,
+              titulo: 'Nueva comanda',
+              subtitulo: 'Abrir pedido para esta mesa',
+              onTap: () => Navigator.pop(context, AccionMesaLibre.nuevaComanda),
+            ),
+            _OpcionMesaLibre(
+              icon: Icons.info_outline_rounded,
+              iconColor: colorScheme.primary,
+              titulo: 'Ver detalles',
+              subtitulo: 'Capacidad, zona, estado, uniones',
+              onTap: () => Navigator.pop(context, AccionMesaLibre.verDetalles),
+            ),
+            _OpcionMesaLibre(
+              icon: Icons.merge_rounded,
+              iconColor: Colors.orange,
+              titulo: 'Unir mesas',
+              subtitulo: 'Combinar con otra mesa libre',
+              onTap: () => Navigator.pop(context, AccionMesaLibre.unirMesas),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context, AccionMesaLibre.cancelar),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  'Cancelar',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OpcionMesaLibre extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String titulo;
+  final String subtitulo;
+  final VoidCallback onTap;
+
+  const _OpcionMesaLibre({
+    required this.icon,
+    required this.iconColor,
+    required this.titulo,
+    required this.subtitulo,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    titulo,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitulo,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: colorScheme.onSurfaceVariant,
+            ),
           ],
         ),
       ),

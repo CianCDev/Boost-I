@@ -18,9 +18,9 @@ import 'package:supabase_flutter/supabase_flutter.dart'
 
 import 'core/config/app_mode.dart';
 import 'features/pos/data/Local/entities/isar_service.dart';
-import 'features/pos/domain/permissions/roles.dart';
 import 'features/pos/domain/services/jwt_service.dart';
 import 'features/pos/presentation/providers/lock_provider.dart';
+import 'features/pos/presentation/providers/business_mode_provider.dart';
 import 'features/pos/presentation/providers/sync_provider.dart';
 import 'features/pos/presentation/providers/tenant_provider.dart';
 import 'features/pos/presentation/providers/themes/theme.dart';
@@ -33,6 +33,7 @@ import 'features/pos/presentation/screens/rest_screen.dart';
 import 'features/pos/presentation/screens/setup_pin_screen.dart';
 import 'features/pos/presentation/screens/splash_screen.dart';
 import 'features/pos/presentation/utils/tenant_utils.dart';
+import 'features/pos/presentation/utils/home_por_rol.dart';
 import 'features/pos/presentation/widgets/idle_detector_widget.dart';
 
 // ════════════════════════════════════════════════════════════════════
@@ -284,21 +285,24 @@ class _BoostiPOSState extends ConsumerState<BoostiPOS> {
       // bloqueo blando sin salida: `IsarService.validarLogin` ignora los
       // usuarios con pin vacío y devuelve `null`, así que `RestScreen` le
       // responde "PIN incorrecto" para siempre.
+      // ── Pantalla de destino ──
+      //
+      // La decisión vive en `destinoInicialPorRol` (utils/home_por_rol.dart)
+      // porque splash y login toman la MISMA decisión. Aquí se usa `watch`
+      // y no `read`: el modo de negocio se carga de Isar en async, y hasta
+      // que llega el `flags.requiereMesa` es `false`. Con `watch`, en
+      // cuanto el modo se resuelve, `home` se reconstruye y el cajero cae
+      // en la caja sin reiniciar.
+      final destino = destinoInicialPorRol(
+        usuario: usuario,
+        flags: ref.watch(featureFlagsProvider),
+      );
+
       if (usuario.pin.isEmpty) {
-        final role = UserRole.fromString(usuario.rol);
-        final destino = Permissions.isEmployeesOnlyRole(role)
-            ? const EmployeesScreen()
-            : const MainPosScreen();
         return SetupPinScreen(destino: destino);
       }
 
-      final role = UserRole.fromString(usuario.rol);
-
-      if (Permissions.isEmployeesOnlyRole(role)) {
-        return const EmployeesScreen();
-      }
-
-      return const MainPosScreen();
+      return destino;
     }
 
     return const SplashScreen();

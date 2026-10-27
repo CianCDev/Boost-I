@@ -13,13 +13,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
-import '../../domain/permissions/roles.dart';
+import '../providers/business_mode_provider.dart';
 import '../providers/tenant_provider.dart';
 import '../providers/usuario_provider.dart';
-// ✅ Import ya presente
-import 'empleados/employees_screen.dart';
+import '../utils/home_por_rol.dart';
 import 'login_screen.dart';
-import 'main_pos_screen.dart';
 import 'welcome_screen.dart';
 import '../providers/suscripcion_provider.dart';
 import 'seleccionar_modo_negocio_screen.dart';
@@ -276,7 +274,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       return;
     }
 
-    final role = UserRole.fromString(usuario.rol);
+    // El modo de negocio se carga de Isar en async, y este método puede
+    // correr antes de que termine (arranque en frío). Sin esta recarga,
+    // `flags.requiereMesa` sería `false` y el cajero aterrizaría en el
+    // menú del POS en vez de en la caja.
+    await ref.read(businessModeProvider.notifier).recargar();
+    if (!mounted) return;
 
     // ── PIN obligatorio ──
     //
@@ -286,22 +289,21 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     // se queda trabado en `RestScreen` sin salida.
     if (usuario.pin.isEmpty) {
       debugPrint('➡️ Usuario sin PIN configurado → SetupPinScreen');
-      final destino = Permissions.isEmployeesOnlyRole(role)
-          ? const EmployeesScreen()
-          : const MainPosScreen();
+      final destino = destinoInicialPorRol(
+        usuario: usuario,
+        flags: ref.read(featureFlagsProvider),
+      );
       if (!mounted) return;
       _goTo(SetupPinScreen(destino: destino));
       return;
     }
 
-    if (Permissions.isEmployeesOnlyRole(role)) {
-      debugPrint('➡️ Sesión RRHH → EmployeesScreen');
-      _goTo(const EmployeesScreen());
-      return;
-    }
-
-    debugPrint('➡️ Sesión activa → MainPosScreen');
-    _goTo(const MainPosScreen());
+    final destino = destinoInicialPorRol(
+      usuario: usuario,
+      flags: ref.read(featureFlagsProvider),
+    );
+    debugPrint('➡️ Sesión activa → ${destino.runtimeType}');
+    _goTo(destino);
     return;
   }
 

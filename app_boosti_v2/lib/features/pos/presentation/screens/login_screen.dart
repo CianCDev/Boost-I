@@ -12,14 +12,14 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../domain/permissions/roles.dart';
 import '../providers/auth_provider.dart';
+import '../providers/business_mode_provider.dart';
 import '../providers/tenant_provider.dart';
 import '../providers/usuario_provider.dart';
 import '../services/sync_service.dart';
 import '../services/error_service.dart';
 import '../utils/responsive_helper.dart';
+import '../utils/home_por_rol.dart';
 import 'email_login_screen.dart';
-import 'empleados/employees_screen.dart';
-import 'main_pos_screen.dart';
 // ignore: unused_import
 import 'inventory_catalog_screen.dart';
 import 'register_company_screen.dart';
@@ -301,22 +301,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   /// Redirige según el rol del usuario autenticado.
   ///
-  /// - Roles RRHH → EmployeesScreen
-  /// - Resto → MainPosScreen
+  /// La regla vive en `destinoInicialPorRol` (`utils/home_por_rol.dart`):
+  /// roles de solo-personal → EmployeesScreen; cajero con mesas →
+  /// CajaScreen; resto → MainPosScreen.
+  ///
+  /// Se lee el flag con `ref.read`: el modo de negocio ya se cargó al
+  /// arrancar la app (splash), así que no hace falta esperar nada aquí.
   void redirigirSegunRol(UsuarioEntity usuario) {
     if (!mounted) return;
 
-    final role = UserRole.fromString(usuario.rol);
-
-    if (Permissions.isEmployeesOnlyRole(role)) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const EmployeesScreen()),
-      );
-      return;
-    }
+    final destino = destinoInicialPorRol(
+      usuario: usuario,
+      flags: ref.read(featureFlagsProvider),
+    );
 
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainPosScreen()),
+      MaterialPageRoute(builder: (_) => destino),
     );
   }
 

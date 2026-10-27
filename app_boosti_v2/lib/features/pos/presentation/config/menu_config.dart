@@ -6,6 +6,7 @@ import '../../domain/permissions/roles.dart';
 import '../providers/business_mode_provider.dart';
 import '../screens/audit_log_screen.dart';
 import '../screens/cash_closing_screen.dart';
+import '../screens/caja/caja_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/departamentos/departamentos_screen.dart';
 import '../screens/empleados/employees_screen.dart';
@@ -120,6 +121,10 @@ class MenuBuilder {
       'personal' => Permissions.canManageUsers(role),
       'monitor' => Permissions.canViewEmployeeList(role),
       'caja' => Permissions.canOpenCashRegister(role),
+      // Cajero: tablero de cobro del modo restaurante. Mismo permiso que
+      // `caja` (es el mismo rol quien opera las dos), pero pantalla
+      // distinta: `caja` es arqueo de fin de día, esta es operación.
+      'caja_operativa' => Permissions.canOpenCashRegister(role),
       'telegram' => Permissions.canManageTelegram(role),
       'auditoria' => Permissions.canViewAuditLog(role),
       'backup' => Permissions.canAccessSettings(role),
@@ -161,6 +166,10 @@ class MenuBuilder {
       // KDS: misma puerta que el salón. En retail no hay comandas por
       // mesa, así que la pantalla no tendría nada que mostrar.
       'kds' => flags.requiereMesa,
+
+      // Caja operativa: sin mesas no hay comandas que cobrar. En retail
+      // el cobro se hace en el propio POS, con el carrito.
+      'caja_operativa' => flags.requiereMesa,
 
       // ── Inventario ──
       'inventario' => flags.mostrarInventario,
@@ -285,6 +294,20 @@ class MenuBuilder {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const WholesaleScreen()),
+            ),
+          ),
+          MenuOption(
+            id: 'caja_operativa',
+            // Cobro del día a día en restaurante. `Icons.price_check`
+            // evita repetir `point_of_sale` (Punto de venta) y `savings`
+            // (Cierre de caja), que son las dos pantallas vecinas.
+            icon: Icons.price_check_rounded,
+            title: 'Caja',
+            subtitle: 'Mesas, cocina y cobros',
+            color: const Color(0xFF0EA5E9),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CajaScreen()),
             ),
           ),
           MenuOption(
