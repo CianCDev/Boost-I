@@ -1306,3 +1306,27 @@ Ratificado en los commits: TODO:270 (chip "Sin estación" en KDS, ya existía en
   de historicas, avance de KDS). Suite completa: **All tests passed!
   +978 ~1**; `flutter analyze` 0 errores / 0 warnings (17 infos
   preexistentes).
+
+---
+
+## R.5 - Exportacion de datos a CSV (2026-10-28)
+
+- **Servicio**: `ExportacionDatosService`
+  (`presentation/services/exportacion_datos_service.dart`). Genera un ZIP
+  con **un CSV por tabla** (25 tablas) + `LEEME.txt` con el manifiesto.
+  No agrega dependencias: usa `archive` y `share_plus`, ya presentes.
+- **Formato**: BOM UTF-8 al inicio (sin el, Excel en Windows abre los
+  acentos como mojibake), todas las celdas entre comillas y comillas
+  internas duplicadas. Fechas `yyyy-MM-dd HH:mm:ss`, booleanos `SI`/`NO`,
+  listas unidas con ` | `.
+- **Sin credenciales**: NO se exportan `usuarios.pin`,
+  `usuarios.password` ni `telegram_config`. El ZIP se comparte por
+  WhatsApp/correo, asi que el archivo no puede llevar secretos.
+- **Salida**: `Documentos/Boosti/Exportaciones/boosti_datos_<fecha>.zip`.
+  `compartir()` abre el share sheet del sistema.
+- **UI**: card "Exportar datos" en Ajustes, solo admin. Abre
+  `ExportarDatosDialog`, que exporta a pedido (no al abrir), muestra
+  progreso, el resumen por tabla y el boton "Compartir ZIP".
+- **Calidad**: 4 tests en `test/integration/exportacion_datos_test.dart`
+  (ZIP + CSVs, BOM/escape de comas-comillas-saltos, items de comanda
+  aplanados, ausencia de credenciales).

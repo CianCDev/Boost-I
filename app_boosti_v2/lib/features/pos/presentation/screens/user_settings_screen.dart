@@ -18,6 +18,7 @@ import '../utils/responsive_helper.dart';
 import '../widgets/admin_validation_dialog.dart';
 import '../widgets/appbar.dart';
 import '../widgets/cambiar_pin_dialog.dart';
+import '../widgets/common/exportar_datos_dialog.dart';
 import 'login_screen.dart';
 import 'configuracion_modo_negocio_screen.dart';
 
@@ -388,6 +389,50 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                       ),
 
                       SizedBox(height: sectionSpacing),
+
+                      // ═══ DATOS (solo admin) ═══
+                      if (esAdmin) ...[
+                        _StaggeredEntry(
+                          index: 2,
+                          child: _buildSectionHeader(
+                            'Datos',
+                            Icons.folder_outlined,
+                            theme,
+                            isMobile,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildInteractiveCard(
+                          isDark: isDark,
+                          entryIndex: 2,
+                          onTap: () => mostrarExportarDatosDialog(context),
+                          accentColor: const Color(0xFF10B981),
+                          enabled: true,
+                          child: ListTile(
+                            leading: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981)
+                                    .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.file_download_outlined,
+                                color: Color(0xFF10B981),
+                              ),
+                            ),
+                            title: const Text(
+                              'Exportar datos',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: const Text(
+                              'ZIP con un CSV por tabla (ventas, productos, comandas…)',
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                          ),
+                        ),
+                        SizedBox(height: sectionSpacing),
+                      ],
 
                       // ═══ CONTROL CENTER (solo super admin) ═══
                       if (ref.watch(hasAdminAccessProvider))

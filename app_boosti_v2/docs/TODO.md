@@ -1152,4 +1152,23 @@ El mismo bug se corrige cambiando el bound de `RestScreen` a 6.
 - [x] `test/integration/comandas_isar_test.dart`: 11 tests de identidad de
       sync, ventana de pendientes, busquedas del pull, `sessionId` de
       historicas y avance de KDS.
-- [ ] Exportacion CSV (ZIP con un CSV por tabla) queda para el final.
+### R.5 - Exportación de datos a CSV (2026-10-28)
+
+- [x] `ExportacionDatosService` (`presentation/services/`): ZIP con un CSV
+      por tabla (25 tablas: ventas, detalles, pagos, anulaciones, gastos,
+      productos, categorías, marcas, lotes, movimientos, clientes,
+      proveedores, pedidos, recepciones, turnos, comandas,
+      `comandas_items`, mesas, zonas, departamentos, usuarios, logs) +
+      `LEEME.txt` con el manifiesto.
+- [x] CSV con BOM UTF-8 (sin él Excel rompe los acentos), todas las celdas
+      entre comillas y comillas internas duplicadas. Fechas
+      `yyyy-MM-dd HH:mm:ss`, booleanos `SI`/`NO`, listas separadas por ` | `.
+- [x] **No se exportan credenciales**: `usuarios.pin`, `usuarios.password`
+      ni `telegram_config`. Es un archivo que el usuario comparte.
+- [x] Salida en `Documentos/Boosti/Exportaciones/boosti_datos_<fecha>.zip`;
+      `compartir()` usa el share sheet del sistema.
+- [x] UI: card "Exportar datos" en Ajustes (solo admin) →
+      `ExportarDatosDialog` con progreso, resumen por tabla y botón
+      "Compartir ZIP".
+- [x] `test/integration/exportacion_datos_test.dart`: 4 tests (ZIP + CSVs,
+      BOM/escape, ítems de comanda aplanados, ausencia de credenciales).
