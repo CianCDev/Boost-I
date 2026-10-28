@@ -320,6 +320,13 @@ class FeatureFlags {
 
   bool get mostrarMesas => esRestaurante;
   bool get mostrarComandas => esRestaurante;
+
+  /// G.2 · Receta: la ficha de preparación del plato (KDS) es una cosa
+  /// de restaurante. En retail el producto es una unidad que se vende tal
+  /// cual (TODO:891) y en servicios no hay catálogo de inventario.
+  /// El gate vive en `ProductDataTab`, NO dentro del editor de receta
+  /// (decisión registrada en TODO:897-899: el editor no conoce flags).
+  bool get mostrarRecetas => esRestaurante;
   bool get mostrarKDS => esRestaurante;
   bool get mostrarAgenda => esServicios;
   bool get mostrarProfesionales => esServicios;

@@ -11,6 +11,7 @@ import '../../../data/Local/entities/categoria_entity.dart';
 import '../../../data/Local/entities/marca_entity.dart';
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../../data/Local/entities/receta_entity.dart';
+import '../../providers/business_mode_provider.dart';
 import '../../providers/categorias_provider.dart';
 import '../../utils/responsive_helper.dart';
 import '../common/active_toggle.dart';
@@ -468,6 +469,13 @@ class _ProductDataTabState extends ConsumerState<ProductDataTab> {
   /// receta propia (la pizza usa arroz y no es ingrediente de nada). El
   /// empty state explica esa diferencia.
   Widget _buildSeccionReceta(ColorScheme cs) {
+    // TODO:891 · Resuelto: en retail (y en servicios) el producto es una
+    // unidad completa y la sección no se pinta. El gate es de MODO
+    // (`mostrarRecetas`), no de plan: contratar o no la feature por plan
+    // queda para cuando exista la clave en `planes.features`.
+    if (!ref.watch(featureFlagsProvider).mostrarRecetas) {
+      return const SizedBox.shrink();
+    }
     final items = widget.itemsReceta;
 
     final obligatorios = items.where((i) => !i.esOpcional).length;
