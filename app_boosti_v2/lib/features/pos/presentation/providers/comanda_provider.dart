@@ -448,7 +448,11 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
   }
 
   /// `sessionId` determinístico de una mesa.
-  static String sessionIdDeMesa(int mesaId) => 'mesa:$mesaId';
+  ///
+  /// Delega en la entidad: `SyncService` usa el mismo builder al bajar
+  /// comandas creadas en otro dispositivo (R.1c).
+  static String sessionIdDeMesa(int mesaId) =>
+      CartSessionEntity.sessionIdDeMesa(mesaId);
 
   // ── Carga ───────────────────────────────────────────────────────
 
@@ -1377,7 +1381,8 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
       mesa.estado = MesaEstado.ocupada;
     }
     mesa.ocupadaDesde ??= DateTime.now();
-    await _isar.guardarMesa(mesa);
+    // R.1c: la ocupación se deriva de las comandas vivas y NO se sube.
+    await _isar.guardarMesa(mesa, marcarPendiente: false);
   }
 
   /// Libera la mesa y desune cualquier unión pendiente.
@@ -1387,7 +1392,8 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
     if (mesa == null) return;
     mesa.estado = MesaEstado.libre;
     mesa.ocupadaDesde = null;
-    await _isar.guardarMesa(mesa);
+    // R.1c: la ocupación se deriva de las comandas vivas y NO se sube.
+    await _isar.guardarMesa(mesa, marcarPendiente: false);
   }
 
   // ════════════════════════════════════════════════════════════════

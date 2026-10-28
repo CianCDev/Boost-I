@@ -1121,7 +1121,35 @@ El mismo bug se corrige cambiando el bound de `RestScreen` a 6.
 - [x] UI: `zonas_dialog.dart` (crear, renombrar, reordenar, eliminar), filtro
       del salon y de caja por nombre de zona, dropdown de zonas en el
       formulario de mesa.
-- [ ] Fase B: comandas/KDS sincronizadas (`comandas` con `items` JSONB,
-      `sessionId` con UUID en vez de `mesa:<idIsar>`, `estacionSupabaseId` y
-      estado de mesa derivado de las comandas vivas).
+### R.1c - Comandas y KDS multi-dispositivo (2026-10-28)
+
+- [x] Migracion `20261028000003_comandas.sql`: tabla `comandas` con `items`
+      JSONB, `UNIQUE (tenant_id, sync_key)` e indice parcial unico
+      `(tenant_id, mesa_id) WHERE estado IN ('abierta','enviada')`. RLS por
+      `tenant_id`, trigger de `updated_at` y alta en realtime.
+      **Pendiente de aplicar por el owner** (la verificacion va al final del
+      archivo).
+- [x] `CartSessionEntity.syncKey`: identidad de sync (UUID generado en el
+      primer push). `sessionId` NO se sube: vale `mesa:<idIsar>`, que es
+      especifico del dispositivo. Los estaticos `sessionIdDeMesa` y
+      `sessionIdHistorico` viven en la entidad para que el pull use el mismo
+      builder.
+- [x] `IsarService`: `guardarComanda(marcarPendiente:)`, generacion de
+      `syncKey`, `obtenerComandaVivaDeMesa`, `obtenerComandaPorSupabaseId`,
+      `obtenerComandaPorSyncKey`, `obtenerComandasPendientesSync` (vivas
+      siempre + 2 dias de historico) y `obtenerDepartamentoPorSupabaseId`.
+      Los 3 `put` del KDS marcan `sincronizado = false`.
+- [x] `SyncService`: push ANTES del pull (la identidad la genera este
+      dispositivo). El 23505 del indice parcial degrada la comanda perdedora
+      a historico local (cancelada + `sessionId` con sufijo del `syncKey`) en
+      vez de duplicar la mesa. El pull trae vivas + 3 dias en dos consultas.
+- [x] `MesasNotifier.cargar` deriva la ocupacion de las comandas vivas
+      (viva -> ocupada; sin viva y ocupada -> libre; `reservada` y
+      `porLimpiar` se respetan) y persiste con `marcarPendiente: false`: el
+      estado operativo no se sincroniza.
+- [x] `sync_provider` refresca `mesasProvider` y `comandasProvider` en cada
+      `onDataChanged`.
+- [x] `test/integration/comandas_isar_test.dart`: 11 tests de identidad de
+      sync, ventana de pendientes, busquedas del pull, `sessionId` de
+      historicas y avance de KDS.
 - [ ] Exportacion CSV (ZIP con un CSV por tabla) queda para el final.

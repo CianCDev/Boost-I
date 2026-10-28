@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import '../../../presentation/utils/pin_hasher.dart';
@@ -1425,8 +1426,107 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
     }
   }
 
+  /// Comanda viva (abierta o enviada) de una mesa, si existe.
+  ///
+  /// R.1c: es la consulta que usa `MesasNotifier` para derivar si la mesa
+  /// está ocupada, y el pull para no dejar dos vivas en la misma mesa.
+  Future<CartSessionEntity?> obtenerComandaVivaDeMesa(int mesaId) async {
+    try {
+      final isar = await db;
+      final comandas = await isar.cartSessionEntitys
+          .filter()
+          .mesaIdEqualTo(mesaId)
+          .findAll();
+      for (final comanda in comandas) {
+        if (comanda.comandaEstado == ComandaEstado.abierta ||
+            comanda.comandaEstado == ComandaEstado.enviada) {
+          return comanda;
+        }
+      }
+      return null;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerComandaVivaDeMesa_fallo',
+          extras: {'mesaId': mesaId});
+      return null;
+    }
+  }
+
+  /// Busca una comanda por su UUID de Supabase.
+  Future<CartSessionEntity?> obtenerComandaPorSupabaseId(
+      String supabaseId) async {
+    try {
+      final isar = await db;
+      return await isar.cartSessionEntitys
+          .filter()
+          .supabaseIdEqualTo(supabaseId)
+          .findFirst();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerComandaPorSupabaseId_fallo',
+          extras: {'supabaseId': supabaseId});
+      return null;
+    }
+  }
+
+  /// Busca una comanda por su clave de sync.
+  ///
+  /// El pull la usa cuando la fila todavía no tenía `supabaseId` local
+  /// (por ejemplo, se subió desde otro dispositivo con el mismo `syncKey`).
+  Future<CartSessionEntity?> obtenerComandaPorSyncKey(String syncKey) async {
+    try {
+      final isar = await db;
+      return await isar.cartSessionEntitys
+          .filter()
+          .syncKeyEqualTo(syncKey)
+          .findFirst();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerComandaPorSyncKey_fallo',
+          extras: {'syncKey': syncKey});
+      return null;
+    }
+  }
+
+  /// Comandas de mesa pendientes de subir (R.1c).
+  ///
+  /// Ventana: las VIVAS (abiertas o enviadas) siempre; las cerradas o
+  /// canceladas solo si se tocaron en los últimos [diasHistorial] días.
+  ///
+  /// ⚠️ Sin la ventana, el primer sync después de activar R.1c intentaría
+  /// subir TODO el histórico de comandas del dispositivo de una vez.
+  Future<List<CartSessionEntity>> obtenerComandasPendientesSync(
+      {int diasHistorial = 2}) async {
+    try {
+      final isar = await db;
+      final limite = DateTime.now().subtract(Duration(days: diasHistorial));
+      final pendientes = await isar.cartSessionEntitys
+          .filter()
+          .mesaIdIsNotNull()
+          .sincronizadoEqualTo(false)
+          .findAll();
+      return pendientes
+          .where((c) => c.comandaEditable || c.updatedAt.isAfter(limite))
+          .toList();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerComandasPendientesSync_fallo');
+      return [];
+    }
+  }
+
   /// Guarda o actualiza una comanda.
-  Future<int> guardarComanda(CartSessionEntity comanda) async {
+  ///
+  /// [marcarPendiente] es `false` SOLO durante un pull: la fila ya está en
+  /// la nube y no debe volver a subirse. Toda escritura local (UI, KDS)
+  /// deja la comanda pendiente.
+  Future<int> guardarComanda(
+    CartSessionEntity comanda, {
+    bool marcarPendiente = true,
+  }) async {
     try {
       final isar = await db;
       return await isar.writeTxn<int>(() async {
@@ -1435,6 +1535,13 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
         // campo es `DateTime` NO-nullable (con default `DateTime.now()`), a
         // diferencia de `DepartamentoEntity` donde sí es `DateTime?`.
         // Aquí el `??=` sería código muerto.
+        //
+        // R.1c: toda comanda de mesa nace con identidad de sync. Se genera
+        // acá y no en cada call site para que ninguna quede sin `syncKey`.
+        if (comanda.mesaId != null && (comanda.syncKey ?? '').isEmpty) {
+          comanda.syncKey = const Uuid().v4();
+        }
+        if (marcarPendiente) comanda.sincronizado = false;
         return await isar.cartSessionEntitys.put(comanda);
       });
     } catch (e, stack) {
@@ -1575,6 +1682,8 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
         }
 
         comanda.updatedAt = DateTime.now();
+        // R.1c: un avance de cocina es un cambio pendiente de subir.
+        comanda.sincronizado = false;
         await isar.cartSessionEntitys.put(comanda);
         return comanda.id;
       });
@@ -1629,6 +1738,8 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
         }
 
         comanda.updatedAt = DateTime.now();
+        // R.1c: un avance de cocina es un cambio pendiente de subir.
+        comanda.sincronizado = false;
         await isar.cartSessionEntitys.put(comanda);
         return comanda.id;
       });
@@ -1668,6 +1779,8 @@ Future<List<UsuarioEntity>> obtenerTodosLosUsuarios({int? localId}) async {
         if (marcados == 0) return 0;
 
         comanda.updatedAt = DateTime.now();
+        // R.1c: un avance de cocina es un cambio pendiente de subir.
+        comanda.sincronizado = false;
         await isar.cartSessionEntitys.put(comanda);
         return marcados;
       });
@@ -3445,6 +3558,27 @@ Future<bool> eliminarLocal(int id) async {
           stack: stack,
           hint: 'obtenerDepartamentoPorId_fallo',
           extras: {'id': id});
+      return null;
+    }
+  }
+
+  /// Busca un departamento por su UUID de Supabase.
+  ///
+  /// R.1c: las comandas viajan con `estacion_id` (UUID), no con el id de
+  /// Isar del dispositivo que las creó.
+  Future<DepartamentoEntity?> obtenerDepartamentoPorSupabaseId(
+      String supabaseId) async {
+    try {
+      final isar = await db;
+      return await isar.departamentoEntitys
+          .filter()
+          .supabaseIdEqualTo(supabaseId)
+          .findFirst();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerDepartamentoPorSupabaseId_fallo',
+          extras: {'supabaseId': supabaseId});
       return null;
     }
   }

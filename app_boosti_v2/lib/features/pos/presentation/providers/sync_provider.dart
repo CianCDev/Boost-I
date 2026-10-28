@@ -5,9 +5,11 @@ import '../services/sync_service.dart';
 import 'business_mode_provider.dart';
 import 'categorias_provider.dart';
 import 'clientes/clientes_provider.dart';
+import 'comanda_provider.dart';
 import 'dashboard_provider.dart';
 import 'departamentos_provider.dart';
 import 'locales_provider.dart';
+import 'mesas_provider.dart';
 import 'productos_provider.dart';
 import 'proveedores_provider.dart';
 
@@ -39,6 +41,14 @@ final syncServiceProvider = Provider<SyncService>((ref) {
       });
       _safe(ref, () {
         ref.read(clientesProvider.notifier).cargarClientes();
+      });
+      // R.1b / R.1c · Salón y comandas. Se refrescan tras cualquier sync o
+      // evento realtime para que el otro dispositivo se vea sin recargar.
+      _safe(ref, () {
+        ref.read(mesasProvider.notifier).cargar();
+      });
+      _safe(ref, () {
+        ref.read(comandasProvider.notifier).cargar();
       });
       // Si tu MarcasNotifier tiene un método de recarga, añádelo aquí:
       // _safe(ref, () {

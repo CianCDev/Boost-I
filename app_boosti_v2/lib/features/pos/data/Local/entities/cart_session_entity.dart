@@ -92,6 +92,14 @@ class CartSessionEntity {
   bool sincronizado = false;
   DateTime? fechaSincronizacion;
 
+  /// R.1c · Identidad de sync de la comanda.
+  ///
+  /// ⚠️ [sessionId] NO sirve para esto: en una comanda vale
+  /// `mesa:<idIsar>`, y el id de Isar es de ESTE dispositivo. `syncKey` es
+  /// un UUID que se genera en el primer push y no cambia nunca; la tabla
+  /// `comandas` tiene `UNIQUE (tenant_id, sync_key)`.
+  String? syncKey;
+
   // ── Estado comanda ──
   @Enumerated(EnumType.name)
   ComandaEstado comandaEstado = ComandaEstado.abierta;
@@ -134,6 +142,26 @@ class CartSessionEntity {
   List<CartSessionItem> items = [];
 
   CartSessionEntity();
+
+  // ── Identidad local (R.1c) ──────────────────────────────────────────
+  //
+  // `sessionId` es UNICO en Isar y es lo que usan `ComandaScreen` y
+  // `abrirComanda` para encontrar la comanda de una mesa. El builder vive
+  // acá (y no en el notifier) porque `SyncService` también lo necesita al
+  // bajar comandas de otro dispositivo.
+
+  /// `sessionId` de la comanda VIVA de una mesa.
+  static String sessionIdDeMesa(int mesaId) => 'mesa:$mesaId';
+
+  /// `sessionId` de una comanda HISTÓRICA (cerrada o cancelada).
+  ///
+  /// Lleva el `syncKey` porque `mesa:<id>` está reservado para la viva: dos
+  /// históricas de la misma mesa chocarían contra el índice único y una
+  /// borraría a la otra en silencio.
+  static String sessionIdHistorico(int mesaId, String syncKey) {
+    final marca = syncKey.trim();
+    return 'mesa:$mesaId#${marca.length > 8 ? marca.substring(0, 8) : marca}';
+  }
 
   @ignore
   bool get esAbandonado =>

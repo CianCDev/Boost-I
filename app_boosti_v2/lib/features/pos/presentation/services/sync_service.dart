@@ -16,6 +16,8 @@ import '../../data/Local/entities/lote_entity.dart';
 import '../utils/pin_hasher.dart';
 import '../utils/tenant_utils.dart';
 import '../../data/Local/entities/categoria_entity.dart';
+import '../../data/Local/entities/cart_session_entity.dart';
+import '../../data/Local/entities/estado_plato.dart';
 import '../../data/Local/entities/gasto_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
@@ -100,6 +102,16 @@ class SyncService {
     if (value is num) return value.toDouble();
     if (value is String) return double.tryParse(value) ?? defaultValue;
     return defaultValue;
+  }
+
+  /// Texto normalizado: `null` si viene vacío.
+  ///
+  /// R.1c: los snapshots de comandas (`nota`, `estacion_nombre`,
+  /// `mesero_nombre`) viajan como `null` cuando no aplican; un `''` en Isar
+  /// haría que la UI pinte huecos y que el LWW detecte diferencias falsas.
+  String? _textoONull(dynamic value) {
+    final texto = (value as String?)?.trim() ?? '';
+    return texto.isEmpty ? null : texto;
   }
 
   /// Retorna `true` si [s] es un UUID válido (hex con guiones).
@@ -193,6 +205,9 @@ class SyncService {
         await descargarMesasDesdeSupabase();
       });
       _suscribirATabla('mesas', () => descargarMesasDesdeSupabase());
+      // R.1c · Comandas. El pull trae el avance de cocina de otro
+      // dispositivo sin esperar al próximo sync manual.
+      _suscribirATabla('comandas', () => descargarComandasDesdeSupabase());
 
       debugPrint('✅ Suscripciones Realtime iniciadas');
     } catch (e, stack) {
@@ -3632,6 +3647,8 @@ Future<void> subirUsuariosPendientes() async {
 
         await _isarService.guardarZona(zona, marcarPendiente: false);
       }
+
+      onDataChanged?.call();
     } catch (e, stack) {
       debugPrint('❌ Error descargando zonas: $e');
       ErrorService.captureError(e,
@@ -3824,12 +3841,437 @@ Future<void> subirUsuariosPendientes() async {
           ..unidaConMesaSupabaseId = unidaSid;
         await _isarService.guardarMesa(mesa, marcarPendiente: false);
       }
+
+      onDataChanged?.call();
     } catch (e, stack) {
       debugPrint('❌ Error descargando mesas: $e');
       ErrorService.captureError(e,
           stack: stack, hint: 'descargarMesasDesdeSupabase_fallo');
       rethrow;
     }
+  }
+
+  // ==================== COMANDAS (R.1c) ====================
+  //
+  // La identidad de sync es `sync_key` (UUID del cliente), NO el id de
+  // Isar ni el `sessionId`: ambos son específicos del dispositivo.
+  //
+  // Los ítems viajan como JSONB. `CartSessionItem` es `@embedded`, sin id
+  // propio, así que no puede ser una tabla hija. Lo que se resuelve al
+  // bajar es el id LOCAL de producto/estación a partir de su UUID.
+
+  /// Sube las comandas pendientes del local.
+  ///
+  /// Va ANTES del pull: el `syncKey` lo genera este dispositivo, así que
+  /// primero se publica lo propio y después se trae lo de los demás.
+  Future<void> sincronizarComandasPendientes() async {
+    try {
+      final pendientes = await _isarService.obtenerComandasPendientesSync();
+      if (pendientes.isEmpty) {
+        debugPrint('ℹ️ No hay comandas pendientes para sincronizar');
+        return;
+      }
+
+      debugPrint('🔄 Sincronizando ${pendientes.length} comandas...');
+      final cacheEstaciones = <int, String?>{};
+
+      for (final comanda in pendientes) {
+        final mesaId = comanda.mesaId;
+        if (mesaId == null) continue;
+
+        final mesa = await _isarService.obtenerMesaPorId(mesaId);
+        if (mesa == null) continue;
+
+        // La mesa tiene que existir en la nube: sin su UUID la comanda
+        // quedaría huérfana y el otro dispositivo nunca la colgaría de la
+        // mesa correcta. El push de mesas corre antes en el ciclo.
+        if (mesa.supabaseId == null) {
+          debugPrint('⚠️ Comanda ${comanda.nombre}: la mesa aún no subió. '
+              'Se reintenta en el próximo ciclo.');
+          continue;
+        }
+
+        final tenantUuid = await _obtenerSupabaseIdLocal(mesa.localId);
+        if (tenantUuid == null || tenantUuid.isEmpty) {
+          debugPrint('⚠️ Comanda ${comanda.nombre} sin tenant. Saltando.');
+          continue;
+        }
+
+        // Red de seguridad: `guardarComanda` ya la genera. Una comanda
+        // anterior a R.1c que se edite después pasa por acá igual.
+        if ((comanda.syncKey ?? '').isEmpty) {
+          comanda.syncKey = const Uuid().v4();
+        }
+        final syncKey = comanda.syncKey!;
+
+        final items = <Map<String, dynamic>>[];
+        for (final item in comanda.items) {
+          String? estacionUuid;
+          final estacionId = item.estacionId;
+          if (estacionId != null) {
+            if (cacheEstaciones.containsKey(estacionId)) {
+              estacionUuid = cacheEstaciones[estacionId];
+            } else {
+              final estacion =
+                  await _isarService.obtenerDepartamentoPorId(estacionId);
+              estacionUuid = estacion?.supabaseId;
+              cacheEstaciones[estacionId] = estacionUuid;
+            }
+          }
+          items.add(_itemComandaAJson(item, estacionUuid));
+        }
+
+        final data = <String, dynamic>{
+          'tenant_id': tenantUuid,
+          'sync_key': syncKey,
+          'id_isar': comanda.id,
+          'mesa_id': mesa.supabaseId,
+          'mesa_nombre': (comanda.mesaNombre ?? mesa.nombre).trim(),
+          'nombre': comanda.nombre,
+          'estado': _estadoComandaParaNube(comanda.comandaEstado),
+          'items': items,
+          'comensales': comanda.comensales,
+          'mesero_nombre': comanda.meseroNombre,
+          'notas': comanda.notas,
+          'total': comanda.total,
+          'enviada_cocina_at': comanda.enviadaCocinaAt?.toIso8601String(),
+          'cerrada_at': comanda.cerradaAt?.toIso8601String(),
+          'created_at': comanda.createdAt.toIso8601String(),
+          'sync_status': _SyncConstants.synced,
+        };
+
+        try {
+          final response = await _supabase
+              .from('comandas')
+              .upsert(data, onConflict: 'tenant_id,sync_key')
+              .select('id')
+              .maybeSingle();
+
+          final supabaseId = response?['id'] as String?;
+          if (supabaseId != null) {
+            comanda
+              ..supabaseId = supabaseId
+              ..sincronizado = true
+              ..fechaSincronizacion = DateTime.now();
+            await _isarService.guardarComanda(comanda, marcarPendiente: false);
+            debugPrint('✅ Comanda ${comanda.nombre} sincronizada '
+                '($supabaseId)');
+          }
+        } on PostgrestException catch (e) {
+          // 23505 = otra caja abrió esta mesa primero (índice parcial
+          // `(tenant_id, mesa_id) WHERE viva`).
+          if (e.code == '23505' && comanda.comandaEditable) {
+            await _conservarComoHistorico(
+              comanda,
+              mesa.id,
+              'Cerrada automáticamente: la mesa ya tenía una comanda '
+              'abierta en otro dispositivo.',
+            );
+          } else {
+            debugPrint('❌ Error al sincronizar comanda '
+                '${comanda.nombre}: $e');
+          }
+        } catch (e) {
+          debugPrint('❌ Error al sincronizar comanda ${comanda.nombre}: $e');
+        }
+      }
+    } catch (e, stack) {
+      debugPrint('❌ Error general en sincronizarComandasPendientes: $e');
+      ErrorService.captureError(e,
+          stack: stack, hint: 'sincronizarComandasPendientes_fallo');
+      rethrow;
+    }
+  }
+
+  /// Baja las comandas del tenant activo.
+  ///
+  /// Dos consultas en vez de un `or()` de PostgREST: las VIVAS siempre
+  /// (una mesa puede quedar abierta días) y todo lo tocado en los últimos
+  /// 3 días. Así el pull no arrastra meses de histórico en cada evento
+  /// realtime.
+  Future<void> descargarComandasDesdeSupabase() async {
+    try {
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Descarga de comandas omitida.');
+        return;
+      }
+
+      final limite = DateTime.now()
+          .subtract(const Duration(days: 3))
+          .toUtc()
+          .toIso8601String();
+
+      final vivas = await _supabase
+          .from('comandas')
+          .select()
+          .eq('tenant_id', tenantUuid)
+          .inFilter('estado', ['abierta', 'enviada']);
+
+      final recientes = await _supabase
+          .from('comandas')
+          .select()
+          .eq('tenant_id', tenantUuid)
+          .gte('updated_at', limite);
+
+      final porId = <String, Map<String, dynamic>>{};
+      for (final row in [...vivas, ...recientes]) {
+        final id = row['id'] as String?;
+        if (id != null) porId[id] = row;
+      }
+      if (porId.isEmpty) return;
+
+      // Ascendente: si la misma mesa aparece dos veces, la última en
+      // escribirse es la más nueva.
+      final filas = porId.values.toList()
+        ..sort((a, b) => (a['updated_at'] as String? ?? '')
+            .compareTo(b['updated_at'] as String? ?? ''));
+
+      debugPrint('🔄 Descargando ${filas.length} comandas desde Supabase...');
+
+      for (final data in filas) {
+        await _aplicarComandaDesdeNube(data);
+      }
+
+      onDataChanged?.call();
+    } catch (e, stack) {
+      debugPrint('❌ Error descargando comandas: $e');
+      ErrorService.captureError(e,
+          stack: stack, hint: 'descargarComandasDesdeSupabase_fallo');
+      rethrow;
+    }
+  }
+
+  /// Aplica una fila de `comandas` a Isar.
+  Future<void> _aplicarComandaDesdeNube(Map<String, dynamic> data) async {
+    final supabaseId = data['id'] as String?;
+    final syncKey = (data['sync_key'] as String? ?? '').trim();
+    if (supabaseId == null || syncKey.isEmpty) return;
+
+    final mesaUuid = data['mesa_id'] as String?;
+    if (mesaUuid == null) return;
+
+    final mesa = await _isarService.obtenerMesaPorSupabaseId(mesaUuid);
+    if (mesa == null) {
+      // La mesa todavía no bajó: en el próximo ciclo estará y la comanda
+      // caerá en su sitio.
+      return;
+    }
+
+    final estado = _estadoComandaDesdeNube(data['estado'] as String?);
+    final viva = estado == ComandaEstado.abierta ||
+        estado == ComandaEstado.enviada;
+
+    var comanda = await _isarService.obtenerComandaPorSupabaseId(supabaseId);
+    comanda ??= await _isarService.obtenerComandaPorSyncKey(syncKey);
+    final existia = comanda != null;
+    comanda ??= CartSessionEntity()..usuarioId = 0;
+
+    final cloudUpdated =
+        DateTime.tryParse(data['updated_at'] as String? ?? '');
+    final localGana = existia &&
+        !comanda.sincronizado &&
+        cloudUpdated != null &&
+        comanda.updatedAt.isAfter(cloudUpdated);
+
+    if (localGana) {
+      // Edición local sin subir y más nueva: no se pisa. El push del
+      // próximo ciclo la sube y gana por LWW.
+      comanda
+        ..supabaseId = supabaseId
+        ..syncKey = syncKey;
+      await _isarService.guardarComanda(comanda);
+      return;
+    }
+
+    if (viva) {
+      // `sessionId` es ÚNICO en Isar (`mesa:<id>` para la viva). Si esta
+      // comanda se escribe sin más, borraría en silencio una comanda viva
+      // local de la misma mesa. Se conserva la local como histórico.
+      final localViva = await _isarService.obtenerComandaVivaDeMesa(mesa.id);
+      if (localViva != null && localViva.id != comanda.id) {
+        await _conservarComoHistorico(
+          localViva,
+          mesa.id,
+          'Cerrada automáticamente: la mesa se abrió en otro dispositivo.',
+        );
+      }
+    }
+
+    final items = <CartSessionItem>[];
+    final itemsJson = data['items'];
+    if (itemsJson is List) {
+      for (final raw in itemsJson) {
+        if (raw is! Map) continue;
+        final json = Map<String, dynamic>.from(raw);
+
+        final productoUuid = (json['producto_id'] as String? ?? '').trim();
+        int? productoIdLocal;
+        if (productoUuid.isNotEmpty) {
+          productoIdLocal = (await _isarService
+                  .obtenerProductoPorSupabaseId(productoUuid))
+              ?.id;
+        }
+
+        final estacionUuid = (json['estacion_id'] as String? ?? '').trim();
+        int? estacionId;
+        if (estacionUuid.isNotEmpty) {
+          estacionId = (await _isarService
+                  .obtenerDepartamentoPorSupabaseId(estacionUuid))
+              ?.id;
+        }
+
+        items.add(_itemComandaDesdeJson(
+          json,
+          productoIdLocal: productoIdLocal,
+          estacionId: estacionId,
+        ));
+      }
+    }
+
+    final mesaNombre = (data['mesa_nombre'] as String? ?? '').trim();
+    final nombreNube = (data['nombre'] as String? ?? '').trim();
+
+    comanda
+      ..sessionId = viva
+          ? CartSessionEntity.sessionIdDeMesa(mesa.id)
+          : CartSessionEntity.sessionIdHistorico(mesa.id, syncKey)
+      ..syncKey = syncKey
+      ..supabaseId = supabaseId
+      ..nombre = nombreNube.isEmpty ? 'Comanda ${mesa.nombre}' : nombreNube
+      ..mesaId = mesa.id
+      ..mesaNombre = mesaNombre.isEmpty ? mesa.nombre : mesaNombre
+      ..comandaEstado = estado
+      ..comensales = _toInt(data['comensales'], 1)
+      ..meseroNombre = _textoONull(data['mesero_nombre'])
+      ..notas = _textoONull(data['notas'])
+      ..enviadaCocinaAt =
+          DateTime.tryParse(data['enviada_cocina_at'] as String? ?? '')
+      ..cerradaAt = DateTime.tryParse(data['cerrada_at'] as String? ?? '')
+      ..createdAt = DateTime.tryParse(data['created_at'] as String? ?? '') ??
+          comanda.createdAt
+      ..items = items
+      ..itemsNombres = items.map((i) => i.productoNombre).toList()
+      ..sincronizado = true
+      ..fechaSincronizacion = DateTime.now();
+
+    await _isarService.guardarComanda(comanda, marcarPendiente: false);
+  }
+
+  /// Degrada una comanda local a HISTÓRICO (cancelada).
+  ///
+  /// Se usa cuando otra caja ganó la mesa. No se borra: los ítems quedan
+  /// en Isar y en la nube (el push siguiente la sube ya cancelada, que no
+  /// choca contra el índice parcial de comandas vivas).
+  ///
+  /// ⚠️ Cambia el `sessionId`: `mesa:<id>` queda reservado para la viva.
+  Future<void> _conservarComoHistorico(
+    CartSessionEntity comanda,
+    int mesaId,
+    String motivo,
+  ) async {
+    final previas = (comanda.notas ?? '').trim();
+    comanda
+      ..comandaEstado = ComandaEstado.cancelada
+      ..sessionId = CartSessionEntity.sessionIdHistorico(
+          mesaId, comanda.syncKey ?? 'local${comanda.id}')
+      ..notas = previas.isEmpty ? motivo : '$previas · $motivo';
+    await _isarService.guardarComanda(comanda);
+    debugPrint('⚠️ Comanda ${comanda.id} conservada como histórico: $motivo');
+  }
+
+  /// Estado de comanda para la nube.
+  ///
+  /// `enPreparacion` y `entregada` son valores muertos del enum (R.3.1 los
+  /// reemplazó por `EstadoPlato`): viajan como `enviada`.
+  String _estadoComandaParaNube(ComandaEstado estado) => switch (estado) {
+        ComandaEstado.abierta => 'abierta',
+        ComandaEstado.enviada ||
+        ComandaEstado.enPreparacion ||
+        ComandaEstado.entregada =>
+          'enviada',
+        ComandaEstado.cerrada => 'cerrada',
+        ComandaEstado.cancelada => 'cancelada',
+      };
+
+  ComandaEstado _estadoComandaDesdeNube(String? estado) => switch (estado) {
+        'enviada' => ComandaEstado.enviada,
+        'cerrada' => ComandaEstado.cerrada,
+        'cancelada' => ComandaEstado.cancelada,
+        _ => ComandaEstado.abierta,
+      };
+
+  EstadoPlato _estadoPlatoDesdeNombre(String? nombre) {
+    for (final estado in EstadoPlato.values) {
+      if (estado.name == nombre) return estado;
+    }
+    return EstadoPlato.pendiente;
+  }
+
+  Map<String, dynamic> _itemComandaAJson(
+      CartSessionItem item, String? estacionUuid) {
+    return {
+      'producto_id': item.productoId,
+      'producto_nombre': item.productoNombre,
+      'producto_codigo_barras': item.productoCodigoBarras,
+      'producto_categoria': item.productoCategoria,
+      'precio_unidad': item.precioUnidad,
+      'precio_original': item.precioOriginal,
+      'cantidad': item.cantidad,
+      'es_pesado': item.esPesado,
+      'es_descuento_especial': item.esDescuentoEspecial,
+      'nota': item.nota,
+      'estacion_id': estacionUuid,
+      'estacion_nombre': item.estacionNombre,
+      'estado_plato': item.estadoPlato.name,
+      'enviado_a_cocina_at': item.enviadoACocinaAt?.toIso8601String(),
+      'preparacion_iniciada_at':
+          item.preparacionIniciadaAt?.toIso8601String(),
+      'listo_at': item.listoAt?.toIso8601String(),
+      'entregado_at': item.entregadoAt?.toIso8601String(),
+      'imagen_url': item.imagenUrl,
+      'pausado': item.pausado,
+      'pausado_en': item.pausadoEn?.toIso8601String(),
+      'motivo_pausa': item.motivoPausa,
+    };
+  }
+
+  CartSessionItem _itemComandaDesdeJson(
+    Map<String, dynamic> json, {
+    int? productoIdLocal,
+    int? estacionId,
+  }) {
+    return CartSessionItem()
+      ..productoId = (json['producto_id'] as String? ?? '')
+      ..productoNombre = (json['producto_nombre'] as String? ?? '')
+      ..productoCodigoBarras =
+          (json['producto_codigo_barras'] as String? ?? '')
+      ..productoCategoria =
+          (json['producto_categoria'] as String? ?? 'General')
+      ..precioUnidad = _toDouble(json['precio_unidad'])
+      ..precioOriginal = _toDouble(json['precio_original'])
+      ..cantidad = _toDouble(json['cantidad'])
+      ..esPesado = json['es_pesado'] as bool? ?? false
+      ..esDescuentoEspecial =
+          json['es_descuento_especial'] as bool? ?? false
+      ..nota = _textoONull(json['nota'])
+      ..estacionId = estacionId
+      ..estacionNombre = _textoONull(json['estacion_nombre'])
+      ..productoIdLocal = productoIdLocal
+      ..estadoPlato = _estadoPlatoDesdeNombre(json['estado_plato'] as String?)
+      ..enviadoACocinaAt =
+          DateTime.tryParse(json['enviado_a_cocina_at'] as String? ?? '')
+      ..preparacionIniciadaAt = DateTime.tryParse(
+          json['preparacion_iniciada_at'] as String? ?? '')
+      ..listoAt = DateTime.tryParse(json['listo_at'] as String? ?? '')
+      ..entregadoAt =
+          DateTime.tryParse(json['entregado_at'] as String? ?? '')
+      ..imagenUrl = _textoONull(json['imagen_url'])
+      ..pausado = json['pausado'] as bool? ?? false
+      ..pausadoEn = DateTime.tryParse(json['pausado_en'] as String? ?? '')
+      ..motivoPausa = _textoONull(json['motivo_pausa']);
   }
 
   // ==================== CLIENTES ====================
@@ -5628,6 +6070,10 @@ Future<void> subirMovimientosLotePendientes() async {
       await _safe('descargarMesas', descargarMesasDesdeSupabase);
       await _safe('sincronizarMesas', sincronizarMesasPendientes);
 
+      // R.1c · Comandas (necesitan las mesas ya con UUID).
+      await _safe('sincronizarComandas', sincronizarComandasPendientes);
+      await _safe('descargarComandas', descargarComandasDesdeSupabase);
+
       await _safe('sincronizarTelegram', sincronizarTelegramConfigPendientes);
       await _safe('descargarTelegram', descargarTelegramConfigDesdeSupabase);
 
@@ -5646,7 +6092,7 @@ Future<void> subirMovimientosLotePendientes() async {
     int ventas = 0, productos = 0, proveedores = 0, gastos = 0;
     int pedidos = 0, lotes = 0, marcas = 0, locales = 0;
     int departamentos = 0, telegram = 0, recetas = 0;
-    int zonas = 0, mesas = 0;
+    int zonas = 0, mesas = 0, comandas = 0;
 
     try {
       await descargarCategoriasDesdeSupabase();
@@ -5741,6 +6187,14 @@ Future<void> subirMovimientosLotePendientes() async {
         mesas = mesasPend.length;
       }
 
+      // R.1c · Comandas: push y pull, igual que en `sincronizarTodo`.
+      final comandasPend =
+          await _isarService.obtenerComandasPendientesSync();
+      if (comandasPend.isNotEmpty) {
+        await sincronizarComandasPendientes();
+        comandas = comandasPend.length;
+      }
+
       await descargarVentasDesdeSupabase();
       await descargarProductosDesdeSupabase();
       await descargarProveedoresDesdeSupabase();
@@ -5752,6 +6206,7 @@ Future<void> subirMovimientosLotePendientes() async {
       await descargarCategoriasDesdeSupabase();
       await descargarZonasDesdeSupabase();
       await descargarMesasDesdeSupabase();
+      await descargarComandasDesdeSupabase();
 
       return {
         'ventas': ventas,
@@ -5767,6 +6222,7 @@ Future<void> subirMovimientosLotePendientes() async {
         'recetas': recetas,
         'zonas': zonas,
         'mesas': mesas,
+        'comandas': comandas,
       };
     } catch (e, stack) {
       debugPrint('❌ Error en sincronización completa con resumen: $e');

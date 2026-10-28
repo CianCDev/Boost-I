@@ -149,6 +149,30 @@ class MesasNotifier extends StateNotifier<MesasState> {
         }
       }
 
+      // R.1c · La ocupación NO se sincroniza: se deriva de las comandas
+      // vivas. Es la única forma de que el teléfono y el desktop coincidan
+      // aunque alguien haya tocado el estado a mano en uno de los dos.
+      //
+      // `reservada` y `porLimpiar` son estados manuales y se respetan; solo
+      // se alterna entre `libre` y `ocupada`.
+      for (final mesa in mesas) {
+        final viva = await _isar.obtenerComandaVivaDeMesa(mesa.id);
+        final MesaEstado esperado;
+        if (viva != null) {
+          esperado = MesaEstado.ocupada;
+        } else if (mesa.estado == MesaEstado.ocupada) {
+          esperado = MesaEstado.libre;
+        } else {
+          esperado = mesa.estado;
+        }
+        if (esperado == mesa.estado) continue;
+
+        mesa.estado = esperado;
+        mesa.ocupadaDesde =
+            esperado == MesaEstado.ocupada ? DateTime.now() : null;
+        await _isar.guardarMesa(mesa, marcarPendiente: false);
+      }
+
       state = state.copyWith(
         mesas: mesas,
         zonas: zonas,

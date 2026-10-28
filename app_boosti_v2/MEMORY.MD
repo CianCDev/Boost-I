@@ -1264,8 +1264,45 @@ Ratificado en los commits: TODO:270 (chip "Sin estación" en KDS, ya existía en
 - **UI**: `zonas_dialog.dart` gestiona zonas (crear, renombrar con cascada,
   reordenar, eliminar si no tiene mesas). El filtro del salon y de caja usa
   el NOMBRE de la zona.
-- **Fase B pendiente**: comandas/KDS en Supabase (`comandas` con `items`
-  JSONB, `sessionId` con UUID en vez de `mesa:<idIsar>`,
-  `estacionSupabaseId`, estado de mesa derivado de comandas vivas).
+- **Fase B**: cerrada en la seccion siguiente (R.1c).
 - **Calidad**: 9 tests nuevos en `test/integration/zonas_mesas_isar_test.dart`
   (clave unica, tombstones, orden de zonas, helpers de `MesaEntity`).
+
+---
+
+## R.1c - Comandas y KDS multi-dispositivo (2026-10-28)
+
+- **Esquema**: `supabase/migrations/20261028000003_comandas.sql` crea
+  `comandas` con `items` JSONB, `UNIQUE (tenant_id, sync_key)`, indice unico
+  parcial `(tenant_id, mesa_id) WHERE estado IN ('abierta','enviada')`, RLS
+  por `tenant_id`, trigger de `updated_at` y alta en `supabase_realtime`.
+  **El owner debe correr el SQL** y verificar con la query del final.
+- **Identidad**: `sync_key` (UUID generado en el primer push) es la
+  identidad de sync. `id_isar` y `sessionId` NO sirven: son por dispositivo
+  (`sessionId` vale `mesa:<idIsar>`). La unicidad es `(tenant_id, sync_key)`.
+- **Una viva por mesa**: si dos cajas abren la misma mesa, la segunda recibe
+  `23505` y su comanda se degrada a historico local (cancelada +
+  `sessionId = mesa:<id>#<8 chars del syncKey>`) en vez de duplicar la mesa.
+  El historico no choca con el indice parcial ni con `sessionId` unico.
+- **Push antes del pull** en `sincronizarComandasPendientes` ->
+  `descargarComandasDesdeSupabase`: la identidad la genera este dispositivo.
+  El push sube vivas + cerradas/canceladas de los ultimos 2 dias (evita
+  subir meses de historico en el primer sync); el pull trae vivas + tocadas
+  en los ultimos 3 dias en dos consultas (sin `or()` de PostgREST).
+- **Items**: viajan como JSONB con `producto_id` y `estacion_id` en UUID;
+  al bajar se resuelven a ids locales (`obtenerProductoPorSupabaseId`,
+  `obtenerDepartamentoPorSupabaseId`). `CartSessionItem` es `@embedded`, no
+  puede ser tabla hija.
+- **Estado de mesa**: NO se sincroniza. `MesasNotifier.cargar` lo deriva de
+  las comandas vivas (viva -> ocupada; sin viva y ocupada -> libre;
+  `reservada`/`porLimpiar` se respetan) y persiste con
+  `marcarPendiente: false`. `_marcarMesaOcupada`/`_liberarMesa` idem.
+- **KDS**: los 3 `put` directos de `IsarService` marcan `sincronizado =
+  false`, asi el avance de cocina sube en el siguiente ciclo.
+- **Provider**: `sync_provider` refresca `mesasProvider` y `comandasProvider`
+  en cada `onDataChanged` (realtime de `comandas` incluido).
+- **Calidad**: 11 tests nuevos en `test/integration/comandas_isar_test.dart`
+  (identidad de sync, ventana de pendientes, busquedas del pull, `sessionId`
+  de historicas, avance de KDS). Suite completa: **All tests passed!
+  +978 ~1**; `flutter analyze` 0 errores / 0 warnings (17 infos
+  preexistentes).

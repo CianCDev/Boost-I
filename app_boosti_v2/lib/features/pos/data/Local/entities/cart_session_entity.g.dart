@@ -160,13 +160,18 @@ const CartSessionEntitySchema = CollectionSchema(
       name: r'supabaseId',
       type: IsarType.string,
     ),
-    r'updatedAt': PropertySchema(
+    r'syncKey': PropertySchema(
       id: 28,
+      name: r'syncKey',
+      type: IsarType.string,
+    ),
+    r'updatedAt': PropertySchema(
+      id: 29,
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
     r'usuarioId': PropertySchema(
-      id: 29,
+      id: 30,
       name: r'usuarioId',
       type: IsarType.long,
     )
@@ -281,6 +286,12 @@ int _cartSessionEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final value = object.syncKey;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -323,8 +334,9 @@ void _cartSessionEntitySerialize(
   writer.writeBool(offsets[25], object.sincronizado);
   writer.writeString(offsets[26], object.status.name);
   writer.writeString(offsets[27], object.supabaseId);
-  writer.writeDateTime(offsets[28], object.updatedAt);
-  writer.writeLong(offsets[29], object.usuarioId);
+  writer.writeString(offsets[28], object.syncKey);
+  writer.writeDateTime(offsets[29], object.updatedAt);
+  writer.writeLong(offsets[30], object.usuarioId);
 }
 
 CartSessionEntity _cartSessionEntityDeserialize(
@@ -373,8 +385,9 @@ CartSessionEntity _cartSessionEntityDeserialize(
           reader.readStringOrNull(offsets[26])] ??
       CartSessionStatus.enEspera;
   object.supabaseId = reader.readStringOrNull(offsets[27]);
-  object.updatedAt = reader.readDateTime(offsets[28]);
-  object.usuarioId = reader.readLong(offsets[29]);
+  object.syncKey = reader.readStringOrNull(offsets[28]);
+  object.updatedAt = reader.readDateTime(offsets[29]);
+  object.usuarioId = reader.readLong(offsets[30]);
   return object;
 }
 
@@ -452,8 +465,10 @@ P _cartSessionEntityDeserializeProp<P>(
     case 27:
       return (reader.readStringOrNull(offset)) as P;
     case 28:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 29:
+      return (reader.readDateTime(offset)) as P;
+    case 30:
       return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -3713,6 +3728,160 @@ extension CartSessionEntityQueryFilter
   }
 
   QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'syncKey',
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'syncKey',
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'syncKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'syncKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'syncKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'syncKey',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'syncKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'syncKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'syncKey',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'syncKey',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'syncKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
+      syncKeyIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'syncKey',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterFilterCondition>
       updatedAtEqualTo(DateTime value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
@@ -4205,6 +4374,20 @@ extension CartSessionEntityQuerySortBy
   }
 
   QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterSortBy>
+      sortBySyncKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterSortBy>
+      sortBySyncKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncKey', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterSortBy>
       sortByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -4613,6 +4796,20 @@ extension CartSessionEntityQuerySortThenBy
   }
 
   QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterSortBy>
+      thenBySyncKey() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncKey', Sort.asc);
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterSortBy>
+      thenBySyncKeyDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'syncKey', Sort.desc);
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QAfterSortBy>
       thenByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -4838,6 +5035,13 @@ extension CartSessionEntityQueryWhereDistinct
   }
 
   QueryBuilder<CartSessionEntity, CartSessionEntity, QDistinct>
+      distinctBySyncKey({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'syncKey', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, CartSessionEntity, QDistinct>
       distinctByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'updatedAt');
@@ -5047,6 +5251,12 @@ extension CartSessionEntityQueryProperty
       supabaseIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'supabaseId');
+    });
+  }
+
+  QueryBuilder<CartSessionEntity, String?, QQueryOperations> syncKeyProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'syncKey');
     });
   }
 
