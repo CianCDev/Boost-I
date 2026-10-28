@@ -5,7 +5,9 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/cliente_entity.da
 import 'package:app_boosti_v2/features/pos/data/Local/entities/detalle_venta_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/lote_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/movimiento_inventario_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/receta_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/usuario_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/venta_entity.dart';
 import 'package:app_boosti_v2/features/pos/domain/models/product_item.dart';
@@ -441,5 +443,63 @@ void main() {
     final db = await IsarService().db;
     final venta = (await db.ventaEntitys.where().findAll()).single;
     expect(venta.empleado, 'Cajero Test');
+  });
+
+  // ════════════════════════════════════════════════════════════
+  // RETAIL CON RECETA DEFINIDA (TODO.md:901)
+  // ════════════════════════════════════════════════════════════
+  //
+  // Fija el objetivo de retail: la venta retail de un producto que TIENE
+  // receta definida NO genera movimiento de 'Consumo receta'. G.3
+  // (`_descontarRecetaDeItem`) es del KDS por construcción: acá se
+  // documenta y se prueba la garantía (si algún día el retail también
+  // consultara recetas, este test lo canta).
+  test('venta retail con receta: NO genera movimiento Consumo receta', () async {
+    final p = await seedProducto(id: 70, nombre: 'Pizza', precio: 12.0, stock: 10);
+    await seedProducto(id: 71, nombre: 'Harina', precio: 1.0, stock: 100);
+    final db = await IsarService().db;
+
+    // El producto vendido (70) lleva receta: 2 kg de Harina (71) por plato.
+    await db.writeTxn(() async {
+      await db.recetaEntitys.put(RecetaEntity()
+        ..productoId = 70
+        ..nombrePlato = 'Pizza'
+        ..rindePorciones = 1.0
+        ..activo = true
+        ..items = [
+          RecetaItemEntity()
+            ..ingredienteId = 71
+            ..ingredienteNombre = 'Harina'
+            ..cantidad = 2.0
+            ..unidad = 'kg'
+            ..esOpcional = false,
+        ]);
+    });
+
+    final container = mountContainer();
+    container.read(cartProvider.notifier).agregarItem(p, 1.0);
+
+    final service = container.read(ventaServiceProvider);
+    await service.procesarVenta(
+      null,
+      metodoPago: 'Efectivo',
+      cambio: 0,
+      recibido: 12.0,
+      tasaActual: 36.5,
+    );
+
+    // Sí descontó el PRODUCTO vendido (el lote del 70), como toda venta
+    // retail: 10 − 1 = 9.
+    final producto = await db.productoEntitys.get(70);
+    expect(producto!.stock, closeTo(9.0, 0.001));
+    // El INGREDIENTE queda sin tocar: la receta no alimenta la venta retail.
+    final ingrediente = await db.productoEntitys.get(71);
+    expect(ingrediente!.stock, 100);
+    // Y no hay movimiento de consumo de receta en todo el historial.
+    final consumoReceta = await db.movimientoInventarioEntitys
+        .filter()
+        .tipoMovimientoEqualTo('Consumo receta')
+        .findAll();
+    expect(consumoReceta, isEmpty);
   });
 }

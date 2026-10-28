@@ -904,10 +904,12 @@ funcionando para stock real, pero las recetas no descuentan.
       RESUELTO (2026-10-28): gate en `_buildSeccionReceta` con el getter de MODO
       `FeatureFlags.mostrarRecetas` (`business_mode_provider.dart`, junto a
       `mostrarMesas`): `esRestaurante` — retail y servicios no la pintan.
-- [ ] G.3 (`_descontarRecetaDeItem`) ya está acotado al KDS, así que no
-      descuenta en retail por construcción. Conviene un test que lo fije:
-      una receta + una venta retail NO deben generar movimiento de
-      'Consumo receta'.
+- [x] G.3 (`_descontarRecetaDeItem`) ya está acotado al KDS, así que no
+      descuenta en retail por construcción. RESUELTO (2026-10-28) con el
+      test fijador `ventas_service_test.dart` ("venta retail con receta:
+      NO genera movimiento Consumo receta"): receta del producto 70 + venta
+      retail → descuenta SOLO el producto (10−1=9), el ingrediente (71)
+      queda en 100 y no hay movimiento 'Consumo receta'.
 - [x] El gate vive en `ProductDataTab`, no dentro del editor (el editor
       sigue sin conocer flags, como pedía esta entrada).
 
