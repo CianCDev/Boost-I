@@ -4,14 +4,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/Local/entities/departamento_entity.dart';
 import '../../data/Local/entities/plan_entity.dart';
 import '../../data/Local/entities/suscripcion_entity.dart';
 import '../providers/business_mode_provider.dart';
-import '../providers/departamentos_provider.dart';
 import '../providers/suscripcion_provider.dart';
-import '../providers/usuario_provider.dart';
-import '../../data/Local/entities/isar_service.dart';
 import '../utils/responsive_helper.dart';
 import '../widgets/business_mode/modo_negocio_card.dart';
 import '../widgets/common/dialog_header.dart';
@@ -565,19 +561,6 @@ class _ConfiguracionModoNegocioScreenState
     if (!mounted) return;
 
     if (ok) {
-      // PASO E · Seed de estaciones de cocina (TODO.md "Seed de
-      // estaciones"): un local que entra a restaurante sin NINGUNA
-      // estación queda con el bulk en "Este local no tiene estaciones" y
-      // el KDS sin columnas. Se siembran SOLO esa primera vez; a partir
-      // de ahí son departamentos normales, editables en la pantalla de
-      // departamentos.
-      if (_seleccionado == BusinessMode.restaurante) {
-        await _seedEstaciones();
-      }
-      // El seed es un `await` nuevo en el medio: re-verifica el `mounted`
-      // antes de tocar `context` (el lint `use_build_context_synchronously`
-      // señala un solo gap por línea y no ve el de `cambiarModo`).
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Modo cambiado a ${_seleccionado!.label}'),
@@ -593,52 +576,6 @@ class _ConfiguracionModoNegocioScreenState
           backgroundColor: Color(0xFFEF4444),
         ),
       );
-    }
-  }
-
-  /// SEED de estaciones de cocina (PASO E).
-  ///
-  /// Si el local pasa a `restaurante` estando sin NINGUNA estación, el
-  /// bulk muestra "Este local no tiene estaciones" y el KDS no tiene a
-  /// dónde mandar líneas. Se siembran las 3 de fábrica (orden 0/1/2).
-  ///
-  /// Va por `guardarDepartamentoProvider` (departamentos_provider.dart:63)
-  /// y no directo contra Isar: así hereda la validación de duplicados y
-  /// los `invalidate` de los providers derivados.
-  ///
-  /// Disparo: SOLO si el local no llega a tener UNA sola estación (ver el
-  /// check del principio): si ya tiene —aunque sea una— es un local que
-  /// se configuró a su manera; sembrar encima sería escribir de más.
-  ///
-  /// Best-effort a propósito: si el seed falla el modo ya se registró y
-  /// el local puede crear las estaciones a mano; se anota y se sigue.
-  Future<void> _seedEstaciones() async {
-    try {
-      final localActivo = await IsarService().obtenerLocalActivo();
-      final existentes = await IsarService()
-          .obtenerDepartamentos(localId: localActivo?.id);
-      if (existentes.isNotEmpty) return;
-
-      final usuarioId = ref.read(usuarioActualProvider)?.id ?? 0;
-      final estaciones = <(String nombre, int orden)>[
-        ('Cocina', 0),
-        ('Barra', 1),
-        ('Postres', 2),
-      ];
-      for (final (nombre, orden) in estaciones) {
-        await ref.read(guardarDepartamentoProvider(DepartamentoEntity()
-          ..nombre = nombre
-          ..descripcion = 'Estación de fábrica (seed)'
-          ..orden = orden
-          ..localId = localActivo?.id
-          ..usuarioId = usuarioId
-          ..activo = true
-          ..sincronizado = false).future);
-      }
-      debugPrint('🍳 [estaciones] seed aplicado '
-          '(${estaciones.length} estaciones, local ${localActivo?.id})');
-    } catch (e) {
-      debugPrint('⚠️ [estaciones] seed falló (best-effort): $e');
     }
   }
 }

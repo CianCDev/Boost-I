@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/Local/entities/isar_service.dart';
 
+import '../services/seed_estaciones_service.dart';
 import 'suscripcion_provider.dart';
 
 // ══════════════════════════════════════════════════════════════════
@@ -150,6 +151,19 @@ class BusinessModeNotifier extends StateNotifier<BusinessMode> {
 
       state = nuevo;
       debugPrint('✅ [BusinessMode] Modo cambiado a ${nuevo.id}');
+
+      // PASO E · El modo ya quedó registrado: si va a restaurante y el
+      // local no llega a tener UNA sola estación, siembra las de fábrica.
+      // Esto cubre el onboarding (`seleccionar_modo_negocio_screen`) y
+      // Settings con UN solo sitio de seed (la versión anterior lo tenía
+      // solo en Settings y un tenant nuevo del onboarding quedaba sin
+      // estaciones). El seed mismo explica sus porqués
+      // (`seed_estaciones_service.dart`); si falla, best-effort: el modo
+      // ya está y el local las crea a mano.
+      if (nuevo == BusinessMode.restaurante) {
+        await const SeedEstacionesRestaurante()
+            .sembrar(ref, localId: local.id);
+      }
 
       // Refrescar la suscripción por si el nuevo modo depende del plan
       ref.invalidate(suscripcionProvider);
