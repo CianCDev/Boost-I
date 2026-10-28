@@ -882,9 +882,21 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
 
  Future<void> sincronizarUsuariosDesdeSupabase() async {
   try {
+    // ⚠️ Filtro por tenant OBLIGATORIO (patrón de lotes, :3882). A secas,
+    // si el JWT es de super admin las policies se ORean y el dispositivo
+    // baja usuarios de TODOS los tenants (incidente AGENTS §7.4).
+    final localActivo = await _isarService.obtenerLocalActivo();
+    final tenantUuid = localActivo?.supabaseId;
+    if (tenantUuid == null || tenantUuid.isEmpty) {
+      debugPrint('⚠️ [SyncService] Sin local activo. '
+          'Descarga de usuarios omitida (no se puede filtrar por tenant).');
+      return;
+    }
+
     final response = await _supabase
         .from('usuarios')
         .select()
+        .eq('tenant_id', tenantUuid)
         .order('nombre', ascending: true);
 
     if (response.isEmpty) {
@@ -1201,9 +1213,18 @@ Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
 
   Future<List<Map<String, dynamic>>> obtenerUsuariosDesdeSupabase() async {
     try {
+      // Filtro por tenant obligatorio (ver :884).
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Lectura de usuarios omitida (no se puede filtrar por tenant).');
+        return [];
+      }
       final response = await _supabase
           .from('usuarios')
           .select()
+          .eq('tenant_id', tenantUuid)
           .order('nombre', ascending: true);
       return response;
     } catch (e, stack) {
@@ -1410,9 +1431,18 @@ Future<void> subirUsuariosPendientes() async {
 
   Future<void> descargarProveedoresDesdeSupabase() async {
     try {
+      // Filtro por tenant obligatorio (ver :3882 patrón lotes).
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Descarga de proveedores omitida (no se puede filtrar por tenant).');
+        return;
+      }
       final response = await _supabase
           .from('proveedores')
           .select()
+          .eq('tenant_id', tenantUuid)
           .order('nombre', ascending: true);
       debugPrint(
           '🔄 Descargando ${response.length} proveedores desde Supabase...');
@@ -1647,9 +1677,18 @@ Future<void> subirUsuariosPendientes() async {
 
   Future<void> descargarProductosDesdeSupabase() async {
     try {
+      // Filtro por tenant obligatorio (ver :3882 patrón lotes).
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Descarga de productos omitida (no se puede filtrar por tenant).');
+        return;
+      }
       final response = await _supabase
           .from('productos')
           .select()
+          .eq('tenant_id', tenantUuid)
           .order('nombre', ascending: true);
       if (response.isEmpty) {
         debugPrint('ℹ️ No hay productos en Supabase para descargar');
@@ -2067,9 +2106,20 @@ Future<void> subirUsuariosPendientes() async {
 
   Future<void> descargarVentasDesdeSupabase() async {
     try {
+      // Filtro por tenant obligatorio (ver :3882 patrón lotes). Las ventas
+      // son el dato más sensible del tenant: a secas, un JWT de super
+      // admin bajaba las de TODOS los comercios al dispositivo.
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Descarga de ventas omitida (no se puede filtrar por tenant).');
+        return;
+      }
       final response = await _supabase
           .from('ventas')
           .select()
+          .eq('tenant_id', tenantUuid)
           .order('fecha', ascending: false);
       if (response.isEmpty) {
         debugPrint('ℹ️ No hay ventas en Supabase para descargar');
@@ -2083,10 +2133,13 @@ Future<void> subirUsuariosPendientes() async {
         final String ventaIdString = data['id'] as String? ?? '';
         if (ventaIdString.isEmpty) continue;
 
-        // 🔥 Consulta con 'venta_id_tk' (columna renombrada)
+        // 🔥 Consulta con 'venta_id_tk' (columna renombrada). El filtro
+        // de tenant es defensivo: la venta ya venía filtrada, pero la
+        // columna existe y cuesta nada.
         final detallesResponse = await _supabase
             .from('detalle_ventas')
             .select()
+            .eq('tenant_id', tenantUuid)
             .eq('venta_id_tk', ventaIdString);
 
         // 🔥 Leer los campos de descuento desde Supabase
@@ -2614,9 +2667,18 @@ Future<void> subirUsuariosPendientes() async {
 
   Future<void> descargarMarcasDesdeSupabase() async {
     try {
+      // Filtro por tenant obligatorio (ver :3882 patrón lotes).
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Descarga de marcas omitida (no se puede filtrar por tenant).');
+        return;
+      }
       final response = await _supabase
           .from('marcas')
           .select()
+          .eq('tenant_id', tenantUuid)
           .order('nombre', ascending: true);
       debugPrint(
           '📥 [SyncService] Descargadas ${response.length} marcas desde Supabase');
@@ -2679,9 +2741,18 @@ Future<void> subirUsuariosPendientes() async {
 
   Future<void> descargarGastosDesdeSupabase() async {
     try {
+      // Filtro por tenant obligatorio (ver :3882 patrón lotes).
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Descarga de gastos omitida (no se puede filtrar por tenant).');
+        return;
+      }
       final response = await _supabase
           .from('gastos')
           .select()
+          .eq('tenant_id', tenantUuid)
           .order('fecha', ascending: false);
 
       if (response.isEmpty) {
@@ -3320,9 +3391,19 @@ Future<void> subirUsuariosPendientes() async {
 
   Future<void> descargarDepartamentosDesdeSupabase() async {
     try {
+      // Filtro por tenant obligatorio (ver :3882 patrón lotes). Aquí son
+      // las estaciones de cocina de TODOS los restaurantes si se omite.
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Descarga de departamentos omitida (no se puede filtrar por tenant).');
+        return;
+      }
       final response = await _supabase
           .from('departamentos')
           .select()
+          .eq('tenant_id', tenantUuid)
           .order('nombre', ascending: true);
       debugPrint(
           '🔄 Descargando ${response.length} departamentos desde Supabase...');
@@ -3990,9 +4071,21 @@ Future<void> subirMovimientosLotePendientes() async {
 
   Future<void> descargarMovimientosLoteDesdeSupabase() async {
     try {
+      // Filtro por tenant obligatorio (ver :3882 patrón lotes). Esta es la
+      // tabla del incidente del 2026-10-10: se creó a mano sin RLS y el
+      // select() a secas traía movimientos de todos los tenants.
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Descarga de movimientos de lote omitida (no se puede filtrar '
+            'por tenant).');
+        return;
+      }
       final response = await _supabase
           .from('movimientos_lotes')
           .select()
+          .eq('tenant_id', tenantUuid)
           .order('fecha', ascending: false);
       if (response.isEmpty) return;
 

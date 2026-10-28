@@ -111,6 +111,23 @@
       ya no tiene confirmador propio (usa `Navigator.pop` directo, no hay
       `AlertDialog` de confirmación); el escaneo de texto "¿deseas eliminar /
       ¿vaciar" no arroja otras copias activas.
+- [x] **Refuerzo de SyncService: filtro de tenant en las descargas.**
+      RESUELTO (2026-10-28, autorizado por el owner): 10 `select()` a secas
+      en `sync_service.dart` (usuarios, proveedores, productos, ventas,
+      detalle_ventas, marcas, gastos, departamentos, movimientos_lotes)
+      ahora llevan `.eq('tenant_id', tenantUuid)` con el guard del patrón
+      de lotes (sync_service.dart:~3882): sin local activo la descarga se
+      OMITE con log, no se dispara sin filtro. Riesgo cerrado: un JWT de
+      super admin ya no baja filas de todos los tenants al dispositivo
+      (incidente AGENTS §7.4). Los `select()` restantes a secas son
+      post-escritura (`update/delete/upsert` devolviendo la fila tocada)
+      — no son lecturas multi-tenant.
+- [x] **Policies del bucket `backups`.** Escrito
+      `supabase/migrations/20261028000001_backups_storage_policies.sql`
+      (4 policies, patrón de `20261010000006`): PENDIENTE de que el owner
+      corra el SQL + repair. El bucket nace en runtime desde el cliente
+      (`backup_service.dart:242`) y sin policies en `storage.objects`
+      el upload/download falla silenciosamente.
 
 ## 🔶 Drift de schema (tablas en remoto sin versionar)
 
