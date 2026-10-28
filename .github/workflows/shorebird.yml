@@ -227,7 +227,11 @@ jobs:
 
       - name: Localizar APK firmado
         id: find-apk
-        if: success()
+        # Solo tiene sentido en release/apk: un `shorebird patch` NO
+        # produce APK completo (empaqueta Dart+assets contra el release
+        # ya publicado), y fallar aquí en modo patch dejó el run en rojo
+        # aunque el patch se hubiera publicado con éxito.
+        if: ${{ inputs.action == 'release' || inputs.action == 'apk' }}
         run: |
           APK=app_boosti_v2/build/apks/boosti-ota.apk
           if [ ! -f "$APK" ]; then
@@ -239,7 +243,7 @@ jobs:
 
       - name: Subir APK como artifact
         id: upload-apk
-        if: success()
+        if: ${{ (inputs.action == 'release' || inputs.action == 'apk') && steps.find-apk.outputs.apk != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: boosti-${{ inputs.flavor }}-apk
