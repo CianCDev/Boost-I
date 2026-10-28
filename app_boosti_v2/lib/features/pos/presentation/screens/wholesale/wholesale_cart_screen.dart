@@ -14,6 +14,10 @@ import '../../providers/wholesale/wholesale_client_provider.dart';
 import '../../services/mayoreo/venta_mayor_service.dart';
 import '../../utils/responsive_helper.dart';
 import '../../widgets/appbar.dart';
+// TODO:98 · Los confirmadores del carrito de mayoreo son LAS MISMAS del
+// carrito retail: `confirmarEliminarProducto` y `confirmarLimpiarCarrito`
+// (salió duplicado del POS completo; ver cart_dialogs.dart:9-12).
+import '../../widgets/catalog/cart/cart_dialogs.dart';
 import '../../widgets/wholesale/wholesale_authorization_banner.dart';
 import '../../widgets/wholesale/wholesale_cart_line.dart';
 import '../../widgets/wholesale/wholesale_cart_summary.dart';
@@ -556,32 +560,11 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
     BuildContext context,
     WholesaleCartItem item,
   ) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: const Text('Quitar producto'),
-        content: Text(
-          '¿Eliminar "${item.producto.nombre}" del carrito?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Quitar'),
-          ),
-        ],
-      ),
-    );
+    // TODO:98 · Resuelto: reusa el helper del carrito retail (misma
+    // pregunta, botón pintado con `redError` del tema en vez del
+    // `Color(0xFFEF4444)` hardcodeado que estaba aquí).
+    final confirm =
+        await confirmarEliminarProducto(context, item.producto.nombre);
 
     if (confirm == true && mounted) {
       ref.read(wholesaleCartProvider.notifier).eliminarItem(item.lineId);
@@ -589,32 +572,11 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
   }
 
   Future<void> _confirmarVaciar(BuildContext context) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: const Text('Vaciar carrito'),
-        content: const Text(
-          '¿Estás seguro de que quieres eliminar todos los productos del carrito?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Vaciar todo'),
-          ),
-        ],
-      ),
-    );
+    // TODO:98 · Resuelto: reusa `confirmarLimpiarCarrito` (antes el
+    // texto era "¿Estás seguro de que quieres..." y el botón decía
+    // "Vaciar todo" con color hardcodeado: dos copias que ya iban a
+    // diverger de las del retail).
+    final confirm = await confirmarLimpiarCarrito(context);
 
     if (confirm == true && mounted) {
       ref.read(wholesaleCartProvider.notifier).limpiarCarrito();

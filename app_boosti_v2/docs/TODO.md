@@ -103,9 +103,14 @@
       ubicación física. El modelo asume que todo el stock de un producto está disponible
       para vender sin preguntar por la ubicación. Si alguna vez hay dos almacenes, este
       modelo no lo representa.
-- [ ] **Quedan confirmadores duplicados** fuera de `cart_dialogs.dart`:
-      `inventory_catalog_screen._limpiarCarritoConConfirmacion` ya usa el helper, pero
-      `crear_pedido_dialog` y otros siguen con copies propios.
+- [x] **Quedan confirmadores duplicados** fuera de `cart_dialogs.dart`. RESUELTO
+      (2026-10-28): el duplicado activo era el carrito de ventas al mayor
+      (`wholesale_cart_screen._confirmarEliminar` y `_confirmarVaciar`); ambos
+      reusan ahora `confirmarEliminarProducto` / `confirmarLimpiarCarrito`
+      (`wholesale_cart_screen.dart:555+`). Verificado hoy: `crear_pedido_dialog`
+      ya no tiene confirmador propio (usa `Navigator.pop` directo, no hay
+      `AlertDialog` de confirmación); el escaneo de texto "¿deseas eliminar /
+      ¿vaciar" no arroja otras copias activas.
 
 ## 🔶 Drift de schema (tablas en remoto sin versionar)
 
@@ -891,15 +896,16 @@ En retail, los productos se tratan como unidades completas: el editor de
 receta se oculta o se muestra read-only. Los ingredientes y lotes siguen
 funcionando para stock real, pero las recetas no descuentan.
 
-- [ ] En `ProductDataTab`, la sección "Receta" (G.2) no se pinta en retail,
-      o se pinta sin los campos de ingrediente.
+- [x] En `ProductDataTab`, la sección "Receta" (G.2) no se pinta en retail.
+      RESUELTO (2026-10-28): gate en `_buildSeccionReceta` con el getter de MODO
+      `FeatureFlags.mostrarRecetas` (`business_mode_provider.dart`, junto a
+      `mostrarMesas`): `esRestaurante` — retail y servicios no la pintan.
 - [ ] G.3 (`_descontarRecetaDeItem`) ya está acotado al KDS, así que no
       descuenta en retail por construcción. Conviene un test que lo fije:
       una receta + una venta retail NO deben generar movimiento de
       'Consumo receta'.
-- [ ] El editor de receta es el mismo widget para ambos modos: hoy no
-      tiene acceso a `FeatureFlags`, así que el gate va en
-      `ProductDataTab` o en `ProductFormDialog`, no dentro del editor.
+- [x] El gate vive en `ProductDataTab`, no dentro del editor (el editor
+      sigue sin conocer flags, como pedía esta entrada).
 
 ## Colchón de stock offline (CRÍTICO pre-producción)
 - [ ] Fase 1 — Umbral progresivo de reconexión:
