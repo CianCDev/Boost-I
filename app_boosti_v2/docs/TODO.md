@@ -276,13 +276,14 @@ Prioridad: esto es lo que pidió el negocio. El logo de marca es accesorio.
       ya marca `sincronizado = false` para forzar el push cuando exista la
       columna. **No añadirlo antes de que la columna exista**, o el push de
       productos falla.
-- [ ] **Seed de estaciones de cocina.** `DepartamentoSelector` abre
-      `mostrarDialogoCrearEstacion`, que crea UNA estación con el nombre
-      que se escriba. El seed de "Cocina / Barra / Postres" marcados por
-      defecto con `orden` 0/1/2 es de PASO E.
-- [ ] **Selector "Sin estacion (N)" en el KDS (PASO E).** `ticketsEnCola`
-      y `totalItemsEnKds` ya cuentan los items con `estacionId == null`
-      (ajuste 1 del usuario). Falta el chip que los filtre.
+- [x] **Seed de estaciones de cocina.** RESUELTO (2026-10-28): al cambiar el
+      modo a `restaurante`, `configuracion_modo_negocio_screen._seedEstaciones`
+      siembra "Cocina / Barra / Postres" con `orden` 0/1/2 SOLO si el local
+      no tiene ninguna. Va por `guardarDepartamentoProvider` (hereda la
+      validación de duplicados y los `invalidate` de los providers).
+- [x] **Selector "Sin estacion (N)" en el KDS (PASO E).** RESUELTO:
+      verificado en `kds_screen.dart:357-373` — el chip existe, con
+      conteo de pendientes y aparece solo cuando hay platos sin clasificar.
 - [ ] **`DepartamentoSelector` sin test de widget.** Es el único componente
       de `common/` que lee providers; montarlo exige `ProviderContainer` +
       Isar temporal. PASO D lo cubre indirectamente (los tests del bulk
@@ -397,10 +398,10 @@ retail (~15 archivos usan `ProductItem`).
       y `solid` producen el mismo chip. El KDS es su primer consumidor
       (PASO E) y lo deja sin tocar a proposito. Decidir si se implementa o
       se borra.
-- [ ] Seed de estaciones "Cocina / Barra / Postres" con `orden` 0/1/2
-      (pendiente de PASO E.3). `KdsScreen` ya muestra el aviso
-      "Este local no tiene estaciones" cuando el local no tiene ninguna,
-      pero no las crea.
+- [x] Seed de estaciones "Cocina / Barra / Postres" con `orden` 0/1/2.
+      RESUELTO (2026-10-28): ver la entrada "Seed de estaciones" (línea ~279);
+      es `_seedEstaciones` de `configuracion_modo_negocio_screen.dart`, que
+      corre con éxito en el cambio de modo, solo si el local no tiene ninguna.
 - [ ] `FiltroChip` NO tiene target tactil de 48 px: sus botones miden
       `hPad 12 / vPad 8` en tamano `small`. En el KDS es el selector de
       estacion, que se usa con el dedo y en movimiento.
