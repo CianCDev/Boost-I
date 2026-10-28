@@ -36,6 +36,7 @@ import 'codigo_barra_alia_entity.dart';
 import '../entities/lote_entity.dart';
 import '../entities/departamento_entity.dart';
 import '../entities/mesa_entity.dart';
+import '../entities/zona_entity.dart';
 import '../entities/telegram_config_entity.dart';
 import 'config_descuento_mayorista_entity.dart';
 import 'cotizacion_mayor_entity.dart';
@@ -159,6 +160,7 @@ Future<Isar> _initIsar({String? testDirectory}) async {
         VentaAnuladaEntitySchema,
         GastoAnuladoEntitySchema,
         MesaEntitySchema,
+        ZonaEntitySchema,
         RecetaEntitySchema,
       ],
       directory: dbPath,
@@ -214,6 +216,7 @@ Future<Isar> _initIsar({String? testDirectory}) async {
         VentaAnuladaEntitySchema,
         GastoAnuladoEntitySchema,
         MesaEntitySchema,
+        ZonaEntitySchema,
         RecetaEntitySchema,
       ],
       directory: fallbackPath,
@@ -3471,13 +3474,16 @@ Future<bool> eliminarLocal(int id) async {
   /// recalcula `claveUnica` antes de persistir: es el índice único que
   /// impide "Mesa 1" duplicada dentro del mismo local. Si el provider ya
   /// lo hizo, se vuelve a calcular aquí igual (es idempotente).
-  Future<int> guardarMesa(MesaEntity mesa) async {
+  Future<int> guardarMesa(MesaEntity mesa, {bool marcarPendiente = true}) async {
     try {
       final isar = await db;
       mesa.recalcularClaveUnica();
       return await isar.writeTxn<int>(() async {
         mesa.updatedAt = DateTime.now();
         mesa.createdAt ??= DateTime.now();
+        // Toda escritura local es un cambio pendiente de subir. El PULL
+        // pasa `marcarPendiente: false` porque ese dato ya está en la nube.
+        if (marcarPendiente) mesa.sincronizado = false;
         return await isar.mesaEntitys.put(mesa);
       });
     } catch (e, stack) {
@@ -3507,6 +3513,7 @@ Future<bool> eliminarLocal(int id) async {
       final mesas = await isar.mesaEntitys
           .filter()
           .localIdEqualTo(localId)
+          .eliminadoEqualTo(false)
           .sortByOrdenGrid()
           .thenByNombre()
           .findAll();
@@ -3551,12 +3558,257 @@ Future<bool> eliminarLocal(int id) async {
     try {
       final isar = await db;
       return await isar.writeTxn(() async {
-        return await isar.mesaEntitys.delete(id);
+        final mesa = await isar.mesaEntitys.get(id);
+        if (mesa == null) return false;
+        // Borrado lógico (R.1b): el tombstone se sube a Supabase para que
+        // el resto de dispositivos no resucite la mesa en el pull.
+        mesa.eliminado = true;
+        mesa.sincronizado = false;
+        mesa.updatedAt = DateTime.now();
+        mesa.recalcularClaveUnica();
+        await isar.mesaEntitys.put(mesa);
+        return true;
       });
     } catch (e, stack) {
       ErrorService.captureError(e,
           stack: stack, hint: 'eliminarMesa_fallo', extras: {'id': id});
       return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ZONAS (restaurante · R.1b)
+  // ═══════════════════════════════════════════════════════════════
+
+  /// Guarda o actualiza una zona.
+  ///
+  /// `marcarPendiente: false` lo usa el PULL: el dato ya está en la nube
+  /// y marcarlo pendiente lo haría subir en bucle.
+  Future<int> guardarZona(ZonaEntity zona, {bool marcarPendiente = true}) async {
+    try {
+      final isar = await db;
+      zona.recalcularClaveUnica();
+      return await isar.writeTxn<int>(() async {
+        zona.updatedAt = DateTime.now();
+        zona.createdAt ??= DateTime.now();
+        if (marcarPendiente) zona.sincronizado = false;
+        return await isar.zonaEntitys.put(zona);
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'guardarZona_fallo',
+          extras: {'zonaId': zona.id, 'nombre': zona.nombre});
+      rethrow;
+    }
+  }
+
+  Future<ZonaEntity?> obtenerZonaPorId(int id) async {
+    try {
+      final isar = await db;
+      return await isar.zonaEntitys.get(id);
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerZonaPorId_fallo', extras: {'id': id});
+      return null;
+    }
+  }
+
+  Future<ZonaEntity?> obtenerZonaPorSupabaseId(String supabaseId) async {
+    try {
+      final isar = await db;
+      return await isar.zonaEntitys
+          .filter()
+          .supabaseIdEqualTo(supabaseId)
+          .findFirst();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerZonaPorSupabaseId_fallo',
+          extras: {'supabaseId': supabaseId});
+      return null;
+    }
+  }
+
+  /// Zonas del local, ordenadas por `orden` y luego por nombre.
+  ///
+  /// Por defecto solo activas: el filtro de la UI no debe mostrar zonas
+  /// deshabilitadas. `soloActivas: false` sirve para gestión/sync.
+  Future<List<ZonaEntity>> obtenerZonasDelLocal(
+    int localId, {
+    bool soloActivas = true,
+  }) async {
+    try {
+      final isar = await db;
+      final query = isar.zonaEntitys.filter().localIdEqualTo(localId);
+      final zonas = soloActivas
+          ? await query
+              .activoEqualTo(true)
+              .eliminadoEqualTo(false)
+              .sortByOrden()
+              .thenByNombre()
+              .findAll()
+          : await query
+              .eliminadoEqualTo(false)
+              .sortByOrden()
+              .thenByNombre()
+              .findAll();
+      return zonas;
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerZonasDelLocal_fallo',
+          extras: {'localId': localId});
+      return [];
+    }
+  }
+
+  Future<ZonaEntity?> obtenerZonaPorNombre(int localId, String nombre) async {
+    try {
+      final isar = await db;
+      return await isar.zonaEntitys
+          .filter()
+          .localIdEqualTo(localId)
+          .nombreEqualTo(nombre)
+          .findFirst();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerZonaPorNombre_fallo',
+          extras: {'localId': localId, 'nombre': nombre});
+      return null;
+    }
+  }
+
+  /// true si el local ya tiene una zona con ese `claveUnica`.
+  Future<bool> existeZonaConClave(String claveUnica, {int? excluirId}) async {
+    try {
+      final isar = await db;
+      final existentes = await isar.zonaEntitys
+          .filter()
+          .claveUnicaEqualTo(claveUnica)
+          .findAll();
+      if (excluirId == null) return existentes.isNotEmpty;
+      return existentes.any((z) => z.id != excluirId);
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'existeZonaConClave_fallo',
+          extras: {'claveUnica': claveUnica});
+      return true;
+    }
+  }
+
+  Future<bool> eliminarZona(int id) async {
+    try {
+      final isar = await db;
+      return await isar.writeTxn(() async {
+        final zona = await isar.zonaEntitys.get(id);
+        if (zona == null) return false;
+        zona.eliminado = true;
+        zona.sincronizado = false;
+        zona.updatedAt = DateTime.now();
+        zona.recalcularClaveUnica();
+        await isar.zonaEntitys.put(zona);
+        return true;
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'eliminarZona_fallo', extras: {'id': id});
+      return false;
+    }
+  }
+
+  Future<void> actualizarSyncStatusZona(int id, bool sincronizado) async {
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        final zona = await isar.zonaEntitys.get(id);
+        if (zona != null) {
+          zona.sincronizado = sincronizado;
+          zona.fechaSincronizacion = sincronizado ? DateTime.now() : null;
+          await isar.zonaEntitys.put(zona);
+        }
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'actualizarSyncStatusZona_fallo',
+          extras: {'id': id});
+    }
+  }
+
+  Future<List<ZonaEntity>> obtenerZonasPendientesSync() async {
+    try {
+      final isar = await db;
+      return await isar.zonaEntitys
+          .filter()
+          .sincronizadoEqualTo(false)
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerZonasPendientesSync_fallo');
+      return [];
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // PENDIENTES DE SYNC · MESAS (R.1b)
+  // ═══════════════════════════════════════════════════════════════
+
+  Future<List<MesaEntity>> obtenerMesasPendientesSync() async {
+    try {
+      final isar = await db;
+      return await isar.mesaEntitys
+          .filter()
+          .sincronizadoEqualTo(false)
+          .findAll();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack, hint: 'obtenerMesasPendientesSync_fallo');
+      return [];
+    }
+  }
+
+  /// Busca una mesa por su UUID de Supabase.
+  ///
+  /// Lo usa el PULL para hacer upsert y el push de comandas para resolver
+  /// el id local de la mesa referenciada en la nube.
+  Future<MesaEntity?> obtenerMesaPorSupabaseId(String supabaseId) async {
+    try {
+      final isar = await db;
+      return await isar.mesaEntitys
+          .filter()
+          .supabaseIdEqualTo(supabaseId)
+          .findFirst();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerMesaPorSupabaseId_fallo',
+          extras: {'supabaseId': supabaseId});
+      return null;
+    }
+  }
+
+  /// Busca una mesa por nombre dentro de un local, INCLUYENDO tombstones.
+  ///
+  /// Lo usa el PULL para adoptar una mesa que ya existía localmente (por
+  /// ejemplo, creada en este dispositivo antes de sincronizar) en vez de
+  /// duplicarla.
+  Future<MesaEntity?> obtenerMesaPorNombre(int localId, String nombre) async {
+    try {
+      final isar = await db;
+      return await isar.mesaEntitys
+          .filter()
+          .localIdEqualTo(localId)
+          .nombreEqualTo(nombre)
+          .findFirst();
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'obtenerMesaPorNombre_fallo',
+          extras: {'localId': localId, 'nombre': nombre});
+      return null;
     }
   }
 

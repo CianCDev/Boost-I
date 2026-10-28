@@ -13,6 +13,7 @@ import '../../widgets/appbar.dart';
 import '../../widgets/common/animated_appbar_icon.dart';
 import '../../widgets/salon/mesa_card.dart';
 import '../../widgets/salon/mesa_form_dialog.dart';
+import '../../widgets/salon/zonas_dialog.dart';
 
 /// Salón: grid de mesas del local activo.
 ///
@@ -137,7 +138,7 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _detalleFila('Zona', etiquetaZona(mesa.zona)),
+            _detalleFila('Zona', mesa.zonaEfectiva),
             _detalleFila('Capacidad', '${mesa.capacidad} pax'),
             _detalleFila('Estado', MesasNotifier.etiquetaEstado(mesa.estado)),
             if (mesa.estaUnida) _detalleFila('Unida a', 'Mesa ID ${mesa.unidaConMesaId}'),
@@ -246,9 +247,16 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
         title: 'Salón',
         showBackButton: true,
         actions: [
+          // Gestión de zonas (R.1b)
+          if (state.localId != null)
+            IconButton(
+              icon: const Icon(Icons.edit_location_alt_outlined),
+              tooltip: 'Gestionar zonas',
+              onPressed: () => ZonasDialog.mostrar(context),
+            ),
           // Filtro por zona
           if (state.zonasDisponibles.isNotEmpty)
-            PopupMenuButton<MesaZona?>(
+            PopupMenuButton<String?>(
               tooltip: 'Filtrar por zona',
               icon: Icon(
                 state.zonaFiltro == null
@@ -260,14 +268,14 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
               ),
               onSelected: notifier.filtrarPorZona,
               itemBuilder: (_) => [
-                const PopupMenuItem<MesaZona?>(
+                const PopupMenuItem<String?>(
                   value: null,
                   child: Text('Todas las zonas'),
                 ),
                 ...state.zonasDisponibles.map(
-                  (z) => PopupMenuItem<MesaZona?>(
+                  (z) => PopupMenuItem<String?>(
                     value: z,
-                    child: Text(etiquetaZona(z)),
+                    child: Text(z),
                   ),
                 ),
               ],
@@ -330,7 +338,7 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
         icon: Icons.filter_alt_off_outlined,
         titulo: 'Ninguna mesa en esa zona',
         mensaje: 'Cambia el filtro o crea una mesa en '
-            '${etiquetaZona(state.zonaFiltro!)}.',
+            '${state.zonaFiltro}.',
         accion: FilledButton.tonal(
           onPressed: () => notifier.filtrarPorZona(null),
           child: const Text('Ver todas las zonas'),
@@ -443,7 +451,7 @@ class _DialogoMesaLibre extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Mesa libre · ${mesa.capacidad} pax · ${etiquetaZona(mesa.zona)}',
+              'Mesa libre · ${mesa.capacidad} pax · ${mesa.zonaEfectiva}',
               style: TextStyle(
                 fontSize: 14,
                 color: colorScheme.onSurfaceVariant,

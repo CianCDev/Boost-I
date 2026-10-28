@@ -60,6 +60,11 @@ class MesaEntity {
   @Index(unique: true, replace: true)
   String claveUnica = '';
 
+  /// Zona legacy (enum fijo). R.1b: se conserva SOLO como fallback de
+  /// mesas creadas antes de que existieran las zonas editables.
+  ///
+  /// La fuente de verdad es [zonaNombre] + [zonaSupabaseId]. Para leer
+  /// la zona de una mesa usar SIEMPRE [zonaEfectiva], nunca este campo.
   @Enumerated(EnumType.name)
   MesaZona zona = MesaZona.salon;
 
@@ -93,13 +98,45 @@ class MesaEntity {
   DateTime? createdAt;
   DateTime? updatedAt;
 
+  // ── R.1b ────────────────────────────────────────────────────────────
+  //
+  // ⚠️ Los campos nuevos van AL FINAL a propósito: Isar asigna los ids de
+  // propiedad por orden de declaración. Insertarlos en medio corre todos
+  // los ids existentes y una base ya instalada leería cada campo con el
+  // dato del vecino.
+
+  /// Nombre de la zona (fuente de verdad desde R.1b).
+  ///
+  /// Es un snapshot a propósito: si la zona se renombra, el provider
+  /// actualiza las mesas en cascada. Así el grid no necesita un JOIN
+  /// por mesa y funciona igual offline.
+  String? zonaNombre;
+
+  /// UUID de la zona en Supabase. `null` mientras la zona no subió.
+  String? zonaSupabaseId;
+
+  /// UUID de la mesa principal en Supabase (R.1b).
+  ///
+  /// Necesario para reconstruir [unidaConMesaId] en OTRO dispositivo: el
+  /// id de Isar es local y no significa lo mismo allá.
+  String? unidaConMesaSupabaseId;
+
+  /// Borrado lógico (R.1b). Una fila `eliminado` se sube como tombstone
+  /// para que el otro dispositivo no la resucite en el próximo pull.
+  bool eliminado = false;
+
   MesaEntity();
 
   /// Recalcula `claveUnica` a partir de `localId` y `nombre`.
   ///
   /// Llamar SIEMPRE antes de persistir (crear o editar).
+  ///
+  /// Un tombstone sale del índice único con sufijo `#del<id>`: si no, no
+  /// se podría volver a crear una mesa con el mismo nombre.
   void recalcularClaveUnica() {
-    claveUnica = '$localId::$nombre';
+    claveUnica = eliminado
+        ? '$localId::$nombre#del$id'
+        : '$localId::$nombre';
   }
 
   /// true si la mesa está unida a otra.
@@ -108,4 +145,61 @@ class MesaEntity {
   /// true si admite una comanda nueva (R.2 usará esto).
   bool get disponibleParaComanda =>
       estado == MesaEstado.libre && !estaUnida;
+
+  /// Nombre de zona que debe mostrar la UI.
+  ///
+  /// Prefiere la zona editable ([zonaNombre]); si la mesa es anterior a
+  /// R.1b y todavía no fue migrada, cae al enum legacy.
+  String get zonaEfectiva {
+    final nombre = zonaNombre?.trim() ?? '';
+    if (nombre.isNotEmpty) return nombre;
+    return etiquetaZonaLegacy(zona);
+  }
+}
+
+/// Etiqueta legible de una zona legacy (enum `MesaZona`).
+///
+/// Vive en la entidad y no en el provider para que `MesaEntity` pueda
+/// usarla sin importar la capa de presentación.
+String etiquetaZonaLegacy(MesaZona zona) {
+  switch (zona) {
+    case MesaZona.salon:
+      return 'Salón';
+    case MesaZona.terraza:
+      return 'Terraza';
+    case MesaZona.bar:
+      return 'Bar';
+    case MesaZona.privado:
+      return 'Privado';
+    case MesaZona.vip:
+      return 'VIP';
+  }
+}
+
+/// Mapea el nombre editable de una zona al enum legacy.
+///
+/// Se usa al crear/renombrar para no dejar `MesaEntity.zona` incoherente
+/// mientras convivan ambos campos. Una zona nueva ("Patio") cae a
+/// `MesaZona.salon`; el dato que manda es `zonaNombre`.
+MesaZona mesaZonaDesdeNombre(String nombre) {
+  final n = nombre
+      .toLowerCase()
+      .replaceAll('á', 'a')
+      .replaceAll('é', 'e')
+      .replaceAll('í', 'i')
+      .replaceAll('ó', 'o')
+      .replaceAll('ú', 'u')
+      .trim();
+  switch (n) {
+    case 'terraza':
+      return MesaZona.terraza;
+    case 'bar':
+      return MesaZona.bar;
+    case 'privado':
+      return MesaZona.privado;
+    case 'vip':
+      return MesaZona.vip;
+    default:
+      return MesaZona.salon;
+  }
 }

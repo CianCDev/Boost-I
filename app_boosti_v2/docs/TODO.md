@@ -1097,3 +1097,31 @@ build de Flutter**. Si se elimina el archivo, sacar la línea también.
 4-6 y `cambiar_pin_dialog` deja elegir. **Un usuario con PIN de 5 o 6
 dígitos queda soft-loqueado en cada descanso**, sin mensaje que lo explique.
 El mismo bug se corrige cambiando el bound de `RestScreen` a 6.
+
+### R.1b - Zonas y mesas persistentes (2026-10-28)
+
+- [x] Migracion `20261028000002_zonas_mesas.sql`: tablas `zonas` y `mesas`
+      con RLS por `tenant_id`, triggers `updated_at`, borrado logico
+      (`eliminado`) y alta en la publicacion `supabase_realtime`.
+      **Pendiente de aplicar por el owner** (el SQL esta en el repo, la
+      verificacion va al final del archivo).
+- [x] `ZonaEntity` nueva; `MesaEntity` suma `zonaNombre`, `zonaSupabaseId`,
+      `unidaConMesaSupabaseId` y `eliminado`. Toda lectura de zona pasa por
+      `zonaEfectiva`, que solo cae al enum `MesaZona` si la mesa no fue
+      migrada.
+- [x] `IsarService`: CRUD de zonas, pendientes de sync, borrado logico con
+      tombstone (`claveUnica` con sufijo `#del<id>` para liberar el nombre) y
+      busqueda por nombre que incluye tombstones (adopcion en el pull).
+- [x] `MesasNotifier`: zonas en el estado, filtro por NOMBRE, seed perezoso
+      (`SeedZonasRestaurante` cubre locales que ya eran restaurante) y CRUD de
+      zonas con cascada de renombre sobre las mesas.
+- [x] `SyncService`: push/pull de `zonas` y `mesas` + realtime de ambas. El
+      pull de zonas corre ANTES del push para adoptar por nombre lo sembrado
+      en este dispositivo y no chocar con `(tenant_id, nombre)`.
+- [x] UI: `zonas_dialog.dart` (crear, renombrar, reordenar, eliminar), filtro
+      del salon y de caja por nombre de zona, dropdown de zonas en el
+      formulario de mesa.
+- [ ] Fase B: comandas/KDS sincronizadas (`comandas` con `items` JSONB,
+      `sessionId` con UUID en vez de `mesa:<idIsar>`, `estacionSupabaseId` y
+      estado de mesa derivado de las comandas vivas).
+- [ ] Exportacion CSV (ZIP con un CSV por tabla) queda para el final.

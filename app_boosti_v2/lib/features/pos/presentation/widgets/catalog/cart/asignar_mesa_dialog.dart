@@ -54,14 +54,14 @@ class _AsignarMesaDialogState extends ConsumerState<AsignarMesaDialog> {
     if (_query.isEmpty) return true;
     final q = _query.toLowerCase();
     return m.nombre.toLowerCase().contains(q) ||
-        etiquetaZona(m.zona).toLowerCase().contains(q);
+        m.zonaEfectiva.toLowerCase().contains(q);
   }
 
-  /// Agrupa por zona manteniendo el orden del enum.
-  Map<MesaZona, List<MesaEntity>> _porZona(List<MesaEntity> mesas) {
-    final mapa = <MesaZona, List<MesaEntity>>{};
+  /// Agrupa por nombre de zona respetando el orden de las zonas del local.
+  Map<String, List<MesaEntity>> _porZona(List<MesaEntity> mesas) {
+    final mapa = <String, List<MesaEntity>>{};
     for (final m in mesas) {
-      mapa.putIfAbsent(m.zona, () => []).add(m);
+      mapa.putIfAbsent(m.zonaEfectiva, () => []).add(m);
     }
     return mapa;
   }
@@ -333,7 +333,7 @@ class _AsignarMesaDialogState extends ConsumerState<AsignarMesaDialog> {
     );
   }
 
-  Widget _grupo(BuildContext context, MesaZona zona, List<MesaEntity> mesas) {
+  Widget _grupo(BuildContext context, String zona, List<MesaEntity> mesas) {
     final colorScheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -341,7 +341,7 @@ class _AsignarMesaDialogState extends ConsumerState<AsignarMesaDialog> {
         Padding(
           padding: const EdgeInsets.only(left: 2, top: 4, bottom: 4),
           child: Text(
-            etiquetaZona(zona),
+            zona,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -383,7 +383,7 @@ class _AsignarMesaDialogState extends ConsumerState<AsignarMesaDialog> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${etiquetaZona(mesa.zona)} · ${mesa.capacidad} pax',
+                    '${mesa.zonaEfectiva} · ${mesa.capacidad} pax',
                     style: TextStyle(
                       fontSize: 11,
                       color: colorScheme.onSurfaceVariant,

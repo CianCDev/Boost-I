@@ -31,6 +31,8 @@ import '../../data/Local/entities/pedido_entity.dart';
 import '../../data/Local/entities/detalle_pedido_entity.dart';
 import '../../data/Local/entities/local_entity.dart';
 import '../../data/Local/entities/departamento_entity.dart';
+import '../../data/Local/entities/mesa_entity.dart';
+import '../../data/Local/entities/zona_entity.dart';
 import '../../data/Local/entities/telegram_config_entity.dart';
 import '../../data/Local/entities/marca_entity.dart';
 import '../../data/Local/entities/movimiento_lote_entity.dart';
@@ -184,6 +186,13 @@ class SyncService {
       _suscribirATabla('usuarios', () => sincronizarUsuariosDesdeSupabase());
       _suscribirATabla('gastos', () => descargarGastosDesdeSupabase());
       _suscribirATabla('clientes', () => descargarClientesDesdeSupabase());
+      // R.1b · Salón multi-dispositivo. Las mesas dependen de las zonas,
+      // así que el pull de zonas se refresca primero.
+      _suscribirATabla('zonas', () async {
+        await descargarZonasDesdeSupabase();
+        await descargarMesasDesdeSupabase();
+      });
+      _suscribirATabla('mesas', () => descargarMesasDesdeSupabase());
 
       debugPrint('✅ Suscripciones Realtime iniciadas');
     } catch (e, stack) {
@@ -3480,10 +3489,352 @@ Future<void> subirUsuariosPendientes() async {
     }
   }
 
+  // ==================== ZONAS Y MESAS (R.1b) ====================
+
+  /// Sube las zonas pendientes del local.
+  ///
+  /// Se llama DESPUÉS de `descargarZonasDesdeSupabase`: el pull adopta por
+  /// nombre las zonas que este dispositivo sembró y todavía no tenían
+  /// `supabaseId`. Sin ese orden, el push chocaría con el índice único
+  /// `(tenant_id, nombre)` de una zona que ya existe en la nube.
+  Future<void> sincronizarZonasPendientes() async {
+    try {
+      final pendientes = await _isarService.obtenerZonasPendientesSync();
+      if (pendientes.isEmpty) {
+        debugPrint('ℹ️ No hay zonas pendientes para sincronizar');
+        return;
+      }
+
+      debugPrint('🔄 Sincronizando ${pendientes.length} zonas...');
+
+      for (final zona in pendientes) {
+        if (zona.localId <= 0) continue;
+        final tenantUuid = await _obtenerSupabaseIdLocal(zona.localId);
+        if (tenantUuid == null || tenantUuid.isEmpty) {
+          debugPrint('⚠️ Zona ${zona.nombre} sin tenant. Saltando.');
+          continue;
+        }
+
+        final data = <String, dynamic>{
+          'id_isar': zona.id,
+          'tenant_id': tenantUuid,
+          'nombre': zona.nombre,
+          'orden': zona.orden,
+          'activo': zona.activo,
+          'eliminado': zona.eliminado,
+          'sync_status': _SyncConstants.synced,
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+
+        try {
+          final response = await _supabase
+              .from('zonas')
+              .upsert(data, onConflict: 'tenant_id,id_isar')
+              .select('id')
+              .maybeSingle();
+
+          final supabaseId = response?['id'] as String?;
+          if (supabaseId != null) {
+            zona
+              ..supabaseId = supabaseId
+              ..sincronizado = true
+              ..fechaSincronizacion = DateTime.now();
+            await _isarService.guardarZona(zona, marcarPendiente: false);
+            debugPrint('✅ Zona ${zona.nombre} sincronizada ($supabaseId)');
+          }
+        } catch (e) {
+          // Un choque de nombre contra otra zona de la nube se resuelve en
+          // el próximo pull (que adopta por nombre). No abortamos el resto.
+          debugPrint('❌ Error al sincronizar zona ${zona.nombre}: $e');
+        }
+      }
+    } catch (e, stack) {
+      debugPrint('❌ Error general en sincronizarZonasPendientes: $e');
+      ErrorService.captureError(e,
+          stack: stack, hint: 'sincronizarZonasPendientes_fallo');
+      rethrow;
+    }
+  }
+
+  /// Baja las zonas del tenant activo.
+  ///
+  /// Estrategia de adopción:
+  ///   1. Por `supabaseId` (camino normal).
+  ///   2. Por nombre dentro del local (una zona sembrada acá que ya existe
+  ///      en la nube). Se le asigna el UUID y deja de estar pendiente.
+  ///   3. Si no existe, se crea.
+  ///
+  /// LWW: si la copia local está pendiente y es más nueva que la nube, no
+  /// se pisa; se conserva pendiente para que el push la suba.
+  Future<void> descargarZonasDesdeSupabase() async {
+    try {
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Descarga de zonas omitida.');
+        return;
+      }
+
+      final response = await _supabase
+          .from('zonas')
+          .select()
+          .eq('tenant_id', tenantUuid)
+          .order('orden', ascending: true);
+
+      if (response.isEmpty) return;
+      debugPrint('🔄 Descargando ${response.length} zonas desde Supabase...');
+
+      final locales = await _isarService.obtenerLocales(soloActivos: false);
+      final Map<String, int> uuidToIsarId = {};
+      for (final local in locales) {
+        if (local.supabaseId != null) uuidToIsarId[local.supabaseId!] = local.id;
+      }
+
+      for (final data in response) {
+        final supabaseId = data['id'] as String?;
+        final tenantId = data['tenant_id'] as String?;
+        final nombre = (data['nombre'] as String? ?? '').trim();
+        if (supabaseId == null || nombre.isEmpty) continue;
+
+        final localId = tenantId != null ? uuidToIsarId[tenantId] : null;
+        if (localId == null) continue;
+
+        var zona = await _isarService.obtenerZonaPorSupabaseId(supabaseId);
+        zona ??= await _isarService.obtenerZonaPorNombre(localId, nombre);
+        final existia = zona != null;
+        zona ??= ZonaEntity()..localId = localId;
+
+        final cloudUpdated =
+            DateTime.tryParse(data['updated_at'] as String? ?? '');
+        final localGana = existia &&
+            !zona.sincronizado &&
+            zona.updatedAt != null &&
+            cloudUpdated != null &&
+            zona.updatedAt!.isAfter(cloudUpdated);
+
+        if (localGana) {
+          zona.supabaseId ??= supabaseId;
+          zona.localId = localId;
+          await _isarService.guardarZona(zona, marcarPendiente: true);
+          continue;
+        }
+
+        zona
+          ..supabaseId = supabaseId
+          ..localId = localId
+          ..nombre = nombre
+          ..orden = _toInt(data['orden'])
+          ..activo = data['activo'] as bool? ?? true
+          ..eliminado = data['eliminado'] as bool? ?? false
+          ..sincronizado = true
+          ..fechaSincronizacion = DateTime.now();
+
+        await _isarService.guardarZona(zona, marcarPendiente: false);
+      }
+    } catch (e, stack) {
+      debugPrint('❌ Error descargando zonas: $e');
+      ErrorService.captureError(e,
+          stack: stack, hint: 'descargarZonasDesdeSupabase_fallo');
+      rethrow;
+    }
+  }
+
+  /// Sube las mesas pendientes del local.
+  ///
+  /// La zona se referencia por UUID (`zona_id`) y además se guarda el
+  /// nombre como snapshot (`zona_nombre`), para que un dispositivo que
+  /// todavía no bajó la zona pueda mostrar algo coherente.
+  Future<void> sincronizarMesasPendientes() async {
+    try {
+      final pendientes = await _isarService.obtenerMesasPendientesSync();
+      if (pendientes.isEmpty) {
+        debugPrint('ℹ️ No hay mesas pendientes para sincronizar');
+        return;
+      }
+
+      debugPrint('🔄 Sincronizando ${pendientes.length} mesas...');
+
+      for (final mesa in pendientes) {
+        if (mesa.localId <= 0) continue;
+        final tenantUuid = await _obtenerSupabaseIdLocal(mesa.localId);
+        if (tenantUuid == null || tenantUuid.isEmpty) {
+          debugPrint('⚠️ Mesa ${mesa.nombre} sin tenant. Saltando.');
+          continue;
+        }
+
+        ZonaEntity? zona;
+        final zonaNombre = mesa.zonaEfectiva;
+        if (zonaNombre.isNotEmpty) {
+          zona = await _isarService.obtenerZonaPorNombre(
+              mesa.localId, zonaNombre);
+        }
+
+        String? unidaSid = mesa.unidaConMesaSupabaseId;
+        if (unidaSid == null && mesa.unidaConMesaId != null) {
+          final principal =
+              await _isarService.obtenerMesaPorId(mesa.unidaConMesaId!);
+          unidaSid = principal?.supabaseId;
+          mesa.unidaConMesaSupabaseId = unidaSid;
+        }
+
+        final data = <String, dynamic>{
+          'id_isar': mesa.id,
+          'tenant_id': tenantUuid,
+          'nombre': mesa.nombre,
+          'zona_id': zona?.supabaseId,
+          'zona_nombre': zonaNombre,
+          'capacidad': mesa.capacidad,
+          'orden_grid': mesa.ordenGrid,
+          'unida_con_mesa_id': unidaSid,
+          'eliminado': mesa.eliminado,
+          'sync_status': _SyncConstants.synced,
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+
+        try {
+          final response = await _supabase
+              .from('mesas')
+              .upsert(data, onConflict: 'tenant_id,id_isar')
+              .select('id')
+              .maybeSingle();
+
+          final supabaseId = response?['id'] as String?;
+          if (supabaseId != null) {
+            mesa
+              ..supabaseId = supabaseId
+              ..sincronizado = true
+              ..fechaSincronizacion = DateTime.now();
+            await _isarService.guardarMesa(mesa, marcarPendiente: false);
+            debugPrint('✅ Mesa ${mesa.nombre} sincronizada ($supabaseId)');
+          }
+        } catch (e) {
+          debugPrint('❌ Error al sincronizar mesa ${mesa.nombre}: $e');
+        }
+      }
+    } catch (e, stack) {
+      debugPrint('❌ Error general en sincronizarMesasPendientes: $e');
+      ErrorService.captureError(e,
+          stack: stack, hint: 'sincronizarMesasPendientes_fallo');
+      rethrow;
+    }
+  }
+
+  /// Baja las mesas del tenant activo.
+  ///
+  /// Misma adopción que las zonas (UUID → nombre). La unión de mesas se
+  /// resuelve en una segunda pasada: el UUID de la mesa principal puede
+  /// venir después en la misma respuesta.
+  Future<void> descargarMesasDesdeSupabase() async {
+    try {
+      final localActivo = await _isarService.obtenerLocalActivo();
+      final tenantUuid = localActivo?.supabaseId;
+      if (tenantUuid == null || tenantUuid.isEmpty) {
+        debugPrint('⚠️ [SyncService] Sin local activo. '
+            'Descarga de mesas omitida.');
+        return;
+      }
+
+      final response = await _supabase
+          .from('mesas')
+          .select()
+          .eq('tenant_id', tenantUuid)
+          .order('orden_grid', ascending: true);
+
+      if (response.isEmpty) return;
+      debugPrint('🔄 Descargando ${response.length} mesas desde Supabase...');
+
+      final locales = await _isarService.obtenerLocales(soloActivos: false);
+      final Map<String, int> uuidToIsarId = {};
+      for (final local in locales) {
+        if (local.supabaseId != null) uuidToIsarId[local.supabaseId!] = local.id;
+      }
+
+      for (final data in response) {
+        final supabaseId = data['id'] as String?;
+        final tenantId = data['tenant_id'] as String?;
+        final nombre = (data['nombre'] as String? ?? '').trim();
+        if (supabaseId == null || nombre.isEmpty) continue;
+
+        final localId = tenantId != null ? uuidToIsarId[tenantId] : null;
+        if (localId == null) continue;
+
+        var mesa = await _isarService.obtenerMesaPorSupabaseId(supabaseId);
+        mesa ??= await _isarService.obtenerMesaPorNombre(localId, nombre);
+        final existia = mesa != null;
+        mesa ??= MesaEntity()..localId = localId;
+
+        final cloudUpdated =
+            DateTime.tryParse(data['updated_at'] as String? ?? '');
+        final localGana = existia &&
+            !mesa.sincronizado &&
+            mesa.updatedAt != null &&
+            cloudUpdated != null &&
+            mesa.updatedAt!.isAfter(cloudUpdated);
+
+        if (localGana) {
+          mesa.supabaseId ??= supabaseId;
+          mesa.localId = localId;
+          await _isarService.guardarMesa(mesa, marcarPendiente: true);
+          continue;
+        }
+
+        final zonaId = data['zona_id'] as String?;
+        var zonaNombre = (data['zona_nombre'] as String? ?? '').trim();
+        if (zonaNombre.isEmpty && zonaId != null) {
+          final zona = await _isarService.obtenerZonaPorSupabaseId(zonaId);
+          zonaNombre = zona?.nombre ?? '';
+        }
+
+        mesa
+          ..supabaseId = supabaseId
+          ..localId = localId
+          ..nombre = nombre
+          ..zonaSupabaseId = zonaId
+          ..zonaNombre = zonaNombre.isEmpty ? null : zonaNombre
+          ..zona = zonaNombre.isEmpty
+              ? mesa.zona
+              : mesaZonaDesdeNombre(zonaNombre)
+          ..capacidad = _toInt(data['capacidad'], 4)
+          ..ordenGrid = _toInt(data['orden_grid'])
+          ..unidaConMesaId = null
+          ..unidaConMesaSupabaseId = data['unida_con_mesa_id'] as String?
+          ..eliminado = data['eliminado'] as bool? ?? false
+          ..sincronizado = true
+          ..fechaSincronizacion = DateTime.now();
+
+        await _isarService.guardarMesa(mesa, marcarPendiente: false);
+      }
+
+      // Segunda pasada: resolver la mesa principal de cada unión.
+      for (final data in response) {
+        final supabaseId = data['id'] as String?;
+        final unidaSid = data['unida_con_mesa_id'] as String?;
+        if (supabaseId == null || unidaSid == null) continue;
+
+        final mesa = await _isarService.obtenerMesaPorSupabaseId(supabaseId);
+        if (mesa == null) continue;
+        final principal =
+            await _isarService.obtenerMesaPorSupabaseId(unidaSid);
+        if (principal == null) continue;
+        if (mesa.unidaConMesaId == principal.id) continue;
+
+        mesa
+          ..unidaConMesaId = principal.id
+          ..unidaConMesaSupabaseId = unidaSid;
+        await _isarService.guardarMesa(mesa, marcarPendiente: false);
+      }
+    } catch (e, stack) {
+      debugPrint('❌ Error descargando mesas: $e');
+      ErrorService.captureError(e,
+          stack: stack, hint: 'descargarMesasDesdeSupabase_fallo');
+      rethrow;
+    }
+  }
+
   // ==================== CLIENTES ====================
 
-  Future<void> sincronizarClientesPendientes() async {
-    try {
+  Future<void> sincronizarClientesPendientes() async {    try {
       final pendientes = await _isarService.obtenerClientesPendientesSync();
       if (pendientes.isEmpty) {
         debugPrint('ℹ️ No hay clientes pendientes para sincronizar');
@@ -5263,6 +5614,20 @@ Future<void> subirMovimientosLotePendientes() async {
       await _safe(
           'descargarDepartamentos', descargarDepartamentosDesdeSupabase);
 
+      // R.1b · Zonas y mesas del salón.
+      //
+      // Orden obligatorio:
+      //   1. Pull de zonas: adopta por nombre las zonas sembradas en este
+      //      dispositivo que ya existen en la nube (las deja con UUID).
+      //   2. Push de zonas: sin el pull previo chocaría con el índice
+      //      único `(tenant_id, nombre)`.
+      //   3. Pull de mesas: adopta por nombre y resuelve `zona_id`.
+      //   4. Push de mesas: ya puede referenciar la zona por UUID.
+      await _safe('descargarZonas', descargarZonasDesdeSupabase);
+      await _safe('sincronizarZonas', sincronizarZonasPendientes);
+      await _safe('descargarMesas', descargarMesasDesdeSupabase);
+      await _safe('sincronizarMesas', sincronizarMesasPendientes);
+
       await _safe('sincronizarTelegram', sincronizarTelegramConfigPendientes);
       await _safe('descargarTelegram', descargarTelegramConfigDesdeSupabase);
 
@@ -5281,6 +5646,7 @@ Future<void> subirMovimientosLotePendientes() async {
     int ventas = 0, productos = 0, proveedores = 0, gastos = 0;
     int pedidos = 0, lotes = 0, marcas = 0, locales = 0;
     int departamentos = 0, telegram = 0, recetas = 0;
+    int zonas = 0, mesas = 0;
 
     try {
       await descargarCategoriasDesdeSupabase();
@@ -5361,6 +5727,20 @@ Future<void> subirMovimientosLotePendientes() async {
         telegram = telegramPend.length;
       }
 
+      // R.1b · Zonas y mesas (mismo orden que `sincronizarTodo`).
+      await descargarZonasDesdeSupabase();
+      final zonasPend = await _isarService.obtenerZonasPendientesSync();
+      if (zonasPend.isNotEmpty) {
+        await sincronizarZonasPendientes();
+        zonas = zonasPend.length;
+      }
+
+      final mesasPend = await _isarService.obtenerMesasPendientesSync();
+      if (mesasPend.isNotEmpty) {
+        await sincronizarMesasPendientes();
+        mesas = mesasPend.length;
+      }
+
       await descargarVentasDesdeSupabase();
       await descargarProductosDesdeSupabase();
       await descargarProveedoresDesdeSupabase();
@@ -5370,6 +5750,8 @@ Future<void> subirMovimientosLotePendientes() async {
       await descargarTelegramConfigDesdeSupabase();
       await descargarMarcasDesdeSupabase();
       await descargarCategoriasDesdeSupabase();
+      await descargarZonasDesdeSupabase();
+      await descargarMesasDesdeSupabase();
 
       return {
         'ventas': ventas,
@@ -5383,6 +5765,8 @@ Future<void> subirMovimientosLotePendientes() async {
         'departamentos': departamentos,
         'telegram': telegram,
         'recetas': recetas,
+        'zonas': zonas,
+        'mesas': mesas,
       };
     } catch (e, stack) {
       debugPrint('❌ Error en sincronización completa con resumen: $e');

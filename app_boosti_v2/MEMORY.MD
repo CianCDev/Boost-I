@@ -1233,3 +1233,39 @@ Ratificado en los commits: TODO:270 (chip "Sin estación" en KDS, ya existía en
 4. TODO:71/:90 saneo de filas corruptas (toca datos, necesita OK).
 5. `FiltroChip` target táctil 48px (TODO KDS), `DepartamentoSelector` sin test de widget.
 
+
+---
+
+## R.1b - Zonas y mesas multi-dispositivo (2026-10-28)
+
+- **Esquema**: `supabase/migrations/20261028000002_zonas_mesas.sql` crea
+  `zonas` y `mesas` con RLS `tenant_id = current_tenant_id()`, triggers
+  `updated_at`, borrado logico (`eliminado`) e indice unico parcial
+  `(tenant_id, nombre) WHERE eliminado = false`. Ambas entran a
+  `supabase_realtime`. **El owner debe correr el SQL** y verificar con la
+  query del final del archivo.
+- **Modelo**: las zonas son editables (`ZonaEntity`, orden + activo). La
+  mesa guarda `zonaNombre` como snapshot (funciona offline, sin JOIN) y
+  `zonaSupabaseId` cuando la zona ya subio. `MesaEntity.zona` (enum) queda
+  solo como fallback de mesas anteriores a R.1b; la UI lee siempre
+  `zonaEfectiva`.
+- **Borrado logico**: `eliminarMesa`/`eliminarZona` marcan `eliminado` y
+  dejan `sincronizado = false`; el tombstone se sube a Supabase. La
+  `claveUnica` de un tombstone lleva sufijo `#del<id>` para liberar el
+  nombre en el indice unico local.
+- **Sync**: `descargarZonasDesdeSupabase` -> `sincronizarZonasPendientes` ->
+  `descargarMesasDesdeSupabase` -> `sincronizarMesasPendientes`. El pull de
+  zonas va primero porque adopta por nombre lo sembrado en el dispositivo
+  (evita choque con `(tenant_id, nombre)`); el pull de mesas resuelve
+  `unidaConMesaId` en una segunda pasada por UUID.
+- **Seed**: `SeedZonasRestaurante` siembra las 5 zonas historicas solo si el
+  local es `restaurante` y no tiene ninguna, y completa `zonaNombre` en las
+  mesas viejas. Se ejecuta de forma perezosa en `MesasNotifier.cargar`.
+- **UI**: `zonas_dialog.dart` gestiona zonas (crear, renombrar con cascada,
+  reordenar, eliminar si no tiene mesas). El filtro del salon y de caja usa
+  el NOMBRE de la zona.
+- **Fase B pendiente**: comandas/KDS en Supabase (`comandas` con `items`
+  JSONB, `sessionId` con UUID en vez de `mesa:<idIsar>`,
+  `estacionSupabaseId`, estado de mesa derivado de comandas vivas).
+- **Calidad**: 9 tests nuevos en `test/integration/zonas_mesas_isar_test.dart`
+  (clave unica, tombstones, orden de zonas, helpers de `MesaEntity`).

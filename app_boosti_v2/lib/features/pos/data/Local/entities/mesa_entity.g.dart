@@ -37,77 +37,102 @@ const MesaEntitySchema = CollectionSchema(
       name: r'disponibleParaComanda',
       type: IsarType.bool,
     ),
-    r'estaUnida': PropertySchema(
+    r'eliminado': PropertySchema(
       id: 4,
+      name: r'eliminado',
+      type: IsarType.bool,
+    ),
+    r'estaUnida': PropertySchema(
+      id: 5,
       name: r'estaUnida',
       type: IsarType.bool,
     ),
     r'estado': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'estado',
       type: IsarType.string,
       enumMap: _MesaEntityestadoEnumValueMap,
     ),
     r'fechaSincronizacion': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'fechaSincronizacion',
       type: IsarType.dateTime,
     ),
     r'localId': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'localId',
       type: IsarType.long,
     ),
     r'localSupabaseId': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'localSupabaseId',
       type: IsarType.string,
     ),
     r'nombre': PropertySchema(
-      id: 9,
+      id: 10,
       name: r'nombre',
       type: IsarType.string,
     ),
     r'ocupadaDesde': PropertySchema(
-      id: 10,
+      id: 11,
       name: r'ocupadaDesde',
       type: IsarType.dateTime,
     ),
     r'ordenGrid': PropertySchema(
-      id: 11,
+      id: 12,
       name: r'ordenGrid',
       type: IsarType.long,
     ),
     r'reservaId': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'reservaId',
       type: IsarType.long,
     ),
     r'sincronizado': PropertySchema(
-      id: 13,
+      id: 14,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'supabaseId': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'unidaConMesaId': PropertySchema(
-      id: 15,
+      id: 16,
       name: r'unidaConMesaId',
       type: IsarType.long,
     ),
+    r'unidaConMesaSupabaseId': PropertySchema(
+      id: 17,
+      name: r'unidaConMesaSupabaseId',
+      type: IsarType.string,
+    ),
     r'updatedAt': PropertySchema(
-      id: 16,
+      id: 18,
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
     r'zona': PropertySchema(
-      id: 17,
+      id: 19,
       name: r'zona',
       type: IsarType.string,
       enumMap: _MesaEntityzonaEnumValueMap,
+    ),
+    r'zonaEfectiva': PropertySchema(
+      id: 20,
+      name: r'zonaEfectiva',
+      type: IsarType.string,
+    ),
+    r'zonaNombre': PropertySchema(
+      id: 21,
+      name: r'zonaNombre',
+      type: IsarType.string,
+    ),
+    r'zonaSupabaseId': PropertySchema(
+      id: 22,
+      name: r'zonaSupabaseId',
+      type: IsarType.string,
     )
   },
   estimateSize: _mesaEntityEstimateSize,
@@ -185,7 +210,26 @@ int _mesaEntityEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final value = object.unidaConMesaSupabaseId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.zona.name.length * 3;
+  bytesCount += 3 + object.zonaEfectiva.length * 3;
+  {
+    final value = object.zonaNombre;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.zonaSupabaseId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -199,20 +243,25 @@ void _mesaEntitySerialize(
   writer.writeString(offsets[1], object.claveUnica);
   writer.writeDateTime(offsets[2], object.createdAt);
   writer.writeBool(offsets[3], object.disponibleParaComanda);
-  writer.writeBool(offsets[4], object.estaUnida);
-  writer.writeString(offsets[5], object.estado.name);
-  writer.writeDateTime(offsets[6], object.fechaSincronizacion);
-  writer.writeLong(offsets[7], object.localId);
-  writer.writeString(offsets[8], object.localSupabaseId);
-  writer.writeString(offsets[9], object.nombre);
-  writer.writeDateTime(offsets[10], object.ocupadaDesde);
-  writer.writeLong(offsets[11], object.ordenGrid);
-  writer.writeLong(offsets[12], object.reservaId);
-  writer.writeBool(offsets[13], object.sincronizado);
-  writer.writeString(offsets[14], object.supabaseId);
-  writer.writeLong(offsets[15], object.unidaConMesaId);
-  writer.writeDateTime(offsets[16], object.updatedAt);
-  writer.writeString(offsets[17], object.zona.name);
+  writer.writeBool(offsets[4], object.eliminado);
+  writer.writeBool(offsets[5], object.estaUnida);
+  writer.writeString(offsets[6], object.estado.name);
+  writer.writeDateTime(offsets[7], object.fechaSincronizacion);
+  writer.writeLong(offsets[8], object.localId);
+  writer.writeString(offsets[9], object.localSupabaseId);
+  writer.writeString(offsets[10], object.nombre);
+  writer.writeDateTime(offsets[11], object.ocupadaDesde);
+  writer.writeLong(offsets[12], object.ordenGrid);
+  writer.writeLong(offsets[13], object.reservaId);
+  writer.writeBool(offsets[14], object.sincronizado);
+  writer.writeString(offsets[15], object.supabaseId);
+  writer.writeLong(offsets[16], object.unidaConMesaId);
+  writer.writeString(offsets[17], object.unidaConMesaSupabaseId);
+  writer.writeDateTime(offsets[18], object.updatedAt);
+  writer.writeString(offsets[19], object.zona.name);
+  writer.writeString(offsets[20], object.zonaEfectiva);
+  writer.writeString(offsets[21], object.zonaNombre);
+  writer.writeString(offsets[22], object.zonaSupabaseId);
 }
 
 MesaEntity _mesaEntityDeserialize(
@@ -225,24 +274,28 @@ MesaEntity _mesaEntityDeserialize(
   object.capacidad = reader.readLong(offsets[0]);
   object.claveUnica = reader.readString(offsets[1]);
   object.createdAt = reader.readDateTimeOrNull(offsets[2]);
+  object.eliminado = reader.readBool(offsets[4]);
   object.estado =
-      _MesaEntityestadoValueEnumMap[reader.readStringOrNull(offsets[5])] ??
+      _MesaEntityestadoValueEnumMap[reader.readStringOrNull(offsets[6])] ??
           MesaEstado.libre;
-  object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[6]);
+  object.fechaSincronizacion = reader.readDateTimeOrNull(offsets[7]);
   object.id = id;
-  object.localId = reader.readLong(offsets[7]);
-  object.localSupabaseId = reader.readStringOrNull(offsets[8]);
-  object.nombre = reader.readString(offsets[9]);
-  object.ocupadaDesde = reader.readDateTimeOrNull(offsets[10]);
-  object.ordenGrid = reader.readLong(offsets[11]);
-  object.reservaId = reader.readLongOrNull(offsets[12]);
-  object.sincronizado = reader.readBool(offsets[13]);
-  object.supabaseId = reader.readStringOrNull(offsets[14]);
-  object.unidaConMesaId = reader.readLongOrNull(offsets[15]);
-  object.updatedAt = reader.readDateTimeOrNull(offsets[16]);
+  object.localId = reader.readLong(offsets[8]);
+  object.localSupabaseId = reader.readStringOrNull(offsets[9]);
+  object.nombre = reader.readString(offsets[10]);
+  object.ocupadaDesde = reader.readDateTimeOrNull(offsets[11]);
+  object.ordenGrid = reader.readLong(offsets[12]);
+  object.reservaId = reader.readLongOrNull(offsets[13]);
+  object.sincronizado = reader.readBool(offsets[14]);
+  object.supabaseId = reader.readStringOrNull(offsets[15]);
+  object.unidaConMesaId = reader.readLongOrNull(offsets[16]);
+  object.unidaConMesaSupabaseId = reader.readStringOrNull(offsets[17]);
+  object.updatedAt = reader.readDateTimeOrNull(offsets[18]);
   object.zona =
-      _MesaEntityzonaValueEnumMap[reader.readStringOrNull(offsets[17])] ??
+      _MesaEntityzonaValueEnumMap[reader.readStringOrNull(offsets[19])] ??
           MesaZona.salon;
+  object.zonaNombre = reader.readStringOrNull(offsets[21]);
+  object.zonaSupabaseId = reader.readStringOrNull(offsets[22]);
   return object;
 }
 
@@ -264,33 +317,43 @@ P _mesaEntityDeserializeProp<P>(
     case 4:
       return (reader.readBool(offset)) as P;
     case 5:
+      return (reader.readBool(offset)) as P;
+    case 6:
       return (_MesaEntityestadoValueEnumMap[reader.readStringOrNull(offset)] ??
           MesaEstado.libre) as P;
-    case 6:
-      return (reader.readDateTimeOrNull(offset)) as P;
     case 7:
-      return (reader.readLong(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 8:
-      return (reader.readStringOrNull(offset)) as P;
-    case 9:
-      return (reader.readString(offset)) as P;
-    case 10:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 11:
       return (reader.readLong(offset)) as P;
-    case 12:
-      return (reader.readLongOrNull(offset)) as P;
-    case 13:
-      return (reader.readBool(offset)) as P;
-    case 14:
+    case 9:
       return (reader.readStringOrNull(offset)) as P;
-    case 15:
-      return (reader.readLongOrNull(offset)) as P;
-    case 16:
+    case 10:
+      return (reader.readString(offset)) as P;
+    case 11:
       return (reader.readDateTimeOrNull(offset)) as P;
+    case 12:
+      return (reader.readLong(offset)) as P;
+    case 13:
+      return (reader.readLongOrNull(offset)) as P;
+    case 14:
+      return (reader.readBool(offset)) as P;
+    case 15:
+      return (reader.readStringOrNull(offset)) as P;
+    case 16:
+      return (reader.readLongOrNull(offset)) as P;
     case 17:
+      return (reader.readStringOrNull(offset)) as P;
+    case 18:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 19:
       return (_MesaEntityzonaValueEnumMap[reader.readStringOrNull(offset)] ??
           MesaZona.salon) as P;
+    case 20:
+      return (reader.readString(offset)) as P;
+    case 21:
+      return (reader.readStringOrNull(offset)) as P;
+    case 22:
+      return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
@@ -923,6 +986,16 @@ extension MesaEntityQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'disponibleParaComanda',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition> eliminadoEqualTo(
+      bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'eliminado',
         value: value,
       ));
     });
@@ -1973,6 +2046,162 @@ extension MesaEntityQueryFilter
   }
 
   QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'unidaConMesaSupabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'unidaConMesaSupabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'unidaConMesaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'unidaConMesaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'unidaConMesaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'unidaConMesaSupabaseId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'unidaConMesaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'unidaConMesaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdContains(String value,
+          {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'unidaConMesaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdMatches(String pattern,
+          {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'unidaConMesaSupabaseId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'unidaConMesaSupabaseId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      unidaConMesaSupabaseIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'unidaConMesaSupabaseId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
       updatedAtIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -2173,6 +2402,449 @@ extension MesaEntityQueryFilter
       ));
     });
   }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaEfectivaEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'zonaEfectiva',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaEfectivaGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'zonaEfectiva',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaEfectivaLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'zonaEfectiva',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaEfectivaBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'zonaEfectiva',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaEfectivaStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'zonaEfectiva',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaEfectivaEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'zonaEfectiva',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaEfectivaContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'zonaEfectiva',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaEfectivaMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'zonaEfectiva',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaEfectivaIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'zonaEfectiva',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaEfectivaIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'zonaEfectiva',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaNombreIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'zonaNombre',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaNombreIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'zonaNombre',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition> zonaNombreEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'zonaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaNombreGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'zonaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaNombreLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'zonaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition> zonaNombreBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'zonaNombre',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaNombreStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'zonaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaNombreEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'zonaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaNombreContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'zonaNombre',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition> zonaNombreMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'zonaNombre',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaNombreIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'zonaNombre',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaNombreIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'zonaNombre',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'zonaSupabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'zonaSupabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'zonaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'zonaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'zonaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'zonaSupabaseId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'zonaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'zonaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'zonaSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'zonaSupabaseId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'zonaSupabaseId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterFilterCondition>
+      zonaSupabaseIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'zonaSupabaseId',
+        value: '',
+      ));
+    });
+  }
 }
 
 extension MesaEntityQueryObject
@@ -2230,6 +2902,18 @@ extension MesaEntityQuerySortBy
       sortByDisponibleParaComandaDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'disponibleParaComanda', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> sortByEliminado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> sortByEliminadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminado', Sort.desc);
     });
   }
 
@@ -2381,6 +3065,20 @@ extension MesaEntityQuerySortBy
     });
   }
 
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy>
+      sortByUnidaConMesaSupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidaConMesaSupabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy>
+      sortByUnidaConMesaSupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidaConMesaSupabaseId', Sort.desc);
+    });
+  }
+
   QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> sortByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -2402,6 +3100,43 @@ extension MesaEntityQuerySortBy
   QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> sortByZonaDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'zona', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> sortByZonaEfectiva() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaEfectiva', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> sortByZonaEfectivaDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaEfectiva', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> sortByZonaNombre() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaNombre', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> sortByZonaNombreDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaNombre', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> sortByZonaSupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaSupabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy>
+      sortByZonaSupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaSupabaseId', Sort.desc);
     });
   }
 }
@@ -2455,6 +3190,18 @@ extension MesaEntityQuerySortThenBy
       thenByDisponibleParaComandaDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'disponibleParaComanda', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> thenByEliminado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminado', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> thenByEliminadoDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'eliminado', Sort.desc);
     });
   }
 
@@ -2618,6 +3365,20 @@ extension MesaEntityQuerySortThenBy
     });
   }
 
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy>
+      thenByUnidaConMesaSupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidaConMesaSupabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy>
+      thenByUnidaConMesaSupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'unidaConMesaSupabaseId', Sort.desc);
+    });
+  }
+
   QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> thenByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'updatedAt', Sort.asc);
@@ -2639,6 +3400,43 @@ extension MesaEntityQuerySortThenBy
   QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> thenByZonaDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'zona', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> thenByZonaEfectiva() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaEfectiva', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> thenByZonaEfectivaDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaEfectiva', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> thenByZonaNombre() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaNombre', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> thenByZonaNombreDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaNombre', Sort.desc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy> thenByZonaSupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaSupabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QAfterSortBy>
+      thenByZonaSupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'zonaSupabaseId', Sort.desc);
     });
   }
 }
@@ -2668,6 +3466,12 @@ extension MesaEntityQueryWhereDistinct
       distinctByDisponibleParaComanda() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'disponibleParaComanda');
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QDistinct> distinctByEliminado() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'eliminado');
     });
   }
 
@@ -2749,6 +3553,14 @@ extension MesaEntityQueryWhereDistinct
     });
   }
 
+  QueryBuilder<MesaEntity, MesaEntity, QDistinct>
+      distinctByUnidaConMesaSupabaseId({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'unidaConMesaSupabaseId',
+          caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<MesaEntity, MesaEntity, QDistinct> distinctByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'updatedAt');
@@ -2759,6 +3571,28 @@ extension MesaEntityQueryWhereDistinct
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'zona', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QDistinct> distinctByZonaEfectiva(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'zonaEfectiva', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QDistinct> distinctByZonaNombre(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'zonaNombre', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<MesaEntity, MesaEntity, QDistinct> distinctByZonaSupabaseId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'zonaSupabaseId',
+          caseSensitive: caseSensitive);
     });
   }
 }
@@ -2793,6 +3627,12 @@ extension MesaEntityQueryProperty
       disponibleParaComandaProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'disponibleParaComanda');
+    });
+  }
+
+  QueryBuilder<MesaEntity, bool, QQueryOperations> eliminadoProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'eliminado');
     });
   }
 
@@ -2870,6 +3710,13 @@ extension MesaEntityQueryProperty
     });
   }
 
+  QueryBuilder<MesaEntity, String?, QQueryOperations>
+      unidaConMesaSupabaseIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'unidaConMesaSupabaseId');
+    });
+  }
+
   QueryBuilder<MesaEntity, DateTime?, QQueryOperations> updatedAtProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'updatedAt');
@@ -2879,6 +3726,24 @@ extension MesaEntityQueryProperty
   QueryBuilder<MesaEntity, MesaZona, QQueryOperations> zonaProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'zona');
+    });
+  }
+
+  QueryBuilder<MesaEntity, String, QQueryOperations> zonaEfectivaProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'zonaEfectiva');
+    });
+  }
+
+  QueryBuilder<MesaEntity, String?, QQueryOperations> zonaNombreProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'zonaNombre');
+    });
+  }
+
+  QueryBuilder<MesaEntity, String?, QQueryOperations> zonaSupabaseIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'zonaSupabaseId');
     });
   }
 }

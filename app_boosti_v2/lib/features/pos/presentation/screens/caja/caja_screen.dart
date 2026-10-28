@@ -58,7 +58,7 @@ class CajaScreen extends ConsumerStatefulWidget {
 
 class _CajaScreenState extends ConsumerState<CajaScreen> {
   _VistaCaja _vista = _VistaCaja.mesas;
-  MesaZona? _zona;
+  String? _zona;
   Timer? _tick;
 
   @override
@@ -275,7 +275,7 @@ class _CajaScreenState extends ConsumerState<CajaScreen> {
 
     final mesasFiltradas = _zona == null
         ? mesasState.mesas
-        : mesasState.mesas.where((m) => m.zona == _zona).toList();
+        : mesasState.mesas.where((m) => m.zonaEfectiva == _zona).toList();
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -476,9 +476,9 @@ class _Metrica extends StatelessWidget {
 
 class _MesasTab extends StatelessWidget {
   final List<MesaEntity> mesas;
-  final List<MesaZona> zonas;
-  final MesaZona? zona;
-  final ValueChanged<MesaZona?> onZona;
+  final List<String> zonas;
+  final String? zona;
+  final ValueChanged<String?> onZona;
   final Map<int, CartSessionEntity> comandasPorMesa;
   final bool isLoading;
   final ValueChanged<MesaEntity> onMesa;
@@ -522,7 +522,7 @@ class _MesasTab extends StatelessWidget {
                 ),
                 for (final z in zonas)
                   _ChipZona(
-                    label: etiquetaZona(z),
+                    label: z,
                     activo: zona == z,
                     onTap: () => onZona(z),
                   ),
@@ -616,7 +616,7 @@ class _MesaCajaCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '${etiquetaZona(mesa.zona)} · ${mesa.capacidad} pax',
+            '${mesa.zonaEfectiva} · ${mesa.capacidad} pax',
             style: TextStyle(
               fontSize: 12,
               color: Theme.of(context).colorScheme.onSurfaceVariant,

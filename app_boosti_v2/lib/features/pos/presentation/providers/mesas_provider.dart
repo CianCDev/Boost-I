@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/mesa_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/zona_entity.dart';
+import 'package:app_boosti_v2/features/pos/presentation/services/seed_zonas_service.dart';
 
 import 'local_actual_provider.dart';
 
@@ -13,17 +15,25 @@ import 'local_actual_provider.dart';
 
 class MesasState {
   final List<MesaEntity> mesas;
+
+  /// Zonas del local, ordenadas por `orden` (R.1b).
+  final List<ZonaEntity> zonas;
   final bool isLoading;
   final String? error;
 
-  /// Filtro de zona activo. `null` = todas.
-  final MesaZona? zonaFiltro;
+  /// Nombre de la zona filtrada. `null` = todas.
+  ///
+  /// Se filtra por NOMBRE y no por id porque el nombre es el snapshot que
+  /// la mesa guarda y funciona igual offline, antes de que la zona tenga
+  /// `supabaseId`.
+  final String? zonaFiltro;
 
   /// Local dueño de las mesas cargadas. `null` = todavía no hay local.
   final int? localId;
 
   const MesasState({
     this.mesas = const [],
+    this.zonas = const [],
     this.isLoading = true,
     this.error,
     this.zonaFiltro,
@@ -32,15 +42,17 @@ class MesasState {
 
   MesasState copyWith({
     List<MesaEntity>? mesas,
+    List<ZonaEntity>? zonas,
     bool? isLoading,
     String? error,
-    MesaZona? zonaFiltro,
+    String? zonaFiltro,
     bool limpiarZonaFiltro = false,
     int? localId,
     bool limpiarLocalId = false,
   }) {
     return MesasState(
       mesas: mesas ?? this.mesas,
+      zonas: zonas ?? this.zonas,
       isLoading: isLoading ?? this.isLoading,
       error: error,
       zonaFiltro:
@@ -53,13 +65,19 @@ class MesasState {
   List<MesaEntity> get mesasVisibles =>
       zonaFiltro == null
           ? mesas
-          : mesas.where((m) => m.zona == zonaFiltro).toList();
+          : mesas.where((m) => m.zonaEfectiva == zonaFiltro).toList();
 
-  /// Zonas que tienen al menos una mesa, para poblar el filtro.
-  List<MesaZona> get zonasDisponibles {
-    final zonas = mesas.map((m) => m.zona).toSet().toList();
-    zonas.sort((a, b) => a.index.compareTo(b.index));
-    return zonas;
+  /// Nombres de zona para poblar los filtros.
+  ///
+  /// Si el local todavía no tiene zonas (dato previo a R.1b), se derivan
+  /// de las mesas para no dejar el salón sin filtros.
+  List<String> get zonasDisponibles {
+    if (zonas.isNotEmpty) {
+      return zonas.map((z) => z.nombre).toList(growable: false);
+    }
+    final nombres = mesas.map((m) => m.zonaEfectiva).toSet().toList();
+    nombres.sort();
+    return nombres;
   }
 }
 
@@ -103,15 +121,37 @@ class MesasNotifier extends StateNotifier<MesasState> {
         debugPrint('⚠️ [Mesas] Sin local activo, lista vacía');
         state = state.copyWith(
           mesas: const [],
+          zonas: const [],
           isLoading: false,
           limpiarLocalId: true,
+          limpiarZonaFiltro: true,
         );
         return;
       }
 
-      final mesas = await _isar.obtenerMesasDelLocal(localId);
+      var mesas = await _isar.obtenerMesasDelLocal(localId);
+      var zonas = await _isar.obtenerZonasDelLocal(localId);
+
+      // R.1b · Seed perezoso. Cubre los locales que YA eran restaurante
+      // antes de este cambio y por eso nunca pasaron por `cambiarModo`:
+      // sin esto no tendrían zonas y sus mesas quedarían sin nombre.
+      final local = await _isar.obtenerLocalPorId(localId);
+      final esRestaurante = local?.businessMode == 'restaurante';
+      final faltaMigrar =
+          mesas.any((m) => (m.zonaNombre ?? '').trim().isEmpty);
+
+      if ((zonas.isEmpty && esRestaurante) || (zonas.isNotEmpty && faltaMigrar)) {
+        final escribio = await const SeedZonasRestaurante()
+            .sembrar(localId: localId, isarService: _isar);
+        if (escribio) {
+          mesas = await _isar.obtenerMesasDelLocal(localId);
+          zonas = await _isar.obtenerZonasDelLocal(localId);
+        }
+      }
+
       state = state.copyWith(
         mesas: mesas,
+        zonas: zonas,
         isLoading: false,
         localId: localId,
       );
@@ -122,7 +162,7 @@ class MesasNotifier extends StateNotifier<MesasState> {
   }
 
   /// Cambia el filtro de zona. `null` = mostrar todas.
-  void filtrarPorZona(MesaZona? zona) {
+  void filtrarPorZona(String? zona) {
     if (zona == null) {
       state = state.copyWith(limpiarZonaFiltro: true);
     } else {
@@ -139,7 +179,7 @@ class MesasNotifier extends StateNotifier<MesasState> {
   /// `state.error` para que la UI lo muestre.
   Future<int?> crearMesa({
     required String nombre,
-    MesaZona zona = MesaZona.salon,
+    String? zonaNombre,
     int capacidad = 4,
     MesaEstado estado = MesaEstado.libre,
   }) async {
@@ -164,10 +204,13 @@ class MesasNotifier extends StateNotifier<MesasState> {
             'en este local.');
       }
 
+      final zona = await _resolverZona(localId, zonaNombre);
       final mesa = MesaEntity()
         ..localId = localId
         ..nombre = nombreLimpio
-        ..zona = zona
+        ..zona = _zonaLegacyDesdeNombre(zona.nombre)
+        ..zonaNombre = zona.nombre
+        ..zonaSupabaseId = zona.supabaseId
         ..capacidad = capacidad
         ..estado = estado
         ..ordenGrid = state.mesas.length
@@ -292,6 +335,7 @@ class MesasNotifier extends StateNotifier<MesasState> {
     }
 
     secundaria.unidaConMesaId = idPrincipal;
+    secundaria.unidaConMesaSupabaseId = principal.supabaseId;
     principal.capacidad += secundaria.capacidad;
     await _isar.guardarMesa(secundaria);
     await _isar.guardarMesa(principal);
@@ -310,6 +354,7 @@ class MesasNotifier extends StateNotifier<MesasState> {
 
     final principal = await _isar.obtenerMesaPorId(principalId);
     mesa.unidaConMesaId = null;
+    mesa.unidaConMesaSupabaseId = null;
     await _isar.guardarMesa(mesa);
 
     if (principal != null) {
@@ -321,6 +366,159 @@ class MesasNotifier extends StateNotifier<MesasState> {
     await cargar();
     return true;
   }
+
+  // ── Zonas (R.1b) ─────────────────────────────────────────────────
+
+  /// Crea una zona nueva en el local activo.
+  ///
+  /// Devuelve el id creado o `null` si falló (sin local, nombre vacío o
+  /// duplicado). El motivo queda en `state.error`.
+  Future<int?> crearZona({required String nombre}) async {
+    try {
+      final localId = _ref.read(localActualProvider);
+      if (localId == null) {
+        return _fallar('No hay local activo. Selecciona un local primero.');
+      }
+      final nombreLimpio = nombre.trim();
+      if (nombreLimpio.isEmpty) {
+        return _fallar('El nombre de la zona no puede estar vacío.');
+      }
+
+      final clave = '$localId::$nombreLimpio';
+      if (await _isar.existeZonaConClave(clave)) {
+        return _fallar('Ya existe una zona llamada "$nombreLimpio".');
+      }
+
+      final zona = ZonaEntity()
+        ..localId = localId
+        ..nombre = nombreLimpio
+        ..orden = state.zonas.length
+        ..activo = true
+        ..sincronizado = false;
+
+      final id = await _isar.guardarZona(zona);
+      await cargar();
+      return id;
+    } catch (e) {
+      debugPrint('❌ [Mesas] Error creando zona: $e');
+      state = state.copyWith(error: e.toString());
+      return null;
+    }
+  }
+
+  /// Renombra una zona y actualiza el snapshot de sus mesas.
+  ///
+  /// La cascada es obligatoria: la mesa guarda el NOMBRE de la zona, no
+  /// un id. Sin esto, renombrar "Salón" a "Piso 1" dejaría las mesas
+  /// apuntando a una zona que ya no existe.
+  Future<bool> renombrarZona(int id, String nuevoNombre) async {
+    try {
+      final zona = await _isar.obtenerZonaPorId(id);
+      if (zona == null) return _fallarBool('La zona ya no existe.');
+
+      final nombreLimpio = nuevoNombre.trim();
+      if (nombreLimpio.isEmpty) {
+        return _fallarBool('El nombre de la zona no puede estar vacío.');
+      }
+
+      final clave = '${zona.localId}::$nombreLimpio';
+      if (await _isar.existeZonaConClave(clave, excluirId: id)) {
+        return _fallarBool('Ya existe una zona llamada "$nombreLimpio".');
+      }
+
+      final anterior = zona.nombre;
+      zona.nombre = nombreLimpio;
+      await _isar.guardarZona(zona);
+
+      for (final mesa in state.mesas) {
+        if (mesa.zonaEfectiva != anterior) continue;
+        mesa
+          ..zonaNombre = nombreLimpio
+          ..zonaSupabaseId = zona.supabaseId
+          ..zona = _zonaLegacyDesdeNombre(nombreLimpio);
+        await _isar.guardarMesa(mesa);
+      }
+
+      await cargar();
+      return true;
+    } catch (e) {
+      debugPrint('❌ [Mesas] Error renombrando zona: $e');
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
+  /// Elimina una zona. Solo si ninguna mesa la está usando y si no es la
+  /// última: un local sin zonas deja el salón sin filtros.
+  Future<bool> eliminarZona(int id) async {
+    try {
+      final zona = await _isar.obtenerZonaPorId(id);
+      if (zona == null) return _fallarBool('La zona ya no existe.');
+
+      if (state.zonas.length <= 1) {
+        return _fallarBool('Debe quedar al menos una zona.');
+      }
+      final enUso = state.mesas.any((m) => m.zonaEfectiva == zona.nombre);
+      if (enUso) {
+        return _fallarBool(
+          'No se puede eliminar "${zona.nombre}": tiene mesas asignadas. '
+          'Muévelas a otra zona primero.',
+        );
+      }
+
+      final ok = await _isar.eliminarZona(id);
+      await cargar();
+      return ok;
+    } catch (e) {
+      debugPrint('❌ [Mesas] Error eliminando zona: $e');
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
+  /// Reordena las zonas según la lista de ids recibida.
+  Future<bool> reordenarZonas(List<int> idsEnOrden) async {
+    try {
+      for (var i = 0; i < idsEnOrden.length; i++) {
+        final zona = await _isar.obtenerZonaPorId(idsEnOrden[i]);
+        if (zona == null) continue;
+        zona.orden = i;
+        await _isar.guardarZona(zona);
+      }
+      await cargar();
+      return true;
+    } catch (e) {
+      debugPrint('❌ [Mesas] Error reordenando zonas: $e');
+      state = state.copyWith(error: e.toString());
+      return false;
+    }
+  }
+
+  /// Devuelve la zona pedida, la primera disponible o crea "Salón" si el
+  /// local todavía no tiene ninguna.
+  Future<ZonaEntity> _resolverZona(int localId, String? nombre) async {
+    final buscado = (nombre ?? '').trim();
+    if (buscado.isNotEmpty) {
+      for (final zona in state.zonas) {
+        if (zona.nombre == buscado) return zona;
+      }
+    }
+    if (state.zonas.isNotEmpty) return state.zonas.first;
+
+    final nueva = ZonaEntity()
+      ..localId = localId
+      ..nombre = 'Salón'
+      ..orden = 0
+      ..activo = true
+      ..sincronizado = false;
+    await _isar.guardarZona(nueva);
+    return nueva;
+  }
+
+  /// Mapea un nombre de zona al enum legacy para no dejar `zona` en un
+  /// valor incoherente mientras convivan ambos campos.
+  MesaZona _zonaLegacyDesdeNombre(String nombre) =>
+      mesaZonaDesdeNombre(nombre);
 
   // ── Utilidades ───────────────────────────────────────────────────
 
@@ -357,20 +555,7 @@ String _etiqueta(MesaEstado estado) {
   }
 }
 
-String etiquetaZona(MesaZona zona) {
-  switch (zona) {
-    case MesaZona.salon:
-      return 'Salón';
-    case MesaZona.terraza:
-      return 'Terraza';
-    case MesaZona.bar:
-      return 'Bar';
-    case MesaZona.privado:
-      return 'Privado';
-    case MesaZona.vip:
-      return 'VIP';
-  }
-}
+String etiquetaZona(MesaZona zona) => etiquetaZonaLegacy(zona);
 
 // ══════════════════════════════════════════════════════════════════
 // PROVIDER

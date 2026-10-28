@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_boosti_v2/features/pos/data/Local/entities/mesa_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/zona_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/mesas_provider.dart';
 
 import '../common/glass_card.dart';
@@ -36,7 +37,7 @@ class _MesaFormDialogState extends ConsumerState<MesaFormDialog> {
   late final TextEditingController _nombreCtrl;
   late final TextEditingController _capacidadCtrl;
 
-  late MesaZona _zona;
+  late String? _zonaNombre;
   late MesaEstado _estado;
   bool _isSaving = false;
 
@@ -49,7 +50,7 @@ class _MesaFormDialogState extends ConsumerState<MesaFormDialog> {
     _nombreCtrl = TextEditingController(text: m?.nombre ?? '');
     _capacidadCtrl =
         TextEditingController(text: '${m?.capacidad ?? 4}');
-    _zona = m?.zona ?? MesaZona.salon;
+    _zonaNombre = m?.zonaNombre ?? m?.zonaEfectiva;
     _estado = m?.estado ?? MesaEstado.libre;
   }
 
@@ -58,6 +59,23 @@ class _MesaFormDialogState extends ConsumerState<MesaFormDialog> {
     _nombreCtrl.dispose();
     _capacidadCtrl.dispose();
     super.dispose();
+  }
+
+  /// Nombre de zona que debe mostrar el dropdown.
+  String? _nombreZonaEfectivo(List<ZonaEntity> zonas) {
+    final actual = _zonaNombre?.trim() ?? '';
+    if (zonas.any((z) => z.nombre == actual)) return actual;
+    return zonas.isEmpty ? null : zonas.first.nombre;
+  }
+
+  ZonaEntity? _zonaSeleccionada() {
+    final zonas = ref.read(mesasProvider).zonas;
+    if (zonas.isEmpty) return null;
+    final actual = _zonaNombre?.trim() ?? '';
+    for (final zona in zonas) {
+      if (zona.nombre == actual) return zona;
+    }
+    return zonas.first;
   }
 
   Future<void> _guardar() async {
@@ -70,14 +88,19 @@ class _MesaFormDialogState extends ConsumerState<MesaFormDialog> {
     if (_esEdicion) {
       final mesa = widget.mesa!
         ..nombre = _nombreCtrl.text.trim()
-        ..zona = _zona
         ..capacidad = int.parse(_capacidadCtrl.text.trim())
         ..estado = _estado;
+      final zona = _zonaSeleccionada();
+      if (zona != null) {
+        mesa
+          ..zonaNombre = zona.nombre
+          ..zonaSupabaseId = zona.supabaseId;
+      }
       ok = await notifier.actualizarMesa(mesa);
     } else {
       final id = await notifier.crearMesa(
         nombre: _nombreCtrl.text.trim(),
-        zona: _zona,
+        zonaNombre: _zonaSeleccionada()?.nombre,
         capacidad: int.parse(_capacidadCtrl.text.trim()),
         estado: _estado,
       );
@@ -106,6 +129,7 @@ class _MesaFormDialogState extends ConsumerState<MesaFormDialog> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final zonas = ref.watch(mesasProvider).zonas;
 
     return GlassDialog(
       maxWidth: 440,
@@ -147,23 +171,32 @@ class _MesaFormDialogState extends ConsumerState<MesaFormDialog> {
               ),
               const SizedBox(height: 16),
 
-              // ── Zona ──
-              DropdownButtonFormField<MesaZona>(
-                initialValue: _zona,
-                decoration: const InputDecoration(
-                  labelText: 'Zona',
-                  prefixIcon: Icon(Icons.place_outlined),
+              // ── Zona (R.1b: zonas editables del local) ──
+              if (zonas.isEmpty)
+                Text(
+                  'Este local no tiene zonas todavía.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                )
+              else
+                DropdownButtonFormField<String>(
+                  initialValue: _nombreZonaEfectivo(zonas),
+                  decoration: const InputDecoration(
+                    labelText: 'Zona',
+                    prefixIcon: Icon(Icons.place_outlined),
+                  ),
+                  items: zonas
+                      .map(
+                        (z) => DropdownMenuItem<String>(
+                          value: z.nombre,
+                          child: Text(z.nombre),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (z) => setState(() => _zonaNombre = z),
                 ),
-                items: MesaZona.values
-                    .map(
-                      (z) => DropdownMenuItem<MesaZona>(
-                        value: z,
-                        child: Text(etiquetaZona(z)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (z) => setState(() => _zona = z ?? MesaZona.salon),
-              ),
               const SizedBox(height: 16),
 
               // ── Capacidad ──

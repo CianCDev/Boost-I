@@ -102,7 +102,7 @@ class MesaCard extends StatelessWidget {
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  etiquetaZona(mesa.zona),
+                  mesa.zonaEfectiva,
                   style: TextStyle(
                     fontSize: 12,
                     color: colorScheme.onSurfaceVariant,
