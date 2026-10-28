@@ -1192,6 +1192,44 @@ json ... Token "<" is invalid`. Dos causas, las dos del propio snippet:
 7. Si sobra tiempo: `ProductDataTab` sin sección de receta en retail
    (TODO:891) y los confirmadores duplicados (TODO:98).
 
+## Cierre 2026-10-28 — bugs resueltos, seguridad y release prep
 
+### Commits del día (sobre `2d3b4ad`…`04068ff` previos)
 
+| Commit | Contenido |
+|---|---|
+| `4e98916` | fix(inventario): descuento de stock ATÓMICO (TODO:38). 2 pasos en `IsarService`: `planificarDescuentoLotes` (lectura, FEFO, respeta local activo) + `registrarVentaConDescuento`/`aplicarDescuentosLotes` en UNA `writeTxn` con `StockInsuficienteException`. 11 tests nuevos (`test/services/descuento_lotes_plan_test.dart`). |
+| `aa75920` | fix(productos): sección Receta oculta en retail/servicios — gate `_buildSeccionReceta` con `FeatureFlags.mostrarRecetas` (TODO:891). |
+| `253d845` | refactor(carrito): confirmadores de ventas al mayor reusan `cart_dialogs.dart` (TODO:98). |
+| `cc1332b` | test(ventas): fijador de TODO:901 — venta retail CON receta no genera 'Consumo receta' ni toca el ingrediente. |
+| `643ba15` | feat(kds): seed de estaciones (primera versión, solo Settings). |
+| `b4b26ae` | refactor(kds): seed movido a `BusinessModeNotifier.cambiarModo` + `seed_estaciones_service.dart` — cubre onboarding Y Settings; invalida providers de departamentos. |
+| `8aba75d` | fix(sync): `.eq('tenant_id', tenantUuid)` + guard de local activo en las 10 descargas a secas de `sync_service.dart` (usuarios, proveedores, productos, ventas, detalle_ventas, marcas, gastos, departamentos, movimientos_lotes). Migración `20261028000001_backups_storage_policies.sql` PENDIENTE de aplicar por el owner. |
+
+Ratificado en los commits: TODO:270 (chip "Sin estación" en KDS, ya existía en `kds_screen.dart:357`) y TODO:316 (`agregarItem` ya propaga `estacionId` en los 3 call sites).
+
+### Estado de seguridad
+
+- `service_role`: solo comentario (`supabase_config.dart:20`), sin clave en cliente.
+- `env.json` y `sentry.properties`: NO trackeados (`.gitignore:64`/`:75`), nunca en el historial (`git log --all` vacío).
+- Escaneo de secretos en trackeados: 0 candidatos (patrones api_key/secret/token/eyJ/JDBC/sentry-ingest/ghp_/sk-).
+- Pendiente del owner: **rotar DSN de Sentry** (expuesto hasta 2026-10-10) y aplicar la migración de `backups`.
+
+### Calidad
+
+- Suite completa: **All tests passed! +958 ~1** (dos corridas; la segunda con el refuerzo de sync).
+- `flutter analyze`: 0 errores / 0 warnings (17 infos preexistentes: `deprecated_member_use` en `pii_scrubber` + `avoid_print` en `check_lottie*.dart`).
+
+### Versión
+
+- `pubspec.yaml`: bump a **`1.1.6+12`** — siguiente release (Shorebird quemadas hasta `1.1.5+11`).
+- Release vía GitHub Actions (Android `shorebird.yml`, Windows aparte `shorebird-windows.yml`); el owner dispara a mano. NO tag.
+
+### Sigue abierto
+
+1. Owner: correr `20261028000001_backups_storage_policies.sql` + repair.
+2. Owner: rotar credenciales (TODO:85).
+3. TODO:312 (`productos.departamento_id` a Supabase, columna + 3 sitios del sync).
+4. TODO:71/:90 saneo de filas corruptas (toca datos, necesita OK).
+5. `FiltroChip` target táctil 48px (TODO KDS), `DepartamentoSelector` sin test de widget.
 
