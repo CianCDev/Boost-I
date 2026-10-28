@@ -12,6 +12,12 @@
 -- segmento del path, igual que en `marcas`/`locales`
 -- (`20261010000006_storage_policies.sql`).
 --
+-- ⚠️ v2 (2026-10-28): la primera versión falló en el SQL Editor con
+-- `42601: syntax error at or near "CREATE"` — se cerró la cadena de
+-- `format` con `$` a secas en vez de `$f$`, y el parser ejecutaba el
+-- cuerpo literal. Versión nueva SIN dollar-quotes anidados ni
+-- `format`: al ser UN solo bucket, las 4 policies van planas.
+--
 -- ⚠️ Orden correcto (regla de AGENTS.MD): (1) correr este SQL en el
 -- SQL Editor, (2) verificar con la query del final, (3) recién ahí
 -- `supabase migration repair --status applied 20261028000001`.
@@ -25,59 +31,46 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('backups', 'backups', false)
 ON CONFLICT (id) DO NOTHING;
 
--- 2. Policies: 4 (SELECT, INSERT, UPDATE, DELETE), una carpeta por
---    tenant. Nota: los backups son sensibles al contener TODO el
---    Isar del local — el SELECT también queda limitado al tenant.
-DO $$
-DECLARE
-  b text;
-BEGIN
-  b := 'backups';
+-- 2. SELECT: descargar backups del propio tenant. Son sensibles al
+--    contener TODO el Isar del local — quedan limitados al tenant.
+DROP POLICY IF EXISTS backups_select_tenant ON storage.objects;
+CREATE POLICY backups_select_tenant ON storage.objects
+  FOR SELECT
+  USING (
+    bucket_id = 'backups'
+    AND (storage.foldername(name))[1] = current_tenant_id()::text
+  );
 
-  EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', b || '_select_tenant');
-  EXECUTE format($f$
-    CREATE POLICY %I ON storage.objects
-      FOR SELECT
-      USING (
-        bucket_id = %L
-        AND (storage.foldername(name))[1] = current_tenant_id()::text
-      )
-  $, b || '_select_tenant', b);
+-- 3. INSERT: subir backups
+DROP POLICY IF EXISTS backups_insert_tenant ON storage.objects;
+CREATE POLICY backups_insert_tenant ON storage.objects
+  FOR INSERT
+  WITH CHECK (
+    bucket_id = 'backups'
+    AND (storage.foldername(name))[1] = current_tenant_id()::text
+  );
 
-  EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', b || '_insert_tenant');
-  EXECUTE format($f$
-    CREATE POLICY %I ON storage.objects
-      FOR INSERT
-      WITH CHECK (
-        bucket_id = %L
-        AND (storage.foldername(name))[1] = current_tenant_id()::text
-      )
-  $, b || '_insert_tenant', b);
+-- 4. UPDATE: reemplazar/renombrar backups
+DROP POLICY IF EXISTS backups_update_tenant ON storage.objects;
+CREATE POLICY backups_update_tenant ON storage.objects
+  FOR UPDATE
+  USING (
+    bucket_id = 'backups'
+    AND (storage.foldername(name))[1] = current_tenant_id()::text
+  )
+  WITH CHECK (
+    bucket_id = 'backups'
+    AND (storage.foldername(name))[1] = current_tenant_id()::text
+  );
 
-  EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', b || '_update_tenant');
-  EXECUTE format($f$
-    CREATE POLICY %I ON storage.objects
-      FOR UPDATE
-      USING (
-        bucket_id = %L
-        AND (storage.foldername(name))[1] = current_tenant_id()::text
-      )
-      WITH CHECK (
-        bucket_id = %L
-        AND (storage.foldername(name))[1] = current_tenant_id()::text
-      )
-  $, b || '_update_tenant', b, b);
-
-  EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', b || '_delete_tenant');
-  EXECUTE format($f$
-    CREATE POLICY %I ON storage.objects
-      FOR DELETE
-      USING (
-        bucket_id = %L
-        AND (storage.foldername(name))[1] = current_tenant_id()::text
-      )
-  $, b || '_delete_tenant', b);
-END $$;
+-- 5. DELETE: purga de backups antiguos
+DROP POLICY IF EXISTS backups_delete_tenant ON storage.objects;
+CREATE POLICY backups_delete_tenant ON storage.objects
+  FOR DELETE
+  USING (
+    bucket_id = 'backups'
+    AND (storage.foldername(name))[1] = current_tenant_id()::text
+  );
 
 -- ============================================================
 -- VERIFICACIÓN
