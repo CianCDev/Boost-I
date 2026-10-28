@@ -35,8 +35,16 @@
       `isarServiceProvider` (cubre `clientesProvider`), `marcasProvider` y
       `empleadosProvider`. Verificado con el par que lo disparaba
       (`isar_service_integration_test` + `local_switching_test`): 40/40.
-- [ ] **`procesarVenta` no tiene transacción.** Si falla después de §1 (consumir lotes), el
-      stock queda descontado sin venta registrada. Pérdida silenciosa.
+- [x] **`procesarVenta` no tiene transacción.** RESUELTO (2026-10-28): patrón de 2
+      pasos en `IsarService` — `planificarDescuentoLotes` (lectura, FEFO, expone
+      faltante) + `registrarVentaConDescuento` (retail) / `aplicarDescuentosLotes`
+      (KDS), que ejecutan descuentos + recálculo de stock + venta/movimientos en
+      UNA `writeTxn`. Si un lote ya no tiene lo prometido, `StockInsuficienteException`
+      descarta TODO (`descuento_lote_plan.dart`, `isar_service.dart:4444+`).
+      Tests: `test/services/descuento_lotes_plan_test.dart` (11) + regresión de
+      `ventas_service_test` y `descuento_receta_test` (21). Nota: el descuento del
+      KDS tolera el faltante (Q3) a nivel de planificación; la txn completa
+      aborta solo por carrera con otra escritura.
 - [ ] **Datos corruptos en producción que hay que sanear a mano:**
       - 2 lotes con `restante > inicial` (tenant JAHTLABS, `id_isar=1`).
       - 4 lotes del Arroz (`id_isar=2`) con `cantidad_inicial=100` y `restante` 512–519.
@@ -313,17 +321,12 @@ Prioridad: esto es lo que pidió el negocio. El logo de marca es accesorio.
       el campo es local-only: está en Isar pero NO en `toJson()`/`fromJson()`
       de `ProductoEntity`. Añadirlo al par solo cuando exista la columna,
       o el push de productos escribirá una clave inexistente.
-- [ ] **`agregarItem` desde el catálogo no propaga `estacionId`.**
-      Solo lo hace `CatalogActions.agregarProducto` (escáner de código de
-      barras / búsqueda). Los otros 3 puntos de entrada construyen el
-      `CartItem` sin estación, así que sus líneas llegan al KDS con
-      `estacionId = null`:
-      · `inventory_catalog_screen.dart:393` (agregar un "reciente")
-      · `inventory_catalog_screen.dart:561` (tap en la grilla)
-      · `top_products_widget.dart:90` (top de productos)
-      Todos tienen un `ProductoEntity` en scope, así que el fix es pasar
-      `estacionId: producto.departamentoId`. Pendiente de decidir si entra
-      en R.3.2 o se acepta que solo el escáner asigne estación.
+- [x] **`agregarItem` desde el catálogo no propaga `estacionId`.** RESUELTO
+      (2026-10-28, verificación de los 3 call sites): los tres construyen el
+      `CartItem` con la estación:
+      · `inventory_catalog_screen.dart:408` (`estacionId: entity.departamentoId`)
+      · `inventory_catalog_screen.dart:585` (`estacionId: producto.departamentoId`)
+      · `catalog/top_products_widget.dart:96` (`estacionId: prodEntidad.departamentoId`)
 
 ## R.2 Fase 2 — Flujo del mesero (pendiente)
 - [ ] Tap en mesa **libre** desde el Salón → asignar mesa + navegar al POS

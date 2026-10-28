@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_boosti_v2/features/pos/data/Local/entities/cart_session_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/cliente_entity.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/descuento_lote_plan.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/estado_plato.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/isar_service.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/mesa_entity.dart';
@@ -14,7 +15,6 @@ import 'package:app_boosti_v2/features/pos/data/Local/entities/movimiento_invent
 import '../controllers/cart_controller.dart';
 import '../services/conversion_unidades.dart';
 import '../services/ticket_cocina_service.dart';
-import '../services/ventas_calculator.dart';
 import '../../domain/models/cart_item.dart';
 import 'esc_pos_provider.dart';
 import 'local_actual_provider.dart';
@@ -1403,19 +1403,20 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
   /// Los no opcionales (`esOpcional`) NO se descuentan: son extras que el
   /// cocinero puede no poner.
   ///
-  /// Reusa el FEFO del repo tal cual (`obtenerLoteParaVenta` en bucle),
-  /// igual que `venta_service.procesarVenta`.
-  ///
-  /// ⚠️ **NO bloquea ni revierte** (Q3): si un ingrediente se queda corto
-  /// se descuenta lo que había, se anota el faltante en
+  /// Reusa el mismo plan FEFO que la venta retail
+  /// (`planificarDescuentoLotes`), pero con la política contraria: NO
+  /// cancela ni revierte (Q3). Si un ingrediente se queda corto se
+  /// descuenta lo que había, se anota el faltante en
   /// [ResultadoDescuento.faltantes] y se sigue. El plato ya está entregado
   /// y la cocina no puede deshacerlo.
   ///
-  /// ⚠️ **NO es atómico**, por el mismo motivo que el retail: son N
-  /// `writeTxn` independientes, uno por lote. Si el 3.er ingrediente falla,
-  /// los 2 primeros quedan descontados y no hay rollback. Se hereda el
-  /// patrón a propósito; hacerlo bien exige una transacción que abarque
-  /// `descontarLote` + `guardarMovimientoInventario` + `guardarProducto`.
+  /// ⚠️ ATÓMICO a diferencia de antes: el plan completo del item (todos
+  /// los ingredientes, lote por lote) + los movimientos de auditoría se
+  /// aplican en UNA transacción de `aplicarDescuentosLotes`. Antes eran N
+  /// `writeTxn` independientes y si el 3.er ingrediente fallaba, los 2
+  /// primeros quedaban descontados sin forma de deshacerlo. Si la
+  /// transacción entera aborta, quedan los faltantes enteros y el estado
+  /// del plato (que ya estaba entregado y no se toca aquí).
   Future<ResultadoDescuento> _descontarRecetaDeItem(
     CartSessionItem item,
   ) async {
@@ -1444,7 +1445,12 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
 
     final faltantes = <String>[];
     final descritos = <String>[];
-    final afectados = <int>{};
+
+    // Plan completo del item + movimientos de auditoría. Todo viaja a
+    // `aplicarDescuentosLotes` al final, que es la ÚNICA escritura de este
+    // flujo: una transacción, no N.
+    final planItem = <DescuentoLotePlan>[];
+    final movimientos = <MovimientoInventarioEntity>[];
 
     for (final recItem in receta.items) {
       if (recItem.esOpcional) continue;
@@ -1475,53 +1481,42 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
       }
 
       final cantidadReal = (item.cantidad * cantidadEnStock) / divisor;
-      var pendiente = cantidadReal;
 
-      // FEFO: se pide el próximo lote hasta cubrir la cantidad, porque el
-      // stock de un ingrediente puede estar repartido en varios lotes.
-      while (!VentaCalculator.cantidadEsCero(pendiente)) {
-        final lote = await _isar.obtenerLoteParaVenta(
-          recItem.ingredienteId,
-          priorizarVencimiento: true,
-        );
-        if (lote == null) {
-          faltantes.add(recItem.ingredienteNombre);
-          break;
-        }
-
-        final aDescontar = VentaCalculator.calcularDescuentoDeLote(
-          cantidadNecesaria: pendiente,
-          cantidadDisponible: lote.cantidadRestante,
-        );
-        final ok = await _isar.descontarLote(lote.id, aDescontar);
-        if (!ok) {
-          faltantes.add(recItem.ingredienteNombre);
-          break;
-        }
-
-        pendiente -= aDescontar;
+      // FEFO con el MISMO planificador que usa la caja (`venta_service`):
+      // solo LECTURA. `planificarDescuentoLotes` dejó el faltante en
+      // `PlanificacionLote.faltante`; aquí solo se anota, el plato ya está
+      // entregado (Q3).
+      final planificacion = await _isar.planificarDescuentoLotes(
+        productoId: recItem.ingredienteId,
+        cantidad: cantidadReal,
+        localId: localId,
+      );
+      if (!planificacion.completo) {
+        faltantes.add(recItem.ingredienteNombre);
       }
+      planItem.addAll(planificacion.plan);
 
-      final descontado = cantidadReal - pendiente;
+      final descontado = cantidadReal - planificacion.faltante;
       if (descontado > 0) {
         descritos.add(recItem.ingredienteNombre);
-        afectados.add(recItem.ingredienteId);
       }
 
       // Auditoría: un movimiento por ingrediente consumido, aunque haya
       // faltado parte. Con `cantidad = 0` NO se registra nada, para no
       // ensuciar el historial con ingredientes que ni se tocaron.
+      //
+      // `stockResultante` lo sella `aplicarDescuentosLotes` DENTRO de la
+      // transacción, con el stock real ya recalculado: antes se leía
+      // entre `writeTxn` separados, con la carrera que eso implica.
       if (descontado <= 0) continue;
 
-      await _isar.guardarMovimientoInventario(
+      movimientos.add(
         MovimientoInventarioEntity()
           ..productoId = recItem.ingredienteId
           ..nombreProducto = recItem.ingredienteNombre
           ..tipoMovimiento = 'Consumo receta'
           ..cantidad = descontado
-          ..stockResultante = await _isar.obtenerStockTotalPorProducto(
-            recItem.ingredienteId,
-          )
+          ..stockResultante = 0.0
           ..fecha = DateTime.now()
           // El movimiento no sabe QUIÉN lo hizo si no hay sesión (tests,
           // kiosco sin login). `0` es el mismo "desconocido" que usa
@@ -1532,10 +1527,14 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
       );
     }
 
-    // Recalcular `ProductoEntity.stock` con los lotes, igual que hace el
-    // retail (`venta_service.dart:79-81`). Si no, el stock del producto
-    // queda desfasado respecto a los lotes y los reportes mienten.
-    await _recalcularStockDe(afectados.toList());
+    // El item completo en UNA transacción: descuento del plan + recálculo
+    // de stock + movimientos. Si revienta, no queda nada a medio camino.
+    // Antes cada `descontarLote` era su propia `writeTxn`: el punto
+    // exacto de la deuda no atómica.
+    await _isar.aplicarDescuentosLotes(
+      plan: planItem,
+      movimientos: movimientos,
+    );
 
     return ResultadoDescuento(
       faltantes: faltantes,
@@ -1543,15 +1542,9 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
     );
   }
 
-  /// Vuelve a leer el stock total de cada producto desde sus lotes y lo
-  /// escribe en `ProductoEntity.stock`.
-  ///
-  /// Delega en `IsarService.recalcularStockDe`, que es el helper
-  /// canónico del modelo "lotes = fuente única de verdad". Este método
-  /// se conserva solo como alias para no tocar los call sites.
-  Future<void> _recalcularStockDe(List<int> productoIds) async {
-    await _isar.recalcularStockDe(productoIds);
-  }
+  // (Alias `_recalcularStockDe` retirado: el recálculo de stock vive hoy
+  // dentro de la transacción de `aplicarDescuentosLotes`. Para recalcular
+  // desde fuera del flujo de entrega, usar `IsarService.recalcularStockDe`).
 
   // ── Utilidades ───────────────────────────────────────────────────
 

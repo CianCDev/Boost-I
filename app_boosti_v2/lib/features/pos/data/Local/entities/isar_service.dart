@@ -29,6 +29,7 @@ import '../entities/pedido_entity.dart';
 import '../entities/proveedor_entity.dart';
 import '../entities/movimiento_inventario_entity.dart';
 import 'receta_entity.dart';
+import 'descuento_lote_plan.dart';
 import '../entities/recepcion_entity.dart';
 import 'categoria_entity.dart';
 import 'codigo_barra_alia_entity.dart';
@@ -4344,17 +4345,33 @@ Future<bool> eliminarLocal(int id) async {
         .findAll();
   }
 
-  Future<List<LoteEntity>> obtenerLotesActivos(int productoId,
-      {bool priorizarVencimiento = true}) async {
+  ///
+  /// [localId] filtra por local. ⚠️ NO es decorativo: con 2 locales en el
+  /// mismo dispositivo, sin este filtro el FEFO de la caja descuenta del
+  /// lote del OTRO local, que no es el que está vendiendo esta pantalla.
+  /// `LoteEntity.localId == null` (lotes legacy, anteriores al
+  /// multi-local) se admite igual: negarles el stock dejaría sin vender a
+  /// los datos viejos.
+  Future<List<LoteEntity>> obtenerLotesActivos(
+    int productoId, {
+    bool priorizarVencimiento = true,
+    int? localId,
+  }) async {
     try {
       final isar = await db;
-      final lotes = await isar.loteEntitys
+      var query = isar.loteEntitys
           .filter()
           .productoIdEqualTo(productoId)
           .estadoEqualTo('activo')
           .and()
-          .cantidadRestanteGreaterThan(0)
-          .findAll();
+          .cantidadRestanteGreaterThan(0);
+      if (localId != null) {
+        query = query.and().group((q) => q
+            .localIdEqualTo(localId)
+            .or()
+            .localIdIsNull());
+      }
+      final lotes = await query.findAll();
 
       if (priorizarVencimiento) {
         lotes.sort((a, b) {
@@ -4401,6 +4418,264 @@ Future<bool> eliminarLocal(int id) async {
           hint: 'descontarLote_fallo',
           extras: {'loteId': loteId});
       return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // DESCUENTO ATÓMICO DE LOTES · venta retail y consumo de recetas
+  // ═══════════════════════════════════════════════════════════════
+  //
+  // Hasta aquí el descuento de stock eran N `writeTxn` independientes
+  // (`descontarLote`, uno por lote) y el alta de la venta en otra más. Un
+  // fallo a mitad dejaba stock descontado sin venta (o al revés): es la
+  // deuda "procesarVenta no tiene transacción" de `docs/TODO.md`.
+  //
+  // Contrato nuevo (2 pasos):
+  //   1. `planificarDescuentoLotes` calcula el reparto FEFO con una
+  //      LECTURA y no escribe nada. El caller valida (retail aborta si
+  //      hay faltante; el KDS no, se avisa).
+  //   2. `registrarVentaConDescuento` (venta) o `aplicarDescuentosLotes`
+  //      (KDS) ejecutan descuentos + recalculos de stock + alta de la
+  //      venta/movimientos en UNA sola transacción. `descontarLote` sigue
+  //      existiendo para los callers que pagan el precio de su
+  //      fragmentación (ajustes, anulaciones), pero los caminos de venta
+  //      ya no lo usan.
+
+  /// Mismo umbral que `VentaCalculator.cantidadEsCero` (0.001).
+  ///
+  /// No se importa el calculator a propósito: es de la capa de
+  /// presentación y `isar_service` es data/dominio. Duplicar 1 constante
+  /// vale la pena para no invertir la flecha de dependencias.
+  static const double _toleranciaCantidad = 0.001;
+
+  /// Calcula el reparto FEFO para descontar [cantidad] del producto
+  /// [productoId], SOLO LECTURA.
+  ///
+  /// Devuelve un plan de lotes y, si no alcanzó, [PlanificacionLote].
+  /// es quien dice cuánto faltó. El caller decide qué hacer con él:
+  ///   · venta retail: abortar antes de tocar NADA.
+  ///   · KDS: aplicar lo que haya y avisar (Q3).
+  ///
+  /// Con `localId` el FEFO solo usa lotes de ese local (o legacy sin
+  /// local); ver `obtenerLotesActivos`.
+  ///
+  /// El plan es un SNAPSHOT de una lectura. Aplicarlo revalida cada lote
+  /// dentro de la transacción: si otra caja del mismo dispositivo movió
+  /// el lote entretanto, la transacción aborta.
+  Future<PlanificacionLote> planificarDescuentoLotes({
+    required int productoId,
+    required double cantidad,
+    int? localId,
+  }) async {
+    if (cantidad <= _toleranciaCantidad) {
+      // Residuo de redondeo (o un dato raro con negativo): no hay nada
+      // que planificar. Mismo criterio que `cantidadEsCero`.
+      return PlanificacionLote(
+        productoId: productoId,
+        faltante: 0,
+        plan: const [],
+      );
+    }
+
+    final lotes = await obtenerLotesActivos(
+      productoId,
+      priorizarVencimiento: true,
+      localId: localId,
+    );
+
+    final plan = <DescuentoLotePlan>[];
+    var pendiente = cantidad;
+    for (final lote in lotes) {
+      if (pendiente <= _toleranciaCantidad) break;
+      final aDescontar = pendiente > lote.cantidadRestante
+          ? lote.cantidadRestante
+          : pendiente;
+      if (aDescontar <= _toleranciaCantidad) continue;
+      plan.add(DescuentoLotePlan(
+        loteId: lote.id,
+        productoId: productoId,
+        cantidad: aDescontar,
+      ));
+      pendiente -= aDescontar;
+    }
+
+    final faltante = pendiente <= _toleranciaCantidad ? 0.0 : pendiente;
+    return PlanificacionLote(
+      productoId: productoId,
+      faltante: faltante,
+      plan: plan,
+    );
+  }
+
+  /// Aplica [plan] en UNA transacción: descuenta los lotes, recalcula el
+  /// stock desde ellos y guarda [movimientos] con `stockResultante` REAL
+  /// (leído del producto ya actualizado, no del valor que traía).
+  ///
+  /// Si un lote ya no tiene lo que el plan prometió, lanza
+  /// `StockInsuficienteException` y la transacción entera se descarta:
+  /// ni un lote ni un movimiento quedan a medio camino.
+  ///
+  /// Es el camino del KDS (`comanda_provider._descontarRecetaDeItem`),
+  /// donde el faltante se tolera (Q3): el plan que llega acá ya se
+  /// construyó con los faltantes separados.
+  Future<void> aplicarDescuentosLotes({
+    required List<DescuentoLotePlan> plan,
+    List<MovimientoInventarioEntity> movimientos = const [],
+  }) async {
+    try {
+      final isar = await db;
+      if (plan.isEmpty && movimientos.isEmpty) return;
+
+      await isar.writeTxn(() async {
+        await _descontarPlanEnTransaccion(isar, plan);
+
+        final afectados = <int>{...plan.map((p) => p.productoId)};
+        for (final mov in movimientos) {
+          afectados.add(mov.productoId);
+        }
+        await _recalcularStockEnTransaccion(isar, afectados.toList());
+
+        for (final mov in movimientos) {
+          mov.syncStatus =
+              mov.syncStatus.isEmpty ? 'pending' : mov.syncStatus;
+          final producto = await isar.productoEntitys.get(mov.productoId);
+          mov.stockResultante = producto?.stock ?? 0.0;
+          await isar.movimientoInventarioEntitys.put(mov);
+        }
+      });
+    } catch (e, stack) {
+      ErrorService.captureError(e,
+          stack: stack,
+          hint: 'aplicarDescuentosLotes_fallo',
+          extras: {
+            'pasos': plan.length,
+            'movimientos': movimientos.length,
+          });
+      rethrow;
+    }
+  }
+
+  /// La venta completa en UNA transacción: descuento del plan + recálculo
+  /// de stock + alta de la venta con sus detalles. O queda TODO, o no
+  /// queda NADA.
+  ///
+  /// Reemplaza la secuencia `descontarLote` × N → `recalcularStockDe` →
+  /// `guardarVenta`, que eran 3 grupos de transacciones distintas: si
+  /// `guardarVenta` fallaba, el stock ya estaba consumido sin venta que
+  /// lo justifique.
+  ///
+  /// El alta de la venta replica EXACTAMENTE la de `guardarVenta`
+  /// (normalizar `syncStatus`, asignar `ventaIdFk` a los detalles): era la
+  /// única escritura real de ese método; aquí no puede llamarlo a sí
+  /// mismo porque `writeTxn` anidado no existe en Isar 3.
+  Future<void> registrarVentaConDescuento({
+    required VentaEntity venta,
+    List<DetalleVentaEntity> detalles = const [],
+    required List<DescuentoLotePlan> plan,
+  }) async {
+    try {
+      final isar = await db;
+      await isar.writeTxn(() async {
+        await _descontarPlanEnTransaccion(isar, plan);
+        await _recalcularStockEnTransaccion(
+          isar,
+          plan.map((p) => p.productoId).toSet().toList(),
+        );
+
+        venta.syncStatus = (venta.syncStatus?.isEmpty ?? true)
+            ? 'pending'
+            : venta.syncStatus;
+        await isar.ventaEntitys.put(venta);
+
+        for (var item in detalles) {
+          item.ventaIdFk ??= venta.idSupabase;
+        }
+        if (detalles.isNotEmpty) {
+          await isar.detalleVentaEntitys.putAll(detalles);
+        }
+      });
+      debugPrint('✅ Venta guardada con éxito (atómica). ID: ${venta.id}');
+    } catch (e, stackTrace) {
+      ErrorService.captureError(
+        e,
+        stack: stackTrace,
+        hint: 'registrarVentaConDescuento_fallo',
+        extras: {
+          'ventaId': venta.id,
+          'total': venta.total,
+          'detallesCount': detalles.length,
+          'pasosPlan': plan.length,
+          'usuario': venta.empleado,
+        },
+      );
+      debugPrint('❌ Error en la venta atómica: $e');
+      rethrow;
+    }
+  }
+
+  /// Descuenta el plan revalidando CADA lote dentro de la transacción.
+  ///
+  /// Misma física que `descontarLote` (0 exacto pasa a `agotado`,
+  /// `sincronizado = false`), pero sin abrir `writeTxn`: el caller ya está
+  /// dentro de una. `writeTxn` anidado no existe en Isar 3.
+  Future<void> _descontarPlanEnTransaccion(
+    Isar isar,
+    List<DescuentoLotePlan> plan,
+  ) async {
+    for (final paso in plan) {
+      if (paso.cantidad <= _toleranciaCantidad) continue;
+
+      final lote = await isar.loteEntitys.get(paso.loteId);
+      if (lote == null) {
+        throw StockInsuficienteException(
+          loteId: paso.loteId,
+          productoId: paso.productoId,
+          disponible: 0,
+          requerido: paso.cantidad,
+        );
+      }
+      if (lote.cantidadRestante < paso.cantidad - _toleranciaCantidad) {
+        throw StockInsuficienteException(
+          loteId: paso.loteId,
+          productoId: paso.productoId,
+          disponible: lote.cantidadRestante,
+          requerido: paso.cantidad,
+        );
+      }
+
+      lote.cantidadRestante -= paso.cantidad;
+      if (lote.cantidadRestante <= _toleranciaCantidad) {
+        lote.cantidadRestante = 0;
+        lote.estado = 'agotado';
+      }
+      lote.sincronizado = false;
+      await isar.loteEntitys.put(lote);
+    }
+  }
+
+  /// Recálculo de `producto.stock` desde los lotes, ya dentro de una
+  /// transacción (idéntico al cuerpo de `recalcularStockDe`, sin `txn`).
+  ///
+  /// NO filtra por `localId` a propósito: `ProductoEntity` no tiene local
+  /// y el stock derivado suma TODOS los lotes activos del producto
+  /// (incluidos los legacy con `localId = null`).
+  Future<void> _recalcularStockEnTransaccion(
+    Isar isar,
+    List<int> productoIds,
+  ) async {
+    for (final id in productoIds) {
+      final lotes = await isar.loteEntitys
+          .filter()
+          .productoIdEqualTo(id)
+          .estadoEqualTo('activo')
+          .findAll();
+      final nuevoStock = lotes.fold<double>(
+          0.0, (sum, lote) => sum + lote.cantidadRestante);
+      final producto = await isar.productoEntitys.get(id);
+      if (producto == null) continue;
+      if (producto.stock == nuevoStock) continue;
+      producto.stock = nuevoStock;
+      await isar.productoEntitys.put(producto);
     }
   }
 
@@ -4663,12 +4938,16 @@ Future<bool> eliminarLocal(int id) async {
     }
   }
 
-  Future<LoteEntity?> obtenerLoteParaVenta(int productoId,
-      {bool priorizarVencimiento = true}) async {
+  Future<LoteEntity?> obtenerLoteParaVenta(
+    int productoId, {
+    bool priorizarVencimiento = true,
+    int? localId,
+  }) async {
     try {
       final lotes = await obtenerLotesActivos(
         productoId,
         priorizarVencimiento: priorizarVencimiento,
+        localId: localId,
       );
       return lotes.isNotEmpty ? lotes.first : null;
     } catch (e, stack) {

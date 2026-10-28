@@ -6,6 +6,7 @@ import 'package:app_boosti_v2/features/pos/presentation/services/ventas_calculat
 import 'documento_fiscal_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:app_boosti_v2/features/pos/data/Local/entities/descuento_lote_plan.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/venta_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/detalle_venta_entity.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/cliente_entity.dart';
@@ -65,45 +66,41 @@ class VentaService {
 
     try {
       // ============================================================
-      // 1. Descontar lotes
+      // 1. Planificar el descuento de lotes (SOLO LECTURA)
       // ============================================================
-      final productosAfectados = <int>{};
+      //
+      // Antes esto descontaba lote por lote con `writeTxn` separados y el
+      // alta de la venta era OTRA transacción más: si algo fallaba a
+      // mitad, el stock quedaba descontado sin venta que lo justifique
+      // (pérdida silenciosa, deuda de `docs/TODO.md`).
+      //
+      // Ahora el flujo es de 2 pasos:
+      //   1. Aquí solo se PLANIFICA (FEFO, sin escribir). Con un faltante
+      //      se aborta ANTES de tocar un solo lote.
+      //   2. `registrarVentaConDescuento` ejecuta descuentos + recálculo
+      //      de stock + venta con detalles en UNA sola transacción.
+      //
+      // `localId` acota el FEFO a los lotes del local que está cobrando:
+      // con 2 locales en el mismo dispositivo, sin esto se descuenta del
+      // lote del otro local (ver `obtenerLotesActivos`).
+      final localActivo = await isar.obtenerLocalActivo();
+      final planDescuento = <DescuentoLotePlan>[];
 
       for (var cartItem in cartState.items) {
         final productoId = int.tryParse(cartItem.producto.id);
         if (productoId == null) continue;
 
-        double cantidadPorDescontar = cartItem.cantidad;
-
-        while (!VentaCalculator.cantidadEsCero(cantidadPorDescontar)) {
-          final lote = await isar.obtenerLoteParaVenta(
-            productoId,
-            priorizarVencimiento: true,
-          );
-          if (lote == null) {
-            throw Exception(
-                'Stock insuficiente para ${cartItem.producto.nombre}');
-          }
-
-          final descontar = VentaCalculator.calcularDescuentoDeLote(
-            cantidadNecesaria: cantidadPorDescontar,
-            cantidadDisponible: lote.cantidadRestante,
-          );
-
-          final exito = await isar.descontarLote(lote.id, descontar);
-          if (!exito) {
-            throw Exception(
-                'Error al descontar lote de ${cartItem.producto.nombre}');
-          }
-          cantidadPorDescontar -= descontar;
+        final planificacion = await isar.planificarDescuentoLotes(
+          productoId: productoId,
+          cantidad: cartItem.cantidad,
+          localId: localActivo?.id,
+        );
+        if (!planificacion.completo) {
+          throw Exception(
+              'Stock insuficiente para ${cartItem.producto.nombre}');
         }
-        productosAfectados.add(productoId);
+        planDescuento.addAll(planificacion.plan);
       }
-
-      // ============================================================
-      // 2. Actualizar stock desde los lotes (fuente única de verdad)
-      // ============================================================
-      await isar.recalcularStockDe(productosAfectados.toList());
 
       // ============================================================
       // 3. Preparar detalles de la venta
@@ -185,9 +182,18 @@ class VentaService {
       }
 
       // ============================================================
-      // 4. Guardar venta con sus detalles
+      // 4. Guardar venta con sus detalles (y descontar el plan)
       // ============================================================
-      await isar.guardarVenta(nuevaVenta, detalles: detallesVenta);
+      //
+      // Descontar + recalcular stock + alta de la venta están en el mismo
+      // `writeTxn`. Si un lote ya no tiene lo que el plan prometió (otra
+      // transacción lo movió entre la planificación y ahora), la venta no
+      // se crea y el stock queda como estaba.
+      await isar.registrarVentaConDescuento(
+        venta: nuevaVenta,
+        detalles: detallesVenta,
+        plan: planDescuento,
+      );
       debugPrint(
           '✅ Venta guardada localmente con ${detallesVenta.length} detalles');
 
