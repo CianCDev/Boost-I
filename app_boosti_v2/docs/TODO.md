@@ -1103,8 +1103,9 @@ El mismo bug se corrige cambiando el bound de `RestScreen` a 6.
 - [x] Migracion `20261028000002_zonas_mesas.sql`: tablas `zonas` y `mesas`
       con RLS por `tenant_id`, triggers `updated_at`, borrado logico
       (`eliminado`) y alta en la publicacion `supabase_realtime`.
-      **Pendiente de aplicar por el owner** (el SQL esta en el repo, la
-      verificacion va al final del archivo).
+      **Aplicada por el owner el 2026-10-29** y tracking reparado; la
+      verificacion (RLS `tenant_isolation` y `relrowsecurity = true`) salio
+      en verde.
 - [x] `ZonaEntity` nueva; `MesaEntity` suma `zonaNombre`, `zonaSupabaseId`,
       `unidaConMesaSupabaseId` y `eliminado`. Toda lectura de zona pasa por
       `zonaEfectiva`, que solo cae al enum `MesaZona` si la mesa no fue
@@ -1127,8 +1128,8 @@ El mismo bug se corrige cambiando el bound de `RestScreen` a 6.
       JSONB, `UNIQUE (tenant_id, sync_key)` e indice parcial unico
       `(tenant_id, mesa_id) WHERE estado IN ('abierta','enviada')`. RLS por
       `tenant_id`, trigger de `updated_at` y alta en realtime.
-      **Pendiente de aplicar por el owner** (la verificacion va al final del
-      archivo).
+      **Aplicada por el owner el 2026-10-29** y tracking reparado (la
+      verificacion va al final del archivo).
 - [x] `CartSessionEntity.syncKey`: identidad de sync (UUID generado en el
       primer push). `sessionId` NO se sube: vale `mesa:<idIsar>`, que es
       especifico del dispositivo. Los estaticos `sessionIdDeMesa` y

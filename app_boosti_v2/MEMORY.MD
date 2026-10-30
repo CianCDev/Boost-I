@@ -9,7 +9,10 @@
 
 ## Pila Técnica y Versiones Base
 - **Flutter SDK:** 3.47.2 (Channel stable)
-- **Versión de la app:** `1.1.1+7` (`pubspec.yaml`)
+- **Versión de la app:** `1.1.6+12` (`pubspec.yaml`)
+- **Release Android publicado:** `1.1.5+11` (el último de `shorebird
+  releases list`). `1.1.6+12` está en el `pubspec` pero **no** se publicó
+  como release: los parches OTA se publican contra `1.1.5+11`.
 - **Nombre visible:** `BoostiPos` — vive en `android:label`, `inno_bundle.name`
   y 10 textos Dart. ⛔ `pubspec.yaml: name:` sigue siendo `app_boosti_v2`
   (es el paquete Dart; cambiarlo rompe todos los imports).
