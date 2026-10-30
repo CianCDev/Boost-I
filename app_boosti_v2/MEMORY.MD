@@ -1333,3 +1333,21 @@ Ratificado en los commits: TODO:270 (chip "Sin estación" en KDS, ya existía en
 - **Calidad**: 4 tests en `test/integration/exportacion_datos_test.dart`
   (ZIP + CSVs, BOM/escape de comas-comillas-saltos, items de comanda
   aplanados, ausencia de credenciales).
+
+---
+
+## Patch OTA 2026-10-29 — restaurante multi-dispositivo
+
+- **Base**: release Android `1.1.5+11` (el unico publicado; `1.1.6+12` vive
+  en `pubspec.yaml` pero no se publico como release). Patch **#2**,
+  `762302`, track `stable`, flavor `client`.
+- **Run**: GitHub Actions #21 (`40985996729`) sobre `104a28e`, `success`
+  en `Shorebird Patch`. Sin build local: el job corre en `ubuntu-latest`.
+- **Migraciones aplicadas por el owner** (2026-10-29):
+  `20261028000002_zonas_mesas.sql` y `20261028000003_comandas.sql`, con
+  `migration repair --status applied` posterior. Verificado: `zonas` y
+  `mesas` con policy `tenant_isolation` (`tenant_id = current_tenant_id()`)
+  y `relrowsecurity = true`.
+- **Pendiente**: los dispositivos deben tener instalado el APK de
+  `1.1.5+11`; el patch no cruza de release. Para que la app reporte
+  `1.1.6+12` hace falta un `release` nuevo + reinstalar el APK.
