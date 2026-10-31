@@ -13,6 +13,7 @@ import '../widgets/gastos/gastos_summary_cards.dart';
 import '../widgets/gastos/gastos_search_bar.dart';
 import '../widgets/gastos/gastos_list.dart';
 import '../widgets/gastos/gastos_detail_dialog.dart';
+import 'sales_history_screen.dart';
 
 class GastosScreen extends ConsumerStatefulWidget {
   final bool showAppBar;
@@ -382,6 +383,18 @@ class _GastosScreenState extends ConsumerState<GastosScreen> {
               icon: const Icon(Icons.refresh, color: Colors.white),
               tooltip: 'Actualizar',
               onPressed: _cargarGastos,
+            ),
+            IconButton(
+              icon: const Icon(Icons.receipt_long_outlined, color: Colors.white),
+              tooltip: 'Ver Historial de Ventas',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SalesHistoryScreen(),
+                  ),
+                );
+              },
             ),
           ],
           gradient: gradient,

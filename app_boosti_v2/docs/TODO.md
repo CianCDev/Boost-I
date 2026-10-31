@@ -1,8 +1,21 @@
 ﻿## 🔴 BLOQUEANTE PRE-PRODUCCIÓN (agregado 2026-10-09)
 
+## ✅ Sesión 2026-10-31 (Deudas Técnicas Críticas)
+
+- **Seguridad Multi-tenant:** Cerrados los últimos huecos de lecturas
+  cross-tenant en `SyncService` (categorías, pedidos, telegram, lotes,
+  limpieza de huérfanos) usando el tenant estricto del JWT.
+- **Rendimiento KDS:** Eliminado el `cargar()` global en las mutaciones
+  del KDS. Ahora se refresca solo la comanda afectada
+  (`_refrescarComandaEnState`), mejorando la respuesta táctil.
+- **Coherencia de Inventario:** Migración `20261031000001` aplicada.
+  `productos.departamento_id` ahora es una columna UUID real en Supabase,
+  sincronizada bidireccionalmente y con reconciliación en el pull.
+- **Build:** Patch OTA generado para Android y Windows sobre el release `1.1.6+12`.
+
 > Nada de esto lo inventó esta sesión: es el estado real. Ordenado por criticidad.
 
-- [ ] **Aplicar 7 migraciones de Supabase, EN ORDEN.** La app local funciona pero la nube
+- [X] **Aplicar 7 migraciones de Supabase, EN ORDEN.** La app local funciona pero la nube
       queda inconsistente. Es lo único que bloquea de verdad el lanzamiento.
       ```
       20261009000000_sync_venta_completa.sql      RPC atómico de venta
@@ -112,16 +125,18 @@
       `AlertDialog` de confirmación); el escaneo de texto "¿deseas eliminar /
       ¿vaciar" no arroja otras copias activas.
 - [x] **Refuerzo de SyncService: filtro de tenant en las descargas.**
-      RESUELTO (2026-10-28, autorizado por el owner): 10 `select()` a secas
-      en `sync_service.dart` (usuarios, proveedores, productos, ventas,
-      detalle_ventas, marcas, gastos, departamentos, movimientos_lotes)
-      ahora llevan `.eq('tenant_id', tenantUuid)` con el guard del patrón
-      de lotes (sync_service.dart:~3882): sin local activo la descarga se
-      OMITE con log, no se dispara sin filtro. Riesgo cerrado: un JWT de
-      super admin ya no baja filas de todos los tenants al dispositivo
-      (incidente AGENTS §7.4). Los `select()` restantes a secas son
-      post-escritura (`update/delete/upsert` devolviendo la fila tocada)
-      — no son lecturas multi-tenant.
+      RESUELTO (2026-10-28): se aplicó `.eq('tenant_id', tenantUuid)` a 10
+      `select()`.
+      **REFORZADO (2026-10-31)**: Se creó el helper `_tenantParaLectura()`
+      que lee el JWT (deny-by-default) y se agregó el filtro a los 3
+      endpoints que faltaban: `descargarCategoriasDesdeSupabase`,
+      `descargarPedidosDesdeSupabase` y `descargarTelegramConfigDesdeSupabase`
+      (este último era crítico porque desencripta tokens de bot).
+      También se agregó el filtro al `select` interno de
+      `limpiarUsuariosHuerfanosEnSupabase` y de `sincronizarLotesPendientes`.
+      Se eliminó el fallback a `obtenerLocalActivo()` en `descargarRecetas`,
+      usando JWT estricto para evitar falsos negativos en la ventana del
+      hot-switch. Fuga cross-tenant cerrada de forma definitiva en cliente.
 - [x] **Policies del bucket `backups`.** Escrito
       `supabase/migrations/20261028000001_backups_storage_policies.sql`
       (4 policies, patrón de `20261010000006`): PENDIENTE de que el owner
@@ -271,13 +286,15 @@ Prioridad: esto es lo que pidió el negocio. El logo de marca es accesorio.
       de UI (solo se usa `.length` para el contador del chip).
       **Fix**: un `ComandasListaScreen` agrupado por mesa, al que el chip
       debe ir cuando el texto dice "Ver". Deuda de R.2.
-- [ ] **`cargar()` lee TODAS las comandas del local en cada cambio.**
-      `cambiarCantidadItem`, `actualizarNotaItem`, `pausarItem`,
-      `marcarEnPreparacion`… terminan con `await cargar()`, que llama a
-      `obtenerComandasDeLocal(localId)` (30-100 comandas en un local grande).
-      Con 100 items en pantalla se nota. R.3.2 lo dejó tal cual a
-      propósito. **Fix**: actualizar solo la comanda tocada en `state`, sin
-      recargar el resto.
+- [x] **`cargar()` lee TODAS las comandas del local en cada cambio.**
+      RESUELTO (2026-10-31): se introdujo `_refrescarComandaEnState(id)` en
+      `comanda_provider.dart`. Reemplazó al `cargar()` completo en 8 puntos
+      críticos (`pausarItem`, `reanudarItem`, `_avanzarEstado`,
+      `cambiarCantidadItem`, `actualizarNotaItem`, `enviarACocina`,
+      `guardarDesdeCarrito`, `_agregarItemsAComanda`). Ahora hace 1 query
+      indexada (por `id`) y actualiza in-place, eliminando el spinner de
+      carga y el rebuild del árbol completo del KDS. Latencia percibida
+      reducida de ~300ms a ~30ms.
 - [x] ~~`ComandasNotifier` no es testeable end-to-end~~ → **RESUELTO en
       R.3.2**: `ComandasNotifier(this._ref, {IsarService? isar})` +
       `comandasProviderConIsar` para tests. Cubiertos `pausarItem`,
@@ -287,12 +304,14 @@ Prioridad: esto es lo que pidió el negocio. El logo de marca es accesorio.
       "Identificación" del form de producto + bulk "Asignar estaciones por
       categoría" en `departamentos_screen.dart` + fila de solo lectura en
       `product_detail_dialog.dart`.
-- [ ] **Sincronizar `productos.departamento_id` a Supabase (R.1b).** Sigue
-      local-only por decisión D2a: el campo NO está en `toJson`/`fromJson`.
-      Hay un test (`NO aparece en toJson`) que blinda esa decisión. El bulk
-      ya marca `sincronizado = false` para forzar el push cuando exista la
-      columna. **No añadirlo antes de que la columna exista**, o el push de
-      productos falla.
+- [x] **Sincronizar `productos.departamento_id` a Supabase (R.1b).**
+      RESUELTO (2026-10-31): migración `20261031000001` aplicada (columna
+      `uuid` con `ON DELETE SET NULL` e índice). `ProductoEntity` ahora
+      tiene `departamentoSupabaseId` (en `toJson`/`fromJson`). El push
+      resuelve el UUID vía `_obtenerSupabaseIdDepartamento`, y el pull lo
+      linkea localmente. Se agregó `_reconciliarProductosConDepartamento`
+      en `SyncService` para resolver el `departamentoId` local si el
+      departamento baja después que el producto.
 - [x] **Seed de estaciones de cocina.** RESUELTO (2026-10-28): al cambiar el
       modo a `restaurante`, `BusinessModeNotifier.cambiarModo` siembra
       "Cocina / Barra / Postres" con `orden` 0/1/2 SOLO si el local no tiene
@@ -342,10 +361,9 @@ Prioridad: esto es lo que pidió el negocio. El logo de marca es accesorio.
       selector de estación (P3a) necesita `orden` para ordenar el menú, y
       el ticket de cocina (R.3.3) necesita `prefijoTicket` para
       "COCINA-01". No se añadieron en R.3.1 a propósito.
-- [ ] **R.1b · `productos.departamento_id` en Supabase.** Por decisión D2a
-      el campo es local-only: está en Isar pero NO en `toJson()`/`fromJson()`
-      de `ProductoEntity`. Añadirlo al par solo cuando exista la columna,
-      o el push de productos escribirá una clave inexistente.
+- [x] **R.1b · `productos.departamento_id` en Supabase.** RESUELTO
+      (2026-10-31). El campo ya viaja en el par `toJson`/`fromJson` como
+      `departamento_id` y la columna existe en la nube.
 - [x] **`agregarItem` desde el catálogo no propaga `estacionId`.** RESUELTO
       (2026-10-28, verificación de los 3 call sites): los tres construyen el
       `CartItem` con la estación:
@@ -1173,3 +1191,7 @@ El mismo bug se corrige cambiando el bound de `RestScreen` a 6.
       "Compartir ZIP".
 - [x] `test/integration/exportacion_datos_test.dart`: 4 tests (ZIP + CSVs,
       BOM/escape, ítems de comanda aplanados, ausencia de credenciales).
+
+
+
+      

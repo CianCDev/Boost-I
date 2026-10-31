@@ -3,13 +3,43 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/Local/entities/categoria_entity.dart';
+import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/producto_entity.dart';
 import 'categorias_provider.dart';
 import 'productos_provider.dart';
 
+const _filtrosTipoCatalogo = {'todos', 'productos', 'platos'};
+
+bool productoCoincideConFiltroTipo(
+  ProductoEntity producto,
+  String filtroTipo,
+  Set<int> productosConReceta,
+) {
+  switch (filtroTipo) {
+    case 'todos':
+      return true;
+    case 'productos':
+      return producto.esIngrediente != true &&
+          !productosConReceta.contains(producto.id);
+    case 'platos':
+      return productosConReceta.contains(producto.id);
+    default:
+      throw ArgumentError.value(filtroTipo, 'filtroTipo');
+  }
+}
+
+final catalogRecipeProductIdsProvider = FutureProvider<Set<int>>((ref) async {
+  final local = await IsarService().obtenerLocalActivo();
+  if (local == null) return const {};
+
+  final recetas = await IsarService().obtenerRecetasDelLocal(local.id);
+  return recetas.map((receta) => receta.productoId).toSet();
+});
+
 class CatalogState {
   final String busqueda;
   final String categoriaSeleccionada;
+  final String filtroTipo;
   final List<ProductoEntity> productosFiltrados;
   final List<String> categorias;
   final bool isLoading;
@@ -17,6 +47,7 @@ class CatalogState {
   const CatalogState({
     this.busqueda = '',
     this.categoriaSeleccionada = 'Todas',
+    this.filtroTipo = 'todos',
     this.productosFiltrados = const [],
     this.categorias = const ['Todas', 'Stock Bajo'],
     this.isLoading = true,
@@ -25,13 +56,16 @@ class CatalogState {
   CatalogState copyWith({
     String? busqueda,
     String? categoriaSeleccionada,
+    String? filtroTipo,
     List<ProductoEntity>? productosFiltrados,
     List<String>? categorias,
     bool? isLoading,
   }) {
     return CatalogState(
       busqueda: busqueda ?? this.busqueda,
-      categoriaSeleccionada: categoriaSeleccionada ?? this.categoriaSeleccionada,
+      categoriaSeleccionada:
+          categoriaSeleccionada ?? this.categoriaSeleccionada,
+      filtroTipo: filtroTipo ?? this.filtroTipo,
       productosFiltrados: productosFiltrados ?? this.productosFiltrados,
       categorias: categorias ?? this.categorias,
       isLoading: isLoading ?? this.isLoading,
@@ -44,6 +78,7 @@ class CatalogState {
       (other is CatalogState &&
           other.busqueda == busqueda &&
           other.categoriaSeleccionada == categoriaSeleccionada &&
+          other.filtroTipo == filtroTipo &&
           other.isLoading == isLoading &&
           listEquals(other.categorias, categorias) &&
           _mismosProductos(other.productosFiltrados, productosFiltrados));
@@ -52,6 +87,7 @@ class CatalogState {
   int get hashCode => Object.hash(
         busqueda,
         categoriaSeleccionada,
+        filtroTipo,
         isLoading,
         Object.hashAll(categorias),
         Object.hashAll(productosFiltrados.map((p) => p.id)),
@@ -69,6 +105,7 @@ class CatalogState {
       if (a[i].stockMinimo != b[i].stockMinimo) return false;
       if (a[i].categoria != b[i].categoria) return false;
       if (a[i].esPesado != b[i].esPesado) return false;
+      if (a[i].esIngrediente != b[i].esIngrediente) return false;
     }
     return true;
   }
@@ -76,6 +113,7 @@ class CatalogState {
 
 class CatalogNotifier extends StateNotifier<CatalogState> {
   final Ref ref;
+  Set<int> _productosConReceta = {};
 
   CatalogNotifier(this.ref) : super(const CatalogState()) {
     // FIX 1: ref.listen devuelve void. El dispose manual es innecesario
@@ -92,10 +130,29 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
       },
     );
 
+    ref.listen<AsyncValue<Set<int>>>(
+      catalogRecipeProductIdsProvider,
+      (_, next) {
+        next.when(
+          data: (ids) {
+            if (!setEquals(_productosConReceta, ids)) {
+              _productosConReceta = ids;
+              _aplicarFiltros(state.isLoading);
+            }
+          },
+          loading: () {},
+          error: (error, stackTrace) {
+            debugPrint(
+                '❌ No se pudieron cargar recetas para el catálogo: $error');
+          },
+        );
+      },
+    );
+
     // Inicialización limpia
     final productosState = ref.read(productosProvider);
     final categoriasAsync = ref.read(categoriasProvider);
-    
+
     if (categoriasAsync.hasValue) {
       _actualizarCategorias(categoriasAsync.value!);
     } else {
@@ -107,16 +164,17 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
     final nombres = categoriasActivas
         .map((c) => c.nombre.trim())
         .where((c) => c.isNotEmpty)
+        .toSet()
         .toList()
       ..sort();
 
-    final nuevaLista = ['Todas', ...nombres, 'Stock Bajo'];
+    final nuevaLista = {'Todas', ...nombres, 'Stock Bajo'}.toList();
 
     final seleccionActual = state.categoriaSeleccionada;
     final seleccionValida = seleccionActual == 'Todas' ||
         seleccionActual == 'Stock Bajo' ||
         nombres.contains(seleccionActual);
-        
+
     final seleccionFinal = seleccionValida ? seleccionActual : 'Todas';
 
     if (listEquals(nuevaLista, state.categorias) &&
@@ -145,6 +203,11 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
       final coincideTexto = query.isEmpty ||
           p.nombre.toLowerCase().contains(query) ||
           p.codigoBarras.toLowerCase().contains(query);
+      final coincideTipo = productoCoincideConFiltroTipo(
+        p,
+        state.filtroTipo,
+        _productosConReceta,
+      );
 
       bool coincideCategoria;
       if (categoria == 'Stock Bajo') {
@@ -156,7 +219,7 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
             p.categoria.trim().toLowerCase() == categoria.toLowerCase();
       }
 
-      return coincideTexto && coincideCategoria;
+      return coincideTexto && coincideCategoria && coincideTipo;
     }).toList();
 
     if (CatalogState._mismosProductos(filtrados, state.productosFiltrados) &&
@@ -179,6 +242,15 @@ class CatalogNotifier extends StateNotifier<CatalogState> {
   void setCategoria(String categoria) {
     if (categoria == state.categoriaSeleccionada) return;
     state = state.copyWith(categoriaSeleccionada: categoria);
+    _aplicarFiltros(state.isLoading);
+  }
+
+  void setFiltroTipo(String tipo) {
+    if (!_filtrosTipoCatalogo.contains(tipo)) {
+      throw ArgumentError.value(tipo, 'tipo');
+    }
+    if (tipo == state.filtroTipo) return;
+    state = state.copyWith(filtroTipo: tipo);
     _aplicarFiltros(state.isLoading);
   }
 

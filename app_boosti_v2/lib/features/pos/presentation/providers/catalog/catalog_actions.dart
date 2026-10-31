@@ -11,6 +11,7 @@ import 'package:app_boosti_v2/features/pos/presentation/controllers/cart_control
 import 'package:app_boosti_v2/features/pos/presentation/providers/bcv_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/business_mode_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/local_actual_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/offline_stock_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/productos_provider.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/cart_session_entity.dart';
@@ -68,8 +69,8 @@ class CatalogActions {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content:
-                Text('No hay productos disponibles para afiliar. Crea uno primero.'),
+            content: Text(
+                'No hay productos disponibles para afiliar. Crea uno primero.'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -231,6 +232,22 @@ class CatalogActions {
     }
 
     _isar.obtenerStockTotalPorProducto(producto.id).then((stockTotal) async {
+      final offlineStock = _ref.read(offlineStockProvider);
+      final riesgoOffline = offlineStock.riesgoPorProducto[producto.id];
+      if (!offlineStock.isOnline && riesgoOffline == NivelRiesgoStock.rojo) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Sin conexión y sin stock local. No se puede agregar este producto.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
       // ── Caso 1: producto agotado → bloquear ──
       if (stockTotal <= 0) {
         if (context.mounted) {
@@ -296,10 +313,18 @@ class CatalogActions {
           );
 
       if (context.mounted) {
+        final pocoStockOffline =
+            !offlineStock.isOnline && riesgoOffline == NivelRiesgoStock.naranja;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${producto.nombre} agregado al carrito.'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
+            content: Text(
+              pocoStockOffline
+                  ? 'Cuidado: poco stock offline de este producto'
+                  : '${producto.nombre} agregado al carrito.',
+            ),
+            backgroundColor: pocoStockOffline
+                ? Colors.deepOrange
+                : Theme.of(context).colorScheme.primary,
             duration: const Duration(seconds: 1),
           ),
         );
@@ -413,17 +438,17 @@ class CatalogActions {
   // ═══════════════════════════════════════════════════════════════════
 
   /// Abre el diálogo de cobro y procesa la venta.
-///
-/// R.2: devuelve `true` si `procesarVenta` completó sin lanzar. Es un
-/// cambio ADITIVO: los callers existentes hacen `await` e ignoran el
-/// retorno, así que no se rompen.
-///
-/// Lo usa `ComandaScreen` para decidir si cerrar la comanda.
-///
-/// [comanda] es la comanda de mesa que se está cobrando. Solo se pasa
-/// desde el salón y desde la caja; el POS de mostrador no la tiene y por
-/// eso no pregunta propina: sin mesa no hay mesero que registrar.
-Future<bool> mostrarModalCobro(
+  ///
+  /// R.2: devuelve `true` si `procesarVenta` completó sin lanzar. Es un
+  /// cambio ADITIVO: los callers existentes hacen `await` e ignoran el
+  /// retorno, así que no se rompen.
+  ///
+  /// Lo usa `ComandaScreen` para decidir si cerrar la comanda.
+  ///
+  /// [comanda] es la comanda de mesa que se está cobrando. Solo se pasa
+  /// desde el salón y desde la caja; el POS de mostrador no la tiene y por
+  /// eso no pregunta propina: sin mesa no hay mesero que registrar.
+  Future<bool> mostrarModalCobro(
     BuildContext context,
     UsuarioEntity? usuarioLogueado, {
     CartSessionEntity? comanda,
@@ -494,8 +519,7 @@ Future<bool> mostrarModalCobro(
         resultado['procesado'] == true &&
         context.mounted) {
       final String metodoPago = resultado['metodoPago'] ?? 'Efectivo';
-      final double montoRecibido =
-          resultado['montoRecibido'] ?? totalAPagar;
+      final double montoRecibido = resultado['montoRecibido'] ?? totalAPagar;
       final double cambio = resultado['vuelto'] ?? 0.0;
 
       final ventaService = _ref.read(ventaServiceProvider);

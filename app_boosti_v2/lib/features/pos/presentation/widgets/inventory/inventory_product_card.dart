@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/producto_entity.dart';
+import '../../providers/lotes_provider.dart';
 import '../../providers/marca_provider.dart';
 import '../../providers/themes/app_colors.dart';
+import '../../utils/expiry_style.dart';
+import '../../utils/expiry_utils.dart';
 import '../../utils/responsive_helper.dart';
 
 /// Tarjeta de producto para la pantalla de inventario.
@@ -47,9 +50,8 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
     final isTablet = ResponsiveHelper.isTablet(context);
 
     // Colores mejorados para modo oscuro
-    final Color cardBackground = isDark
-        ? cardDark.withValues(alpha: 0.9)
-        : Colors.white;
+    final Color cardBackground =
+        isDark ? cardDark.withValues(alpha: 0.9) : Colors.white;
 
     final Color cardBorderColor = isDark
         ? Colors.white.withValues(alpha: 0.08)
@@ -70,12 +72,6 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
               offset: const Offset(0, 4),
             ),
           ];
-
-    // Obtener el nombre de la marca usando el provider
-    final marcaNombreAsync = widget.producto.marcaSupabaseId != null
-        ? ref.watch(marcaNombrePorSupabaseIdProvider(
-            widget.producto.marcaSupabaseId!))
-        : null;
 
     // Cálculo de tamaños responsivos
     final double stockValue = widget.producto.stock;
@@ -164,10 +160,10 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
                                   fit: BoxFit.contain,
                                   errorBuilder: (context, error, stackTrace) =>
                                       Icon(
-                                        Icons.inventory_2,
-                                        size: 40,
-                                        color: colorScheme.outline,
-                                      ),
+                                    Icons.inventory_2,
+                                    size: 40,
+                                    color: colorScheme.outline,
+                                  ),
                                 )
                               : Icon(
                                   Icons.inventory_2,
@@ -253,23 +249,11 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
                         ),
                       ),
                     ),
-                    if (widget.isSelected)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: pumpkinSpice,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.check,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ),
-                      ),
+                    _InventoryProductCardBadges(
+                      productoId: widget.producto.id,
+                      isMobile: widget.isMobile,
+                      isSelected: widget.isSelected,
+                    ),
                   ],
                 ),
               ),
@@ -299,34 +283,11 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      // Marca
-                      if (marcaNombreAsync != null)
-                        marcaNombreAsync.when(
-                          data: (nombre) => nombre != null
-                              ? Text(
-                                  'Marca: $nombre',
-                                  style: TextStyle(
-                                    fontSize: fontSizeMarca,
-                                    color: colorScheme.primary,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                )
-                              : const SizedBox.shrink(),
-                          loading: () => const SizedBox(
-                            height: 16,
-                            child: Center(
-                              child: SizedBox(
-                                width: 12,
-                                height: 12,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            ),
-                          ),
-                          error: (err, stack) => const SizedBox.shrink(),
+                      if (widget.producto.marcaSupabaseId case final marcaId?)
+                        _InventoryBrandLabel(
+                          marcaSupabaseId: marcaId,
+                          fontSize: fontSizeMarca,
+                          color: colorScheme.primary,
                         )
                       else
                         const SizedBox.shrink(),
@@ -415,5 +376,126 @@ class _InventoryProductCardState extends ConsumerState<InventoryProductCard> {
     }
 
     return child;
+  }
+}
+
+class _InventoryProductCardBadges extends ConsumerWidget {
+  final int productoId;
+  final bool isMobile;
+  final bool isSelected;
+
+  const _InventoryProductCardBadges({
+    required this.productoId,
+    required this.isMobile,
+    required this.isSelected,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fechaVenc = ref.watch(
+      vencimientosProvider.select((vencimientos) => vencimientos[productoId]),
+    );
+    final diasVenc =
+        fechaVenc == null ? null : ExpiryUtils.diasRestantes(fechaVenc);
+    final expiryInfo = ExpiryUtils.clasificar(fechaVenc);
+
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          if (expiryInfo != null && diasVenc != null)
+            Positioned(
+              top: isMobile ? 8 : 10,
+              right: isMobile ? 8 : 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: expiryFondo(diasVenc).withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.schedule_rounded,
+                        size: 11, color: expiryTexto(diasVenc)),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          expiryLabel(diasVenc),
+                          style: TextStyle(
+                            color: expiryTexto(diasVenc),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (isSelected)
+            Positioned(
+              top: expiryInfo != null && diasVenc != null ? 40 : 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: pumpkinSpice,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InventoryBrandLabel extends ConsumerWidget {
+  final String marcaSupabaseId;
+  final double fontSize;
+  final Color color;
+
+  const _InventoryBrandLabel({
+    required this.marcaSupabaseId,
+    required this.fontSize,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final marcaNombre = ref
+        .watch(marcaNombresPorSupabaseIdProvider)
+        .valueOrNull?[marcaSupabaseId];
+
+    return SizedBox(
+      height: 16,
+      child: marcaNombre == null
+          ? null
+          : Text(
+              'Marca: $marcaNombre',
+              style: TextStyle(
+                fontSize: fontSize,
+                color: color,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+    );
   }
 }

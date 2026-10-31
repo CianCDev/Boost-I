@@ -56,7 +56,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
   UsuarioEntity? get _user =>
       ref.read(usuarioActualProvider) ?? widget.usuarioLogueado;
 
-   @override
+  @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
@@ -69,7 +69,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     ref.listenManual(categoriasProvider, (_, next) {
       next.whenData((cats) {
         final nombres = cats.map((c) => c.nombre).toList();
-        ref.read(inventoryProvider.notifier)
+        ref
+            .read(inventoryProvider.notifier)
             .validarCategoriaSeleccionada(nombres);
       });
     });
@@ -226,8 +227,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     // puede reventar si alguien lo llama con una lista armada a mano. Se
     // filtran ANTES de contar: un `SizedBox.shrink()` dentro del
     // `itemBuilder` dejaría huecos y descuadraría el "… y N más".
-    final conFecha =
-        lotes.where((l) => l.fechaVencimiento != null).toList();
+    final conFecha = lotes.where((l) => l.fechaVencimiento != null).toList();
     if (conFecha.isEmpty) return;
     final visibles = conFecha.take(20).toList();
     final resto = conFecha.length - visibles.length;
@@ -355,8 +355,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                           flex: 3,
                           child: Text(
                             p.nombre,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w500),
+                            style: const TextStyle(fontWeight: FontWeight.w500),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -370,8 +369,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                             enableInteractiveSelection: false,
                             decoration: const InputDecoration(
                               border: OutlineInputBorder(),
-                              contentPadding:
-                                  EdgeInsets.symmetric(vertical: 4),
+                              contentPadding: EdgeInsets.symmetric(vertical: 4),
                             ),
                             onChanged: (val) {
                               final cantidad = int.tryParse(val);
@@ -588,8 +586,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
 
   @override
   Widget build(BuildContext context) {
-    final usuario =
-        ref.watch(usuarioActualProvider) ?? widget.usuarioLogueado;
+    final usuario = ref.watch(usuarioActualProvider) ?? widget.usuarioLogueado;
 
     // Guard: pantalla transitoria mientras carga el usuario.
     if (usuario == null) {
@@ -699,7 +696,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
     final screenWidth = MediaQuery.of(context).size.width;
     final colorScheme = Theme.of(context).colorScheme;
 
-    if (productosState.isLoading) {
+    if (productosState.isLoading && productosState.items.isEmpty) {
       return GridView.builder(
         padding: const EdgeInsets.all(16),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -743,9 +740,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
           const SizedBox(height: 4),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () => ref
-                  .read(productosProvider.notifier)
-                  .recargarDesdeSupabase(),
+              onRefresh: () =>
+                  ref.read(productosProvider.notifier).recargarDesdeSupabase(),
               color: colorScheme.primary,
               child: productosFiltrados.isEmpty
                   ? _buildEmptyState(colorScheme)
@@ -753,8 +749,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                       key: const PageStorageKey('inventory_grid'),
                       addAutomaticKeepAlives: true,
                       padding: const EdgeInsets.only(bottom: 100),
-                      gridDelegate:
-                          SliverGridDelegateWithFixedCrossAxisCount(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: crossAxisCount,
                         childAspectRatio: childAspectRatio,
                         crossAxisSpacing: 12,
@@ -763,10 +758,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen>
                       itemCount: productosFiltrados.length,
                       itemBuilder: (context, index) {
                         final p = productosFiltrados[index];
-                        final isSelected =
-                            inventoryState.seleccionMultiple &&
-                                inventoryState.productosSeleccionados
-                                    .contains(p.id);
+                        final isSelected = inventoryState.seleccionMultiple &&
+                            inventoryState.productosSeleccionados
+                                .contains(p.id);
 
                         return InventoryProductCard(
                           key: ValueKey(p.id),
@@ -1010,10 +1004,10 @@ class _RepararImagenesActionState
   @override
   Widget build(BuildContext context) {
     return _AppBarActionButton(
-      icon: _loading
-          ? Icons.hourglass_top_rounded
-          : Icons.image_search_outlined,
-      tooltip: _loading ? 'Reparando imágenes...' : 'Reparar imágenes faltantes',
+      icon:
+          _loading ? Icons.hourglass_top_rounded : Icons.image_search_outlined,
+      tooltip:
+          _loading ? 'Reparando imágenes...' : 'Reparar imágenes faltantes',
       onPressed: _loading ? () {} : _reparar,
       isTablet: widget.isTablet,
     );

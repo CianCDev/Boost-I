@@ -10,11 +10,13 @@ import '../../utils/responsive_helper.dart';
 class ViewModeToggle extends ConsumerWidget {
   final Widget gridChild;
   final Widget listChild;
+  final bool showSelector;
 
   const ViewModeToggle({
     super.key,
     required this.gridChild,
     required this.listChild,
+    this.showSelector = true,
   });
 
   @override
@@ -26,49 +28,51 @@ class ViewModeToggle extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ----- BARRA DE TOGGLE -----
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: isMobile ? 4 : 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                'Vista:',
-                style: TextStyle(
-                  fontSize: isMobile ? 12 : 14,
-                  color: isDark ? Colors.white70 : textMuted,
-                  fontWeight: FontWeight.w500,
+        if (showSelector)
+          Container(
+            padding: EdgeInsets.symmetric(
+                horizontal: 16, vertical: isMobile ? 4 : 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  'Vista:',
+                  style: TextStyle(
+                    fontSize: isMobile ? 12 : 14,
+                    color: isDark ? Colors.white70 : textMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              _buildToggleButton(
-                context,
-                ref,
-                currentMode,
-                ViewMode.grid,
-                Icons.grid_view_rounded,
-                'Grid',
-                isMobile,
-                isDark,
-              ),
-              const SizedBox(width: 4),
-              _buildToggleButton(
-                context,
-                ref,
-                currentMode,
-                ViewMode.list,
-                Icons.list_rounded,
-                'Lista',
-                isMobile,
-                isDark,
-              ),
-            ],
+                const SizedBox(width: 8),
+                _buildToggleButton(
+                  context,
+                  ref,
+                  currentMode,
+                  ViewMode.grid,
+                  Icons.grid_view_rounded,
+                  'Grid',
+                  isMobile,
+                  isDark,
+                ),
+                const SizedBox(width: 4),
+                _buildToggleButton(
+                  context,
+                  ref,
+                  currentMode,
+                  ViewMode.list,
+                  Icons.list_rounded,
+                  'Lista',
+                  isMobile,
+                  isDark,
+                ),
+              ],
+            ),
           ),
-        ),
         // ----- CONTENIDO ANIMADO (desvanecimiento puro) -----
         Expanded(
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350), // ⬅️ 350ms para transición suave
+            duration: const Duration(
+                milliseconds: 350), // ⬅️ 350ms para transición suave
             switchInCurve: Curves.easeInOut,
             switchOutCurve: Curves.easeInOut,
             transitionBuilder: (Widget child, Animation<double> animation) {
@@ -79,9 +83,7 @@ class ViewModeToggle extends ConsumerWidget {
               );
             },
             // ✅ Clave única para que AnimatedSwitcher reconozca el cambio
-            child: currentMode == ViewMode.grid
-                ? gridChild
-                : listChild,
+            child: currentMode == ViewMode.grid ? gridChild : listChild,
           ),
         ),
       ],
@@ -129,7 +131,9 @@ class ViewModeToggle extends ConsumerWidget {
                 border: Border.all(
                   color: selected
                       ? Colors.transparent
-                      : ((isDark ? Colors.grey.shade800 : Colors.grey.shade300)),
+                      : ((isDark
+                          ? Colors.grey.shade800
+                          : Colors.grey.shade300)),
                   width: 1,
                 ),
                 boxShadow: selected
@@ -179,7 +183,8 @@ class ViewModeToggle extends ConsumerWidget {
                       curve: Curves.easeInOutCubic,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.normal,
                         color: selected
                             ? Colors.white
                             : (isDark ? Colors.white70 : Colors.grey.shade600),
@@ -192,6 +197,40 @@ class ViewModeToggle extends ConsumerWidget {
             ),
           ),
         );
+      },
+    );
+  }
+}
+
+class ViewModeSelector extends ConsumerWidget {
+  const ViewModeSelector({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentMode = ref.watch(viewModeProvider);
+
+    return SegmentedButton<ViewMode>(
+      showSelectedIcon: false,
+      style: const ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 8)),
+      ),
+      segments: const [
+        ButtonSegment(
+          value: ViewMode.grid,
+          icon: Icon(Icons.grid_view_rounded, size: 18),
+          tooltip: 'Vista de cuadrícula',
+        ),
+        ButtonSegment(
+          value: ViewMode.list,
+          icon: Icon(Icons.list_rounded, size: 18),
+          tooltip: 'Vista de lista',
+        ),
+      ],
+      selected: {currentMode},
+      onSelectionChanged: (selection) {
+        ref.read(viewModeProvider.notifier).state = selection.first;
       },
     );
   }

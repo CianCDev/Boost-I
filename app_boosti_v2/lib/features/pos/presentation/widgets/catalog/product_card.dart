@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../providers/lotes_provider.dart';
 import '../../providers/marca_provider.dart';
+import '../../providers/offline_stock_provider.dart';
 import '../../providers/themes/app_colors.dart';
 import '../../utils/expiry_style.dart';
 import '../../utils/expiry_utils.dart';
@@ -38,6 +39,11 @@ class _ProductCardState extends ConsumerState<ProductCard> {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isTablet = ResponsiveHelper.isTablet(context);
+    final riesgoOffline = ref.watch(
+      offlineStockProvider.select(
+        (state) => state.riesgoPorProducto[widget.producto.id],
+      ),
+    );
 
     // Estilo igual que InventoryProductCard
     final Color cardBackground = isDark ? cardDark : Colors.white;
@@ -287,6 +293,35 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                                   ),
                                 ),
                               ],
+                            ),
+                          ),
+                        ),
+                      if (riesgoOffline == NivelRiesgoStock.naranja ||
+                          riesgoOffline == NivelRiesgoStock.rojo)
+                        Positioned(
+                          bottom: widget.isMobile ? 8 : 10,
+                          left: widget.isMobile ? 8 : 10,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: riesgoOffline == NivelRiesgoStock.rojo
+                                  ? Colors.red.shade700
+                                  : Colors.deepOrange,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.18),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Padding(
+                              padding: EdgeInsets.all(6),
+                              child: Icon(
+                                Icons.wifi_off,
+                                color: Colors.white,
+                                size: 16,
+                              ),
                             ),
                           ),
                         ),

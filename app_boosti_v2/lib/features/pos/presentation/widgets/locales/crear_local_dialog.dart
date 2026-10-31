@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/local_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/locales_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/usuario_provider.dart';
 import '../common/glass_dialog.dart';
 import '../common/dialog_header.dart';
 import '../common/logo_upload_field.dart';
@@ -200,6 +201,8 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
   @override
   Widget build(BuildContext context) {
     final esEdicion = widget.local != null;
+    final esAdmin =
+        ref.watch(usuarioActualProvider)?.rol.toLowerCase() == 'admin';
     final colorScheme = Theme.of(context).colorScheme;
 
     return GlassDialog(
@@ -224,18 +227,15 @@ class _CrearLocalDialogState extends ConsumerState<CrearLocalDialog> {
               ),
               const SizedBox(height: 24),
 
-              // ===== LOGO =====
-              // Visible en creación y en edición. Antes era solo
-              // edición: la RPC `crear_nuevo_local_para_usuario` no
-              // aceptaba `logo_path`, y el UPDATE post-RPC lo rechaza
-              // `locales_tenant_update` (solo el tenant activo).
-              // Desde la migración 20261012000001 la RPC recibe
-              // `p_logo_path`.
-              _LogoField(
-                pathActual: _logoPath,
-                onChanged: (p) => setState(() => _logoPath = p),
-              ),
-              const SizedBox(height: 20),
+              if (esAdmin) ...[
+                // La RPC de creación acepta p_logo_path; en edición se
+                // persiste en Isar y se sincroniza en Supabase.
+                _LogoField(
+                  pathActual: _logoPath,
+                  onChanged: (p) => setState(() => _logoPath = p),
+                ),
+                const SizedBox(height: 20),
+              ],
 
               _field(
                 controller: _nombreController,

@@ -19,8 +19,8 @@ class InventoryCategoryChips extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final categoriasAsync = ref.watch(categoriasProvider);
-    final categoriaSeleccionadaNombre =
-        ref.watch(inventoryProvider.select((s) => s.categoriaSeleccionadaNombre));
+    final categoriaSeleccionadaNombre = ref
+        .watch(inventoryProvider.select((s) => s.categoriaSeleccionadaNombre));
     final isTablet = ResponsiveHelper.isTablet(context);
 
     return categoriasAsync.when(
@@ -38,11 +38,15 @@ class InventoryCategoryChips extends ConsumerWidget {
         //
         // Va AL FINAL, nunca antes: una categoría real podría llamarse
         // "Stock Bajo" y el filtro la taparía.
-        final items = <String>[
+        final nombres = categorias
+            .map((categoria) => categoria.nombre.trim())
+            .where((nombre) => nombre.isNotEmpty)
+            .toSet();
+        final items = <String>{
           'Todas',
-          ...categorias.map((cat) => cat.nombre),
+          ...nombres,
           _kStockBajo,
-        ];
+        }.toList();
 
         return Container(
           height: isTablet ? 60 : 48,

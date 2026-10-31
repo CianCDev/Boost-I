@@ -14,6 +14,7 @@ import '../widgets/sales/sales_history_summary_cards.dart';
 import '../widgets/sales/sales_history_search_bar.dart';
 import '../widgets/sales/sales_history_list.dart';
 import '../widgets/appbar.dart';
+import 'gastos_screen.dart';
 
 class SalesHistoryScreen extends StatefulWidget {
   final bool showAppBar;
@@ -384,6 +385,19 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
               icon: const Icon(Icons.refresh, color: Colors.white),
               tooltip: 'Actualizar Historial',
               onPressed: _cargarVentas,
+            ),
+            IconButton(
+              icon: const Icon(
+                Icons.account_balance_wallet_outlined,
+                color: Colors.white,
+              ),
+              tooltip: 'Ver Gastos',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const GastosScreen()),
+                );
+              },
             ),
             const SizedBox(width: 8),
           ],

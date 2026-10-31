@@ -13,7 +13,8 @@ class ProductosState {
   const ProductosState({this.items = const [], this.isLoading = true});
 
   ProductosState copyWith({List<ProductoEntity>? items, bool? isLoading}) {
-    return ProductosState(items: items ?? this.items, isLoading: isLoading ?? this.isLoading);
+    return ProductosState(
+        items: items ?? this.items, isLoading: isLoading ?? this.isLoading);
   }
 
   /// Igualdad ESTRUCTURAL, no por identidad.
@@ -49,6 +50,7 @@ class ProductosState {
       if (a.imagenUrl != b.imagenUrl) return false;
       if (a.stockMinimo != b.stockMinimo) return false;
       if (a.esPesado != b.esPesado) return false;
+      if (a.esIngrediente != b.esIngrediente) return false;
     }
     return true;
   }
@@ -90,7 +92,8 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
       // 🔥 Comparar antes de actualizar
       if (!_listasSonIguales(currentItems, productos)) {
         state = state.copyWith(items: productos, isLoading: false);
-        debugPrint('🔄 [ProductosNotifier] Productos actualizados (${productos.length} items)');
+        debugPrint(
+            '🔄 [ProductosNotifier] Productos actualizados (${productos.length} items)');
       } else if (state.isLoading) {
         // ⚠️ La lista no cambió, pero el notifier estaba en `isLoading`.
         //
@@ -105,7 +108,8 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
         // `(items: [], isLoading: false)`, que son DISTINTOS. La
         // comparación estructural da false, así que los listeners corren
         // una sola vez, no dos.
-        debugPrint('ℹ️ [ProductosNotifier] Sin cambios, pero se cierra la carga');
+        debugPrint(
+            'ℹ️ [ProductosNotifier] Sin cambios, pero se cierra la carga');
         state = state.copyWith(isLoading: false);
       }
     } catch (e) {
@@ -123,34 +127,34 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
   }
 
   /// 🔥 Comparación mejorada (todos los campos relevantes)
- bool _listasSonIguales(List<ProductoEntity> a, List<ProductoEntity> b) {
-  if (a.length != b.length) return false;
-  for (int i = 0; i < a.length; i++) {
-    if (a[i].id != b[i].id) return false;
-    if (a[i].stock != b[i].stock) return false;
-    if (a[i].precioUnidad != b[i].precioUnidad) return false;
-    if (a[i].nombre != b[i].nombre) return false;
-    if (a[i].imagenUrl != b[i].imagenUrl) return false;
-    if (a[i].stockMinimo != b[i].stockMinimo) return false;
-    if (a[i].categoria != b[i].categoria) return false;
-    if (a[i].esPesado != b[i].esPesado) return false;
-    if (a[i].proveedorNombre != b[i].proveedorNombre) return false;
-    if (a[i].proveedorTelefono != b[i].proveedorTelefono) return false;
-    if (a[i].supabaseId != b[i].supabaseId) return false;
-    // ✅ NUEVO: Ventas al mayor
-    if (a[i].permiteVentaMayor != b[i].permiteVentaMayor) return false;
-    if (a[i].precioMayor != b[i].precioMayor) return false;
-    if (a[i].cantidadMinimaMayor != b[i].cantidadMinimaMayor) return false;
-    if (a[i].precioMedioMayor != b[i].precioMedioMayor) return false;
-    if (a[i].cantidadMinimaMedioMayor !=
-        b[i].cantidadMinimaMedioMayor) {
-      return false;
+  bool _listasSonIguales(List<ProductoEntity> a, List<ProductoEntity> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id) return false;
+      if (a[i].stock != b[i].stock) return false;
+      if (a[i].precioUnidad != b[i].precioUnidad) return false;
+      if (a[i].nombre != b[i].nombre) return false;
+      if (a[i].imagenUrl != b[i].imagenUrl) return false;
+      if (a[i].stockMinimo != b[i].stockMinimo) return false;
+      if (a[i].categoria != b[i].categoria) return false;
+      if (a[i].esPesado != b[i].esPesado) return false;
+      if (a[i].proveedorNombre != b[i].proveedorNombre) return false;
+      if (a[i].proveedorTelefono != b[i].proveedorTelefono) return false;
+      if (a[i].supabaseId != b[i].supabaseId) return false;
+      // ✅ NUEVO: Ventas al mayor
+      if (a[i].permiteVentaMayor != b[i].permiteVentaMayor) return false;
+      if (a[i].precioMayor != b[i].precioMayor) return false;
+      if (a[i].cantidadMinimaMayor != b[i].cantidadMinimaMayor) return false;
+      if (a[i].precioMedioMayor != b[i].precioMedioMayor) return false;
+      if (a[i].cantidadMinimaMedioMayor != b[i].cantidadMinimaMedioMayor) {
+        return false;
+      }
+      if (a[i].unidadesPorBulto != b[i].unidadesPorBulto) return false;
+      if (a[i].costoUnitarioPromedio != b[i].costoUnitarioPromedio)
+        return false;
     }
-    if (a[i].unidadesPorBulto != b[i].unidadesPorBulto) return false;
-    if (a[i].costoUnitarioPromedio != b[i].costoUnitarioPromedio) return false;
+    return true;
   }
-  return true;
-}
 
   Future<void> recargarDesdeSupabase() async {
     debugPrint('🔄 [ProductosNotifier] Recargando desde Supabase...');
@@ -159,95 +163,95 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
   }
 
   /// Actualiza el stock de un producto.
-///
-/// ⚠️ **DEPRECADADA.** No la uses.
-///
-/// Acepta un `nuevoStock` a ciegas: escribe `producto.stock` sin mirar
-/// los lotes, que es exactamente el patrón que produjo la duplicación
-/// `producto.stock` ↔ `SUM(lotes.cantidad_restante)` y el salto de
-/// stock 165 → 175. No tiene ningún caller interno.
-///
-/// En su lugar, según la operación:
-///
-///  * Ajuste manual de inventario → mover `lotes.cantidadRestante` y
-///    llamar `IsarService.recalcularStockDe([productoId])`.
-///  * Cambio desde el editor de producto →
-///    `IsarService.ajustarStockDesdeEditor(productoId, stockObjetivo)`.
-///  * Tras una venta → nada: `VentaService.procesarVenta` ya recalcula
-///    al final.
-///
-/// Esta marca existe para que un refactor futuro no la reintroduzca.
-@Deprecated(
-  'Usar IsarService.recalcularStockDe(productoIds) tras mover los lotes, '
-  'o IsarService.ajustarStockDesdeEditor(productoId, stockObjetivo). '
-  'Esta API acepta stock ciego y puede reintroducir el bug de duplicación '
-  'producto.stock ↔ SUM(lotes).',
-)
-Future<void> actualizarStock(
-  int productoId,
-  double nuevoStock,
-  UsuarioEntity usuario, {
-  String? motivo,
-}) async {
-  final producto = await _isar.obtenerProductoPorId(productoId);
-  if (producto == null) return;
+  ///
+  /// ⚠️ **DEPRECADADA.** No la uses.
+  ///
+  /// Acepta un `nuevoStock` a ciegas: escribe `producto.stock` sin mirar
+  /// los lotes, que es exactamente el patrón que produjo la duplicación
+  /// `producto.stock` ↔ `SUM(lotes.cantidad_restante)` y el salto de
+  /// stock 165 → 175. No tiene ningún caller interno.
+  ///
+  /// En su lugar, según la operación:
+  ///
+  ///  * Ajuste manual de inventario → mover `lotes.cantidadRestante` y
+  ///    llamar `IsarService.recalcularStockDe([productoId])`.
+  ///  * Cambio desde el editor de producto →
+  ///    `IsarService.ajustarStockDesdeEditor(productoId, stockObjetivo)`.
+  ///  * Tras una venta → nada: `VentaService.procesarVenta` ya recalcula
+  ///    al final.
+  ///
+  /// Esta marca existe para que un refactor futuro no la reintroduzca.
+  @Deprecated(
+    'Usar IsarService.recalcularStockDe(productoIds) tras mover los lotes, '
+    'o IsarService.ajustarStockDesdeEditor(productoId, stockObjetivo). '
+    'Esta API acepta stock ciego y puede reintroducir el bug de duplicación '
+    'producto.stock ↔ SUM(lotes).',
+  )
+  Future<void> actualizarStock(
+    int productoId,
+    double nuevoStock,
+    UsuarioEntity usuario, {
+    String? motivo,
+  }) async {
+    final producto = await _isar.obtenerProductoPorId(productoId);
+    if (producto == null) return;
 
-  final stockAnterior = producto.stock;
+    final stockAnterior = producto.stock;
 
-  // ═══════════════════════════════════════════════════════════════════
-  // 🎯 Clamp: nunca permitir stock negativo.
-  //
-  //   El stock físico de un producto es >= 0 por definición. Si el
-  //   caller pasa un negativo, lo forzamos a 0 y loggeamos el ajuste.
-  // ═══════════════════════════════════════════════════════════════════
-  final stockLimitado = nuevoStock.clamp(0.0, double.infinity);
+    // ═══════════════════════════════════════════════════════════════════
+    // 🎯 Clamp: nunca permitir stock negativo.
+    //
+    //   El stock físico de un producto es >= 0 por definición. Si el
+    //   caller pasa un negativo, lo forzamos a 0 y loggeamos el ajuste.
+    // ═══════════════════════════════════════════════════════════════════
+    final stockLimitado = nuevoStock.clamp(0.0, double.infinity);
 
-  if (stockLimitado != nuevoStock) {
-    debugPrint(
-      '⚠️ [ProductosNotifier] Stock de "${producto.nombre}" corregido '
-      'de $nuevoStock → $stockLimitado (se aplicó clamp a 0)',
-    );
+    if (stockLimitado != nuevoStock) {
+      debugPrint(
+        '⚠️ [ProductosNotifier] Stock de "${producto.nombre}" corregido '
+        'de $nuevoStock → $stockLimitado (se aplicó clamp a 0)',
+      );
+    }
+
+    // ── Diferencia real (post-clamp) ──
+    final diferencia = stockLimitado - stockAnterior;
+
+    if (diferencia == 0) {
+      // Nada que actualizar. Evita escribir en disco innecesariamente.
+      return;
+    }
+
+    producto.stock = stockLimitado;
+    await _isar.guardarProducto(producto);
+
+    // ── Movimiento de inventario con la diferencia REAL ──
+    final movimiento = MovimientoInventarioEntity()
+      ..productoId = producto.id
+      ..nombreProducto = producto.nombre
+      ..tipoMovimiento = motivo ?? 'Ajuste manual'
+      ..cantidad = diferencia // ← refleja el cambio real aplicado
+      ..stockResultante = stockLimitado
+      ..fecha = DateTime.now()
+      ..usuarioId = usuario.id
+      ..syncStatus = 'pending';
+    await _isar.guardarMovimientoInventario(movimiento);
+
+    // ⚠️ Fase 1: NO sincronizar a la nube desde aquí.
+    //
+    //   Este ajuste de stock es local. La subida de movimientos (y el
+    //   RPC `ajustar_stock`) se dispara en Fase 2, al confirmar el
+    //   cobro, dentro de la transacción de `procesarVenta`.
+    //
+    //   Antes se llamaba `_sync.sincronizarMovimientosInventario()` aquí,
+    //   lo que hacía 2 cosas malas:
+    //     1. Introducía un `await` de red ANTES de `cargarProductos()`.
+    //        Si la red fallaba, el provider no refrescaba y la UI
+    //        mostraba stock viejo aunque Isar ya tuviera el valor
+    //        correcto.
+    //     2. Restaba stock en Supabase por ajustes que podían
+    //        revertirse (agregar/quitar del carrito).
+    await cargarProductos();
   }
-
-  // ── Diferencia real (post-clamp) ──
-  final diferencia = stockLimitado - stockAnterior;
-
-  if (diferencia == 0) {
-    // Nada que actualizar. Evita escribir en disco innecesariamente.
-    return;
-  }
-
-  producto.stock = stockLimitado;
-  await _isar.guardarProducto(producto);
-
-  // ── Movimiento de inventario con la diferencia REAL ──
-  final movimiento = MovimientoInventarioEntity()
-    ..productoId = producto.id
-    ..nombreProducto = producto.nombre
-    ..tipoMovimiento = motivo ?? 'Ajuste manual'
-    ..cantidad = diferencia // ← refleja el cambio real aplicado
-    ..stockResultante = stockLimitado
-    ..fecha = DateTime.now()
-    ..usuarioId = usuario.id
-    ..syncStatus = 'pending';
-  await _isar.guardarMovimientoInventario(movimiento);
-
-  // ⚠️ Fase 1: NO sincronizar a la nube desde aquí.
-  //
-  //   Este ajuste de stock es local. La subida de movimientos (y el
-  //   RPC `ajustar_stock`) se dispara en Fase 2, al confirmar el
-  //   cobro, dentro de la transacción de `procesarVenta`.
-  //
-  //   Antes se llamaba `_sync.sincronizarMovimientosInventario()` aquí,
-  //   lo que hacía 2 cosas malas:
-  //     1. Introducía un `await` de red ANTES de `cargarProductos()`.
-  //        Si la red fallaba, el provider no refrescaba y la UI
-  //        mostraba stock viejo aunque Isar ya tuviera el valor
-  //        correcto.
-  //     2. Restaba stock en Supabase por ajustes que podían
-  //        revertirse (agregar/quitar del carrito).
-  await cargarProductos();
-}
 
   Future<void> eliminarProducto(int productoId, UsuarioEntity usuario) async {
     final producto = await _isar.obtenerProductoPorId(productoId);
@@ -269,7 +273,8 @@ Future<void> actualizarStock(
     await cargarProductos();
   }
 
-  Future<void> guardarProducto(ProductoEntity producto, UsuarioEntity usuario, {bool esNuevo = false}) async {
+  Future<void> guardarProducto(ProductoEntity producto, UsuarioEntity usuario,
+      {bool esNuevo = false}) async {
     if (esNuevo) {
       await _isar.guardarProducto(producto);
       if (producto.stock > 0) {
@@ -324,6 +329,7 @@ Future<void> actualizarStock(
   //   llamar a `IsarService.recalcularStockDe([productoId])`.
 }
 
-final productosProvider = StateNotifierProvider<ProductosNotifier, ProductosState>((ref) {
+final productosProvider =
+    StateNotifierProvider<ProductosNotifier, ProductosState>((ref) {
   return ProductosNotifier();
 });

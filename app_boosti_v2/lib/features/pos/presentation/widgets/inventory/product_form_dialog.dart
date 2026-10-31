@@ -20,6 +20,7 @@ import '../../../data/Local/entities/usuario_entity.dart';
 import '../../../data/Local/entities/marca_entity.dart';
 import '../../../data/Local/entities/isar_service.dart';
 import '../../../data/Local/entities/receta_entity.dart';
+import '../../providers/catalog_provider.dart';
 import '../../providers/local_actual_provider.dart';
 import '../../providers/productos_provider.dart';
 import '../../providers/usuario_provider.dart';
@@ -69,12 +70,12 @@ class _ProductFormDialogState extends ConsumerState<ProductFormDialog>
   final _stockCtrl = TextEditingController();
 
   /// Stock real del producto al abrir el diálogo.
-///
-/// Vive en el State porque `ProductDataTab` lo necesita para calcular el
-/// delta del campo "Stock inicial", y no puede derivarlo del controller: el
-/// controller arranca con el valor **redondeado**
-/// (`stock.toStringAsFixed(0)`).
-double _stockBase = 0.0;
+  ///
+  /// Vive en el State porque `ProductDataTab` lo necesita para calcular el
+  /// delta del campo "Stock inicial", y no puede derivarlo del controller: el
+  /// controller arranca con el valor **redondeado**
+  /// (`stock.toStringAsFixed(0)`).
+  double _stockBase = 0.0;
 
   /// Motivo de la reposición. Opcional: solo se usa cuando el stock sube.
   final _motivoCtrl = TextEditingController();
@@ -217,8 +218,7 @@ double _stockBase = 0.0;
     _precioMayorCtrl.text = p?.precioMayor?.toString() ?? '';
     _cantMinMayorCtrl.text = p?.cantidadMinimaMayor?.toString() ?? '';
     _precioMedioMayorCtrl.text = p?.precioMedioMayor?.toString() ?? '';
-    _cantMinMedioMayorCtrl.text =
-        p?.cantidadMinimaMedioMayor?.toString() ?? '';
+    _cantMinMedioMayorCtrl.text = p?.cantidadMinimaMedioMayor?.toString() ?? '';
     _unidadesBultoCtrl.text = (p?.unidadesPorBulto ?? 1).toString();
     _costoUnitarioCtrl.text = p?.costoUnitarioPromedio?.toString() ?? '';
   }
@@ -706,8 +706,7 @@ double _stockBase = 0.0;
         p.precioMayor = _parseDouble(_precioMayorCtrl.text);
         p.cantidadMinimaMayor = _parseInt(_cantMinMayorCtrl.text);
         p.precioMedioMayor = _parseDouble(_precioMedioMayorCtrl.text);
-        p.cantidadMinimaMedioMayor =
-            _parseInt(_cantMinMedioMayorCtrl.text);
+        p.cantidadMinimaMedioMayor = _parseInt(_cantMinMedioMayorCtrl.text);
         p.unidadesPorBulto = _parseInt(_unidadesBultoCtrl.text) ?? 1;
         p.costoUnitarioPromedio = _parseDouble(_costoUnitarioCtrl.text);
       } else {
@@ -805,9 +804,8 @@ double _stockBase = 0.0;
           // El motivo es opcional: si el usuario no escribió nada, el
           // movimiento queda con `observaciones = null` en vez de un
           // placeholder que después no se puede distinguir de un motivo real.
-          motivo: _motivoCtrl.text.trim().isEmpty
-              ? null
-              : _motivoCtrl.text.trim(),
+          motivo:
+              _motivoCtrl.text.trim().isEmpty ? null : _motivoCtrl.text.trim(),
         );
         if (!ok) {
           debugPrint(
@@ -867,11 +865,13 @@ double _stockBase = 0.0;
         receta.items = _itemsReceta;
         receta.activo = true;
         await IsarService().guardarReceta(receta);
+        ref.invalidate(catalogRecipeProductIdsProvider);
       }
 
       if (mounted) {
         _mostrarDialogoExito(
-          titulo: 'Producto ${widget.producto != null ? 'actualizado' : 'creado'}',
+          titulo:
+              'Producto ${widget.producto != null ? 'actualizado' : 'creado'}',
           mensaje: '"${p.nombre}" guardado correctamente.',
         );
       }
@@ -941,8 +941,8 @@ double _stockBase = 0.0;
                     elevation: 0,
                   ),
                   child: const Text('Aceptar',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 15)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 ),
               ),
             ],
@@ -994,8 +994,8 @@ double _stockBase = 0.0;
                 child: OutlinedButton(
                   onPressed: () => Navigator.pop(ctx),
                   child: const Text('Cerrar',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 15)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 ),
               ),
             ],
@@ -1079,8 +1079,7 @@ double _stockBase = 0.0;
                       marcaSeleccionada: _marcaSel,
                       imagenUrlPreview: _imagenUrlPreview,
                       imagenSeleccionada: _imagenSel,
-                      onEsPesadoChanged: (v) =>
-                          setState(() => _esPesado = v),
+                      onEsPesadoChanged: (v) => setState(() => _esPesado = v),
                       onActivoChanged: (v) => setState(() => _activo = v),
                       onPermiteVentaMayorChanged: (v) =>
                           setState(() => _permiteVentaMayor = v),
@@ -1103,8 +1102,7 @@ double _stockBase = 0.0;
                       onEsIngredienteChanged: (v) =>
                           setState(() => _esIngredienteSel = v),
                       unidadSeleccionada: _unidadSel,
-                      onUnidadChanged: (v) =>
-                          setState(() => _unidadSel = v),
+                      onUnidadChanged: (v) => setState(() => _unidadSel = v),
                       // G.2 · Receta.
                       itemsReceta: _itemsReceta,
                       onRecetaChanged: (items) =>
@@ -1241,8 +1239,7 @@ double _stockBase = 0.0;
                   )
                 : const Text(
                     'Guardar Producto',
-                    style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                   ),
           ),
         ),

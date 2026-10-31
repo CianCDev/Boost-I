@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../providers/lotes_provider.dart';
+import '../../providers/offline_stock_provider.dart';
 import '../../providers/themes/app_colors.dart';
 import '../../utils/expiry_style.dart';
 import '../../utils/expiry_utils.dart';
@@ -35,6 +36,11 @@ class _ProductListTileState extends ConsumerState<ProductListTile> {
     final colorScheme = Theme.of(context).colorScheme;
     final isMobile = ResponsiveHelper.isMobile(context);
     final imageSize = isMobile ? 50.0 : 70.0;
+    final riesgoOffline = ref.watch(
+      offlineStockProvider.select(
+        (state) => state.riesgoPorProducto[widget.producto.id],
+      ),
+    );
 
     // Vencimiento más próximo del producto (derivado de los lotes).
     // Mismo criterio que `product_card.dart`: en móvil, cuando el stock
@@ -112,34 +118,61 @@ class _ProductListTileState extends ConsumerState<ProductListTile> {
             child: Row(
               children: [
                 // Imagen
-                Container(
-                  width: imageSize,
-                  height: imageSize,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: widget.producto.imagenUrl != null &&
-                            widget.producto.imagenUrl!.isNotEmpty
-                        ? Image.network(
-                            widget.producto.imagenUrl!,
-                            fit: BoxFit.cover,
-                            width: imageSize,
-                            height: imageSize,
-                            errorBuilder: (context, error, stackTrace) => Icon(
-                              Icons.inventory_2,
-                              size: 24,
-                              color: colorScheme.primary,
-                            ),
-                          )
-                        : Icon(
-                            Icons.inventory_2,
-                            size: 24,
-                            color: colorScheme.primary,
+                Stack(
+                  children: [
+                    Container(
+                      width: imageSize,
+                      height: imageSize,
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: widget.producto.imagenUrl != null &&
+                                widget.producto.imagenUrl!.isNotEmpty
+                            ? Image.network(
+                                widget.producto.imagenUrl!,
+                                fit: BoxFit.cover,
+                                width: imageSize,
+                                height: imageSize,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Icon(
+                                  Icons.inventory_2,
+                                  size: 24,
+                                  color: colorScheme.primary,
+                                ),
+                              )
+                            : Icon(
+                                Icons.inventory_2,
+                                size: 24,
+                                color: colorScheme.primary,
+                              ),
+                      ),
+                    ),
+                    if (riesgoOffline == NivelRiesgoStock.naranja ||
+                        riesgoOffline == NivelRiesgoStock.rojo)
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: riesgoOffline == NivelRiesgoStock.rojo
+                                ? Colors.red.shade700
+                                : Colors.deepOrange,
+                            shape: BoxShape.circle,
                           ),
-                  ),
+                          child: const Padding(
+                            padding: EdgeInsets.all(4),
+                            child: Icon(
+                              Icons.wifi_off,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(width: 12),
                 // Información

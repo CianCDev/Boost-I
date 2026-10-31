@@ -7,10 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/Local/entities/isar_service.dart';
+import '../../data/Local/entities/local_entity.dart';
 import '../../data/Local/entities/suscripcion_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../providers/auth_provider.dart';
 import '../providers/business_mode_provider.dart';
+import '../providers/local_actual_provider.dart';
+import '../providers/locales_provider.dart';
 import '../providers/suscripcion_provider.dart';
 import '../providers/themes/theme_provider.dart';
 import '../providers/usuario_provider.dart';
@@ -19,6 +22,7 @@ import '../widgets/admin_validation_dialog.dart';
 import '../widgets/appbar.dart';
 import '../widgets/cambiar_pin_dialog.dart';
 import '../widgets/common/exportar_datos_dialog.dart';
+import '../widgets/common/logo_upload_field.dart';
 import 'login_screen.dart';
 import 'configuracion_modo_negocio_screen.dart';
 
@@ -55,6 +59,82 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
   Future<void> _cargarSuscripcion() async {
     final susc = await ref.read(suscripcionProvider.future);
     if (mounted) setState(() => _suscripcionActual = susc);
+  }
+
+  Future<void> _editarLogoLocal(UsuarioEntity usuario) async {
+    if (usuario.rol != 'admin') return;
+
+    final local = await _isarService.obtenerLocalActivo();
+    if (!mounted) return;
+    if (local == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay un local activo para editar.')),
+      );
+      return;
+    }
+
+    final tenantId = local.supabaseId;
+    if (tenantId == null || tenantId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('El local aún no está sincronizado con Supabase.'),
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Logo del local'),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LogoUploadField(
+                pathActual: local.logoPath,
+                bucket: 'locales',
+                tenantId: tenantId,
+                onPathChanged: (path) {
+                  _guardarLogoLocal(local, path, dialogContext);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _guardarLogoLocal(
+    LocalEntity local,
+    String? logoPath,
+    BuildContext dialogContext,
+  ) async {
+    try {
+      local
+        ..logoPath = logoPath
+        ..sincronizado = false;
+      await _isarService.guardarLocal(local);
+      await ref.read(localActualProvider.notifier).cargarLocalActual();
+      ref.invalidate(localesProvider);
+      ref.invalidate(localPorIdProvider(local.id));
+
+      if (!mounted || !dialogContext.mounted) return;
+      Navigator.of(dialogContext).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Logo del local guardado. Se sincronizará en breve.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo guardar el logo: $e')),
+      );
+    }
   }
 
   Widget _buildPlanChip(SuscripcionEntity s) {
@@ -299,8 +379,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final usuario =
-        ref.watch(usuarioActualProvider) ?? widget.usuarioLogueado;
+    final usuario = ref.watch(usuarioActualProvider) ?? widget.usuarioLogueado;
     final modoActual = ref.watch(businessModeProvider);
 
     if (usuario == null) {
@@ -387,6 +466,23 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                           theme,
                         ),
                       ),
+                      if (esAdmin) ...[
+                        const SizedBox(height: 8),
+                        _buildInteractiveCard(
+                          isDark: isDark,
+                          entryIndex: 2,
+                          onTap: () => _editarLogoLocal(usuario),
+                          accentColor: const Color(0xFF0EA5E9),
+                          child: _buildTile(
+                            icon: Icons.image_outlined,
+                            iconColor: const Color(0xFF0EA5E9),
+                            title: 'Logo del local',
+                            subtitle: 'Imagen en tickets y PDFs',
+                            isDark: isDark,
+                            isMobile: isMobile,
+                          ),
+                        ),
+                      ],
 
                       SizedBox(height: sectionSpacing),
 
@@ -455,7 +551,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                               leading: Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                                  color: const Color(0xFF8B5CF6)
+                                      .withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Icon(
@@ -492,8 +589,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                       _buildInteractiveCard(
                         isDark: isDark,
                         entryIndex: 4,
-                        onTap: () =>
-                            setState(() => _editandoNombre = true),
+                        onTap: () => setState(() => _editandoNombre = true),
                         accentColor: const Color(0xFF3B82F6),
                         child: _editandoNombre
                             ? _buildNombreEditForm(usuario, isDark, isMobile)
@@ -896,9 +992,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                onPressed: _guardandoNombre
-                    ? null
-                    : () => _cambiarNombre(usuario),
+                onPressed:
+                    _guardandoNombre ? null : () => _cambiarNombre(usuario),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981),
                   foregroundColor: Colors.white,
@@ -1230,9 +1325,7 @@ class _HoverCardState extends State<_HoverCard> {
         : Colors.white.withValues(alpha: 0.92);
 
     return MouseRegion(
-      cursor: clickeable
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.basic,
+      cursor: clickeable ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: AnimatedScale(
@@ -1278,10 +1371,8 @@ class _HoverCardState extends State<_HoverCard> {
                 child: InkWell(
                   onTap: widget.onTap,
                   borderRadius: BorderRadius.circular(16),
-                  splashColor:
-                      widget.accentColor.withValues(alpha: 0.10),
-                  highlightColor:
-                      widget.accentColor.withValues(alpha: 0.06),
+                  splashColor: widget.accentColor.withValues(alpha: 0.10),
+                  highlightColor: widget.accentColor.withValues(alpha: 0.06),
                   child: widget.child,
                 ),
               ),

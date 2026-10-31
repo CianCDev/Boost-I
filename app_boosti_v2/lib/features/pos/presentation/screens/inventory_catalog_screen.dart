@@ -29,6 +29,7 @@ import '../widgets/catalog/cart/cart_sidebar.dart';
 import '../widgets/catalog/cart/cart_dialogs.dart';
 import '../widgets/catalog/cart/parked_carts_dialog.dart';
 import '../widgets/catalog/cart/save_cart_dialog.dart';
+import '../widgets/catalog/offline_stock_banner.dart';
 import '../widgets/catalog/top_products_widget.dart';
 import '../widgets/catalog/view_mode_toggle.dart';
 import '../widgets/catalog/product_list_tile.dart';
@@ -141,156 +142,155 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   // ATAJOS DE TECLADO
   // ════════════════════════════════════════════════════════════════
 
- bool _manejarTecladoFisico(KeyEvent event) {
-  if (event is! KeyDownEvent) return false;
+  bool _manejarTecladoFisico(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
 
-  final key = event.logicalKey;
+    final key = event.logicalKey;
 
-  // ═══ Escape: SIEMPRE se procesa ═══
-  // Necesario para poder cerrar modales/paneles desde el teclado.
-  if (key == LogicalKeyboardKey.escape) {
-    if (_topProductsNavigator != null) {
-      _topProductsNavigator!.pop();
-      return true;
+    // ═══ Escape: SIEMPRE se procesa ═══
+    // Necesario para poder cerrar modales/paneles desde el teclado.
+    if (key == LogicalKeyboardKey.escape) {
+      if (_topProductsNavigator != null) {
+        _topProductsNavigator!.pop();
+        return true;
+      }
+      // Si hay un campo de texto enfocado, primero soltamos el foco.
+      if (_searchFocusNode.hasFocus) {
+        _searchFocusNode.unfocus();
+        return true;
+      }
+      // Si estamos dentro de un modal, no interceptamos Escape
+      // para que el modal lo maneje (ej. cerrar el dialog).
+      if (_hayRutaEncima || _hayTextFieldEnFoco) {
+        return false;
+      }
+      // Esc en el catálogo limpia el carrito (con confirmación).
+      final cartState = ref.read(cartProvider);
+      if (cartState.items.isNotEmpty) {
+        _limpiarCarritoConConfirmacion();
+        return true;
+      }
+      return false;
     }
-    // Si hay un campo de texto enfocado, primero soltamos el foco.
-    if (_searchFocusNode.hasFocus) {
-      _searchFocusNode.unfocus();
-      return true;
-    }
-    // Si estamos dentro de un modal, no interceptamos Escape
-    // para que el modal lo maneje (ej. cerrar el dialog).
+
+    // ═══ Otros atajos: NO procesar si hay modal o input activo ═══
+    // Esto evita que los números/F-keys rompan la escritura dentro
+    // de QuantityDialog, CobrarDialog, SaveCartDialog, PrinterSelectionDialog, etc.
     if (_hayRutaEncima || _hayTextFieldEnFoco) {
       return false;
     }
-    // Esc en el catálogo limpia el carrito (con confirmación).
-    final cartState = ref.read(cartProvider);
-    if (cartState.items.isNotEmpty) {
-      _limpiarCarritoConConfirmacion();
+
+    // ───── F-keys ─────
+    if (key == LogicalKeyboardKey.f1) {
+      _mostrarAyudaAtajos();
       return true;
     }
-    return false;
-  }
-
-  // ═══ Otros atajos: NO procesar si hay modal o input activo ═══
-  // Esto evita que los números/F-keys rompan la escritura dentro
-  // de QuantityDialog, CobrarDialog, SaveCartDialog, PrinterSelectionDialog, etc.
-  if (_hayRutaEncima || _hayTextFieldEnFoco) {
-    return false;
-  }
-
-  // ───── F-keys ─────
-  if (key == LogicalKeyboardKey.f1) {
-    _mostrarAyudaAtajos();
-    return true;
-  }
-  if (key == LogicalKeyboardKey.f2) {
-    _toggleSearchFocus();
-    return true;
-  }
-  if (key == LogicalKeyboardKey.f3) {
-    _togglePanelProductos();
-    return true;
-  }
-  if (key == LogicalKeyboardKey.f4) {
-    _abrirModalImpresoras();
-    return true;
-  }
-  if (key == LogicalKeyboardKey.f5) {
-    _recargarCatalogo();
-    return true;
-  }
-  if (key == LogicalKeyboardKey.f8) {
-    _parkearCarritoActual();
-    return true;
-  }
-  if (key == LogicalKeyboardKey.f9) {
-    _abrirCarritosEnEspera();
-    return true;
-  }
-  if (key == LogicalKeyboardKey.f12) {
-    final cartState = ref.read(cartProvider);
-    if (cartState.total > 0) _mostrarModalCobro();
-    return true;
-  }
-
-  // ───── Delete ─────
-  if (key == LogicalKeyboardKey.delete) {
-    final cartState = ref.read(cartProvider);
-    if (cartState.items.isNotEmpty) {
-      _limpiarCarritoConConfirmacion();
+    if (key == LogicalKeyboardKey.f2) {
+      _toggleSearchFocus();
       return true;
     }
-    return false;
-  }
+    if (key == LogicalKeyboardKey.f3) {
+      _togglePanelProductos();
+      return true;
+    }
+    if (key == LogicalKeyboardKey.f4) {
+      _abrirModalImpresoras();
+      return true;
+    }
+    if (key == LogicalKeyboardKey.f5) {
+      _recargarCatalogo();
+      return true;
+    }
+    if (key == LogicalKeyboardKey.f8) {
+      _parkearCarritoActual();
+      return true;
+    }
+    if (key == LogicalKeyboardKey.f9) {
+      _abrirCarritosEnEspera();
+      return true;
+    }
+    if (key == LogicalKeyboardKey.f12) {
+      final cartState = ref.read(cartProvider);
+      if (cartState.total > 0) _mostrarModalCobro();
+      return true;
+    }
 
-  // ───── Hotkeys 1-9 ─────
+    // ───── Delete ─────
+    if (key == LogicalKeyboardKey.delete) {
+      final cartState = ref.read(cartProvider);
+      if (cartState.items.isNotEmpty) {
+        _limpiarCarritoConConfirmacion();
+        return true;
+      }
+      return false;
+    }
+
+    // ───── Hotkeys 1-9 ─────
     final int? numero = KeyboardShortcutHelper.keyToDigit(key);
-  if (numero != null) {
-    // ✅ Si el buscador tiene foco, los números se escriben allí.
-    if (_searchFocusNode.hasFocus) return false;
-    // ✅ Si el panel de top products está abierto, no disparar.
-    if (_topProductsNavigator != null) return false;
-    _agregarProductoReciente(numero);
-    return true;
-  }
+    if (numero != null) {
+      // ✅ Si el buscador tiene foco, los números se escriben allí.
+      if (_searchFocusNode.hasFocus) return false;
+      // ✅ Si el panel de top products está abierto, no disparar.
+      if (_topProductsNavigator != null) return false;
+      _agregarProductoReciente(numero);
+      return true;
+    }
 
-  return false;
-}
+    return false;
+  }
 
 // ════════════════════════════════════════════════════════════════
 // DETECCIÓN DE CONTEXTO
 // ════════════════════════════════════════════════════════════════
 
-/// True si hay un dialog, bottom sheet u otra ruta encima del catálogo.
-///
-/// Funciona porque `showDialog`, `showGeneralDialog` y `showModalBottomSheet`
-/// apilan una nueva `ModalRoute` en el navigator del `context` que se les pasa.
-bool get _hayRutaEncima {
-  try {
-    final route = ModalRoute.of(context);
-    return route != null && !route.isCurrent;
-  } catch (_) {
+  /// True si hay un dialog, bottom sheet u otra ruta encima del catálogo.
+  ///
+  /// Funciona porque `showDialog`, `showGeneralDialog` y `showModalBottomSheet`
+  /// apilan una nueva `ModalRoute` en el navigator del `context` que se les pasa.
+  bool get _hayRutaEncima {
+    try {
+      final route = ModalRoute.of(context);
+      return route != null && !route.isCurrent;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// True si hay un `TextField` / `TextFormField` enfocado que NO sea
+  /// nuestro buscador del catálogo.
+  ///
+  /// Cuando el usuario hace tap en un input de un diálogo, el
+  /// `FocusManager` apunta al `EditableText` interno del `TextField`.
+  /// Detectamos eso para no secuestrar las teclas numéricas.
+  bool get _hayTextFieldEnFoco {
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    if (primaryFocus == null) return false;
+    if (primaryFocus == _searchFocusNode) return false;
+
+    final ctx = primaryFocus.context;
+    if (ctx == null) return false;
+
+    // Los TextField/TextFormField de Flutter montan internamente
+    // un `EditableText`. El context del FocusNode suele apuntar al
+    // `EditableText` o al `TextField`, así que chequeamos ambos.
+    final widget = ctx.widget;
+    final tipo = widget.runtimeType.toString();
+    if (widget is EditableText) return true;
+    if (tipo == 'EditableText') return true;
+    if (tipo == 'TextField') return true;
+    if (tipo == 'TextFormField') return true;
+
+    // Fallback: buscar el ancestro `EditableText` más cercano.
+    try {
+      final el = ctx as Element;
+      final editable = el.findAncestorWidgetOfExactType<EditableText>();
+      if (editable != null) return true;
+    } catch (_) {
+      // ignore
+    }
+
     return false;
   }
-}
-
-/// True si hay un `TextField` / `TextFormField` enfocado que NO sea
-/// nuestro buscador del catálogo.
-///
-/// Cuando el usuario hace tap en un input de un diálogo, el
-/// `FocusManager` apunta al `EditableText` interno del `TextField`.
-/// Detectamos eso para no secuestrar las teclas numéricas.
-bool get _hayTextFieldEnFoco {
-  final primaryFocus = FocusManager.instance.primaryFocus;
-  if (primaryFocus == null) return false;
-  if (primaryFocus == _searchFocusNode) return false;
-
-  final ctx = primaryFocus.context;
-  if (ctx == null) return false;
-
-  // Los TextField/TextFormField de Flutter montan internamente
-  // un `EditableText`. El context del FocusNode suele apuntar al
-  // `EditableText` o al `TextField`, así que chequeamos ambos.
-  final widget = ctx.widget;
-  final tipo = widget.runtimeType.toString();
-  if (widget is EditableText) return true;
-  if (tipo == 'EditableText') return true;
-  if (tipo == 'TextField') return true;
-  if (tipo == 'TextFormField') return true;
-
-  // Fallback: buscar el ancestro `EditableText` más cercano.
-  try {
-    final el = ctx as Element;
-    final editable = el.findAncestorWidgetOfExactType<EditableText>();
-    if (editable != null) return true;
-  } catch (_) {
-    // ignore
-  }
-
-  return false;
-}
-
 
   // ════════════════════════════════════════════════════════════════
   // ACCIONES DE ATAJOS
@@ -481,28 +481,20 @@ bool get _hayTextFieldEnFoco {
                 children: const [
                   _AtajoRow(tecla: 'F1', descripcion: 'Mostrar esta ayuda'),
                   _AtajoRow(
-                      tecla: 'F2',
-                      descripcion: 'Enfocar / soltar el buscador'),
+                      tecla: 'F2', descripcion: 'Enfocar / soltar el buscador'),
                   _AtajoRow(
                       tecla: 'F3',
                       descripcion: 'Abrir/cerrar productos destacados'),
-                  _AtajoRow(
-                      tecla: 'F4', descripcion: 'Conectar impresora'),
+                  _AtajoRow(tecla: 'F4', descripcion: 'Conectar impresora'),
                   _AtajoRow(tecla: 'F5', descripcion: 'Recargar catálogo'),
                   _AtajoRow(
-                      tecla: 'F8',
-                      descripcion: 'Poner carrito en espera'),
-                  _AtajoRow(
-                      tecla: 'F9',
-                      descripcion: 'Ver carritos en espera'),
+                      tecla: 'F8', descripcion: 'Poner carrito en espera'),
+                  _AtajoRow(tecla: 'F9', descripcion: 'Ver carritos en espera'),
                   _AtajoRow(tecla: 'F12', descripcion: 'Cobrar'),
                   _AtajoRow(
                       tecla: 'Esc',
-                      descripcion:
-                          'Cerrar panel / limpiar búsqueda / carrito'),
-                  _AtajoRow(
-                      tecla: 'Delete',
-                      descripcion: 'Limpiar carrito'),
+                      descripcion: 'Cerrar panel / limpiar búsqueda / carrito'),
+                  _AtajoRow(tecla: 'Delete', descripcion: 'Limpiar carrito'),
                   _AtajoRow(
                       tecla: '1-9',
                       descripcion:
@@ -514,8 +506,7 @@ bool get _hayTextFieldEnFoco {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              style:
-                  TextButton.styleFrom(foregroundColor: colorScheme.primary),
+              style: TextButton.styleFrom(foregroundColor: colorScheme.primary),
               child: const Text('Entendido'),
             ),
           ],
@@ -596,8 +587,8 @@ bool get _hayTextFieldEnFoco {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Producto no registrado'),
-        content: Text(
-            'El código "$codigo" no está registrado.\n¿Qué deseas hacer?'),
+        content:
+            Text('El código "$codigo" no está registrado.\n¿Qué deseas hacer?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, 'cancel'),
@@ -662,10 +653,20 @@ bool get _hayTextFieldEnFoco {
           onScanPressed: _scanBarcode,
           searchFocusNode: _searchFocusNode,
         ),
-        body: contenido,
+        body: Column(
+          children: [
+            const OfflineStockBanner(),
+            Expanded(child: contenido),
+          ],
+        ),
       );
     } else {
-      return contenido;
+      return Column(
+        children: [
+          const OfflineStockBanner(),
+          Expanded(child: contenido),
+        ],
+      );
     }
   }
 
@@ -673,13 +674,13 @@ bool get _hayTextFieldEnFoco {
     final isMobile = ResponsiveHelper.isMobile(context);
     final isTablet = ResponsiveHelper.isTablet(context);
     final orientation = MediaQuery.of(context).orientation;
-    final bool useSidebar = !isMobile &&
-        (isTablet ? orientation == Orientation.landscape : true);
+    final bool useSidebar =
+        !isMobile && (isTablet ? orientation == Orientation.landscape : true);
 
     final isLoading =
         ref.watch(catalogProvider.select((state) => state.isLoading));
-    final productosFiltrados = ref.watch(
-        catalogProvider.select((state) => state.productosFiltrados));
+    final productosFiltrados =
+        ref.watch(catalogProvider.select((state) => state.productosFiltrados));
 
     int crossAxisCount;
     double childAspectRatio;
@@ -694,7 +695,7 @@ bool get _hayTextFieldEnFoco {
       childAspectRatio = 0.75;
     }
 
-    if (isLoading) {
+    if (isLoading && productosFiltrados.isEmpty) {
       return GridView.builder(
         padding: const EdgeInsets.all(16),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -785,80 +786,96 @@ bool get _hayTextFieldEnFoco {
                     .recargarDesdeSupabase();
                 ref.read(recentProductsRefreshProvider.notifier).state++;
               },
-              child: isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.inventory_2_outlined,
-                              size: 48, color: colorScheme.outline),
-                          const SizedBox(height: 12),
-                          Text(
-                            'No se encontraron productos.',
-                            style: TextStyle(
-                                color: colorScheme.onSurfaceVariant,
-                                fontSize: 14),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                switchInCurve: Curves.easeIn,
+                switchOutCurve: Curves.easeOut,
+                child: KeyedSubtree(
+                  key: ValueKey(
+                    '${ref.watch(catalogProvider.select((state) => state.filtroTipo))}_'
+                    '${ref.watch(catalogProvider.select((state) => state.categoriaSeleccionada))}',
+                  ),
+                  child: isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.inventory_2_outlined,
+                                  size: 48, color: colorScheme.outline),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No se encontraron productos.',
+                                style: TextStyle(
+                                    color: colorScheme.onSurfaceVariant,
+                                    fontSize: 14),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    )
-                  : RepaintBoundary(
-                      child: ViewModeToggle(
-                        gridChild: GridView.builder(
-                          key: const ValueKey('grid'),
-                          padding: const EdgeInsets.only(bottom: 40),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: crossAxisCount,
-                            childAspectRatio: childAspectRatio,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
+                        )
+                      : RepaintBoundary(
+                          child: ViewModeToggle(
+                            showSelector: false,
+                            gridChild: GridView.builder(
+                              key: const ValueKey('grid'),
+                              padding: const EdgeInsets.only(bottom: 40),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                childAspectRatio: childAspectRatio,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                              ),
+                              itemCount: productosFiltrados.length,
+                              itemBuilder: (context, index) {
+                                final producto = productosFiltrados[index];
+                                final bool stockBajo =
+                                    producto.stock <= producto.stockMinimo;
+
+                                return ProductCard(
+                                  key: ValueKey(producto.id),
+                                  producto: producto,
+                                  stockBajo: stockBajo,
+                                  onTap: () {
+                                    final actions =
+                                        ref.read(catalogActionsProvider);
+                                    actions.mostrarModalCantidad(
+                                        producto, context,
+                                        factor: 1.0);
+                                  },
+                                  isMobile: isMobile,
+                                  index: index,
+                                  animationController: _animationController,
+                                );
+                              },
+                            ),
+                            listChild: ListView.builder(
+                              key: const ValueKey('list'),
+                              padding: const EdgeInsets.only(bottom: 40),
+                              itemCount: productosFiltrados.length,
+                              itemBuilder: (context, index) {
+                                final producto = productosFiltrados[index];
+                                final bool stockBajo =
+                                    producto.stock <= producto.stockMinimo;
+
+                                return ProductListTile(
+                                  key: ValueKey(producto.id),
+                                  producto: producto,
+                                  stockBajo: stockBajo,
+                                  onTap: () {
+                                    final actions =
+                                        ref.read(catalogActionsProvider);
+                                    actions.mostrarModalCantidad(
+                                        producto, context,
+                                        factor: 1.0);
+                                  },
+                                  index: index,
+                                );
+                              },
+                            ),
                           ),
-                          itemCount: productosFiltrados.length,
-                          itemBuilder: (context, index) {
-                            final producto = productosFiltrados[index];
-                            final bool stockBajo =
-                                producto.stock <= producto.stockMinimo;
-
-                            return ProductCard(
-                              producto: producto,
-                              stockBajo: stockBajo,
-                              onTap: () {
-                                final actions =
-                                    ref.read(catalogActionsProvider);
-                                actions.mostrarModalCantidad(producto, context,
-                                    factor: 1.0);
-                              },
-                              isMobile: isMobile,
-                              index: index,
-                              animationController: _animationController,
-                            );
-                          },
                         ),
-                        listChild: ListView.builder(
-                          key: const ValueKey('list'),
-                          padding: const EdgeInsets.only(bottom: 40),
-                          itemCount: productosFiltrados.length,
-                          itemBuilder: (context, index) {
-                            final producto = productosFiltrados[index];
-                            final bool stockBajo =
-                                producto.stock <= producto.stockMinimo;
-
-                            return ProductListTile(
-                              producto: producto,
-                              stockBajo: stockBajo,
-                              onTap: () {
-                                final actions =
-                                    ref.read(catalogActionsProvider);
-                                actions.mostrarModalCantidad(producto, context,
-                                    factor: 1.0);
-                              },
-                              index: index,
-                            );
-                          },
-                        ),
-                      ),
-                    ),
+                ),
+              ),
             ),
           ),
         ],
