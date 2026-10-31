@@ -475,6 +475,70 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
       _setState(state.copyWith(isLoading: false, error: e.toString()));
     }
   }
+   /// Refresca UNA comanda del state sin recargar el resto.
+  ///
+  /// Versión eficiente de [cargar] para mutaciones que solo cambian items
+  /// DENTRO de una comanda existente y viva (pausar, avanzar estado, editar
+  /// cantidad/nota, volcar carrito, enviar a cocina).
+  ///
+  /// ⚠️ NO usar para cambios ESTRUCTURALES. Si la comanda se crea, se
+  /// cierra, se cancela o se mueve a otra mesa, hay que llamar a [cargar]
+  /// completo: la lista de "vivas del local" cambia de composición y la
+  /// comanda puede tener que salir de `state.comandas`.
+  ///
+  /// 🎯 Por qué existe (perf del KDS):
+  /// `cargar()` dispara `obtenerComandasDeLocal` (2 queries + filtro de
+  /// 30-100 comandas) y hace DOS `_setState` (`isLoading: true` y
+  /// `isLoading: false`). Eso reconstruye todo el árbol del KDS aunque
+  /// solo haya cambiado UN item de UNA comanda. Con 100 items en pantalla,
+  /// tocar [Preparar] se siente lento.
+  ///
+  /// Este método:
+  ///  · hace UNA sola query (por id, indexada),
+  ///  · NO toca `isLoading` (sin flicker de spinner),
+  ///  · actualiza in-place (los demás elementos de la lista son los
+  ///    MISMOS objetos, así que los widgets que usen `select` sobre su
+  ///    comanda no se re-renderizan).
+  Future<void> _refrescarComandaEnState(int comandaId) async {
+    try {
+      final fresca = await _isar.obtenerComandaPorId(comandaId);
+      if (!mounted) return;
+
+      // Caso 1: la comanda ya no existe (borrada o purgada desde otro
+      // dispositivo). La quitamos si estaba en la lista.
+      // Caso 2: existe pero ya no está viva (cerrada/cancelada por otra
+      // vía, p. ej. `_desasignarPorCarritoVacio` disparado por el carrito
+      // vacío). La quitamos: `state.comandas` es la lista de VIVAS.
+      final debeSalir = fresca == null ||
+          fresca.comandaEstado == ComandaEstado.cerrada ||
+          fresca.comandaEstado == ComandaEstado.cancelada;
+
+      if (debeSalir) {
+        final lista = state.comandas
+            .where((c) => c.id != comandaId)
+            .toList(growable: false);
+        _setState(state.copyWith(comandas: lista));
+        return;
+      }
+
+      // Actualización in-place: preserva el orden de la lista y evita
+      // reconstruir el widget tree entero si Riverpod compara por
+      // identidad (los demás elementos de la lista son los MISMOS objetos,
+      // así que sus widgets no se re-renderizan si usan `select`).
+      final lista = [...state.comandas];
+      final idx = lista.indexWhere((c) => c.id == comandaId);
+      if (idx >= 0) {
+        lista[idx] = fresca;
+      } else {
+        lista.add(fresca);
+      }
+      _setState(state.copyWith(comandas: lista));
+    } catch (e) {
+      // Ante duda, no ensuciamos el state: la próxima llamada a `cargar()`
+      // (local cambiado, o `onDataChanged` de sync) reconcilia.
+      debugPrint('❌ [Comandas] Error refrescando comanda $comandaId: $e');
+    }
+  }
 
   // ── Abrir / retomar ──────────────────────────────────────────────
 
@@ -593,7 +657,13 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
       if (!silencioso) {
         _ref.read(cartProvider.notifier).limpiarCarrito();
       }
-      await cargar();
+      // Si `silencioso == false`, `limpiarCarrito()` dispara
+      // `_desasignarPorCarritoVacio` (async, fire-and-forget). Esa ruta
+      // cierra la comanda y hace su propio `cargar()`. Aquí usamos el
+      // refresh puntual: si `_desasignarPorCarritoVacio` ya cerró la
+      // comanda, `_refrescarComandaEnState` la quita del listado; si aún
+      // no, la actualiza. Ambos caminos son correctos.
+      await _refrescarComandaEnState(activa.id);
       return true;
     } catch (e) {
       debugPrint('❌ [Comandas] Error guardando desde carrito: $e');
@@ -679,7 +749,7 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
     activa.items = items;
     activa.itemsNombres = items.map((i) => i.productoNombre).toList();
     await _isar.guardarComanda(activa);
-    await cargar();
+    await _refrescarComandaEnState(activa.id);
     return true;
   }
 
@@ -877,8 +947,9 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
     actualizada.meseroId = usuario?.id ?? actualizada.meseroId;
     actualizada.meseroNombre = usuario?.nombre ?? actualizada.meseroNombre;
 
-    await _isar.guardarComanda(actualizada);
-    await cargar();
+     await _isar.guardarComanda(actualizada);
+    await _refrescarComandaEnState(activa.id);
+
 
     // ── R.3.3 · Ticket de cocina ──
     //
@@ -1014,13 +1085,14 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
       pausado: true,
       motivo: normalizarMotivoPausa(motivo),
     );
-    if (id == -1) {
+     if (id == -1) {
       return _fallarBool('No se pudo pausar el plato.');
     }
 
-    await cargar();
+    await _refrescarComandaEnState(comandaId);
     return true;
   }
+
 
   /// Reanuda un plato pausado. Limpia `pausado`, `pausadoEn` y
   /// `motivoPausa`, y NO toca el `estadoPlato` (un plato pausado en
@@ -1043,11 +1115,11 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
       itemIndex,
       pausado: false,
     );
-    if (id == -1) {
+     if (id == -1) {
       return _fallarBool('No se pudo reanudar el plato.');
     }
 
-    await cargar();
+    await _refrescarComandaEnState(comandaId);
     return true;
   }
 
@@ -1160,7 +1232,7 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
         comanda.items.map((i) => i.productoNombre).toList();
 
     await _isar.guardarComanda(comanda);
-    await cargar();
+    await _refrescarComandaEnState(comandaId);
     return true;
   }
 
@@ -1196,7 +1268,7 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
     item.nota = _normalizarNota(nota);
 
     await _isar.guardarComanda(comanda);
-    await cargar();
+    await _refrescarComandaEnState(comandaId);
     return true;
   }
 
@@ -1247,7 +1319,7 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
     // G.3 · DESCUENTO DE RECETA AL ENTREGAR
     // ════════════════════════════════════════════════════════════════
     //
-    // Va DESPUÉS de confirmar la escritura y ANTES de `cargar()` para que
+    // Va DESPUÉS de confirmar la escritura y ANTES de `_setState` para que
     // el KDS ya tenga el estado nuevo cuando llegue el aviso.
     //
     // La idempotencia la da la matriz de transiciones de arriba, sin campos
@@ -1263,7 +1335,22 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
     // se puede deshacer. Si el descuento revienta, el estado se queda y se
     // avisa por `debugPrint`; propagar el error dejaría al cocinero creyendo
     // que el toque falló e insistiría, cuando lo que falló fue el stock.
-    if (nuevo == EstadoPlato.entregado) {
+     if (nuevo == EstadoPlato.entregado) {
+      // ⚠️ ORDEN: refrescar la comanda en `state` ANTES de setear el
+      // aviso. Si el aviso se pusiera primero, la UI mostraría "falta
+      // ingrediente X" mientras el plato todavía se ve `enPreparacion`
+      // (state viejo), y el cocinero pensaría que el toque no funcionó.
+      //
+      // Con `cargar()` este mismo orden era incorrecto, pero el bug
+      // quedaba tapado por los ~200ms que tardaba la recarga. Con
+      // `_refrescarComandaEnState` es ~30ms, así que hay que corregir
+      // el orden o el aviso se adelanta visiblemente al estado.
+      await _refrescarComandaEnState(comandaId);
+
+      // El descuento va en try/catch a propósito: el plato YA está
+      // entregado y eso no se puede deshacer. Si revienta, se avisa por
+      // debugPrint; propagar el error dejaría al cocinero creyendo que
+      // el toque falló e insistiría, cuando lo que falló fue el stock.
       try {
         final resultado = await _descontarRecetaDeItem(
           comanda.items[itemIndex],
@@ -1274,9 +1361,10 @@ class ComandasNotifier extends StateNotifier<ComandasState> {
       } catch (e) {
         debugPrint('⚠️ [Comandas] Error descontando receta: $e');
       }
+      return true;
     }
 
-    await cargar();
+    await _refrescarComandaEnState(comandaId);
     return true;
   }
 

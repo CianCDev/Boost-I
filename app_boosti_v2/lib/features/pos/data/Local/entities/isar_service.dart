@@ -3343,12 +3343,18 @@ Future<int> asignarDepartamentoAProductos(
         if (producto == null) continue;
         if (!sobrescribir && producto.departamentoId != null) continue;
 
-        producto.departamentoId = departamentoId;
+         producto.departamentoId = departamentoId;
         producto.updatedAt = DateTime.now();
-        // ⚠️ `sincronizado = false` fuerza que el `SyncService` lo reevalúe
-        // en el próximo push. El campo es local-only (no va en `toJson`),
-        // así que hoy no sale nada, pero si R.1b añade la columna a Supabase
-        // esto ya está preparado.
+        // Sincroniza el UUID si lo tenemos. Si el departamento no está
+        // sincronizado todavía, queda null y el push lo resuelve al vuelo
+        // desde `departamentoId` (ver
+        // `SyncService._obtenerSupabaseIdDepartamento`).
+        if (departamentoId != null) {
+          final depto = await isar.departamentoEntitys.get(departamentoId);
+          producto.departamentoSupabaseId = depto?.supabaseId;
+        } else {
+          producto.departamentoSupabaseId = null;
+        }
         producto.sincronizado = false;
         await isar.productoEntitys.put(producto);
         modificados++;

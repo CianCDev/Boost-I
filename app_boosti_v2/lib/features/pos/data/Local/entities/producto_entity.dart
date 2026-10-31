@@ -50,12 +50,27 @@ class ProductoEntity {
   /// vía que usa la UI de departamentos. Ver `docs/TODO.md`.
   int? departamentoId;
 
+  /// UUID del departamento en Supabase.
+  ///
+  /// Paired con [departamentoId] (que es el id LOCAL de Isar). Ambos
+  /// viajan en sync:
+  ///  · Push: se manda `departamentoSupabaseId` (UUID); si está null,
+  ///    `sincronizarProductosASupabase` lo resuelve desde `departamentoId`.
+  ///  · Pull: `descargarProductosDesdeSupabase` lee `departamento_id` (UUID)
+  ///    y lo guarda aquí; el `departamentoId` local se resuelve después
+  ///    (en el mismo pull si el departamento ya está en Isar, o al bajar
+  ///    los departamentos, vía reconcile).
+  ///
+  /// Es el mismo patrón que `marcaSupabaseId` y `proveedorSupabaseId`: un
+  /// UUID estable cross-device convive con el id autoincremental local.
+  String? departamentoSupabaseId;
+
+
   // ──────────────── R.4 · Recetas ────────────────
   //
-  // ⚠️ LOCAL-ONLY por la misma razón que `departamentoId` (D2a): ni
-  // `toJson()` ni `fromJson()`. Las columnas `es_ingrediente` y `unidad`
-  // no existen en Supabase; escribirlas rompería el push de productos.
-  // Cuando existan, se añaden al par.
+ /// Viaja a Supabase como `departamento_id` (UUID). El par es
+  /// `(departamentoId, departamentoSupabaseId)`: el id local es un
+  /// autoincremental de Isar (no cruza dispositivos), el UUID sí.
 
   /// Marca el producto como ingrediente de recetas.
   ///
@@ -165,6 +180,7 @@ class ProductoEntity {
     this.categoria = 'General',
     this.categoriaId,
     this.departamentoId,
+    this.departamentoSupabaseId,
     this.marca = '',
     this.marcaSupabaseId,
     this.proveedorId,
@@ -258,7 +274,11 @@ class ProductoEntity {
       proveedorNombre: json['proveedor_nombre'] as String? ?? '',
       proveedorTelefono: json['proveedor_telefono'] as String? ?? '',
       proveedorEmail: json['proveedor_email'] as String? ?? '',
-      proveedorDireccion: json['proveedor_direccion'] as String? ?? '',
+       proveedorDireccion: json['proveedor_direccion'] as String? ?? '',
+      // `departamento_id` es UUID (o null). El `departamentoId` local se
+      // resuelve aparte — ver `descargarProductosDesdeSupabase` y el
+      // reconcile en `descargarDepartamentosDesdeSupabase`.
+      departamentoSupabaseId: json['departamento_id'] as String?,
       stockMinimo: _asDouble(json['stock_minimo']) ?? 5.0,
       activo: json['activo'] as bool? ?? true,
       imagenUrl: json['imagen_url'] as String?,
@@ -297,6 +317,10 @@ class ProductoEntity {
       'es_pesado': esPesado,
       'categoria': categoria,
       'categoria_id': categoriaId,
+      // UUID del departamento; null si no aplica. La migración
+      // `20261031000001` crea la columna con `ON DELETE SET NULL`, así
+      // que enviar `null` es legítimo.
+      'departamento_id': departamentoSupabaseId,
       // ✅ Preferir UUID; fallback al int local legacy como String
       'proveedor_id': proveedorSupabaseId ??
           (proveedorId?.toString()),

@@ -166,6 +166,24 @@ class SyncService {
       return false;
     }
   }
+    /// Tenant del JWT para operaciones de LECTURA contra Supabase.
+  ///
+  /// Es la ÚNICA fuente de verdad para `.eq('tenant_id', ...)` en
+  /// descargas. RLS lee el mismo claim (`current_tenant_id()`), así que
+  /// filtrar por otro valor produce un falso negativo (0 filas legítimas)
+  /// o, si RLS falla, filas de otro tenant.
+  ///
+  /// ⚠️ NO usar `obtenerLocalActivo().supabaseId`: en la ventana del
+  /// hot-switch, `prefs['localActualId']` se escribe ANTES que
+  /// `refreshSession()`, así que el local activo y el JWT pueden apuntar
+  /// a tenants distintos.
+  ///
+  /// Devuelve `null` si el JWT no tiene claim. Los callers deben ABORTAR
+  /// la descarga en ese caso: deny-by-default.
+  String? _tenantParaLectura() {
+    final jwt = getTenantIdFromJWT();
+    return (jwt != null && jwt.isNotEmpty) ? jwt : null;
+  }
 
   // ============================================================
   // SUSCRIPCIONES REALTIME Y CALLBACK
@@ -835,11 +853,21 @@ Future<void> sincronizarUsuariosASupabase() async {
 /// se han vinculado a un Isar local).
 Future<int> limpiarUsuariosHuerfanosEnSupabase() async {
   try {
+    // ⚠️ CRÍTICO: este método BORRA usuarios. Sin filtro de tenant, si
+    // RLS fallara, borraría los huérfanos de TODOS los tenants.
+    final tenantUuid = _tenantParaLectura();
+    if (tenantUuid == null) {
+      debugPrint('⚠️ [SyncService] Sin JWT con tenant. '
+          'Limpieza de huérfanos omitida.');
+      return 0;
+    }
+
     final currentUuid = _supabase.auth.currentUser?.id;
 
     final huerfanos = await _supabase
         .from('usuarios')
         .select('id, nombre, email')
+        .eq('tenant_id', tenantUuid)
         .or('id_isar.is.null,id_isar.eq.0');
 
     if (huerfanos.isEmpty) {
@@ -1580,11 +1608,19 @@ Future<void> subirUsuariosPendientes() async {
                 ? 'SB-$nuevoUuid'
                 : 'AUTO-${p.id}')
             : p.codigoBarras;
+        // Resolver el UUID del departamento. Preferimos el que ya está
+        // guardado; si no, lo buscamos por id local. `null` si no aplica.
+        final departamentoUuid = (p.departamentoSupabaseId != null &&
+                p.departamentoSupabaseId!.isNotEmpty)
+            ? p.departamentoSupabaseId
+            : await _obtenerSupabaseIdDepartamento(p.departamentoId);
+
         final payload = <String, dynamic>{
           'uuid': nuevoUuid,
           'id_isar': p.id,
           'codigo_barras': codigoParaSupabase,
           'nombre': p.nombre,
+          'departamento_id': departamentoUuid,
           'marca': p.marca,
           'marca_supabase_id': p.marcaSupabaseId,
           'precio_unidad': _limpiarNumero(p.precioUnidad, 0.0),
@@ -1746,9 +1782,24 @@ Future<void> subirUsuariosPendientes() async {
                 ? imagenUrlNube
                 : imagenUrlLocal;
 
+          // `departamento_id` viene como UUID o null. Guardamos el UUID y
+        // tratamos de resolver el id local de Isar en el mismo pull: si el
+        // departamento ya está descargado, queda linkueado al instante.
+        // Si no, el reconcile que dispara `descargarDepartamentosDesdeSupabase`
+        // lo resuelve cuando ese departamento llegue.
+        final departamentoUuid = data['departamento_id'] as String?;
+        int? departamentoIdLocal;
+        if (departamentoUuid != null && departamentoUuid.isNotEmpty) {
+          final depto = await _isarService
+              .obtenerDepartamentoPorSupabaseId(departamentoUuid);
+          departamentoIdLocal = depto?.id;
+        }
+
         final productoNube = ProductoEntity()
           ..codigoBarras = codigoBarras
           ..nombre = data['nombre'] ?? ''
+          ..departamentoId = departamentoIdLocal
+          ..departamentoSupabaseId = departamentoUuid
           ..marca = data['marca'] as String? ?? ''
           ..marcaSupabaseId = data['marca_supabase_id'] as String?
           ..precioUnidad = _toDouble(data['precio_unidad'])
@@ -2560,7 +2611,17 @@ Future<void> subirUsuariosPendientes() async {
 
   Future<void> descargarCategoriasDesdeSupabase() async {
     try {
-      final response = await _supabase.from('categorias').select('*');
+      // Filtro por tenant obligatorio (ver :3882 patrón lotes).
+      final tenantUuid = _tenantParaLectura();
+      if (tenantUuid == null) {
+        debugPrint('⚠️ [SyncService] Sin JWT con tenant. '
+            'Descarga de categorías omitida.');
+        return;
+      }
+      final response = await _supabase
+          .from('categorias')
+          .select('*')
+          .eq('tenant_id', tenantUuid);
       debugPrint(
           '📥 [SyncService] Descargadas ${response.length} categorías desde Supabase');
 
@@ -3493,6 +3554,18 @@ Future<void> subirUsuariosPendientes() async {
         } else {
           await _isarService.guardarDepartamento(deptoNube);
           debugPrint('📥 Departamento ${deptoNube.nombre} creado');
+        }
+
+        // Reconcile: productos que ya tenían el UUID pero no el id local
+        // (porque bajaron ANTES que este departamento) quedan linkueados
+        // ahora. Se hace aquí y no en un paso separado para no iterar dos
+        // veces sobre toda la tabla de productos.
+        final idLocalDepto = deptoNube.id;
+        if (idLocalDepto > 0) {
+          await _reconciliarProductosConDepartamento(
+            supabaseId,
+            idLocalDepto,
+          );
         }
       }
       onDataChanged?.call();
@@ -4573,8 +4646,26 @@ Future<void> subirUsuariosPendientes() async {
       // nunca se ejecuta.
       int upsertados = 0, fallidos = 0;
 
-      final productosSupabase =
-          await _supabase.from('productos').select('id_isar, uuid');
+      // Filtro por tenant: `productos.id_isar` es UNIQUE global (bug
+      // latente multi-tenant), así que otro tenant puede tener un producto
+      // con el mismo id_isar y este Set lo daría por "ya existe" cuando
+      // para ESTE tenant no. Resultado: el lote no crea el producto y el
+      // upsert del lote falla por FK.
+      // Filtro por tenant: `productos.id_isar` es UNIQUE global (bug
+      // latente multi-tenant), así que otro tenant puede tener un producto
+      // con el mismo id_isar y este Set lo daría por "ya existe" cuando
+      // para ESTE tenant no. Resultado: el lote no crea el producto y el
+      // upsert del lote falla por FK.
+      final tenantUuid = _tenantParaLectura();
+      if (tenantUuid == null) {
+        debugPrint('⚠️ [SyncService] Sin JWT con tenant. '
+            'Sincronización de lotes omitida.');
+        return;
+      }
+      final productosSupabase = await _supabase
+          .from('productos')
+          .select('id_isar, uuid')
+          .eq('tenant_id', tenantUuid);
       final Set<int> idsProductosEnSupabase = {};
       for (var p in productosSupabase) {
         idsProductosEnSupabase.add(_toInt(p['id_isar']));
@@ -5045,10 +5136,15 @@ Future<void> subirMovimientosLotePendientes() async {
   ///     plato en el mismo dispositivo.
   Future<void> descargarRecetasDesdeSupabase() async {
     try {
-      final tenantUuid = getTenantIdFromJWT() ??
-          (await _isarService.obtenerLocalActivo())?.supabaseId;
-      if (tenantUuid == null || tenantUuid.isEmpty) {
-        debugPrint('⚠️ [SyncService] Sin tenant. '
+       // Igual que el resto de descargas: JWT-only, deny-by-default.
+      // Antes caía a `obtenerLocalActivo()` cuando el JWT no tenía
+      // tenant; en la ventana del hot-switch, local activo y JWT pueden
+      // apuntar a tenants distintos y RLS lee el JWT. Filtrar por local
+      // activo devolvía 0 filas legítimas (falso negativo) o, si RLS
+      // falla, filas de otro tenant.
+      final tenantUuid = _tenantParaLectura();
+      if (tenantUuid == null) {
+        debugPrint('⚠️ [SyncService] Sin JWT con tenant. '
             'Descarga de recetas omitida.');
         return;
       }
@@ -5219,6 +5315,19 @@ Future<void> subirMovimientosLotePendientes() async {
 
   Future<void> descargarTelegramConfigDesdeSupabase() async {
     try {
+      // ⚠️ CRÍTICO: filtro por tenant OBLIGATORIO.
+      //
+      // Sin este filtro, el select trae TODAS las configs de Telegram de
+      // todos los tenants visibles por RLS. Peor aún: el `bot_token` de
+      // cada config se DESENCRIPTA con `TelegramCrypto.decryptToken` y se
+      // guarda en Isar. Si RLS fallara, los tokens de bot de otros
+      // tenants quedarían en este dispositivo.
+      final tenantUuid = _tenantParaLectura();
+      if (tenantUuid == null) {
+        debugPrint('⚠️ [SyncService] Sin JWT con tenant. '
+            'Descarga de configs de Telegram omitida.');
+        return;
+      }
       // ✅ SELECT incluye bot_token (encriptado con AES-256-CBC del lado de la app)
       final response = await _supabase
           .from('telegram_config')
@@ -5228,6 +5337,7 @@ Future<void> subirMovimientosLotePendientes() async {
             'notificar_pedidos, comandos_permitidos, sincronizado, '
             'sync_status, fecha_sincronizacion, created_at, updated_at',
           )
+          .eq('tenant_id', tenantUuid)
           .order('id_isar', ascending: true);
 
       if (response.isEmpty) {
@@ -5501,11 +5611,19 @@ Future<void> subirMovimientosLotePendientes() async {
   // descargarPedidosDesdeSupabase
   // ============================================================
 
-  Future<void> descargarPedidosDesdeSupabase() async {
+ Future<void> descargarPedidosDesdeSupabase() async {
     try {
+      // Filtro por tenant obligatorio (ver :3882 patrón lotes).
+      final tenantUuid = _tenantParaLectura();
+      if (tenantUuid == null) {
+        debugPrint('⚠️ [SyncService] Sin JWT con tenant. '
+            'Descarga de pedidos omitida.');
+        return;
+      }
       final response = await _supabase
           .from('pedidos')
           .select('*, detalles_pedido(*), recepciones(*)')
+          .eq('tenant_id', tenantUuid)
           .order('fecha_pedido', ascending: false);
 
       if (response.isEmpty) {
@@ -5703,9 +5821,64 @@ Future<void> subirMovimientosLotePendientes() async {
     return null;
   }
 
+
   Future<String?> _obtenerSupabaseIdUsuario(int isarId) async {
     final usuario = await _isarService.obtenerUsuarioPorId(isarId);
     return usuario?.supabaseId;
+  }
+
+  /// UUID del departamento a partir de su id local de Isar.
+  ///
+  /// Espejo de `_obtenerSupabaseIdUsuario`. Existe para que
+  /// `sincronizarProductosASupabase` pueda resolver
+  /// `ProductoEntity.departamentoId` → `departamento_id` UUID cuando el
+  /// campo `departamentoSupabaseId` todavía está `null`.
+  ///
+  /// Devuelve `null` sin lanzar si el departamento no existe localmente o
+  /// nunca se sincronizó. El caller lo manda como `null` (columna nullable,
+  /// `ON DELETE SET NULL`).
+  Future<String?> _obtenerSupabaseIdDepartamento(int? isarId) async {
+    if (isarId == null || isarId <= 0) return null;
+    final depto = await _isarService.obtenerDepartamentoPorId(isarId);
+    final uuid = depto?.supabaseId;
+    return (uuid != null && uuid.isNotEmpty) ? uuid : null;
+  }
+
+  /// Linkea a los productos que ya tenían `departamentoSupabaseId` con el
+  /// id local del departamento recién descargado.
+  ///
+  /// ⚠️ Solo toca productos con `departamentoId == null`. Si ya tenían el
+  /// id resuelto, se respeta: no se pisan asignaciones hechas desde la UI.
+  Future<void> _reconciliarProductosConDepartamento(
+    String departamentoSupabaseId,
+    int departamentoIdLocal,
+  ) async {
+    try {
+      final isar = await _isarService.db;
+      final pendientes = await isar.productoEntitys
+          .filter()
+          .departamentoSupabaseIdEqualTo(departamentoSupabaseId)
+          .departamentoIdIsNull()
+          .findAll();
+      if (pendientes.isEmpty) return;
+      await isar.writeTxn(() async {
+        for (final p in pendientes) {
+          p.departamentoId = departamentoIdLocal;
+          await isar.productoEntitys.put(p);
+        }
+      });
+      debugPrint(
+        '🔗 [departamento] Resueltos ${pendientes.length} productos '
+        '→ $departamentoSupabaseId (id local $departamentoIdLocal)',
+      );
+    } catch (e, stack) {
+      debugPrint('❌ Error reconciliando productos con departamento: $e');
+      ErrorService.captureError(
+        e,
+        stack: stack,
+        hint: '_reconciliarProductosConDepartamento_fallo',
+      );
+    }
   }
 
   Future<int> _obtenerIsarIdLocal(String supabaseId) async {

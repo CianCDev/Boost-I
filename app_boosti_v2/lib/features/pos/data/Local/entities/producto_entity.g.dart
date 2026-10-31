@@ -72,138 +72,143 @@ const ProductoEntitySchema = CollectionSchema(
       name: r'departamentoId',
       type: IsarType.long,
     ),
-    r'esIngrediente': PropertySchema(
+    r'departamentoSupabaseId': PropertySchema(
       id: 11,
+      name: r'departamentoSupabaseId',
+      type: IsarType.string,
+    ),
+    r'esIngrediente': PropertySchema(
+      id: 12,
       name: r'esIngrediente',
       type: IsarType.bool,
     ),
     r'esPesado': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'esPesado',
       type: IsarType.bool,
     ),
     r'fechaSincronizacion': PropertySchema(
-      id: 13,
+      id: 14,
       name: r'fechaSincronizacion',
       type: IsarType.dateTime,
     ),
     r'imagenUrl': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'imagenUrl',
       type: IsarType.string,
     ),
     r'marca': PropertySchema(
-      id: 15,
+      id: 16,
       name: r'marca',
       type: IsarType.string,
     ),
     r'marcaSupabaseId': PropertySchema(
-      id: 16,
+      id: 17,
       name: r'marcaSupabaseId',
       type: IsarType.string,
     ),
     r'nombre': PropertySchema(
-      id: 17,
+      id: 18,
       name: r'nombre',
       type: IsarType.string,
     ),
     r'permiteVentaMayor': PropertySchema(
-      id: 18,
+      id: 19,
       name: r'permiteVentaMayor',
       type: IsarType.bool,
     ),
     r'precioMayor': PropertySchema(
-      id: 19,
+      id: 20,
       name: r'precioMayor',
       type: IsarType.double,
     ),
     r'precioMedioMayor': PropertySchema(
-      id: 20,
+      id: 21,
       name: r'precioMedioMayor',
       type: IsarType.double,
     ),
     r'precioUnidad': PropertySchema(
-      id: 21,
+      id: 22,
       name: r'precioUnidad',
       type: IsarType.double,
     ),
     r'proveedorDireccion': PropertySchema(
-      id: 22,
+      id: 23,
       name: r'proveedorDireccion',
       type: IsarType.string,
     ),
     r'proveedorEmail': PropertySchema(
-      id: 23,
+      id: 24,
       name: r'proveedorEmail',
       type: IsarType.string,
     ),
     r'proveedorId': PropertySchema(
-      id: 24,
+      id: 25,
       name: r'proveedorId',
       type: IsarType.long,
     ),
     r'proveedorNombre': PropertySchema(
-      id: 25,
+      id: 26,
       name: r'proveedorNombre',
       type: IsarType.string,
     ),
     r'proveedorSupabaseId': PropertySchema(
-      id: 26,
+      id: 27,
       name: r'proveedorSupabaseId',
       type: IsarType.string,
     ),
     r'proveedorTelefono': PropertySchema(
-      id: 27,
+      id: 28,
       name: r'proveedorTelefono',
       type: IsarType.string,
     ),
     r'sincronizado': PropertySchema(
-      id: 28,
+      id: 29,
       name: r'sincronizado',
       type: IsarType.bool,
     ),
     r'stock': PropertySchema(
-      id: 29,
+      id: 30,
       name: r'stock',
       type: IsarType.double,
     ),
     r'stockMinimo': PropertySchema(
-      id: 30,
+      id: 31,
       name: r'stockMinimo',
       type: IsarType.double,
     ),
     r'supabaseId': PropertySchema(
-      id: 31,
+      id: 32,
       name: r'supabaseId',
       type: IsarType.string,
     ),
     r'unidad': PropertySchema(
-      id: 32,
+      id: 33,
       name: r'unidad',
       type: IsarType.string,
     ),
     r'unidadesPorBulto': PropertySchema(
-      id: 33,
+      id: 34,
       name: r'unidadesPorBulto',
       type: IsarType.long,
     ),
     r'updatedAt': PropertySchema(
-      id: 34,
+      id: 35,
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
     r'updatedBy': PropertySchema(
-      id: 35,
+      id: 36,
       name: r'updatedBy',
       type: IsarType.long,
     ),
     r'updatedByName': PropertySchema(
-      id: 36,
+      id: 37,
       name: r'updatedByName',
       type: IsarType.string,
     ),
     r'version': PropertySchema(
-      id: 37,
+      id: 38,
       name: r'version',
       type: IsarType.long,
     )
@@ -277,6 +282,12 @@ int _productoEntityEstimateSize(
     }
   }
   {
+    final value = object.departamentoSupabaseId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final value = object.imagenUrl;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -333,33 +344,34 @@ void _productoEntitySerialize(
   writer.writeLong(offsets[8], object.createdBy);
   writer.writeString(offsets[9], object.createdByName);
   writer.writeLong(offsets[10], object.departamentoId);
-  writer.writeBool(offsets[11], object.esIngrediente);
-  writer.writeBool(offsets[12], object.esPesado);
-  writer.writeDateTime(offsets[13], object.fechaSincronizacion);
-  writer.writeString(offsets[14], object.imagenUrl);
-  writer.writeString(offsets[15], object.marca);
-  writer.writeString(offsets[16], object.marcaSupabaseId);
-  writer.writeString(offsets[17], object.nombre);
-  writer.writeBool(offsets[18], object.permiteVentaMayor);
-  writer.writeDouble(offsets[19], object.precioMayor);
-  writer.writeDouble(offsets[20], object.precioMedioMayor);
-  writer.writeDouble(offsets[21], object.precioUnidad);
-  writer.writeString(offsets[22], object.proveedorDireccion);
-  writer.writeString(offsets[23], object.proveedorEmail);
-  writer.writeLong(offsets[24], object.proveedorId);
-  writer.writeString(offsets[25], object.proveedorNombre);
-  writer.writeString(offsets[26], object.proveedorSupabaseId);
-  writer.writeString(offsets[27], object.proveedorTelefono);
-  writer.writeBool(offsets[28], object.sincronizado);
-  writer.writeDouble(offsets[29], object.stock);
-  writer.writeDouble(offsets[30], object.stockMinimo);
-  writer.writeString(offsets[31], object.supabaseId);
-  writer.writeString(offsets[32], object.unidad);
-  writer.writeLong(offsets[33], object.unidadesPorBulto);
-  writer.writeDateTime(offsets[34], object.updatedAt);
-  writer.writeLong(offsets[35], object.updatedBy);
-  writer.writeString(offsets[36], object.updatedByName);
-  writer.writeLong(offsets[37], object.version);
+  writer.writeString(offsets[11], object.departamentoSupabaseId);
+  writer.writeBool(offsets[12], object.esIngrediente);
+  writer.writeBool(offsets[13], object.esPesado);
+  writer.writeDateTime(offsets[14], object.fechaSincronizacion);
+  writer.writeString(offsets[15], object.imagenUrl);
+  writer.writeString(offsets[16], object.marca);
+  writer.writeString(offsets[17], object.marcaSupabaseId);
+  writer.writeString(offsets[18], object.nombre);
+  writer.writeBool(offsets[19], object.permiteVentaMayor);
+  writer.writeDouble(offsets[20], object.precioMayor);
+  writer.writeDouble(offsets[21], object.precioMedioMayor);
+  writer.writeDouble(offsets[22], object.precioUnidad);
+  writer.writeString(offsets[23], object.proveedorDireccion);
+  writer.writeString(offsets[24], object.proveedorEmail);
+  writer.writeLong(offsets[25], object.proveedorId);
+  writer.writeString(offsets[26], object.proveedorNombre);
+  writer.writeString(offsets[27], object.proveedorSupabaseId);
+  writer.writeString(offsets[28], object.proveedorTelefono);
+  writer.writeBool(offsets[29], object.sincronizado);
+  writer.writeDouble(offsets[30], object.stock);
+  writer.writeDouble(offsets[31], object.stockMinimo);
+  writer.writeString(offsets[32], object.supabaseId);
+  writer.writeString(offsets[33], object.unidad);
+  writer.writeLong(offsets[34], object.unidadesPorBulto);
+  writer.writeDateTime(offsets[35], object.updatedAt);
+  writer.writeLong(offsets[36], object.updatedBy);
+  writer.writeString(offsets[37], object.updatedByName);
+  writer.writeLong(offsets[38], object.version);
 }
 
 ProductoEntity _productoEntityDeserialize(
@@ -380,34 +392,35 @@ ProductoEntity _productoEntityDeserialize(
     createdBy: reader.readLongOrNull(offsets[8]),
     createdByName: reader.readStringOrNull(offsets[9]),
     departamentoId: reader.readLongOrNull(offsets[10]),
-    esIngrediente: reader.readBoolOrNull(offsets[11]),
-    esPesado: reader.readBoolOrNull(offsets[12]) ?? false,
-    fechaSincronizacion: reader.readDateTimeOrNull(offsets[13]),
+    departamentoSupabaseId: reader.readStringOrNull(offsets[11]),
+    esIngrediente: reader.readBoolOrNull(offsets[12]),
+    esPesado: reader.readBoolOrNull(offsets[13]) ?? false,
+    fechaSincronizacion: reader.readDateTimeOrNull(offsets[14]),
     id: id,
-    imagenUrl: reader.readStringOrNull(offsets[14]),
-    marca: reader.readStringOrNull(offsets[15]) ?? '',
-    marcaSupabaseId: reader.readStringOrNull(offsets[16]),
-    nombre: reader.readStringOrNull(offsets[17]) ?? '',
-    permiteVentaMayor: reader.readBoolOrNull(offsets[18]) ?? false,
-    precioMayor: reader.readDoubleOrNull(offsets[19]),
-    precioMedioMayor: reader.readDoubleOrNull(offsets[20]),
-    precioUnidad: reader.readDoubleOrNull(offsets[21]) ?? 0.0,
-    proveedorDireccion: reader.readStringOrNull(offsets[22]) ?? '',
-    proveedorEmail: reader.readStringOrNull(offsets[23]) ?? '',
-    proveedorId: reader.readLongOrNull(offsets[24]),
-    proveedorNombre: reader.readStringOrNull(offsets[25]) ?? '',
-    proveedorSupabaseId: reader.readStringOrNull(offsets[26]),
-    proveedorTelefono: reader.readStringOrNull(offsets[27]) ?? '',
-    sincronizado: reader.readBoolOrNull(offsets[28]) ?? false,
-    stock: reader.readDoubleOrNull(offsets[29]) ?? 0.0,
-    stockMinimo: reader.readDoubleOrNull(offsets[30]) ?? 5.0,
-    supabaseId: reader.readStringOrNull(offsets[31]),
-    unidad: reader.readStringOrNull(offsets[32]) ?? 'unidad',
-    unidadesPorBulto: reader.readLongOrNull(offsets[33]) ?? 1,
-    updatedAt: reader.readDateTimeOrNull(offsets[34]),
-    updatedBy: reader.readLongOrNull(offsets[35]),
-    updatedByName: reader.readStringOrNull(offsets[36]),
-    version: reader.readLongOrNull(offsets[37]) ?? 0,
+    imagenUrl: reader.readStringOrNull(offsets[15]),
+    marca: reader.readStringOrNull(offsets[16]) ?? '',
+    marcaSupabaseId: reader.readStringOrNull(offsets[17]),
+    nombre: reader.readStringOrNull(offsets[18]) ?? '',
+    permiteVentaMayor: reader.readBoolOrNull(offsets[19]) ?? false,
+    precioMayor: reader.readDoubleOrNull(offsets[20]),
+    precioMedioMayor: reader.readDoubleOrNull(offsets[21]),
+    precioUnidad: reader.readDoubleOrNull(offsets[22]) ?? 0.0,
+    proveedorDireccion: reader.readStringOrNull(offsets[23]) ?? '',
+    proveedorEmail: reader.readStringOrNull(offsets[24]) ?? '',
+    proveedorId: reader.readLongOrNull(offsets[25]),
+    proveedorNombre: reader.readStringOrNull(offsets[26]) ?? '',
+    proveedorSupabaseId: reader.readStringOrNull(offsets[27]),
+    proveedorTelefono: reader.readStringOrNull(offsets[28]) ?? '',
+    sincronizado: reader.readBoolOrNull(offsets[29]) ?? false,
+    stock: reader.readDoubleOrNull(offsets[30]) ?? 0.0,
+    stockMinimo: reader.readDoubleOrNull(offsets[31]) ?? 5.0,
+    supabaseId: reader.readStringOrNull(offsets[32]),
+    unidad: reader.readStringOrNull(offsets[33]) ?? 'unidad',
+    unidadesPorBulto: reader.readLongOrNull(offsets[34]) ?? 1,
+    updatedAt: reader.readDateTimeOrNull(offsets[35]),
+    updatedBy: reader.readLongOrNull(offsets[36]),
+    updatedByName: reader.readStringOrNull(offsets[37]),
+    version: reader.readLongOrNull(offsets[38]) ?? 0,
   );
   return object;
 }
@@ -442,58 +455,60 @@ P _productoEntityDeserializeProp<P>(
     case 10:
       return (reader.readLongOrNull(offset)) as P;
     case 11:
-      return (reader.readBoolOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 12:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
+      return (reader.readBoolOrNull(offset)) as P;
     case 13:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 14:
-      return (reader.readStringOrNull(offset)) as P;
-    case 15:
-      return (reader.readStringOrNull(offset) ?? '') as P;
-    case 16:
-      return (reader.readStringOrNull(offset)) as P;
-    case 17:
-      return (reader.readStringOrNull(offset) ?? '') as P;
-    case 18:
       return (reader.readBoolOrNull(offset) ?? false) as P;
+    case 14:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 15:
+      return (reader.readStringOrNull(offset)) as P;
+    case 16:
+      return (reader.readStringOrNull(offset) ?? '') as P;
+    case 17:
+      return (reader.readStringOrNull(offset)) as P;
+    case 18:
+      return (reader.readStringOrNull(offset) ?? '') as P;
     case 19:
-      return (reader.readDoubleOrNull(offset)) as P;
+      return (reader.readBoolOrNull(offset) ?? false) as P;
     case 20:
       return (reader.readDoubleOrNull(offset)) as P;
     case 21:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 22:
-      return (reader.readStringOrNull(offset) ?? '') as P;
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
     case 23:
       return (reader.readStringOrNull(offset) ?? '') as P;
     case 24:
-      return (reader.readLongOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset) ?? '') as P;
     case 25:
-      return (reader.readStringOrNull(offset) ?? '') as P;
-    case 26:
-      return (reader.readStringOrNull(offset)) as P;
-    case 27:
-      return (reader.readStringOrNull(offset) ?? '') as P;
-    case 28:
-      return (reader.readBoolOrNull(offset) ?? false) as P;
-    case 29:
-      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
-    case 30:
-      return (reader.readDoubleOrNull(offset) ?? 5.0) as P;
-    case 31:
-      return (reader.readStringOrNull(offset)) as P;
-    case 32:
-      return (reader.readStringOrNull(offset) ?? 'unidad') as P;
-    case 33:
-      return (reader.readLongOrNull(offset) ?? 1) as P;
-    case 34:
-      return (reader.readDateTimeOrNull(offset)) as P;
-    case 35:
       return (reader.readLongOrNull(offset)) as P;
-    case 36:
+    case 26:
+      return (reader.readStringOrNull(offset) ?? '') as P;
+    case 27:
       return (reader.readStringOrNull(offset)) as P;
+    case 28:
+      return (reader.readStringOrNull(offset) ?? '') as P;
+    case 29:
+      return (reader.readBoolOrNull(offset) ?? false) as P;
+    case 30:
+      return (reader.readDoubleOrNull(offset) ?? 0.0) as P;
+    case 31:
+      return (reader.readDoubleOrNull(offset) ?? 5.0) as P;
+    case 32:
+      return (reader.readStringOrNull(offset)) as P;
+    case 33:
+      return (reader.readStringOrNull(offset) ?? 'unidad') as P;
+    case 34:
+      return (reader.readLongOrNull(offset) ?? 1) as P;
+    case 35:
+      return (reader.readDateTimeOrNull(offset)) as P;
+    case 36:
+      return (reader.readLongOrNull(offset)) as P;
     case 37:
+      return (reader.readStringOrNull(offset)) as P;
+    case 38:
       return (reader.readLongOrNull(offset) ?? 0) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -1792,6 +1807,162 @@ extension ProductoEntityQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'departamentoSupabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'departamentoSupabaseId',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'departamentoSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'departamentoSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'departamentoSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'departamentoSupabaseId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'departamentoSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'departamentoSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdContains(String value,
+          {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'departamentoSupabaseId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdMatches(String pattern,
+          {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'departamentoSupabaseId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'departamentoSupabaseId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterFilterCondition>
+      departamentoSupabaseIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'departamentoSupabaseId',
+        value: '',
       ));
     });
   }
@@ -4565,6 +4736,20 @@ extension ProductoEntityQuerySortBy
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByDepartamentoSupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'departamentoSupabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      sortByDepartamentoSupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'departamentoSupabaseId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
       sortByEsIngrediente() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'esIngrediente', Sort.asc);
@@ -5085,6 +5270,20 @@ extension ProductoEntityQuerySortThenBy
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByDepartamentoSupabaseId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'departamentoSupabaseId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
+      thenByDepartamentoSupabaseIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'departamentoSupabaseId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QAfterSortBy>
       thenByEsIngrediente() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'esIngrediente', Sort.asc);
@@ -5544,6 +5743,14 @@ extension ProductoEntityQueryWhereDistinct
   }
 
   QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
+      distinctByDepartamentoSupabaseId({bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'departamentoSupabaseId',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<ProductoEntity, ProductoEntity, QDistinct>
       distinctByEsIngrediente() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'esIngrediente');
@@ -5815,6 +6022,13 @@ extension ProductoEntityQueryProperty
       departamentoIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'departamentoId');
+    });
+  }
+
+  QueryBuilder<ProductoEntity, String?, QQueryOperations>
+      departamentoSupabaseIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'departamentoSupabaseId');
     });
   }
 
