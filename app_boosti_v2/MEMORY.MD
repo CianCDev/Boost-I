@@ -1357,3 +1357,22 @@ Ratificado en los commits: TODO:270 (chip "Sin estación" en KDS, ya existía en
 - **Datos de prueba**: `supabase/seeds/20261030000001_datos_prueba_restaurante.sql`
   (zonas, 16 mesas, 3 estaciones) y
   `20261030000002_datos_prueba_catalogo.sql` (catálogo opcional).
+
+## Política OTA (desde 2026-10-31)
+
+- **Todo binario que se distribuya lleva OTA.** Android: workflow
+  `shorebird.yml` (`action=release` o `action=apk`), artifact
+  `boosti-<flavor>-apk`. Windows: workflow `shorebird-windows.yml`,
+  artifact `boosti-<flavor>-windows-ota`.
+- Se eliminó el job `build-windows` de `shorebird.yml`: generaba
+  `boosti-<flavor>-windows-sin-ota` con `flutter build windows`, que
+  nunca recibe parches. El `.exe` de Windows sale **solo** de
+  `shorebird-windows.yml`, que además falla si `flutter_windows.dll` no
+  trae la cadena `shorebird`.
+- `build-apk.yml` queda como respaldo y su artifact se renombró a
+  `boosti-<flavor>-apk-sin-ota`, para que no se confunda con el APK OTA.
+- **Windows no acepta `--flavor`**: el punto de entrada va por
+  `--target=lib/main_<flavor>.dart`. El patch debe compilarse con la
+  **misma versión de Flutter del release Windows**: `1.1.6+12` se publicó
+  con **3.47.8**, así que `shorebird-windows.yml` fija 3.47.8 (Android
+  sigue en 3.47.2).

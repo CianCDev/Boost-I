@@ -1,4 +1,10 @@
-name: Build APK Only
+name: Build APK SIN OTA (solo respaldo)
+
+# ⚠️ Este APK usa el motor ESTANDAR de Flutter: NUNCA recibe parches OTA.
+# Para distribuir a dispositivos usar el workflow "Shorebird Build" con
+# action=release o action=apk (artifact `boosti-<flavor>-apk`, firmado con
+# la llave real y con el motor de Shorebird).
+# Se conserva solo como respaldo si Shorebird esta caido.
 
 on:
   workflow_dispatch:
@@ -74,6 +80,7 @@ jobs:
       - name: Construir APK
         working-directory: ./app_boosti_v2
         run: |
+          echo "::warning::Este APK NO tiene OTA y no recibira parches."
           flutter build apk --release --flavor=${{ inputs.flavor }} --target=lib/main_${{ inputs.flavor }}.dart --dart-define-from-file=env.json
 
       - name: Localizar APK
@@ -90,7 +97,7 @@ jobs:
       - name: Subir APK como artifact
         uses: actions/upload-artifact@v4
         with:
-          name: boosti-${{ inputs.flavor }}-apk
+          name: boosti-${{ inputs.flavor }}-apk-sin-ota
           path: ${{ steps.find-apk.outputs.apk }}
           retention-days: 90
           compression-level: 0

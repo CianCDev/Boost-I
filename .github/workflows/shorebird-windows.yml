@@ -67,7 +67,10 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.2'
+          # Tiene que coincidir EXACTO con la version del release Windows
+          # que se va a parchear. El release 1.1.6+12 se publico con
+          # 3.47.8; Shorebird rechaza un patch compilado con otra version.
+          flutter-version: '3.47.8'
           channel: 'stable'
 
       - name: Setup Shorebird

@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'Acción (release, patch, apk o solo windows)'
+        description: 'Acción (release, patch o apk)'
         required: true
         default: 'patch'
         type: choice
@@ -26,7 +26,6 @@ on:
           - release
           - patch
           - apk
-          - windows
       flavor:
         description: 'Flavor (client o admin)'
         required: true
@@ -270,101 +269,5 @@ jobs:
         with:
           name: boosti-${{ inputs.flavor }}-aab
           path: ${{ steps.find-aab.outputs.aab }}
-          retention-days: 90
-          compression-level: 0
-
-  build-windows:
-    name: Build Windows Desktop (.exe)
-    runs-on: windows-latest
-    if: ${{ inputs.action == 'release' || inputs.action == 'windows' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: 'zulu'
-          java-version: '21'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.2'
-          channel: 'stable'
-
-      - name: Enable Git long paths
-        shell: pwsh
-        run: |
-          git config --system core.longpaths true
-          git config --system --get core.longpaths
-
-      - name: Materializar env.json
-        env:
-          ENV_JSON: ${{ secrets.ENV_JSON }}
-        shell: pwsh
-        run: |
-          $env:ENV_JSON | Out-File -Encoding utf8 -NoNewline app_boosti_v2/env.json
-          if (-not (Get-Content app_boosti_v2/env.json | ConvertFrom-Json)) {
-            Write-Error "ENV_JSON no es JSON valido"
-            exit 1
-          }
-
-      - name: Flutter pub get
-        working-directory: ./app_boosti_v2
-        run: flutter pub get
-
-      - name: Construir .exe de Windows
-        working-directory: ./app_boosti_v2
-        run: |
-          flutter build windows --release --target=lib/main_${{ inputs.flavor }}.dart --dart-define-from-file=env.json
-
-      - name: Localizar .exe compilado
-        id: find-exe
-        shell: pwsh
-        run: |
-          # Solo vale un .exe que este dentro de runner\Release: es la salida
-          # real de la app. build\windows contiene ademas herramientas del
-          # build (cppwinrt.exe, etc.) que no deben empaquetarse nunca.
-          $exe = Get-ChildItem "app_boosti_v2/build/windows" -Filter "*.exe" -File -Recurse -EA SilentlyContinue |
-            Where-Object { $_.DirectoryName -match '\\runner\\Release$' } |
-            Select-Object -First 1
-          if (-not $exe) {
-            Write-Error "No se encontro ningun .exe en build/windows/*/runner/Release"
-            exit 1
-          }
-          Write-Host "Encontrado: $($exe.FullName)"
-          "exe=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          "dir=$($exe.Directory.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-      # Un ejecutable de Flutter Windows NO es un solo archivo: necesita
-      # flutter_windows.dll y la carpeta data/ al lado. Se empaqueta la
-      # carpeta Release completa para que sea distribuible tal cual.
-      - name: Empaquetar carpeta Release en ZIP
-        id: zip-exe
-        shell: pwsh
-        run: |
-          $dir = "${{ steps.find-exe.outputs.dir }}"
-          $files = Get-ChildItem $dir -Recurse -File
-          Write-Host "Contenido a empaquetar ($($files.Count) archivos):"
-          $files | ForEach-Object { Write-Host ("  " + $_.FullName.Substring($dir.Length + 1)) }
-          if ($files.Count -lt 3) {
-            Write-Error "La carpeta Release tiene $($files.Count) archivos: demasiado pocos para ser una app Flutter Windows."
-            exit 1
-          }
-          $zip = Join-Path $env:RUNNER_TEMP "boosti-${{ inputs.flavor }}-windows.zip"
-          Compress-Archive -Path (Join-Path $dir "*") -DestinationPath $zip -CompressionLevel Optimal
-          Write-Host "ZIP generado: $zip ($([math]::Round((Get-Item $zip).Length / 1MB, 2)) MB)"
-          "zip=$zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-      # ⚠️ SIN OTA. Esta salida se compila con `flutter build windows`, que
-      # usa el motor estandar de Flutter: el .exe NUNCA recibe parches.
-      # Solo sirve como respaldo si Shorebird Windows esta roto.
-      # Para distribuir con OTA usar el workflow "Shorebird Windows (OTA)".
-      - name: Subir .exe Windows como artifact (sin OTA)
-        uses: actions/upload-artifact@v4
-        with:
-          name: boosti-${{ inputs.flavor }}-windows-sin-ota
-          path: ${{ steps.zip-exe.outputs.zip }}
           retention-days: 90
           compression-level: 0
