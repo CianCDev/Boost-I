@@ -10,9 +10,10 @@
 ## Pila Técnica y Versiones Base
 - **Flutter SDK:** 3.47.2 (Channel stable)
 - **Versión de la app:** `1.1.6+12` (`pubspec.yaml`)
-- **Release Android publicado:** `1.1.5+11` (el último de `shorebird
-  releases list`). `1.1.6+12` está en el `pubspec` pero **no** se publicó
-  como release: los parches OTA se publican contra `1.1.5+11`.
+- **Release Android publicado:** `1.1.6+12` (release `937576`, 2026-10-30).
+  El release anterior `1.1.5+11` (`912633`) sigue activo con sus patches
+  #1 y #2. Los patches **no cruzan** de release: para pasar de `1.1.5+11`
+  a `1.1.6+12` hay que instalar el APK nuevo.
 - **Nombre visible:** `BoostiPos` — vive en `android:label`, `inno_bundle.name`
   y 10 textos Dart. ⛔ `pubspec.yaml: name:` sigue siendo `app_boosti_v2`
   (es el paquete Dart; cambiarlo rompe todos los imports).
@@ -1338,9 +1339,8 @@ Ratificado en los commits: TODO:270 (chip "Sin estación" en KDS, ya existía en
 
 ## Patch OTA 2026-10-29 — restaurante multi-dispositivo
 
-- **Base**: release Android `1.1.5+11` (el unico publicado; `1.1.6+12` vive
-  en `pubspec.yaml` pero no se publico como release). Patch **#2**,
-  `762302`, track `stable`, flavor `client`.
+- **Base**: release Android `1.1.5+11`. Patch **#2**, `762302`, track
+  `stable`, flavor `client`.
 - **Run**: GitHub Actions #21 (`40985996729`) sobre `104a28e`, `success`
   en `Shorebird Patch`. Sin build local: el job corre en `ubuntu-latest`.
 - **Migraciones aplicadas por el owner** (2026-10-29):
@@ -1348,6 +1348,12 @@ Ratificado en los commits: TODO:270 (chip "Sin estación" en KDS, ya existía en
   `migration repair --status applied` posterior. Verificado: `zonas` y
   `mesas` con policy `tenant_isolation` (`tenant_id = current_tenant_id()`)
   y `relrowsecurity = true`.
-- **Pendiente**: los dispositivos deben tener instalado el APK de
-  `1.1.5+11`; el patch no cruza de release. Para que la app reporte
-  `1.1.6+12` hace falta un `release` nuevo + reinstalar el APK.
+- **Release `1.1.6+12`** (2026-10-30, release `937576`): el workflow
+  `shorebird.yml` con `action=release` generó el AAB, el APK re-firmado
+  con `boostikeystore.jks` y el `.exe` de Windows. 3 artifacts.
+  Ese APK es el que se instala para probar; **no se publicó un patch
+  encima** porque el release ya compila el mismo código (`0bccd0e`) y un
+  patch idéntico no aporta.
+- **Datos de prueba**: `supabase/seeds/20261030000001_datos_prueba_restaurante.sql`
+  (zonas, 16 mesas, 3 estaciones) y
+  `20261030000002_datos_prueba_catalogo.sql` (catálogo opcional).
