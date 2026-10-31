@@ -126,14 +126,15 @@ jobs:
           shorebird patch windows `
             --release-version $v `
             --target=lib/main_${{ inputs.flavor }}.dart `
+            --allow-asset-diffs `
             -- --dart-define-from-file=env.json
 
-      # ────────────────────────────────────────────────────────────────
+      # ──────────────────────────────────────────────────────────────
       # La razon de ser de este workflow. Si el .dll del motor NO trae el
       # updater, el .exe es indistinguible de uno compilado con
       # `flutter build windows` y no recibiria nunca un parche. Se falla
       # antes de empaquetar para no entregar un binario sin OTA.
-      # ────────────────────────────────────────────────────────────────
+      # ──────────────────────────────────────────────────────────────
       - name: Verificar que el motor trae el updater de Shorebird
         id: check-ota
         run: |
