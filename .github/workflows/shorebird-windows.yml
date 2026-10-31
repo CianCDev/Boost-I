@@ -19,7 +19,7 @@ on:
       action:
         description: 'Acción'
         required: true
-        default: 'release'
+        default: 'patch'
         type: choice
         options:
           - release
@@ -33,9 +33,9 @@ on:
           - client
           - admin
       release_version:
-        description: 'Solo para patch: versión ya publicada (ej. 1.1.5+11)'
+        description: 'Solo para patch: versión ya publicada'
         required: false
-        default: ''
+        default: '1.1.6+12'
 
 permissions:
   contents: read
