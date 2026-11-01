@@ -1376,3 +1376,36 @@ Ratificado en los commits: TODO:270 (chip "Sin estación" en KDS, ya existía en
   **misma versión de Flutter del release Windows**: `1.1.6+12` se publicó
   con **3.47.8**, así que `shorebird-windows.yml` fija 3.47.8 (Android
   sigue en 3.47.2).
+
+## Escáner remoto (2026-11-01)
+
+- **Qué hace**: un móvil lee un código de barras y lo manda a la PC por
+  un canal *broadcast* de Supabase Realtime
+  (`barcode_scanner_<tenantId>`). La PC lo recibe en el POS y lo agrega
+  al carrito.
+- **Archivos**:
+  - `lib/features/pos/presentation/providers/remote_scanner_provider.dart`
+    (`RemoteScannerNotifier`, `remoteScannerProvider`).
+  - `lib/features/pos/presentation/screens/mobile_remote_scanner_screen.dart`
+    (pantalla del móvil).
+  - `inventory_catalog_screen.dart`: `_iniciarEscuchaRemota()` y
+    `_procesarCodigoEscaneado()`.
+  - `menu_config.dart`: opción `escaner_remoto`, solo si
+    `ResponsiveHelper.isMobile(context)`.
+- **Quién escucha y quién envía**: la PC/tablet escucha (`!isMobile`);
+  el móvil solo envía. Si el móvil escuchara su propio canal,
+  `self: false` no lo salva: solo excluye al canal emisor, no a los
+  demás canales del mismo socket, y el código se agregaría dos veces.
+- ⚠️ **Payload de `onBroadcast`**: en `realtime_client 2.13.0` el
+  callback recibe el mensaje COMPLETO (`{event, payload, topic}`), no el
+  payload del emisor. El código está en `payload['payload']['code']`;
+  `_codigoDePayload()` acepta también `payload['code']` por si el
+  paquete lo aplana en el futuro.
+- `subscribe()` solo se puede llamar una vez por instancia de canal;
+  `joinedOnce` es `@internal`. El notifier lleva `_envioSuscrito`.
+- Sin migración ni dependencia nueva: usa `mobile_scanner` y
+  `supabase_flutter` que ya estaban en `pubspec.yaml`.
+- **Windows OTA**: el run `41196264617` falló en "Patch Windows" por
+  *asset changes* (`MaterialIcons-Regular.otf`). Ya está corregido en
+  `0e5a790` con `--allow-asset-diffs` en
+  `shorebird-windows.yml:129`; el run fallido era sobre `0997ff9`.

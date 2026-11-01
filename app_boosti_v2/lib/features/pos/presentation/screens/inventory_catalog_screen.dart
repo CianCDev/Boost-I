@@ -18,6 +18,7 @@ import '../controllers/panel_controller.dart';
 import '../providers/catalog_provider.dart';
 import '../providers/catalog/recent_products_provider.dart';
 import '../providers/bcv_provider.dart';
+import '../providers/remote_scanner_provider.dart';
 import '../providers/usuario_provider.dart';
 import '../providers/panel/panel_provider.dart';
 import '../widgets/catalog/category_chips.dart';
@@ -67,6 +68,9 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   StreamSubscription<double>? _weightSubscription;
   Timer? _pollingTimer;
 
+  /// Códigos que llegan del móvil por Supabase Realtime (escáner remoto).
+  StreamSubscription<String>? _remoteScannerSub;
+
   /// Referencia al Navigator del panel de productos top (F3).
   /// Se usa para poder cerrarlo con otra pulsación de F3.
   NavigatorState? _topProductsNavigator;
@@ -102,12 +106,15 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       ref.read(bcvProvider).actualizarTasa();
       // Cargar carritos parkeados del usuario
       final usuario = ref.read(usuarioActualProvider);
       if (usuario != null) {
         ref.read(cartSessionsProvider.notifier).cargarSesiones(usuario.id);
       }
+      // Escáner remoto: la PC recibe los códigos que manda el móvil.
+      _iniciarEscuchaRemota();
     });
 
     _iniciarPolling();
@@ -117,11 +124,29 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_manejarTecladoFisico);
     _pollingTimer?.cancel();
+    _remoteScannerSub?.cancel();
     _scaleService.dispose();
     _weightSubscription?.cancel();
     _searchFocusNode.dispose();
     _animationController.dispose();
     super.dispose();
+  }
+
+  /// El móvil ENVÍA y la PC RECIBE.
+  ///
+  /// Se excluye al móvil a propósito: el `self: false` de Realtime solo
+  /// excluye al canal emisor, no a los demás canales del mismo socket.
+  /// Si un móvil escuchara el canal que él mismo alimenta, cada escaneo
+  /// se agregaría dos veces al carrito.
+  void _iniciarEscuchaRemota() {
+    if (!mounted || ResponsiveHelper.isMobile(context)) return;
+
+    final notifier = ref.read(remoteScannerProvider.notifier);
+    notifier.startListening();
+    _remoteScannerSub = notifier.onCodeReceived.listen((codigo) {
+      if (!mounted) return;
+      unawaited(_procesarCodigoEscaneado(codigo, desdeMovil: true));
+    });
   }
 
   void _iniciarPolling() {
@@ -539,9 +564,25 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
       builder: (_) => const BarcodeScannerDialog(),
     );
     if (codigo == null || codigo.isEmpty) return;
+    await _procesarCodigoEscaneado(codigo);
+  }
+
+  /// Agrega al carrito el producto del [codigo].
+  ///
+  /// Lo comparten el escáner local ([_scanBarcode]) y el escáner remoto
+  /// (el móvil manda el código por Realtime). [desdeMovil] solo cambia
+  /// los mensajes, para que el cajero sepa de dónde vino el código.
+  Future<void> _procesarCodigoEscaneado(
+    String codigo, {
+    bool desdeMovil = false,
+  }) async {
+    final limpio = codigo.trim();
+    if (limpio.isEmpty || !mounted) return;
 
     final actions = ref.read(catalogActionsProvider);
-    final producto = await actions.buscarProductoPorCodigo(codigo.trim());
+    final producto = await actions.buscarProductoPorCodigo(limpio);
+
+    if (!mounted) return;
 
     if (producto != null) {
       final factor = ref.read(ultimoFactorProvider);
@@ -554,8 +595,14 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
         final cantidad = factor > 0 ? factor : 1.0;
         if (existingIndex != -1) {
           cartNotifier.sumarCantidad(existingIndex, cantidad);
-          _snack('${producto.nombre} +${cantidad.toStringAsFixed(0)} unidades',
-              mintLeaf);
+          _snack(
+            desdeMovil
+                ? '📡 Desde móvil: ${producto.nombre} '
+                    '+${cantidad.toStringAsFixed(0)} unidades'
+                : '${producto.nombre} '
+                    '+${cantidad.toStringAsFixed(0)} unidades',
+            mintLeaf,
+          );
         } else {
           // `producto` es un `ProductoEntity` (lo devuelve
           // `buscarProductoPorCodigo`), NO un `ProductItem`. Antes había un
@@ -577,7 +624,12 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
             // R.3.2: miniatura del plato en el KDS.
             imagenUrl: producto.imagenUrl,
           );
-          _snack('${producto.nombre} agregado al carrito', mintLeaf);
+          _snack(
+            desdeMovil
+                ? '📡 Agregado desde móvil: ${producto.nombre}'
+                : '${producto.nombre} agregado al carrito',
+            mintLeaf,
+          );
         }
       }
       return;

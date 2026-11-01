@@ -13,6 +13,7 @@ import '../screens/empleados/employees_screen.dart';
 import '../screens/gastos_screen.dart';
 import '../screens/locales/locales_screen.dart';
 import '../screens/lotes_screen.dart';
+import '../screens/mobile_remote_scanner_screen.dart';
 import '../screens/pedido/pedidos_screen.dart';
 import '../screens/proveedores/proveedores_screen.dart';
 import '../screens/restaurante/kds_screen.dart';
@@ -26,6 +27,7 @@ import '../widgets/menu/diagnostico_lote_dialog.dart';
 import '../widgets/monitor_empleado_widget.dart';
 import '../widgets/printer_selection_widget.dart';
 import '../screens/inventory_screen.dart';
+import '../utils/responsive_helper.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // MODELOS DE MENÚ
@@ -137,6 +139,7 @@ class MenuBuilder {
       'punto_venta' => Permissions.canAccessPos(role),
       'mesas' => Permissions.canAccessPos(role),
       'kds' => Permissions.canAccessPos(role),
+      'escaner_remoto' => Permissions.canAccessPos(role),
       _ => true,
     };
   }
@@ -285,6 +288,22 @@ class MenuBuilder {
               MaterialPageRoute(builder: (_) => const KdsScreen()),
             ),
           ),
+          // Escáner remoto: SOLO en móvil. El móvil envía el código y la
+          // PC lo recibe en el POS (`inventory_catalog_screen.dart`).
+          if (ResponsiveHelper.isMobile(context))
+            MenuOption(
+              id: 'escaner_remoto',
+              icon: Icons.qr_code_scanner_rounded,
+              title: 'Escáner Remoto',
+              subtitle: 'Usar este móvil como lector para la PC',
+              color: const Color(0xFF0EA5E9),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const MobileRemoteScannerScreen(),
+                ),
+              ),
+            ),
           MenuOption(
             id: 'ventas_mayor',
             icon: Icons.warehouse_rounded,
