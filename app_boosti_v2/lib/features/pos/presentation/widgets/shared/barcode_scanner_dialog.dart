@@ -1,5 +1,6 @@
 // lib/features/pos/presentation/widgets/common/barcode_scanner_dialog.dart
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -12,19 +13,43 @@ class BarcodeScannerDialog extends StatefulWidget {
 
 class _BarcodeScannerDialogState extends State<BarcodeScannerDialog>
     with SingleTickerProviderStateMixin {
-  final MobileScannerController _controller = MobileScannerController(
-    facing: CameraFacing.back,
-    torchEnabled: false,
-  );
+  /// Solo se crea en móvil: en Desktop/Web `mobile_scanner` no tiene
+  /// implementación nativa y la cámara lanza excepción.
+  MobileScannerController? _controller;
+
+  /// Controlador del ingreso manual (Desktop/Web).
+  final TextEditingController _codigoController = TextEditingController();
+  final FocusNode _codigoFocusNode = FocusNode();
+
   bool _isTorchOn = false;
   bool _isProcessing = false;
 
   late AnimationController _scanAnimation;
   late Animation<double> _scanPosition;
 
+  /// `true` cuando no hay cámara utilizable: Windows, Linux, macOS y web.
+  ///
+  /// Se usa `defaultTargetPlatform` en lugar de `Platform.isWindows` para
+  /// no importar `dart:io` (rompe la compilación web) y para respetar
+  /// `debugDefaultTargetPlatformOverride` en tests.
+  bool get _sinCamaraNativa =>
+      kIsWeb ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux ||
+      defaultTargetPlatform == TargetPlatform.macOS;
+
   @override
   void initState() {
     super.initState();
+    // 🔧 El controlador de cámara NO se crea en Desktop: instanciarlo y
+    // montar `MobileScanner` termina en `MissingPluginException` /
+    // crash por falta de implementación nativa.
+    if (!_sinCamaraNativa) {
+      _controller = MobileScannerController(
+        facing: CameraFacing.back,
+        torchEnabled: false,
+      );
+    }
     _scanAnimation = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -38,13 +63,18 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog>
   void dispose() {
     // 🔧 Cerrar el controlador de forma segura para evitar el
     // MissingPluginException al llamar a stop() durante el dispose.
-    _controller.dispose();
+    _controller?.dispose();
+    _codigoController.dispose();
+    _codigoFocusNode.dispose();
     _scanAnimation.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // En Desktop/Web no hay cámara: se pide el código a mano.
+    if (_sinCamaraNativa) return _buildIngresoManual(context);
+
     // 🔧 Usar LayoutBuilder para adaptar el tamaño del marco de escaneo
     // y evitar desbordamientos en pantallas pequeñas.
     return LayoutBuilder(
@@ -234,7 +264,7 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog>
                       icon: _isTorchOn ? Icons.flash_on : Icons.flash_off,
                       onPressed: () {
                         setState(() => _isTorchOn = !_isTorchOn);
-                        _controller.toggleTorch();
+                        _controller?.toggleTorch();
                       },
                     ),
                   ],
@@ -269,8 +299,8 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog>
                         children: [
                           Icon(
                             Icons.qr_code_scanner_rounded,
-                            color: const Color(0xFF10B981)
-                                .withValues(alpha: 0.8),
+                            color:
+                                const Color(0xFF10B981).withValues(alpha: 0.8),
                             size: 20,
                           ),
                           const SizedBox(width: 10),
@@ -299,6 +329,84 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog>
     );
   }
 
+  /// Diálogo de reemplazo para Desktop/Web: no hay cámara, así que el
+  /// código se escribe a mano (o lo escribe un lector USB, que se comporta
+  /// como teclado).
+  Widget _buildIngresoManual(BuildContext context) {
+    void confirmar() {
+      final codigo = _codigoController.text.trim();
+      if (codigo.isEmpty) return;
+      Navigator.of(context).pop(codigo);
+    }
+
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1A1F2E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      titleTextStyle: const TextStyle(
+        color: Colors.white,
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+      ),
+      title: const Row(
+        children: [
+          Icon(Icons.keyboard_alt_outlined, color: Color(0xFF10B981)),
+          SizedBox(width: 10),
+          Flexible(child: Text('Ingresar código')),
+        ],
+      ),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'La cámara no está disponible en este equipo. Escribe el '
+              'código o usa un lector USB.',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _codigoController,
+              focusNode: _codigoFocusNode,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => confirmar(),
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Código de barras',
+                hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.4),
+                ),
+                prefixIcon:
+                    const Icon(Icons.qr_code_2, color: Color(0xFF10B981)),
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.06),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: confirmar,
+          child: const Text('Aceptar'),
+        ),
+      ],
+    );
+  }
+
   // Widget para esquinas decorativas
   Widget _buildCorner({
     required bool top,
@@ -315,26 +423,16 @@ class _BarcodeScannerDialogState extends State<BarcodeScannerDialog>
         height: 24,
         decoration: BoxDecoration(
           border: Border(
-            top: top
-                ? BorderSide(color: color, width: 3)
-                : BorderSide.none,
-            bottom: !top
-                ? BorderSide(color: color, width: 3)
-                : BorderSide.none,
-            left: left
-                ? BorderSide(color: color, width: 3)
-                : BorderSide.none,
-            right: !left
-                ? BorderSide(color: color, width: 3)
-                : BorderSide.none,
+            top: top ? BorderSide(color: color, width: 3) : BorderSide.none,
+            bottom: !top ? BorderSide(color: color, width: 3) : BorderSide.none,
+            left: left ? BorderSide(color: color, width: 3) : BorderSide.none,
+            right: !left ? BorderSide(color: color, width: 3) : BorderSide.none,
           ),
           borderRadius: BorderRadius.only(
             topLeft: top && left ? const Radius.circular(8) : Radius.zero,
             topRight: top && !left ? const Radius.circular(8) : Radius.zero,
-            bottomLeft:
-                !top && left ? const Radius.circular(8) : Radius.zero,
-            bottomRight:
-                !top && !left ? const Radius.circular(8) : Radius.zero,
+            bottomLeft: !top && left ? const Radius.circular(8) : Radius.zero,
+            bottomRight: !top && !left ? const Radius.circular(8) : Radius.zero,
           ),
         ),
       ),

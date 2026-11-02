@@ -1700,7 +1700,7 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role, FeatureFlags flags) {
     items.add(_QuickAccessItem(
       icon: Icons.telegram,
       title: 'Bot de Telegram',
-      subtitle: 'Notificaciones al móvil',
+      subtitle: 'Notificaciones al celular',
       color: const Color(0xFF0EA5E9),
       screenBuilder: () => const TelegramConfigScreen(),
     ));

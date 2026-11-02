@@ -5,7 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../providers/remote_scanner_provider.dart';
 
-/// Escáner del móvil: lee un código y lo manda a la PC por Supabase
+/// Escáner del celular: lee un código y lo manda a la PC por Supabase
 /// Realtime. La PC lo recibe en `InventoryCatalogScreen` y lo agrega al
 /// carrito.
 ///
@@ -118,8 +118,8 @@ class _MobileRemoteScannerScreenState
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
-                'Apuntá al código de barras. La PC lo recibe y lo agrega '
-                'al carrito al instante.',
+                'Apunta al código de barras. La computadora lo recibe y lo '
+                'agrega al carrito al instante.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white70, fontSize: 13),
               ),

@@ -7,27 +7,27 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../utils/tenant_utils.dart';
 
-/// Escáner remoto: un móvil envía códigos de barras y la PC (POS) los
+/// Escáner remoto: un celular envía códigos de barras y la PC (POS) los
 /// recibe por un canal *broadcast* de Supabase Realtime.
 ///
 /// El canal es por tenant (`barcode_scanner_<tenantId>`), así que dos
 /// locales distintos nunca se cruzan aunque compartan proyecto.
 ///
 /// - PC / tablet: [startListening] y escucha [onCodeReceived].
-/// - Móvil: [sendCode] y no escucha (ver la nota en
+/// - Celular: [sendCode] y no escucha (ver la nota en
 ///   `inventory_catalog_screen.dart`: un equipo que envía y escucha a la
 ///   vez se agregaría su propio código al carrito).
 class RemoteScannerNotifier extends StateNotifier<bool> {
   RemoteScannerNotifier() : super(false);
 
   /// Evento del canal. Cambiarlo rompe la compatibilidad entre versiones
-  /// de la app: móvil y PC tienen que usar el mismo string.
+  /// de la app: celular y PC tienen que usar el mismo string.
   static const String _evento = 'barcode_scanned';
 
   /// Canal del dispositivo que RECIBE (PC).
   RealtimeChannel? _canalEscucha;
 
-  /// Canal del dispositivo que ENVÍA (móvil).
+  /// Canal del dispositivo que ENVÍA (celular).
   ///
   /// Se reutiliza entre envíos: `subscribe()` solo se puede llamar una
   /// vez por instancia y lanza si se repite
@@ -90,26 +90,29 @@ class RemoteScannerNotifier extends StateNotifier<bool> {
 
     canal
         .onBroadcast(
-          event: _evento,
-          callback: (payload) {
-            if (!mounted) return;
-            final codigo = _codigoDePayload(payload);
-            if (codigo == null) return;
-            debugPrint('📡 [RemoteScanner] Código recibido: $codigo');
-            _codigos.add(codigo);
-          },
-        )
+      event: _evento,
+      callback: (payload) {
+        // Log de diagnóstico: muestra el mensaje crudo del servidor.
+        // Si el código no se encuentra, este es el que dice dónde está.
+        debugPrint('📡 [RemoteScanner] RAW payload: $payload');
+        if (!mounted) return;
+        final codigo = _codigoDePayload(payload);
+        if (codigo == null) return;
+        debugPrint('📡 [RemoteScanner] Código recibido: $codigo');
+        _codigos.add(codigo);
+      },
+    )
         .subscribe((status, error) {
-          if (!mounted) return;
-          state = status == RealtimeSubscribeStatus.subscribed;
-          debugPrint(
-            '📡 [RemoteScanner] Estado: $status'
-            '${error != null ? ' · $error' : ''}',
-          );
-        });
+      if (!mounted) return;
+      state = status == RealtimeSubscribeStatus.subscribed;
+      debugPrint(
+        '📡 [RemoteScanner] Estado: $status'
+        '${error != null ? ' · $error' : ''}',
+      );
+    });
   }
 
-  /// Envía un código desde el móvil.
+  /// Envía un código desde el celular.
   ///
   /// Devuelve `true` si el mensaje salió. No espera confirmación del
   /// receptor: broadcast es *fire-and-forget*.

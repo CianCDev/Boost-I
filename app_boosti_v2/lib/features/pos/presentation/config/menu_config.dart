@@ -288,14 +288,14 @@ class MenuBuilder {
               MaterialPageRoute(builder: (_) => const KdsScreen()),
             ),
           ),
-          // Escáner remoto: SOLO en móvil. El móvil envía el código y la
-          // PC lo recibe en el POS (`inventory_catalog_screen.dart`).
+          // Escáner remoto: SOLO en celular. El celular envía el código y
+          // la PC lo recibe en el POS (`inventory_catalog_screen.dart`).
           if (ResponsiveHelper.isMobile(context))
             MenuOption(
               id: 'escaner_remoto',
               icon: Icons.qr_code_scanner_rounded,
               title: 'Escáner Remoto',
-              subtitle: 'Usar este móvil como lector para la PC',
+              subtitle: 'Usar este celular como lector para la computadora',
               color: const Color(0xFF0EA5E9),
               onTap: () => Navigator.push(
                 context,
@@ -543,7 +543,7 @@ class MenuBuilder {
             id: 'telegram',
             icon: Icons.telegram,
             title: 'Bot de Telegram',
-            subtitle: 'Notificaciones al móvil',
+            subtitle: 'Notificaciones al celular',
             color: const Color(0xFF0EA5E9),
             onTap: () => Navigator.push(
               context,

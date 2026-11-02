@@ -1,5 +1,27 @@
 ﻿## 🔴 BLOQUEANTE PRE-PRODUCCIÓN (agregado 2026-10-09)
 
+## ✅ Sesión 2026-10-31 (Cierre de Deudas Críticas y UI)
+
+**Infraestructura y Deploy:**
+- [x] Patch OTA Android (APK) emitido y verificado.
+- [x] Patch OTA Windows (EXE) emitido (corregido workflow para usar `patch` en vez de `release`).
+- [x] `git pull --rebase` aplicado para resolver desincronización con el remoto.
+
+**Rendimiento y Lógica:**
+- [x] **Fix del KDS (`cargar()`):** Implementado `_refrescarComandaEnState` para evitar recargas globales en cada toque. Latencia reducida a ~30ms.
+- [x] **Seguridad Multi-tenant:** Filtros `.eq('tenant_id')` aplicados a todas las descargas de `sync_service.dart` (categorías, pedidos, telegram, lotes).
+- [x] **`departamento_id`:** Columna creada en Supabase, sincronización bidireccional y reconciliación de productos.
+- [x] **Sync de Lotes:** Arreglado el `id_isar` inmutable para productos existentes (elimina error FK 23503).
+- [x] **Lotes Huérfanos:** Borrado forzado de lotes cuyo producto ya no existe.
+- [x] **Colchón Offline (Fase 1):** Lógica de riesgos, banners de advertencia, badges `wifi_off` y bloqueo de venta offline con stock 0.
+
+**UI / UX:**
+- [x] **Logo del Local:** Subida en Ajustes (solo admin) y renderizado en tickets.
+- [x] **Filtros del Catálogo:** Rediseño de 2 niveles (Macro/Micro), deduplicación de categorías, animaciones de transición (`AnimatedSwitcher`) y eliminación de parpadeos.
+- [x] **Navegación Cruzada:** Botones en el AppBar para ir de Gastos -> Historial de Ventas y viceversa.
+- [x] **Fix Diálogo Logo:** Contenedor ajustado al contenido (sin espacio vacío).
+- [x] **Fix Constraint BD:** Aplicado `CHECK (cantidad_restante <= cantidad_inicial)` en `lotes`.
+
 ## ✅ Sesión 2026-10-31 (Deudas Técnicas Críticas)
 
 - **Seguridad Multi-tenant:** Cerrados los últimos huecos de lecturas

@@ -68,7 +68,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   StreamSubscription<double>? _weightSubscription;
   Timer? _pollingTimer;
 
-  /// Códigos que llegan del móvil por Supabase Realtime (escáner remoto).
+  /// Códigos que llegan del celular por Supabase Realtime (escáner remoto).
   StreamSubscription<String>? _remoteScannerSub;
 
   /// Referencia al Navigator del panel de productos top (F3).
@@ -113,7 +113,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
       if (usuario != null) {
         ref.read(cartSessionsProvider.notifier).cargarSesiones(usuario.id);
       }
-      // Escáner remoto: la PC recibe los códigos que manda el móvil.
+      // Escáner remoto: la PC recibe los códigos que manda el celular.
       _iniciarEscuchaRemota();
     });
 
@@ -132,11 +132,11 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     super.dispose();
   }
 
-  /// El móvil ENVÍA y la PC RECIBE.
+  /// El celular ENVÍA y la PC RECIBE.
   ///
-  /// Se excluye al móvil a propósito: el `self: false` de Realtime solo
+  /// Se excluye al celular a propósito: el `self: false` de Realtime solo
   /// excluye al canal emisor, no a los demás canales del mismo socket.
-  /// Si un móvil escuchara el canal que él mismo alimenta, cada escaneo
+  /// Si un celular escuchara el canal que él mismo alimenta, cada escaneo
   /// se agregaría dos veces al carrito.
   void _iniciarEscuchaRemota() {
     if (!mounted || ResponsiveHelper.isMobile(context)) return;
@@ -570,7 +570,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
   /// Agrega al carrito el producto del [codigo].
   ///
   /// Lo comparten el escáner local ([_scanBarcode]) y el escáner remoto
-  /// (el móvil manda el código por Realtime). [desdeMovil] solo cambia
+  /// (el celular manda el código por Realtime). [desdeMovil] solo cambia
   /// los mensajes, para que el cajero sepa de dónde vino el código.
   Future<void> _procesarCodigoEscaneado(
     String codigo, {
@@ -597,7 +597,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
           cartNotifier.sumarCantidad(existingIndex, cantidad);
           _snack(
             desdeMovil
-                ? '📡 Desde móvil: ${producto.nombre} '
+                ? '📡 Desde celular: ${producto.nombre} '
                     '+${cantidad.toStringAsFixed(0)} unidades'
                 : '${producto.nombre} '
                     '+${cantidad.toStringAsFixed(0)} unidades',
@@ -626,7 +626,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
           );
           _snack(
             desdeMovil
-                ? '📡 Agregado desde móvil: ${producto.nombre}'
+                ? '📡 Agregado desde celular: ${producto.nombre}'
                 : '${producto.nombre} agregado al carrito',
             mintLeaf,
           );
