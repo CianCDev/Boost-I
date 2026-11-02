@@ -4715,6 +4715,12 @@ Future<bool> eliminarLocal(int id) async {
               0.0, (sum, lote) => sum + lote.cantidadRestante);
           final producto = await isar.productoEntitys.get(id);
           if (producto == null) continue;
+
+          // En un dispositivo nuevo todavía puede no haber lotes locales.
+          // Conserva el stock remoto de fallback hasta que los lotes estén
+          // disponibles para calcular el valor definitivo.
+          if (lotes.isEmpty && producto.stock > 0) continue;
+
           if (producto.stock == nuevoStock) continue;
           producto.stock = nuevoStock;
           await isar.productoEntitys.put(producto);

@@ -1832,11 +1832,10 @@ class SyncService {
           ..marca = data['marca'] as String? ?? ''
           ..marcaSupabaseId = data['marca_supabase_id'] as String?
           ..precioUnidad = _toDouble(data['precio_unidad'])
-          // ⚠️ NO se toma `stock` de la nube. Con el modelo "lotes = fuente
-          // única de verdad", `producto.stock` es un cache derivado que se
-          // recalcula con `IsarService.recalcularStockDe` DESPUÉS de
-          // descargar los lotes. Tomarlo de la nube reintroducía el
-          // conflicto de las dos verdades.
+          // El stock remoto es el fallback inicial mientras este dispositivo
+          // todavía no tiene lotes locales. El recálculo posterior de lotes
+          // reemplaza este valor cuando la fuente local ya está disponible.
+          ..stock = _toDouble(data['stock'], 0.0)
           ..stockMinimo = _toDouble(data['stock_minimo'], 5.0)
           ..esPesado = data['es_pesado'] ?? false
           ..activo = data['activo'] ?? true
@@ -1886,10 +1885,11 @@ class SyncService {
         if (productoLocal != null) {
           productoNube.id = productoLocal.id;
           productoNube.proveedorId = productoLocal.proveedorId;
-          // Se preserva el stock local: no viene de la nube (ver arriba).
-          // Un producto nuevo de la nube queda en 0 hasta que se
-          // descarguen sus lotes y corra el recálculo.
-          productoNube.stock = productoLocal.stock;
+          // El stock local positivo ya refleja el inventario de sus lotes.
+          // Si es cero, conserva el fallback recibido de la nube.
+          if (productoLocal.stock > 0) {
+            productoNube.stock = productoLocal.stock;
+          }
         }
         productosParaGuardar.add(productoNube);
       }
@@ -6274,11 +6274,11 @@ class SyncService {
 
       // ⚠️ Los lotes se descargan DESPUÉS que los productos, así que el
       // recálculo va aquí y no antes: hasta este punto los lotes locales
-      // son los previos, no los de la nube.
+      // ya incluyen los que llegaron de la nube.
       //
-      // Con el modelo "lotes = fuente única de verdad",
-      // `producto.stock` es un cache derivado. Esta llamada es la que
-      // hace que la UI muestre el stock correcto tras el sync.
+      // Los lotes son definitivos cuando ya están descargados localmente;
+      // si aún no existen, recalcularStockDe conserva el stock remoto usado
+      // como fallback.
       try {
         final productosSincronizados = await _isarService.obtenerProductos();
         final ids = productosSincronizados.map((p) => p.id).toList();

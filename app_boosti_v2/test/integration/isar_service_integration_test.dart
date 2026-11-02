@@ -341,6 +341,42 @@ void main() {
   // GRUPO 3: Lotes y descuento real de stock
   // ══════════════════════════════════════════════════════════════
   group('IsarService — Lotes y descuento de stock', () {
+    test('recalcularStockDe conserva fallback remoto sin lotes locales',
+        () async {
+      final isar = IsarService();
+      await isar.guardarProducto(crearProducto(
+        codigoBarras: 'fallback-stock',
+        stock: 100.0,
+      ));
+
+      final producto =
+          await isar.obtenerProductoPorCodigoBarrasExacto('fallback-stock');
+      await isar.recalcularStockDe([producto!.id]);
+
+      final actualizado = await isar.obtenerProductoPorId(producto.id);
+      expect(actualizado!.stock, 100.0);
+    });
+
+    test('recalcularStockDe reemplaza fallback con suma de lotes locales',
+        () async {
+      final isar = IsarService();
+      await isar.guardarProducto(crearProducto(
+        codigoBarras: 'lot-backed-stock',
+        stock: 100.0,
+      ));
+      final producto =
+          await isar.obtenerProductoPorCodigoBarrasExacto('lot-backed-stock');
+      await isar.guardarLote(crearLote(
+        productoId: producto!.id,
+        cantidadInicial: 40.0,
+      ));
+
+      await isar.recalcularStockDe([producto.id]);
+
+      final actualizado = await isar.obtenerProductoPorId(producto.id);
+      expect(actualizado!.stock, 40.0);
+    });
+
     test('crear lote y obtenerlo por ID', () async {
       final isar = IsarService();
       final lote = crearLote(productoId: 1, cantidadInicial: 100.0);
