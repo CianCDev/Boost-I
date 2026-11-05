@@ -1,9 +1,28 @@
 // test/widgets/quantity_dialog_test.dart
+import 'dart:async';
+
 import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
+import 'package:app_boosti_v2/features/pos/presentation/providers/scale_provider.dart';
+import 'package:app_boosti_v2/features/pos/presentation/services/scale_service.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/catalog/quantity_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _TestScaleService extends ScaleService {
+  final StreamController<double> _weights =
+      StreamController<double>.broadcast();
+
+  @override
+  Stream<double> get weightStream => _weights.stream;
+
+  @override
+  Future<bool> connect() async => true;
+
+  void emitWeight(double weight) => _weights.add(weight);
+
+  Future<void> close() => _weights.close();
+}
 
 void main() {
   ProductoEntity buildProducto({
@@ -30,9 +49,14 @@ void main() {
     WidgetTester tester, {
     ProductoEntity? producto,
     void Function(ProductoEntity, double)? onAgregar,
+    ScaleService? scaleService,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          if (scaleService != null)
+            scaleServiceProvider.overrideWithValue(scaleService),
+        ],
         child: MaterialApp(
           home: Builder(
             builder: (context) => Scaffold(
@@ -102,15 +126,68 @@ void main() {
       expect(ctrl?.text, '25');
     });
 
+    testWidgets('actualiza el total al cambiar cantidad y precio',
+        (tester) async {
+      await openDialog(tester);
+
+      expect(find.text('Total: \$5.00'), findsOneWidget);
+
+      await tester.enterText(cantidadField(), '22');
+      await tester.pump();
+      expect(find.text('Total: \$110.00'), findsOneWidget);
+
+      await tester.enterText(precioField(), '3.50');
+      await tester.pump();
+      expect(find.text('Total: \$77.00'), findsOneWidget);
+    });
+
+    testWidgets('el peso recibido actualiza cantidad, total y carrito',
+        (tester) async {
+      final scaleService = _TestScaleService();
+      double? cantidadRecibida;
+
+      await openDialog(
+        tester,
+        producto: buildProducto(esPesado: true),
+        onAgregar: (_, cantidad) => cantidadRecibida = cantidad,
+        scaleService: scaleService,
+      );
+
+      expect(tester.widget<TextField>(precioField()).controller?.text, '5.00');
+      scaleService.emitWeight(2.5);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<TextField>(cantidadField()).controller?.text,
+        '2.500',
+      );
+      expect(tester.widget<TextField>(precioField()).controller?.text, '5.00');
+      expect(find.text('Total: \$12.50'), findsOneWidget);
+
+      await tester.tap(find.text('Agregar al Carrito'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      expect(cantidadRecibida, 2.5);
+      await scaleService.close();
+    });
+
     testWidgets('permite decimales en producto pesado (hasta 3 dec)',
         (tester) async {
-      await openDialog(tester, producto: buildProducto(esPesado: true));
+      final scaleService = _TestScaleService();
+      await openDialog(
+        tester,
+        producto: buildProducto(esPesado: true),
+        scaleService: scaleService,
+      );
 
       await tester.enterText(cantidadField(), '1.250');
       await tester.pump();
 
       final ctrl = tester.widget<TextField>(cantidadField()).controller;
       expect(ctrl?.text, '1.250');
+      await scaleService.close();
     });
 
     testWidgets('bloquea letras en el campo cantidad', (tester) async {

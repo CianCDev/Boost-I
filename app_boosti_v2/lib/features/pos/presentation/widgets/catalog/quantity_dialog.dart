@@ -37,6 +37,8 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
   bool _usandoPesoAutomatico = true;
   bool _procesando = false;
   bool _formValido = true;
+  double _cantidadActual = 0;
+  double _precioUnitario = 0;
 
   /// Guard de re-entrada SIN setState.
   bool _cerrando = false;
@@ -59,16 +61,20 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
     }
 
     _precioController.text = widget.producto.precioUnidad.toStringAsFixed(2);
+    _cantidadActual = double.tryParse(_cantidadController.text) ?? 0;
+    _precioUnitario = double.tryParse(_precioController.text) ?? 0;
+    _formValido = _cantidadActual > 0 && _precioUnitario > 0;
 
     if (widget.producto.esPesado) {
       _weightSubscription = _scaleService.weightStream.listen((peso) {
         if (peso > 0 && mounted && _usandoPesoAutomatico) {
           final nuevoPeso = peso.toStringAsFixed(3);
-          // OPTIMIZACIÓN: Solo actualizamos si el peso realmente cambió.
-          // Además, modificar .text no requiere setState, el TextField se repinta solo.
           if (_cantidadController.text != nuevoPeso) {
-            _cantidadController.text = nuevoPeso;
-            _revalidarFormulario();
+            _cantidadController.value = TextEditingValue(
+              text: nuevoPeso,
+              selection: TextSelection.collapsed(offset: nuevoPeso.length),
+            );
+            _actualizarCalculo();
           }
         }
       });
@@ -99,15 +105,14 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
     );
   }
 
-  void _revalidarFormulario() {
-    final c = double.tryParse(_cantidadController.text) ?? 0;
-    final p = double.tryParse(_precioController.text) ?? 0;
-    final valido = c > 0 && p > 0;
-
-    // Solo hacemos setState si el estado de validación cambia (evita rebuilds innecesarios)
-    if (valido != _formValido) {
-      setState(() => _formValido = valido);
-    }
+  void _actualizarCalculo() {
+    final cantidad = double.tryParse(_cantidadController.text) ?? 0;
+    final precio = double.tryParse(_precioController.text) ?? 0;
+    setState(() {
+      _cantidadActual = cantidad;
+      _precioUnitario = precio;
+      _formValido = cantidad > 0 && precio > 0;
+    });
   }
 
   @override
@@ -171,6 +176,8 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
               _buildCantidadField(isDark),
               const SizedBox(height: 12),
               _buildPrecioField(isDark),
+              const SizedBox(height: 12),
+              _buildTotal(isDark),
               const SizedBox(height: 28),
               _buildBotones(isDark, colorScheme),
             ],
@@ -252,7 +259,7 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
               : RegExp(r'^\d*\.?\d{0,2}'),
         ),
       ],
-      onChanged: (_) => _revalidarFormulario(),
+      onChanged: (_) => _actualizarCalculo(),
       onTap: () {
         if (widget.producto.esPesado && _usandoPesoAutomatico) {
           setState(() => _usandoPesoAutomatico = false);
@@ -325,7 +332,7 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
       inputFormatters: [
         FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
       ],
-      onChanged: (_) => _revalidarFormulario(),
+      onChanged: (_) => _actualizarCalculo(),
       onSubmitted: (_) => _agregar(),
       style: TextStyle(
         fontSize: 18,
@@ -365,6 +372,20 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
+
+  Widget _buildTotal(bool isDark) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Text(
+        'Total: \$${(_cantidadActual * _precioUnitario).toStringAsFixed(2)}',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+          color: isDark ? Colors.white : Colors.black87,
+        ),
       ),
     );
   }
@@ -438,14 +459,14 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
   Future<void> _agregar() async {
     if (_cerrando) return;
 
-    final cantidad = double.tryParse(_cantidadController.text);
-    if (cantidad == null || cantidad <= 0) {
+    final cantidad = _cantidadActual;
+    if (cantidad <= 0) {
       _mostrarSnack('Ingrese una cantidad válida');
       return;
     }
 
-    final precioIngresado = double.tryParse(_precioController.text);
-    if (precioIngresado == null || precioIngresado <= 0) {
+    final precioIngresado = _precioUnitario;
+    if (precioIngresado <= 0) {
       _mostrarSnack('Ingrese un precio válido');
       return;
     }
@@ -464,6 +485,7 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
             onCancel: () {
               _precioController.text =
                   widget.producto.precioUnidad.toStringAsFixed(2);
+              _actualizarCalculo();
               Navigator.of(dialogContext).pop(false);
             },
           ),
@@ -473,7 +495,7 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
 
         if (validado != true) {
           setState(() => _procesando = false);
-          _revalidarFormulario();
+          _actualizarCalculo();
           return;
         }
 
@@ -512,7 +534,7 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _procesando = false);
-      _revalidarFormulario();
+      _actualizarCalculo();
       _cerrando = false;
       _mostrarSnack('Error: $e');
     }
