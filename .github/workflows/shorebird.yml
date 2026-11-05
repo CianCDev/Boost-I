@@ -150,20 +150,59 @@ jobs:
             --flutter-version=3.47.2
             -- --dart-define-from-file=env.json
 
-      - name: Shorebird Patch
+      - name: Clean Android SDK NDK Cache
         if: ${{ inputs.action == 'patch' }}
-        uses: shorebirdtech/shorebird-patch@v1
+        run: |
+          set -euo pipefail
+          if [[ -z "${ANDROID_HOME:-}" ]]; then
+            echo "::error::ANDROID_HOME no esta definido en el runner."
+            exit 1
+          fi
+          rm -rf "$ANDROID_HOME/.downloadIntermediates"
+          rm -rf "$ANDROID_HOME/ndk/28.2.13676358"
+        shell: bash
+
+      - name: Shorebird Patch (Android) with Retry
+        if: ${{ inputs.action == 'patch' }}
         env:
           SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
-        with:
-          platform: android
-          release-version: ${{ inputs.release_version }}
-          working-directory: ./app_boosti_v2
-          args: >-
-            --flavor=${{ inputs.flavor }}
-            --target=lib/main_${{ inputs.flavor }}.dart
-            --allow-asset-diffs
-            -- --dart-define-from-file=env.json
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          FLAVOR: ${{ inputs.flavor }}
+        working-directory: ./app_boosti_v2
+        run: |
+          set -uo pipefail
+
+          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]]; then
+            echo "::error::release_version invalida: $RELEASE_VERSION"
+            exit 1
+          fi
+
+          last_status=1
+          for attempt in 1 2 3; do
+            echo "::notice::Intento $attempt de 3 para Shorebird Patch Android."
+            if shorebird patch android \
+              --release-version "$RELEASE_VERSION" \
+              --flavor="$FLAVOR" \
+              --target="lib/main_${FLAVOR}.dart" \
+              --allow-asset-diffs \
+              -- --dart-define-from-file=env.json; then
+              exit 0
+            else
+              last_status=$?
+              echo "::warning::shorebird patch fallo en el intento $attempt (exit $last_status)."
+            fi
+
+            if [[ "$attempt" -lt 3 ]]; then
+              echo "::notice::Limpiando la cache de Android SDK antes del reintento."
+              rm -rf "$ANDROID_HOME/.downloadIntermediates"
+              rm -rf "$ANDROID_HOME/ndk/28.2.13676358"
+              sleep "$((attempt * 10))"
+            fi
+          done
+
+          echo "::error::Shorebird Patch Android fallo despues de 3 intentos."
+          exit "$last_status"
+        shell: bash
 
       # ──────────────────────────────────────────────────────────────
       # APK instalable CON el motor de Shorebird (OTA).
