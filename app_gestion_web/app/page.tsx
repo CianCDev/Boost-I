@@ -1,6 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  AnimatePresence,
+  motion,
+  useMotionValueEvent,
+  useScroll,
+} from 'framer-motion';
 import CookieConsent from './components/CookieConsent';
 import ContactDialog from './components/ContactDialog';
 import OnboardingDialog from './components/OnboardingDialog';
@@ -406,6 +412,210 @@ function Hero() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   APP MODES — Sticky Scroll con framer-motion
+   (h-[300vh] + contenedor sticky h-screen; el progreso del scroll
+   se divide en 3 tercios: Retail → Restaurante → Servicios)
+   ============================================================ */
+function AppModes() {
+  const containerRef = useRef<HTMLElement | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [direction, setDirection] = useState<1 | -1>(1);
+  const [imgFailed, setImgFailed] = useState(false);
+
+  const modes = [
+    {
+      title: 'Modo Retail',
+      desc: 'Cobra en segundos con lector de barras, control de lotes y balanzas integradas. El punto de venta más rápido para tu tienda.',
+      color: '#87FF9B',
+      mascot: '/images/mascot-retail.png',
+    },
+    {
+      title: 'Modo Restaurante',
+      desc: 'Gestiona mesas, comandas en cocina (KDS) y divisiones de cuenta sin complicaciones. La sala y la cocina, siempre sincronizadas.',
+      color: '#00B2FF',
+      mascot: '/images/mascot-rest.png',
+    },
+    {
+      title: 'Modo Servicios',
+      desc: 'Administra citas, tiempos de atención y comisiones de tus empleados. Agenda, cobra y fideliza desde un solo lugar.',
+      color: '#A78BFA',
+      mascot: '/images/mascot-serv.png',
+    },
+  ];
+
+  const current = modes[activeIndex];
+
+  useEffect(() => setImgFailed(false), [activeIndex]);
+
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ['start start', 'end end'],
+  });
+
+  useMotionValueEvent(scrollYProgress, 'change', (progress) => {
+    const next = Math.min(2, Math.floor(progress / (1 / 3)));
+    if (next !== activeIndex) {
+      setDirection(next > activeIndex ? 1 : -1);
+      setActiveIndex(next);
+    }
+  });
+
+  const go = (step: 1 | -1) => {
+    const next = (activeIndex + step + modes.length) % modes.length;
+    setDirection(step);
+    setActiveIndex(next);
+  };
+
+  return (
+    <section
+      ref={containerRef}
+      className="relative h-[300vh]"
+      aria-label="Modos de uso de BoostI"
+    >
+      <div className="sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden">
+        <motion.div
+          animate={{ backgroundColor: current.color }}
+          transition={{ duration: 0.8, ease: 'easeInOut' }}
+          className="absolute inset-0 opacity-[0.07] blur-[150px]"
+        />
+
+        <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-2">
+          <div className="hidden justify-center sm:flex">
+            <div
+              className="relative h-[420px] w-[380px]"
+              style={{
+                clipPath:
+                  'polygon(20% 0%, 80% 0%, 100% 50%, 80% 100%, 20% 100%, 0% 50%)',
+              }}
+            >
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeIndex}
+                  initial={{ opacity: 0, scale: 0.94 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.94 }}
+                  transition={{ duration: 0.4, ease: 'easeInOut' }}
+                  className="absolute inset-0"
+                >
+                  <motion.div
+                    animate={{ backgroundColor: current.color }}
+                    transition={{ duration: 0.6, ease: 'easeInOut' }}
+                    className="absolute inset-0 opacity-90"
+                  />
+                  <AnimatePresence mode="wait">
+                    {imgFailed ? (
+                      <motion.div
+                        key={`placeholder-${activeIndex}`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                        className="absolute inset-0 flex items-center justify-center"
+                      >
+                        <span className="text-xs font-bold uppercase tracking-[0.25em] text-bg-base/50">
+                          {current.title}
+                        </span>
+                      </motion.div>
+                    ) : (
+                      <motion.img
+                        key={`mascot-${activeIndex}`}
+                        src={current.mascot}
+                        alt={`Mascota de BoostI — ${current.title}`}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.94 }}
+                        transition={{ duration: 0.5, ease: 'easeOut' }}
+                        className="absolute inset-0 h-full w-full object-contain p-8 mix-blend-multiply filter brightness-90 contrast-125 drop-shadow-xl"
+                        onError={() => setImgFailed(true)}
+                      />
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </div>
+
+          <div className="text-center lg:text-left">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeIndex}
+                initial={{ opacity: 0, y: direction * 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: direction * -24 }}
+                transition={{ duration: 0.35, ease: 'easeInOut' }}
+              >
+                <span
+                  className="text-sm font-semibold uppercase tracking-[0.2em] transition-colors duration-500 ease-in-out"
+                  style={{ color: current.color }}
+                >
+                  Modos de uso
+                </span>
+                <h2
+                  className="mt-3 text-4xl font-extrabold uppercase leading-tight tracking-tight text-white sm:text-5xl"
+                  style={{ textShadow: '0 0 60px rgba(255,255,255,0.08)' }}
+                >
+                  {current.title}
+                </h2>
+                <p className="mx-auto mt-5 max-w-lg text-lg leading-relaxed text-white/70 lg:mx-0">
+                  {current.desc}
+                </p>
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="mt-8 flex items-center justify-center gap-3 lg:justify-start">
+              <button
+                onClick={() => go(-1)}
+                aria-label="Modo anterior"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition-all duration-300 ease-in-out hover:-translate-x-0.5 hover:bg-white/10 hover:text-white"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                  <path d="M19 12H5" />
+                  <path d="m12 19-7-7 7-7" />
+                </svg>
+              </button>
+              <button
+                onClick={() => go(1)}
+                aria-label="Modo siguiente"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition-all duration-300 ease-in-out hover:translate-x-0.5 hover:bg-white/10 hover:text-white"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                  <path d="M5 12h14" />
+                  <path d="m12 5 7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute bottom-10 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2.5">
+          {modes.map((mode, index) => (
+            <button
+              key={mode.title}
+              onClick={() => {
+                setDirection(index > activeIndex ? 1 : -1);
+                setActiveIndex(index);
+              }}
+              aria-label={`Ir a ${mode.title}`}
+              aria-current={index === activeIndex ? 'true' : undefined}
+              className="group py-2"
+            >
+              <div
+                className="h-1.5 rounded-full transition-all duration-300 ease-in-out group-hover:opacity-100"
+                style={{
+                  width: index === activeIndex ? 36 : 14,
+                  backgroundColor:
+                    index === activeIndex ? mode.color : 'rgba(255,255,255,0.25)',
+                }}
+              />
+            </button>
+          ))}
         </div>
       </div>
     </section>
@@ -847,6 +1057,7 @@ export default function HomePage() {
       <main className="relative">
         <Hero />
         <TrustStrip />
+        <AppModes />
         <Features />
         <HowItWorks />
         <Integrations />
