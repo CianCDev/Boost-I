@@ -1,6 +1,11 @@
 // lib/features/pos/presentation/screens/pos_menu_screen.dart
+import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
+
 import 'package:app_boosti_v2/features/pos/presentation/providers/business_mode_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -53,6 +58,16 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   int _ventasPendientesSync = 0;
   String _searchQuery = '';
 
+  // ── Carrusel de módulos destacados ──
+  final PageController _modulePageController =
+      PageController(viewportFraction: 0.85);
+  int _modulePageIndex = 0;
+  Timer? _moduleAutoPlayTimer;
+  List<MenuOption> _modulosDestacadosCache = [];
+
+  // ── Blobs de fondo premium ──
+  late final AnimationController _blobController;
+
   @override
   void initState() {
     super.initState();
@@ -76,15 +91,50 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       setState(() => _isSearchFocused = _searchFocusNode.hasFocus);
     });
 
+    // Animación de los blobs de fondo (20s → movimiento muy lento, "aurora")
+    _blobController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 20),
+    )..repeat();
+
     _isarService = ref.read(isarServiceProvider);
     _syncService = ref.read(syncServiceProvider);
 
     _cargarEstadoInicial();
     _cargarEstadoSync();
+
+    // Auto-play del carrusel de módulos destacados
+    _iniciarAutoPlay();
+  }
+
+  /// Inicia la rotación automática del carrusel cada 3 segundos.
+  void _iniciarAutoPlay() {
+    _moduleAutoPlayTimer?.cancel();
+    _moduleAutoPlayTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) {
+        if (!mounted) return;
+        final total = _modulosDestacadosCache.length;
+        if (total <= 1) return;
+        final siguiente = (_modulePageIndex + 1) % total;
+        _modulePageController.animateToPage(
+          siguiente,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      },
+    );
+  }
+
+  /// Reinicia el temporizador cuando el usuario o los botones cambian de página.
+  void _reiniciarAutoPlay() {
+    _iniciarAutoPlay();
   }
 
   @override
   void dispose() {
+    _moduleAutoPlayTimer?.cancel();
+    _blobController.dispose();
     _animationController.dispose();
     _searchBarController.dispose();
     _searchFocusNode.dispose();
@@ -433,6 +483,18 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     // Filtrar por búsqueda
     final secciones = _filtrarSecciones(seccionesConPermisos, _searchQuery);
 
+    // Módulos destacados para el carrusel
+    final modulosDestacados = seccionesConPermisos
+        .expand((seccion) => seccion.options)
+        .where((opcion) => const {
+          'punto_venta',
+          'mesas',
+          'caja_operativa',
+          'inventario',
+        }.contains(opcion.id))
+        .toList(growable: false);
+    _modulosDestacadosCache = modulosDestacados;
+
     final gradient = isDark
         ? LinearGradient(
             colors: [
@@ -444,13 +506,18 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
             colors: [Color(0xFF5352ED), Color(0xFF4840E8)],
           );
 
-    return Scaffold(
-      backgroundColor: colorScheme.surfaceContainerLow,
-      appBar: CustomAppBar(
-        title: isMobile ? 'Menú' : 'Menú Principal',
-        showBackButton: false,
-        gradient: gradient,
-        actions: [
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: colorScheme.surfaceContainerLow,
+        appBar: CustomAppBar(
+          title: isMobile ? 'Menú' : 'Menú Principal',
+          showBackButton: false,
+          gradient: gradient,
+          actions: [
           // Local activo. INFO only, no clickeable: el hot-switch vive en
           // el side panel. Va antes del spinner para que el nombre quede
           // en posición estable y el spinner no lo desplace al syncar.
@@ -476,11 +543,92 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
             ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _sincronizarConProgreso,
-        child: _buildBody(secciones, isMobile, isTablet, colorScheme),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ── Blobs de fondo premium (aurora suave) ──
+          AnimatedBuilder(
+            animation: _blobController,
+            builder: (context, _) {
+              final t = _blobController.value * 2 * math.pi;
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final cMint = const Color(0xFF10B981);
+              final cElectric = const Color(0xFF06B6D4);
+              final cLilac = const Color(0xFF8B5CF6);
+              final alphaStrong = isDark ? 0.20 : 0.14;
+              final alphaSoft = isDark ? 0.14 : 0.10;
+              final alphaFaint = isDark ? 0.08 : 0.06;
+
+              return Stack(
+                children: [
+                  // 1 · arriba-izquierda (mint, más fuerte)
+                  Positioned(
+                    top: -140 + 40 * math.sin(t),
+                    left: -110 + 50 * math.cos(t * 0.9),
+                    child: _MenuBlob(
+                      size: 460,
+                      color: cMint.withValues(alpha: alphaStrong),
+                      blur: 100,
+                    ),
+                  ),
+                  // 2 · arriba-derecha (electric)
+                  Positioned(
+                    top: -100 + 45 * math.cos(t * 0.8),
+                    right: -140 + 55 * math.sin(t * 1.1),
+                    child: _MenuBlob(
+                      size: 520,
+                      color: cElectric.withValues(alpha: alphaSoft),
+                      blur: 110,
+                    ),
+                  ),
+                  // 3 · abajo-centro (lilac)
+                  Positioned(
+                    bottom: -180 + 50 * math.sin(t * 1.3),
+                    left: 140 + 80 * math.cos(t * 0.7),
+                    child: _MenuBlob(
+                      size: 440,
+                      color: cLilac.withValues(alpha: alphaSoft),
+                      blur: 100,
+                    ),
+                  ),
+                  // 4 · medio-derecha (mint, tenue)
+                  Positioned(
+                    top: 260 + 50 * math.sin(t * 0.6),
+                    right: -160 + 40 * math.cos(t * 1.2),
+                    child: _MenuBlob(
+                      size: 380,
+                      color: cMint.withValues(alpha: alphaFaint),
+                      blur: 90,
+                    ),
+                  ),
+                  // 5 · medio-izquierda (electric, tenue)
+                  Positioned(
+                    top: 540 + 35 * math.cos(t * 0.9),
+                    left: -180 + 60 * math.sin(t * 0.8),
+                    child: _MenuBlob(
+                      size: 340,
+                      color: cElectric.withValues(alpha: alphaFaint),
+                      blur: 90,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          RefreshIndicator(
+            onRefresh: _sincronizarConProgreso,
+            child: _buildBody(
+              secciones,
+              modulosDestacados,
+              isMobile,
+              isTablet,
+              colorScheme,
+        )),
+        ],
       ),
-    );
+    ),
+  );
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -489,6 +637,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
 
   Widget _buildBody(
     List<MenuSection> secciones,
+    List<MenuOption> modulosDestacados,
     bool isMobile,
     bool isTablet,
     ColorScheme colorScheme,
@@ -508,6 +657,16 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
               // ── Buscador con animación de entrada ──
               _buildSearchBar(colorScheme, isMobile),
               const SizedBox(height: 16),
+
+              // ── Carrusel de módulos destacados ──
+              if (modulosDestacados.isNotEmpty) ...[
+                _buildModuleCarousel(
+                  modulosDestacados,
+                  isMobile,
+                  colorScheme,
+                ),
+                const SizedBox(height: 24),
+              ],
 
               TurnoStatusBanner(
                 tieneTurno: _turnoAbierto != null,
@@ -552,6 +711,212 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           ),
         ),
       ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // TARJETA DE MÓDULO DESTACADO (carrusel)
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _FeaturedModuleCard({
+    required MenuOption option,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isMobile = ResponsiveHelper.isMobile(context);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {},
+      onExit: (_) {},
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onTap,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: EdgeInsets.all(isMobile ? 18 : 24),
+                decoration: BoxDecoration(
+                  color: theme.brightness == Brightness.dark
+                      ? colors.surfaceContainerHigh.withValues(alpha: 0.78)
+                      : Colors.white.withValues(alpha: 0.78),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: option.color.withValues(alpha: 0.28),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: isMobile ? 56 : 64,
+                      height: isMobile ? 56 : 64,
+                      decoration: BoxDecoration(
+                        color: option.color.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Icon(
+                        option.icon,
+                        size: isMobile ? 30 : 34,
+                        color: option.color,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'MÓDULO DESTACADO',
+                            style: TextStyle(
+                              color: option.color,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 10,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            option.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.onSurface,
+                              fontWeight: FontWeight.w800,
+                              fontSize: isMobile ? 19 : 23,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            option.subtitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
+                              fontSize: isMobile ? 12 : 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      color: option.color,
+                      size: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // CARRUSEL DE MÓDULOS DESTACADOS (con botones de flecha)
+  // ════════════════════════════════════════════════════════════════
+
+  Widget _buildModuleCarousel(
+    List<MenuOption> modules,
+    bool isMobile,
+    ColorScheme colorScheme,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ── Navegación del carrusel ──
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.chevron_left_rounded),
+              onPressed: _modulePageIndex > 0
+                  ? () {
+                      _modulePageController.previousPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                      _reiniciarAutoPlay();
+                    }
+                  : null,
+              color: colorScheme.primary,
+              tooltip: 'Anterior',
+            ),
+            Expanded(
+              child: SizedBox(
+                height: isMobile ? 176 : 194,
+                child: PageView.builder(
+                  controller: _modulePageController,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: modules.length,
+                  onPageChanged: (index) {
+                    if (_modulePageIndex != index) {
+                      setState(() => _modulePageIndex = index);
+                    }
+                    _reiniciarAutoPlay();
+                  },
+                  itemBuilder: (context, index) {
+                    final option = modules[index];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: _FeaturedModuleCard(
+                        option: option,
+                        onTap: option.onTap,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right_rounded),
+              onPressed: _modulePageIndex < modules.length - 1
+                  ? () {
+                      _modulePageController.nextPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                      _reiniciarAutoPlay();
+                    }
+                  : null,
+              color: colorScheme.primary,
+              tooltip: 'Siguiente',
+            ),
+          ],
+        ),
+
+        // ── Dots indicadores ──
+        if (modules.length > 1) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              modules.length,
+              (index) => AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: index == _modulePageIndex ? 18 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(
+                    alpha: index == _modulePageIndex ? 0.9 : 0.3,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -929,6 +1294,45 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           compactMode: isMobile,
         );
       },
+    );
+  }
+}
+
+/// Blob individual del menú principal: círculo con gradiente radial + blur.
+///
+/// Se usa `RepaintBoundary` para cachear el resultado del blur y que el
+/// movimiento del blob no recalcule el filtro en cada frame.
+class _MenuBlob extends StatelessWidget {
+  final double size;
+  final Color color;
+  final double blur;
+
+  const _MenuBlob({
+    required this.size,
+    required this.color,
+    this.blur = 60,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: ImageFiltered(
+        imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                color,
+                color.withValues(alpha: 0),
+              ],
+              stops: const [0.0, 1.0],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

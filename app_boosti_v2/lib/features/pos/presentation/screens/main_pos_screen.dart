@@ -238,6 +238,8 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
   }
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     // AppBar directo. Antes iba envuelto en `PreferredSize` + `Column`, y
     // ese envoltorio existía únicamente para colgar el `VistaPreviaBanner`
     // debajo: el alto del `PreferredSize` era `kToolbarHeight + _altoBanner`.
@@ -303,25 +305,18 @@ class _MainPosScreenState extends ConsumerState<MainPosScreen> {
           ),
         ),
       ),
-      title: const Text(
+      title: Text(
         'Inicio',
         style: TextStyle(
-          // Negro suave, no `Colors.black`: sobre el fondo con
-          // blobs el negro puro vibra y se ve sucio.
           fontWeight: FontWeight.w700,
           fontSize: 18,
           letterSpacing: -0.2,
-          color: Color(0xFF111827),
+          color: isDark ? Colors.white : const Color(0xFF111827),
           shadows: [
-            // Halo blanco MUY sutil. Antes era `Color(0x99FFFFFF)` con
-            // `blurRadius: 8`: un radio tan grande lo difumina sobre el
-            // fondo claro de la AppBar y deja el texto emborronado en
-            // lugar de separarlo. Bajado a 2px hace el trabajo de
-            // contraste sin la mancha.
             Shadow(
-              color: Color(0xB3FFFFFF),
-              offset: Offset(0, 1),
-              blurRadius: 2,
+              color: isDark ? const Color(0xAA38BDF8) : const Color(0xB3FFFFFF),
+              offset: const Offset(0, 1),
+              blurRadius: isDark ? 4 : 2,
             ),
           ],
         ),
