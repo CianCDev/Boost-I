@@ -55,15 +55,15 @@ export default function ContactDialog({ open, onClose }: ContactDialogProps) {
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Overlay */}
       <div
-        className="absolute inset-0 bg-[#0B1120]/80 backdrop-blur-sm animate-in fade-in duration-200"
+        className="absolute inset-0 bg-bg-base/80 backdrop-blur-sm animate-in fade-in duration-200"
         onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg rounded-3xl bg-[#1E293B] border border-white/10 shadow-2xl shadow-black/50 overflow-hidden">
+      <div className="relative w-full max-w-lg rounded-3xl bg-deep-slate border border-white/10 shadow-2xl shadow-black/50 overflow-hidden">
         {/* Glow decorativo */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#8B5CF6]/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#10B981]/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-lilac/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-leaf/15 rounded-full blur-3xl pointer-events-none" />
 
         {/* Botón cerrar */}
         <button
@@ -82,8 +82,8 @@ export default function ContactDialog({ open, onClose }: ContactDialogProps) {
             <>
               {/* Header */}
               <div className="mb-6">
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#10B981]/15 text-[#34D399] text-[10px] font-bold uppercase tracking-wider border border-[#10B981]/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-leaf/15 text-leaf text-[10px] font-bold uppercase tracking-wider border border-leaf/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-leaf animate-pulse" />
                   Respuesta en menos de 24h
                 </span>
                 <h2 className="mt-3 text-2xl font-extrabold text-white tracking-tight">
@@ -106,7 +106,7 @@ export default function ContactDialog({ open, onClose }: ContactDialogProps) {
                       required
                       value={formData.nombre}
                       onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-[#8B5CF6]/50 focus:bg-white/[0.08] transition-all"
+                      className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-lilac/50 focus:bg-white/[0.08] transition-all"
                       placeholder="Tu nombre"
                     />
                   </div>
@@ -118,7 +118,7 @@ export default function ContactDialog({ open, onClose }: ContactDialogProps) {
                       type="tel"
                       value={formData.telefono}
                       onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-[#8B5CF6]/50 focus:bg-white/[0.08] transition-all"
+                      className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-lilac/50 focus:bg-white/[0.08] transition-all"
                       placeholder="+58 412-0000000"
                     />
                   </div>
@@ -133,7 +133,7 @@ export default function ContactDialog({ open, onClose }: ContactDialogProps) {
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-[#8B5CF6]/50 focus:bg-white/[0.08] transition-all"
+                    className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-lilac/50 focus:bg-white/[0.08] transition-all"
                     placeholder="tu@empresa.com"
                   />
                 </div>
@@ -147,7 +147,7 @@ export default function ContactDialog({ open, onClose }: ContactDialogProps) {
                       type="text"
                       value={formData.empresa}
                       onChange={(e) => setFormData({ ...formData, empresa: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-[#8B5CF6]/50 focus:bg-white/[0.08] transition-all"
+                      className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-lilac/50 focus:bg-white/[0.08] transition-all"
                       placeholder="Nombre del negocio"
                     />
                   </div>
@@ -158,12 +158,12 @@ export default function ContactDialog({ open, onClose }: ContactDialogProps) {
                     <select
                       value={formData.empleados}
                       onChange={(e) => setFormData({ ...formData, empleados: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-[#8B5CF6]/50 focus:bg-white/[0.08] transition-all"
+                      className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-lilac/50 focus:bg-white/[0.08] transition-all"
                     >
-                      <option className="bg-[#1E293B]" value="1-5">1-5</option>
-                      <option className="bg-[#1E293B]" value="6-20">6-20</option>
-                      <option className="bg-[#1E293B]" value="21-50">21-50</option>
-                      <option className="bg-[#1E293B]" value="50+">+50</option>
+                      <option className="bg-deep-slate" value="1-5">1-5</option>
+                      <option className="bg-deep-slate" value="6-20">6-20</option>
+                      <option className="bg-deep-slate" value="21-50">21-50</option>
+                      <option className="bg-deep-slate" value="50+">+50</option>
                     </select>
                   </div>
                 </div>
@@ -176,7 +176,7 @@ export default function ContactDialog({ open, onClose }: ContactDialogProps) {
                     rows={3}
                     value={formData.mensaje}
                     onChange={(e) => setFormData({ ...formData, mensaje: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-[#8B5CF6]/50 focus:bg-white/[0.08] transition-all resize-none"
+                    className="w-full px-3.5 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-lilac/50 focus:bg-white/[0.08] transition-all resize-none"
                     placeholder="Cuéntanos sobre tu negocio…"
                   />
                 </div>
@@ -184,7 +184,7 @@ export default function ContactDialog({ open, onClose }: ContactDialogProps) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#59B1E4] text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 transition-all shadow-lg shadow-[#8B5CF6]/25"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-linear-to-r from-lilac to-electric text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 transition-all shadow-lg shadow-lilac/25"
                 >
                   {loading ? (
                     <>
@@ -210,7 +210,7 @@ export default function ContactDialog({ open, onClose }: ContactDialogProps) {
           ) : (
             // Success state
             <div className="py-12 text-center">
-              <div className="w-20 h-20 mx-auto rounded-full bg-[#10B981]/15 flex items-center justify-center mb-6">
+              <div className="w-20 h-20 mx-auto rounded-full bg-leaf/15 flex items-center justify-center mb-6">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>

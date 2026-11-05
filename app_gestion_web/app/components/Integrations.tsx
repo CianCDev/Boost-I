@@ -20,7 +20,7 @@ export default function Integrations() {
     <section id="integrations" className="py-24 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="text-sm font-semibold text-[#59B1E4] uppercase tracking-[0.2em]">
+          <span className="text-sm font-semibold text-electric uppercase tracking-[0.2em]">
             Compatibilidad total
           </span>
           <h2 className="mt-4 text-4xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
@@ -36,13 +36,13 @@ export default function Integrations() {
           {INTEGRATIONS.map((brand, i) => (
             <div
               key={i}
-              className="group relative p-6 rounded-2xl bg-[#1E293B]/40 border border-white/10 hover:border-[#8B5CF6]/40 hover:bg-[#1E293B]/70 transition-all duration-300 hover:-translate-y-1"
+              className="group relative p-6 rounded-2xl bg-deep-slate/40 border border-white/10 hover:border-electric/40 hover:bg-deep-slate/70 transition-all duration-300 hover:-translate-y-1"
             >
               <div className="text-center">
                 <div className="text-lg font-extrabold text-white/80 group-hover:text-white transition-colors">
                   {brand.name}
                 </div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-white/40 group-hover:text-[#8B5CF6] transition-colors mt-1">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-white/40 group-hover:text-electric transition-colors mt-1">
                   {brand.category}
                 </div>
               </div>
@@ -52,7 +52,7 @@ export default function Integrations() {
 
         <p className="mt-10 text-center text-sm text-white/50">
           ¿Usas otro hardware?{' '}
-          <a href="#contact" className="text-[#8B5CF6] hover:text-[#C4B5FD] font-semibold transition-colors">
+          <a href="#contact" className="text-electric hover:text-indigo font-semibold transition-colors">
             Consúltanos →
           </a>
         </p>

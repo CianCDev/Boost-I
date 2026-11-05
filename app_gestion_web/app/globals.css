@@ -1,17 +1,21 @@
 @import "tailwindcss";
 
 /* ============================================================
-   THEME TOKENS (Tailwind v4)
+   THEME TOKENS (Tailwind v4) - Nueva Paleta BoostI
    ============================================================ */
 @theme {
+  --color-bg-base: #0E1116;
+  --color-mint: #87FF9B;
+  --color-leaf: #44E973;
+  --color-electric: #00B2FF;
+  --color-indigo: #6366F1;
+  --color-lilac: #A78BFA;
+  --color-muted: #586E5D;
+
   --color-deep-space: #0B1120;
   --color-deep-slate: #1E293B;
   --color-french-blue: #1E3A8A;
-  --color-mint: #10B981;
   --color-frosted-mint: #D1FAE5;
-  --color-fresh-sky: #59B1E4;
-  --color-violet-brand: #8B5CF6;
-  --color-sandy: #FF984F;
   --color-parchment: #FAF7F2;
   --color-off-white: #F8FAFC;
 

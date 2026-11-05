@@ -40,16 +40,16 @@ export default function SandboxPage() {
   };
 
   return (
-    <main className="relative min-h-screen bg-[#0B1120] overflow-hidden isolate">
+    <main className="relative min-h-screen bg-bg-base overflow-hidden isolate">
       {/* ============================================================
-          BACKGROUND ANIMADO
+          BACKGROUND ANIMADO (nueva paleta)
           ============================================================ */}
       <div className="fixed inset-0 -z-10 pointer-events-none transform-gpu">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(139,92,246,0.15),rgba(11,17,32,0))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(0,178,255,0.15),rgba(14,17,22,0))]" />
 
-        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-[#8B5CF6]/15 blur-[90px] animate-blob-slow transform-gpu" />
-        <div className="absolute top-[40%] right-[-5%] w-[450px] h-[450px] rounded-full bg-[#59B1E4]/10 blur-[80px] animate-blob-medium transform-gpu" />
-        <div className="absolute bottom-[-10%] left-[20%] w-[400px] h-[400px] rounded-full bg-[#10B981]/10 blur-[80px] animate-blob-slow transform-gpu" />
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-electric/15 blur-[90px] animate-blob-slow transform-gpu" />
+        <div className="absolute top-[40%] right-[-5%] w-[450px] h-[450px] rounded-full bg-indigo/10 blur-[80px] animate-blob-medium transform-gpu" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[400px] h-[400px] rounded-full bg-mint/10 blur-[80px] animate-blob-slow transform-gpu" />
 
         <div
           className="absolute inset-0 opacity-[0.04] mix-blend-overlay"
@@ -67,7 +67,7 @@ export default function SandboxPage() {
         <div className="flex items-center justify-between">
           <Link
             href="/"
-            className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.04] backdrop-blur-md border border-white/10 text-white/80 text-sm font-medium hover:bg-white/[0.08] hover:border-white/20 hover:text-white transition-all duration-300"
+            className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.04] backdrop-blur-md border border-white/10 text-white/80 text-sm font-medium hover:bg-white/[0.08] hover:border-white/20 hover:text-white transition-all duration-300 ease-in-out"
           >
             <svg
               viewBox="0 0 24 24"
@@ -76,7 +76,7 @@ export default function SandboxPage() {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="w-4 h-4 group-hover:-translate-x-1 transition-transform duration-300"
+              className="w-4 h-4 group-hover:-translate-x-1 transition-transform duration-300 ease-in-out"
             >
               <line x1="19" y1="12" x2="5" y2="12" />
               <polyline points="12 19 5 12 12 5" />
@@ -88,7 +88,7 @@ export default function SandboxPage() {
             {/* Botón tutorial */}
             <button
               onClick={() => setTutorialOpen(true)}
-              className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.04] backdrop-blur-md border border-white/10 text-white/80 text-sm font-medium hover:bg-white/[0.08] hover:border-white/20 hover:text-white transition-all duration-300"
+              className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.04] backdrop-blur-md border border-white/10 text-white/80 text-sm font-medium hover:bg-white/[0.08] hover:border-white/20 hover:text-white transition-all duration-300 ease-in-out"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -108,9 +108,9 @@ export default function SandboxPage() {
 
             <div className="flex items-center gap-3">
               {/* ✅ Logo con URL de ImageKit y filtro blanco */}
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-lg shadow-[#8B5CF6]/20 p-1.5">
+              <div className="w-10 h-10 rounded-xl bg-linear-to-br from-electric via-indigo to-lilac flex items-center justify-center shadow-lg shadow-electric/20 p-1.5">
                 <img
-                  src="https://ik.imagekit.io/xnf3fil5g/logoboosti300px.svg"
+                  src="https://ik.imagekit.io/xnf3fil5g/logo.png"
                   alt="BoostI POS"
                   width={28}
                   height={28}
@@ -135,8 +135,8 @@ export default function SandboxPage() {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16 z-10 animate-fade-up">
         {/* Título */}
         <div className="text-center mb-10">
-          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#10B981]/15 text-[#34D399] text-xs font-semibold border border-[#10B981]/30 backdrop-blur-sm shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-mint/15 text-leaf text-xs font-semibold border border-mint/30 backdrop-blur-sm shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-mint animate-pulse" />
             Demo interactiva
           </span>
           <h1 className="mt-6 text-4xl sm:text-5xl font-extrabold text-white tracking-tight">
@@ -152,7 +152,7 @@ export default function SandboxPage() {
           <button
             onClick={handleReset}
             disabled={!showIframe || isLoading}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-white/10 text-white/90 text-sm font-semibold hover:bg-white/[0.08] hover:border-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/[0.04]"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/[0.04] backdrop-blur-sm border border-white/10 text-white/90 text-sm font-semibold hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/[0.04]"
           >
             <svg
               viewBox="0 0 24 24"
@@ -173,7 +173,7 @@ export default function SandboxPage() {
 
           <button
             onClick={() => setTutorialOpen(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/25 text-[#C4B5FD] text-sm font-semibold hover:bg-[#8B5CF6]/20 transition-all"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-electric/10 border border-electric/25 text-lilac text-sm font-semibold hover:bg-electric/20 transition-all duration-300 ease-in-out"
           >
             <svg
               viewBox="0 0 24 24"
@@ -195,7 +195,7 @@ export default function SandboxPage() {
         {/* ============================================================
             IFRAME CONTAINER
             ============================================================ */}
-        <div className="relative w-full overflow-hidden rounded-[2rem] shadow-2xl shadow-[#8B5CF6]/15 border border-white/10 bg-[#1E293B]/40 backdrop-blur-md transform-gpu">
+        <div className="relative w-full overflow-hidden rounded-[2rem] shadow-2xl shadow-electric/15 border border-white/10 bg-deep-slate/40 backdrop-blur-md transform-gpu">
           {/* Barra tipo navegador */}
           <div className="flex items-center gap-2 px-5 py-3.5 bg-black/20 border-b border-white/5">
             <div className="flex gap-2">
@@ -205,22 +205,22 @@ export default function SandboxPage() {
             </div>
             <div className="flex-1 mx-4">
               <div className="px-4 py-1.5 rounded-lg bg-white/5 text-xs text-white/40 font-mono text-center max-w-md mx-auto truncate">
-                <span className="text-[#10B981]">https://</span>demo.boostipos.com/app
+                <span className="text-mint">https://</span>demo.boostipos.com/app
               </div>
             </div>
           </div>
 
           {/* Iframe */}
-          <div className="relative aspect-[16/10] sm:aspect-[16/9] w-full bg-[#0B1120]">
+          <div className="relative aspect-[16/10] sm:aspect-[16/9] w-full bg-bg-base">
             {/* Estado 1: Botón de inicio */}
             {!showIframe && (
               <button
                 onClick={handleLoadIframe}
-                className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B1120]/80 z-20 hover:bg-[#0B1120]/60 transition-colors duration-500 group"
+                className="absolute inset-0 flex flex-col items-center justify-center bg-bg-base/80 z-20 hover:bg-bg-base/60 transition-colors duration-500 group"
               >
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#8B5CF6] via-[#59B1E4] to-[#10B981] flex items-center justify-center shadow-2xl shadow-[#8B5CF6]/40 mb-6 group-hover:scale-110 transition-transform duration-500 ease-out p-4">
+                <div className="w-20 h-20 rounded-2xl bg-linear-to-br from-electric via-indigo to-lilac flex items-center justify-center shadow-2xl shadow-electric/40 mb-6 group-hover:scale-110 transition-transform duration-500 ease-out p-4">
                   <img
-                    src="https://ik.imagekit.io/xnf3fil5g/logoboosti300px.svg"
+                    src="https://ik.imagekit.io/xnf3fil5g/logo.png"
                     alt="BoostI POS"
                     style={{
                       objectFit: 'contain',
@@ -240,10 +240,10 @@ export default function SandboxPage() {
 
             {/* Estado 2: Cargando */}
             {isLoading && showIframe && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0B1120] z-10">
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg-base z-10">
                 <div className="relative w-14 h-14">
                   <div className="absolute inset-0 rounded-full border-4 border-white/10" />
-                  <div className="absolute inset-0 rounded-full border-4 border-[#8B5CF6] border-t-transparent animate-spin" />
+                  <div className="absolute inset-0 rounded-full border-4 border-electric border-t-transparent animate-spin" />
                 </div>
                 <p className="text-sm text-white/50 font-medium mt-6 animate-pulse">
                   Conectando al entorno de pruebas...
@@ -256,7 +256,7 @@ export default function SandboxPage() {
               <iframe
                 ref={iframeRef}
                 src="/sandbox/index.html"
-                className={`w-full h-full border-0 absolute inset-0 z-0 transition-opacity duration-700 ease-out ${
+                className={`w-full h-full border border-white/10 absolute inset-0 z-0 transition-opacity duration-700 ease-out ${
                   isLoading ? 'opacity-0' : 'opacity-100'
                 }`}
                 sandbox="allow-scripts allow-same-origin allow-forms"
@@ -279,9 +279,9 @@ export default function SandboxPage() {
           ].map((item, i) => (
             <div
               key={i}
-              className="p-6 rounded-2xl bg-white/[0.03] backdrop-blur-sm border border-white/10 hover:bg-white/[0.06] transition-colors"
+              className="p-6 rounded-2xl bg-white/[0.03] backdrop-blur-sm border border-white/10 hover:bg-white/[0.06] transition-colors duration-300 ease-in-out"
             >
-              <div className="w-2 h-2 rounded-full bg-[#10B981] mb-4" />
+              <div className="w-2 h-2 rounded-full bg-mint mb-4" />
               <p className="font-bold text-white text-base">{item.title}</p>
               <p className="text-white/60 mt-2 leading-relaxed">{item.desc}</p>
             </div>
@@ -298,8 +298,8 @@ export default function SandboxPage() {
         aria-label="Abrir tutorial"
       >
         <div className="relative">
-          <div className="absolute inset-0 rounded-full bg-[#8B5CF6]/40 animate-ping" />
-          <div className="relative w-14 h-14 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#59B1E4] flex items-center justify-center shadow-xl shadow-[#8B5CF6]/40 hover:scale-110 transition-transform duration-300">
+          <div className="absolute inset-0 rounded-full bg-electric/40 animate-ping" />
+          <div className="relative w-14 h-14 rounded-full bg-linear-to-br from-electric to-indigo flex items-center justify-center shadow-xl shadow-electric/40 hover:scale-110 transition-transform duration-300 ease-in-out">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -314,7 +314,7 @@ export default function SandboxPage() {
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </div>
-          <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-[#1E293B] border border-white/10 text-white text-xs font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
+          <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-deep-slate border border-white/10 text-white text-xs font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
             Ver tutorial
           </div>
         </div>

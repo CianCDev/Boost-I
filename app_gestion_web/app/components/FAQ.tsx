@@ -4,16 +4,16 @@ import { useState } from 'react';
 
 const FAQS = [
   {
-    q: '¿Necesito instalar algo para usar BoostI POS?',
-    a: 'No. BoostI POS funciona 100% desde el navegador. Solo necesitas conexión a internet y un dispositivo (PC, tablet o celular). También puedes instalarlo como app de escritorio o móvil si lo prefieres.',
+    q: '¿Como funciona BoostI POS?',
+    a: 'Boosti POS es un sistema de punto de venta (POS) basado en la web que te permite gestionar tu negocio desde cualquier dispositivo. Puedes vender productos, controlar inventario, generar reportes y administrar empleados de manera sencilla y eficiente.',
   },
   {
     q: '¿Funciona sin conexión a internet?',
-    a: 'Sí. Nuestro sistema está diseñado con arquitectura offline-first: puedes seguir vendiendo sin conexión y toda la información se sincroniza automáticamente cuando vuelvas a estar en línea.',
+    a: 'Sí. Nuestro sistema está diseñado con arquitectura offline-first: puedes seguir vendiendo sin conexión y toda la información se sincroniza automáticamente cuando vuelvas a estar en línea. Además, tu información se guarda localmente en tu dispositivo y se respalda en la nube para mayor seguridad. Y para evitar problemas al vender sin internet, existe un colchon que evita que se venda por encima del stock disponible.',
   },
   {
     q: '¿Qué hardware es compatible?',
-    a: 'Soportamos impresoras térmicas (Epson, Star, Xprinter), lectores de código de barras USB/Bluetooth, básculas seriales y Bluetooth, y cualquier PC con navegador moderno. Los cajones de dinero se activan desde la impresora.',
+    a: 'Soportamos impresoras térmicas (Epson, Star, Xprinter), lectores de código de barras USB/Bluetooth, básculas seriales y Bluetooth, y cualquier PC, dispositivo móvil o tableta. Los cajones de dinero se activan desde la impresora.',
   },
   {
     q: '¿Mis datos están seguros?',
@@ -31,6 +31,10 @@ const FAQS = [
     q: '¿Hay contrato mínimo?',
     a: 'No. Puedes cancelar cuando quieras, sin penalizaciones. Los planes son mensuales y puedes cambiar de plan en cualquier momento según crezca tu negocio.',
   },
+  {
+    q: '¿BoostI POS emite facturas fiscales?',
+    a: 'No. BoostI POS está diseñado para ser el centro de control administrativo de tu negocio (inventario, ventas, empleados, reportes). No sustituye ni emite documentos fiscales. Puedes seguir utilizando tu impresora fiscal o software de facturación actual para esos fines.',
+  },
 ];
 
 export default function FAQ() {
@@ -40,7 +44,7 @@ export default function FAQ() {
     <section id="faq" className="py-24 relative">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="text-sm font-semibold text-[#A78BFA] uppercase tracking-[0.2em]">
+          <span className="text-sm font-semibold text-lilac uppercase tracking-[0.2em]">
             Preguntas frecuentes
           </span>
           <h2 className="mt-4 text-4xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
@@ -60,8 +64,8 @@ export default function FAQ() {
                 className={`
                   rounded-2xl border transition-all duration-300 overflow-hidden
                   ${isOpen
-                    ? 'bg-[#1E293B]/70 border-[#8B5CF6]/40 shadow-lg shadow-[#8B5CF6]/5'
-                    : 'bg-[#1E293B]/40 border-white/10 hover:border-white/20'}
+                    ? 'bg-deep-slate/70 border-electric/40 shadow-lg shadow-electric/5'
+                    : 'bg-deep-slate/40 border-white/10 hover:border-white/20'}
                 `}
               >
                 <button
@@ -76,7 +80,7 @@ export default function FAQ() {
                     className={`
                       flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300
                       ${isOpen
-                        ? 'bg-[#8B5CF6] text-white rotate-45'
+                        ? 'bg-electric text-white rotate-45'
                         : 'bg-white/5 text-white/60'}
                     `}
                   >
@@ -106,7 +110,7 @@ export default function FAQ() {
             ¿No encuentras tu respuesta?{' '}
             <a
               href="#contact"
-              className="text-[#8B5CF6] hover:text-[#C4B5FD] font-semibold transition-colors"
+              className="text-electric hover:text-indigo font-semibold transition-colors"
             >
               Contáctanos →
             </a>

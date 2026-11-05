@@ -34,10 +34,10 @@ export default function CookieConsent() {
         ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
       `}
     >
-      <div className="rounded-2xl bg-[#1E293B]/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 p-5">
+      <div className="rounded-2xl bg-deep-slate/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 p-5">
         {/* Header */}
         <div className="flex items-start gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-[#8B5CF6]/15 flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-lilac/15 flex items-center justify-center flex-shrink-0">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -45,7 +45,7 @@ export default function CookieConsent() {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="w-5 h-5 text-[#8B5CF6]"
+              className="w-5 h-5 text-lilac"
             >
               <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5" />
               <path d="M8.5 8.5v.01" />
@@ -65,7 +65,7 @@ export default function CookieConsent() {
         <div className="flex flex-col sm:flex-row gap-2">
           <button
             onClick={accept}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-gradient-to-r from-[#8B5CF6] to-[#59B1E4] text-white text-xs font-bold hover:opacity-90 transition-all"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-linear-to-r from-lilac to-electric text-white text-xs font-bold hover:opacity-90 transition-all"
           >
             Aceptar todas
           </button>

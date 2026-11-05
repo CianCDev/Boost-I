@@ -333,7 +333,7 @@ function Navbar() {
         {/* Acciones */}
         <div className="hidden md:flex items-center gap-3">
           <Link
-            href="/auth/login"
+            href="/app"
             className="text-sm font-medium text-white/80 hover:text-white transition-colors px-3 py-2"
           >
             Iniciar sesión
@@ -390,7 +390,7 @@ function Navbar() {
           )}
           <div className="pt-3 mt-3 border-t border-white/10 space-y-2">
             <Link
-              href="/auth/login"
+              href="/app"
               className="block px-4 py-3 text-sm font-medium text-white/80 hover:text-white rounded-lg transition-colors"
               onClick={() => setOpen(false)}
             >

@@ -20,7 +20,7 @@ const STEPS = [
     ),
     title: 'Bienvenido a la demo',
     description: 'Este es un entorno de pruebas 100% funcional del POS. Todos los datos son ficticios y podrás experimentar sin límites.',
-    gradient: 'from-[#8B5CF6] to-[#59B1E4]',
+    gradient: 'from-lilac to-electric',
     badge: 'Paso 1 de 5',
   },
   {
@@ -31,7 +31,7 @@ const STEPS = [
     ),
     title: 'Inicia la aplicación',
     description: 'Haz clic en el botón "Iniciar demo interactiva" para cargar el sistema completo. Puede tardar unos segundos la primera vez.',
-    gradient: 'from-[#10B981] to-[#59B1E4]',
+    gradient: 'from-leaf to-electric',
     badge: 'Paso 2 de 5',
   },
   {
@@ -43,7 +43,7 @@ const STEPS = [
     ),
     title: 'Ingresa con un PIN',
     description: 'Usa el PIN 1234 para el Administrador o 1010 para el Cajero. Son accesos de prueba, no compartas datos reales.',
-    gradient: 'from-[#FF984F] to-[#8B5CF6]',
+    gradient: 'from-electric to-lilac',
     badge: 'Paso 3 de 5',
   },
   {
@@ -55,7 +55,7 @@ const STEPS = [
     ),
     title: 'Explora cada módulo',
     description: 'Registra ventas, gestiona inventario, imprime tickets, revisa reportes y prueba la caja. Todo funciona de verdad.',
-    gradient: 'from-[#59B1E4] to-[#10B981]',
+    gradient: 'from-electric to-leaf',
     badge: 'Paso 4 de 5',
   },
   {
@@ -69,7 +69,7 @@ const STEPS = [
     ),
     title: 'Reinicia cuando quieras',
     description: 'Con el botón "Restablecer datos" puedes volver todo al estado inicial en cualquier momento. ¡Experimenta sin miedo!',
-    gradient: 'from-[#8B5CF6] to-[#10B981]',
+    gradient: 'from-lilac to-leaf',
     badge: 'Paso 5 de 5',
   },
 ];
@@ -126,23 +126,23 @@ export default function DemoTutorialDialog({ open, onClose }: DemoTutorialDialog
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Overlay */}
       <div
-        className="absolute inset-0 bg-[#0B1120]/85 backdrop-blur-sm"
+        className="absolute inset-0 bg-bg-base/85 backdrop-blur-sm"
         onClick={handleClose}
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md rounded-3xl bg-[#1E293B] border border-white/10 shadow-2xl shadow-black/50 overflow-hidden animate-[fade-in_0.3s_ease-out]">
+      <div className="relative w-full max-w-md rounded-3xl bg-deep-slate border border-white/10 shadow-2xl shadow-black/50 overflow-hidden animate-[fade-in_0.3s_ease-out]">
         {/* Barra de progreso */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-white/5">
           <div
-            className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#10B981] transition-all duration-500 ease-out"
+            className="h-full bg-linear-to-r from-lilac to-leaf transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
 
         {/* Glow decorativo */}
-        <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#8B5CF6]/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-[#10B981]/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-20 -right-20 w-64 h-64 bg-lilac/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-leaf/15 rounded-full blur-3xl pointer-events-none" />
 
         {/* Botón cerrar */}
         <button
@@ -159,7 +159,7 @@ export default function DemoTutorialDialog({ open, onClose }: DemoTutorialDialog
         <div className="relative p-8 pt-12">
           {/* Icono */}
           <div
-            className={`w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br ${currentStep.gradient} flex items-center justify-center shadow-2xl shadow-black/40 mb-6`}
+            className={`w-20 h-20 mx-auto rounded-3xl bg-linear-to-br ${currentStep.gradient} flex items-center justify-center shadow-2xl shadow-black/40 mb-6`}
           >
             {currentStep.icon}
           </div>
@@ -167,7 +167,7 @@ export default function DemoTutorialDialog({ open, onClose }: DemoTutorialDialog
           {/* Contenido */}
           <div className="text-center min-h-[150px]">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 text-[10px] font-bold uppercase tracking-wider text-white/50 mb-3">
-              <span className="w-1 h-1 rounded-full bg-[#10B981]" />
+              <span className="w-1 h-1 rounded-full bg-leaf" />
               {currentStep.badge}
             </div>
             <h2 className="text-xl font-extrabold text-white tracking-tight">
@@ -186,9 +186,9 @@ export default function DemoTutorialDialog({ open, onClose }: DemoTutorialDialog
                 onClick={() => setStep(i)}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   i === step
-                    ? 'w-6 bg-[#8B5CF6]'
+                    ? 'w-6 bg-lilac'
                     : i < step
-                    ? 'w-1.5 bg-[#10B981]'
+                    ? 'w-1.5 bg-leaf'
                     : 'w-1.5 bg-white/15 hover:bg-white/30'
                 }`}
                 aria-label={`Ir al paso ${i + 1}`}
@@ -203,7 +203,7 @@ export default function DemoTutorialDialog({ open, onClose }: DemoTutorialDialog
                 type="checkbox"
                 checked={dontShowAgain}
                 onChange={(e) => setDontShowAgain(e.target.checked)}
-                className="w-4 h-4 rounded border-white/20 bg-white/5 text-[#8B5CF6] focus:ring-[#8B5CF6] focus:ring-offset-0 cursor-pointer accent-[#8B5CF6]"
+                className="w-4 h-4 rounded border-white/20 bg-white/5 text-lilac focus:ring-lilac focus:ring-offset-0 cursor-pointer accent-lilac"
               />
               <span className="text-xs text-white/60">No volver a mostrar</span>
             </label>
@@ -223,7 +223,7 @@ export default function DemoTutorialDialog({ open, onClose }: DemoTutorialDialog
               onClick={next}
               className={`${
                 step > 0 ? 'flex-1' : 'w-full'
-              } px-4 py-3 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#59B1E4] text-white text-sm font-bold hover:opacity-90 transition-all shadow-lg shadow-[#8B5CF6]/25`}
+              } px-4 py-3 rounded-xl bg-linear-to-r from-lilac to-electric text-white text-sm font-bold hover:opacity-90 transition-all shadow-lg shadow-lilac/25`}
             >
               {isLast ? '¡Empezar a explorar!' : 'Siguiente'}
             </button>

@@ -18,7 +18,7 @@ const STEPS = [
     ),
     title: '¡Bienvenido a BoostI POS!',
     description: 'Te mostramos en 4 pasos rápidos cómo sacar el máximo provecho a esta demo interactiva.',
-    gradient: 'from-[#8B5CF6] to-[#59B1E4]',
+    gradient: 'from-lilac to-electric',
   },
   {
     icon: (
@@ -29,7 +29,7 @@ const STEPS = [
     ),
     title: 'Inicia sesión con PIN',
     description: 'Usa el PIN 1234 para el Administrador o 1010 para el cajero. Es un entorno seguro y de prueba.',
-    gradient: 'from-[#10B981] to-[#59B1E4]',
+    gradient: 'from-leaf to-electric',
   },
   {
     icon: (
@@ -40,7 +40,7 @@ const STEPS = [
     ),
     title: 'Explora todas las funciones',
     description: 'Registra ventas, gestiona inventario, imprime tickets, revisa reportes… Todo funciona de verdad.',
-    gradient: 'from-[#FF984F] to-[#8B5CF6]',
+    gradient: 'from-electric to-lilac',
   },
   {
     icon: (
@@ -53,7 +53,7 @@ const STEPS = [
     ),
     title: 'Reinicia cuando quieras',
     description: 'Con un solo clic puedes restablecer todos los datos y empezar desde cero. ¡Experimenta sin miedo!',
-    gradient: 'from-[#59B1E4] to-[#10B981]',
+    gradient: 'from-electric to-leaf',
   },
 ];
 
@@ -97,15 +97,15 @@ export default function OnboardingDialog({ open, onClose }: OnboardingDialogProp
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-[#0B1120]/85 backdrop-blur-sm"
+        className="absolute inset-0 bg-bg-base/85 backdrop-blur-sm"
         onClick={handleClose}
       />
 
-      <div className="relative w-full max-w-md rounded-3xl bg-[#1E293B] border border-white/10 shadow-2xl shadow-black/50 overflow-hidden">
+      <div className="relative w-full max-w-md rounded-3xl bg-deep-slate border border-white/10 shadow-2xl shadow-black/50 overflow-hidden">
         {/* Barra de progreso */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-white/5">
           <div
-            className="h-full bg-gradient-to-r from-[#8B5CF6] to-[#10B981] transition-all duration-500 ease-out"
+            className="h-full bg-linear-to-r from-lilac to-leaf transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -124,7 +124,7 @@ export default function OnboardingDialog({ open, onClose }: OnboardingDialogProp
 
         <div className="p-8 pt-12">
           {/* Icono */}
-          <div className={`w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br ${currentStep.gradient} flex items-center justify-center shadow-xl mb-6`}>
+          <div className={`w-20 h-20 mx-auto rounded-3xl bg-linear-to-br ${currentStep.gradient} flex items-center justify-center shadow-xl mb-6`}>
             {currentStep.icon}
           </div>
 
@@ -149,9 +149,9 @@ export default function OnboardingDialog({ open, onClose }: OnboardingDialogProp
                 onClick={() => setStep(i)}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   i === step
-                    ? 'w-6 bg-[#8B5CF6]'
+                    ? 'w-6 bg-lilac'
                     : i < step
-                    ? 'w-1.5 bg-[#10B981]'
+                    ? 'w-1.5 bg-leaf'
                     : 'w-1.5 bg-white/15 hover:bg-white/30'
                 }`}
                 aria-label={`Ir al paso ${i + 1}`}
@@ -166,7 +166,7 @@ export default function OnboardingDialog({ open, onClose }: OnboardingDialogProp
                 type="checkbox"
                 checked={dontShowAgain}
                 onChange={(e) => setDontShowAgain(e.target.checked)}
-                className="w-4 h-4 rounded border-white/20 bg-white/5 text-[#8B5CF6] focus:ring-[#8B5CF6] focus:ring-offset-0 cursor-pointer"
+                className="w-4 h-4 rounded border-white/20 bg-white/5 text-lilac focus:ring-lilac focus:ring-offset-0 cursor-pointer"
               />
               <span className="text-xs text-white/60">No volver a mostrar</span>
             </label>
@@ -184,7 +184,7 @@ export default function OnboardingDialog({ open, onClose }: OnboardingDialogProp
             )}
             <button
               onClick={next}
-              className={`${step > 0 ? 'flex-1' : 'w-full'} px-4 py-3 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#59B1E4] text-white text-sm font-bold hover:opacity-90 transition-all shadow-lg shadow-[#8B5CF6]/25`}
+              className={`${step > 0 ? 'flex-1' : 'w-full'} px-4 py-3 rounded-xl bg-linear-to-r from-lilac to-electric text-white text-sm font-bold hover:opacity-90 transition-all shadow-lg shadow-lilac/25`}
             >
               {isLast ? '¡Empezar ahora!' : 'Siguiente'}
             </button>
