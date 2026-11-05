@@ -29,8 +29,19 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Despliegue en Netlify
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+El sitio utiliza la exportación estática de Next.js (`output: 'export'`). La
+configuración de Netlify en la raíz del repositorio establece `app_gestion_web`
+como directorio base, `npm run build` como comando y `out` como directorio de
+publicación. En un despliegue manual también se debe publicar `out`, nunca `.next`:
+`.next` contiene archivos internos de Next.js y no es un sitio estático listo para
+servir.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Las rutas `/sandbox` y `/sandbox/` sirven la página Next.js exportada como
+`/sandbox.html`. El iframe continúa cargando la aplicación Flutter desde
+`/sandbox/index.html`; las reglas específicas evitan confundir ambas páginas.
+
+La exportación actual no requiere un servidor de Next.js. Si se añaden funciones
+que necesiten servidor, habrá que cambiar a un despliegue con el adaptador de
+Next.js de Netlify.
