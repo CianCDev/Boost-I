@@ -14,7 +14,7 @@ import '../../presentation/services/mayoreo/wholesale_pricing_service.dart';
 @immutable
 class WholesaleCartItem {
   final ProductoEntity producto;
-  final int cantidad;
+  final double cantidad;
 
   /// 'unidad' | 'bulto' | 'caja'
   final String unidadEmpaque;
@@ -75,8 +75,7 @@ class WholesaleCartItem {
       subtotalBruto * (descuentoManualPorcentaje / 100.0);
 
   /// Total descontado (auto + manual).
-  double get montoDescuentoTotal =>
-      montoDescuentoAuto + montoDescuentoManual;
+  double get montoDescuentoTotal => montoDescuentoAuto + montoDescuentoManual;
 
   /// Subtotal final después de descuentos.
   double get subtotalFinal => subtotalBruto - montoDescuentoTotal;
@@ -123,7 +122,7 @@ class WholesaleCartItem {
   // ──────────────── copyWith ────────────────
 
   WholesaleCartItem copyWith({
-    int? cantidad,
+    double? cantidad,
     double? precioUnitario,
     PrecioTipo? tipoPrecio,
     double? descuentoManualPorcentaje,
@@ -143,8 +142,7 @@ class WholesaleCartItem {
       reglaAutoNombre: reglaAutoNombre,
       descuentoManualPorcentaje:
           descuentoManualPorcentaje ?? this.descuentoManualPorcentaje,
-      descuentoAutorizado:
-          descuentoAutorizado ?? this.descuentoAutorizado,
+      descuentoAutorizado: descuentoAutorizado ?? this.descuentoAutorizado,
       autorizadoPorNombre: clearAutorizadoPorNombre
           ? null
           : (autorizadoPorNombre ?? this.autorizadoPorNombre),
@@ -156,7 +154,7 @@ class WholesaleCartItem {
   /// Crea una línea a partir del resultado del `WholesalePricingService`.
   factory WholesaleCartItem.desdePrecioResuelto({
     required ProductoEntity producto,
-    required int cantidad,
+    required double cantidad,
     required PrecioResuelto precio,
     String unidadEmpaque = 'unidad',
     int? unidadesPorEmpaque,
@@ -165,12 +163,10 @@ class WholesaleCartItem {
       producto: producto,
       cantidad: cantidad,
       unidadEmpaque: unidadEmpaque,
-      unidadesPorEmpaque:
-          unidadesPorEmpaque ?? producto.unidadesPorBulto,
+      unidadesPorEmpaque: unidadesPorEmpaque ?? producto.unidadesPorBulto,
       precioUnitario: precio.precioUnitario,
       tipoPrecio: precio.tipo,
-      precioDetalOriginal:
-          precio.precioDetalOriginal ?? producto.precioUnidad,
+      precioDetalOriginal: precio.precioDetalOriginal ?? producto.precioUnidad,
       descuentoAutoPorcentaje: precio.descuentoAutoPorcentaje,
       reglaAutoNombre: precio.reglaAplicada,
     );

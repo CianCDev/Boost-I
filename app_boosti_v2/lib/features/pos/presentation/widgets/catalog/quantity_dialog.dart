@@ -4,11 +4,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/Local/entities/producto_entity.dart';
-import '../../services/scale_service.dart';
+import '../../providers/scale_provider.dart';
 import '../admin_validation_dialog.dart';
 
-class QuantityDialog extends StatefulWidget {
+class QuantityDialog extends ConsumerStatefulWidget {
   final ProductoEntity producto;
   final Function(ProductoEntity, double) onAgregar;
   final double cantidadInicial;
@@ -21,11 +22,11 @@ class QuantityDialog extends StatefulWidget {
   });
 
   @override
-  State<QuantityDialog> createState() => _QuantityDialogState();
+  ConsumerState<QuantityDialog> createState() => _QuantityDialogState();
 }
 
-class _QuantityDialogState extends State<QuantityDialog> {
-  final ScaleService _scaleService = ScaleService();
+class _QuantityDialogState extends ConsumerState<QuantityDialog> {
+  late final _scaleService = ref.read(scaleServiceProvider);
   final TextEditingController _cantidadController = TextEditingController();
   final TextEditingController _precioController = TextEditingController();
 
@@ -67,10 +68,11 @@ class _QuantityDialogState extends State<QuantityDialog> {
           // Además, modificar .text no requiere setState, el TextField se repinta solo.
           if (_cantidadController.text != nuevoPeso) {
             _cantidadController.text = nuevoPeso;
-            _revalidarFormulario(); 
+            _revalidarFormulario();
           }
         }
       });
+      unawaited(_scaleService.connect());
     }
 
     _cantidadFocus.addListener(() {
@@ -101,7 +103,7 @@ class _QuantityDialogState extends State<QuantityDialog> {
     final c = double.tryParse(_cantidadController.text) ?? 0;
     final p = double.tryParse(_precioController.text) ?? 0;
     final valido = c > 0 && p > 0;
-    
+
     // Solo hacemos setState si el estado de validación cambia (evita rebuilds innecesarios)
     if (valido != _formValido) {
       setState(() => _formValido = valido);
@@ -377,8 +379,7 @@ class _QuantityDialogState extends State<QuantityDialog> {
       children: [
         TextButton(
           style: TextButton.styleFrom(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             foregroundColor: isDark ? Colors.white70 : Colors.black54,
             backgroundColor: isDark
                 ? Colors.white.withValues(alpha: 0.05)
@@ -410,8 +411,7 @@ class _QuantityDialogState extends State<QuantityDialog> {
                 : colorScheme.surfaceContainerHighest,
             foregroundColor:
                 habilitado ? Colors.white : colorScheme.onSurfaceVariant,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: habilitado ? 4 : 0,
@@ -503,13 +503,12 @@ class _QuantityDialogState extends State<QuantityDialog> {
       if (mounted) Navigator.of(context).pop();
 
       // 2. Diferimos la actualización de Riverpod (carrito).
-      // Esto evita que la carga masiva en memoria ocurra exactamente en el 
-      // mismo frame en el que el teclado baja y el diálogo se cierra, 
+      // Esto evita que la carga masiva en memoria ocurra exactamente en el
+      // mismo frame en el que el teclado baja y el diálogo se cierra,
       // eliminando los parpadeos y "tirones" de pantalla.
       Future.delayed(const Duration(milliseconds: 50), () {
         widget.onAgregar(productoConPrecio, cantidad);
       });
-
     } catch (e) {
       if (!mounted) return;
       setState(() => _procesando = false);
@@ -525,7 +524,8 @@ class _QuantityDialogState extends State<QuantityDialog> {
       SnackBar(
         content: Text(
           mensaje,
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+          style:
+              const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: Theme.of(context).colorScheme.error,
         duration: const Duration(seconds: 2),

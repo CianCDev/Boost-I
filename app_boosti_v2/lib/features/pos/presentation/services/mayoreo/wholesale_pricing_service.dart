@@ -56,12 +56,12 @@ class PrecioResuelto {
   });
 
   /// Subtotal ANTES de aplicar descuentos manuales.
-  double subtotalPara(int cantidad) {
+  double subtotalPara(double cantidad) {
     return precioUnitario * cantidad;
   }
 
   /// Ahorro vs detal original.
-  double ahorroVsDetal(int cantidad) {
+  double ahorroVsDetal(double cantidad) {
     if (precioDetalOriginal == null) return 0;
     return (precioDetalOriginal! - precioUnitario) * cantidad;
   }
@@ -87,7 +87,7 @@ class WholesalePricingService {
   /// [reglasVolumen] que aplique al producto/cantidad.
   static PrecioResuelto resolver({
     required ProductoEntity producto,
-    required int cantidad,
+    required double cantidad,
     List<ConfigDescuentoMayoristaEntity> reglasVolumen = const [],
   }) {
     if (cantidad <= 0) {
@@ -163,24 +163,25 @@ class WholesalePricingService {
   /// Ordena por `descuentoPorcentaje DESC` y devuelve la primera.
   static _ReglaVolumenResuelta? _mejorDescuentoVolumen({
     required ProductoEntity producto,
-    required int cantidad,
+    required double cantidad,
     required List<ConfigDescuentoMayoristaEntity> reglas,
   }) {
     final aplicables = reglas.where((r) {
       if (!r.activo) return false;
 
       // Filtrar por categoría (si la regla tiene una asignada)
-      if (r.categoriaIdIsar != null && r.categoriaIdIsar != producto.categoriaId) {
+      if (r.categoriaIdIsar != null &&
+          r.categoriaIdIsar != producto.categoriaId) {
         return false;
       }
 
       if (cantidad < r.cantidadMinima) return false;
-      if (r.cantidadMaxima != null && cantidad > r.cantidadMaxima!) return false;
+      if (r.cantidadMaxima != null && cantidad > r.cantidadMaxima!)
+        return false;
 
       return true;
     }).toList()
-      ..sort((a, b) =>
-          b.descuentoPorcentaje.compareTo(a.descuentoPorcentaje));
+      ..sort((a, b) => b.descuentoPorcentaje.compareTo(a.descuentoPorcentaje));
 
     if (aplicables.isEmpty) return null;
 

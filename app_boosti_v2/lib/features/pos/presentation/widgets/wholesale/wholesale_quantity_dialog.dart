@@ -8,12 +8,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../providers/isar_provider.dart';
+import '../../providers/scale_provider.dart';
 import '../../services/mayoreo/wholesale_pricing_service.dart';
-import '../../services/scale_service.dart';
 
 /// Resultado del diálogo de cantidad al mayor.
 class WholesaleQuantityResult {
-  final int cantidad;
+  final double cantidad;
   final String unidadEmpaque;
 
   const WholesaleQuantityResult({
@@ -71,7 +71,7 @@ class WholesaleQuantityDialog extends ConsumerStatefulWidget {
 
 class _WholesaleQuantityDialogState
     extends ConsumerState<WholesaleQuantityDialog> {
-  final ScaleService _scaleService = ScaleService();
+  late final _scaleService = ref.read(scaleServiceProvider);
   final TextEditingController _cantidadController = TextEditingController();
   final FocusNode _cantidadFocus = FocusNode();
 
@@ -98,10 +98,14 @@ class _WholesaleQuantityDialogState
     // Balanza para productos pesados
     if (widget.producto.esPesado) {
       _weightSubscription = _scaleService.weightStream.listen((peso) {
+        debugPrint('Peso recibido: $peso');
         if (peso > 0 && mounted && _usandoPesoAutomatico) {
           final nuevo = peso.toStringAsFixed(3);
           if (_cantidadController.text != nuevo) {
-            _cantidadController.text = nuevo;
+            _cantidadController.value = TextEditingValue(
+              text: nuevo,
+              selection: TextSelection.collapsed(offset: nuevo.length),
+            );
             _recalcularPrecio();
           }
         }
@@ -133,7 +137,6 @@ class _WholesaleQuantityDialogState
   @override
   void dispose() {
     _weightSubscription?.cancel();
-    _scaleService.disconnect();
     _cantidadController.dispose();
     _cantidadFocus.dispose();
     super.dispose();
@@ -142,8 +145,8 @@ class _WholesaleQuantityDialogState
   // ──────────────── Cálculos ────────────────
 
   /// Convierte la cantidad ingresada a unidades totales, según el empaque.
-  int get _unidadesTotales {
-    final cantidad = int.tryParse(_cantidadController.text) ?? 0;
+  double get _unidadesTotales {
+    final cantidad = double.tryParse(_cantidadController.text) ?? 0;
     if (cantidad <= 0) return 0;
 
     switch (_unidadEmpaque) {
@@ -545,7 +548,8 @@ class _WholesaleQuantityDialogState
   ) {
     final unidades = _unidadesTotales;
     final subtotalBruto = precio.precioUnitario * unidades;
-    final descuentoAuto = subtotalBruto * (precio.descuentoAutoPorcentaje / 100);
+    final descuentoAuto =
+        subtotalBruto * (precio.descuentoAutoPorcentaje / 100);
     final subtotalFinal = subtotalBruto - descuentoAuto;
     final ahorroTotal = precio.ahorroVsDetal(unidades);
     final esBulto = _unidadEmpaque != 'unidad';
@@ -798,8 +802,7 @@ class _WholesaleQuantityDialogState
             style: ElevatedButton.styleFrom(
               backgroundColor:
                   valido ? const Color(0xFF10B981) : cs.surfaceContainerHighest,
-              foregroundColor:
-                  valido ? Colors.white : cs.onSurfaceVariant,
+              foregroundColor: valido ? Colors.white : cs.onSurfaceVariant,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),

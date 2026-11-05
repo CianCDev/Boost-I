@@ -2,6 +2,7 @@
 import 'package:app_boosti_v2/features/pos/data/Local/entities/producto_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/catalog/quantity_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -31,19 +32,21 @@ void main() {
     void Function(ProductoEntity, double)? onAgregar,
   }) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: Center(
-              child: ElevatedButton(
-                onPressed: () => showDialog(
-                  context: context,
-                  builder: (_) => QuantityDialog(
-                    producto: producto ?? buildProducto(),
-                    onAgregar: onAgregar ?? (_, __) {},
+      ProviderScope(
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => QuantityDialog(
+                      producto: producto ?? buildProducto(),
+                      onAgregar: onAgregar ?? (_, __) {},
+                    ),
                   ),
+                  child: const Text('Abrir'),
                 ),
-                child: const Text('Abrir'),
               ),
             ),
           ),
@@ -68,8 +71,7 @@ void main() {
       );
 
   group('QuantityDialog', () {
-    testWidgets('muestra el nombre del producto en el header',
-        (tester) async {
+    testWidgets('muestra el nombre del producto en el header', (tester) async {
       await openDialog(tester);
       // El widget renderiza 'Agregar ${producto.nombre}' (quantity_dialog.dart:201),
       // no solo el nombre. El finder tiene que reflejarlo.

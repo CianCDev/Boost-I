@@ -50,7 +50,6 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
     return Scaffold(
       backgroundColor: cs.surfaceContainerLow,
       appBar: CustomAppBar(
-        
         title: 'Carrito al Mayor',
         showBackButton: true,
         actions: [
@@ -486,11 +485,14 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
     WholesaleCartItem item,
   ) async {
     final controller = TextEditingController(
-      text: item.cantidad.toString(),
+      text: item.cantidad.toStringAsFixed(
+        item.cantidad % 1 == 0 ? 0 : 3,
+      ),
     );
     final formKey = GlobalKey<FormState>();
+    final esPesable = item.producto.esPesado;
 
-    final resultado = await showDialog<int>(
+    final resultado = await showDialog<double>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(
@@ -507,22 +509,28 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
           child: TextFormField(
             controller: controller,
             autofocus: true,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            keyboardType: TextInputType.numberWithOptions(decimal: esPesable),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(
+                esPesable ? RegExp(r'^\d*\.?\d{0,3}') : RegExp(r'^\d*'),
+              ),
+            ],
             decoration: const InputDecoration(
-              labelText: 'Nueva cantidad (unidades)',
+              labelText: 'Nueva cantidad',
               prefixIcon: Icon(Icons.numbers_rounded),
               border: OutlineInputBorder(),
             ),
             validator: (v) {
-              final n = int.tryParse(v ?? '');
-              if (n == null || n <= 0) return 'Ingresa una cantidad válida';
+              final n = double.tryParse(v ?? '');
+              if (n == null || n <= 0 || (!esPesable && n % 1 != 0)) {
+                return 'Ingresa una cantidad válida';
+              }
               return null;
             },
             onFieldSubmitted: (_) {
               if (formKey.currentState?.validate() ?? false) {
                 Navigator.of(dialogContext)
-                    .pop(int.tryParse(controller.text));
+                    .pop(double.tryParse(controller.text));
               }
             },
           ),
@@ -536,7 +544,7 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
             onPressed: () {
               if (formKey.currentState?.validate() ?? false) {
                 Navigator.of(dialogContext)
-                    .pop(int.tryParse(controller.text));
+                    .pop(double.tryParse(controller.text));
               }
             },
             style: ElevatedButton.styleFrom(
@@ -590,9 +598,8 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
     WholesaleCartItem item,
   ) async {
     final usuario = ref.read(usuarioActualProvider);
-    final rol = usuario != null
-        ? UserRole.fromString(usuario.rol)
-        : UserRole.cajero;
+    final rol =
+        usuario != null ? UserRole.fromString(usuario.rol) : UserRole.cajero;
 
     final result = await WholesaleDiscountDialog.show(
       context,
@@ -624,9 +631,8 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
     WholesaleCartState cartState,
   ) async {
     final usuario = ref.read(usuarioActualProvider);
-    final rol = usuario != null
-        ? UserRole.fromString(usuario.rol)
-        : UserRole.cajero;
+    final rol =
+        usuario != null ? UserRole.fromString(usuario.rol) : UserRole.cajero;
 
     final result = await WholesaleDiscountDialog.show(
       context,
@@ -651,7 +657,7 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
 
   // ──────────────── Cobrar ────────────────
 
-    Future<void> _intentarCobrar(
+  Future<void> _intentarCobrar(
     BuildContext context,
     WholesaleCartState cartState,
     WholesaleClientState clienteState,

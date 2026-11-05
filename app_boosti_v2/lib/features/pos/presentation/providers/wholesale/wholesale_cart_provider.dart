@@ -53,8 +53,8 @@ class WholesaleCartState {
   int get cantidadItems => items.length;
 
   /// Suma de las cantidades (unidades totales).
-  int get cantidadUnidades =>
-      items.fold<int>(0, (sum, item) => sum + item.cantidad);
+  double get cantidadUnidades =>
+      items.fold<double>(0, (sum, item) => sum + item.cantidad);
 
   /// Subtotal antes de descuento global.
   double get subtotal => items.fold<double>(
@@ -92,9 +92,8 @@ class WholesaleCartState {
   }
 
   /// Suma de todos los descuentos autorizados pendientes de aprobación.
-  List<WholesaleCartItem> get itemsConDescuentoPendiente => items
-      .where((i) => i.requiereAutorizacionDescuento)
-      .toList();
+  List<WholesaleCartItem> get itemsConDescuentoPendiente =>
+      items.where((i) => i.requiereAutorizacionDescuento).toList();
 
   // ──────────────── copyWith ────────────────
 
@@ -164,7 +163,7 @@ class WholesaleCartNotifier extends StateNotifier<WholesaleCartState> {
   /// aplica descuentos automáticos por volumen.
   Future<void> agregarProducto({
     required ProductoEntity producto,
-    required int cantidad,
+    required double cantidad,
     String unidadEmpaque = 'unidad',
     int? unidadesPorEmpaque,
   }) async {
@@ -199,8 +198,7 @@ class WholesaleCartNotifier extends StateNotifier<WholesaleCartState> {
         cantidad: nuevaCantidad,
         reglasVolumen: reglas,
       );
-      itemsActualizados[indexExistente] =
-          WholesaleCartItem.desdePrecioResuelto(
+      itemsActualizados[indexExistente] = WholesaleCartItem.desdePrecioResuelto(
         producto: producto,
         cantidad: nuevaCantidad,
         precio: precioActualizado,
@@ -215,7 +213,7 @@ class WholesaleCartNotifier extends StateNotifier<WholesaleCartState> {
   }
 
   /// Actualiza la cantidad de una línea (recalcula precio).
-  Future<void> actualizarCantidad(String lineId, int nuevaCantidad) async {
+  Future<void> actualizarCantidad(String lineId, double nuevaCantidad) async {
     if (nuevaCantidad <= 0) {
       eliminarItem(lineId);
       return;
@@ -366,8 +364,9 @@ class WholesaleCartNotifier extends StateNotifier<WholesaleCartState> {
 
     state = state.copyWith(
       items: itemsActualizados,
-      descuentoGlobalAutorizado:
-          state.descuentoGlobalPorcentaje > 0 ? true : state.descuentoGlobalAutorizado,
+      descuentoGlobalAutorizado: state.descuentoGlobalPorcentaje > 0
+          ? true
+          : state.descuentoGlobalAutorizado,
       autorizadoPorNombreGlobal:
           state.descuentoGlobalPorcentaje > 0 ? autorizadoPor : null,
     );

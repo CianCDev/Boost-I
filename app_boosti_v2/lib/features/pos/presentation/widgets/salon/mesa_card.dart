@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:app_boosti_v2/features/pos/data/Local/entities/mesa_entity.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/mesas_provider.dart';
 
-import '../common/glass_card.dart';
+import '../common/glass_item_card.dart';
 import '../common/status_badge.dart';
 
 /// Card de una mesa en el grid del salón.
@@ -46,109 +46,57 @@ class MesaCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final colorEstado = colorDeEstado(mesa.estado);
+    final icono = switch (mesa.estado) {
+      MesaEstado.libre => Icons.event_available_rounded,
+      MesaEstado.ocupada => Icons.table_restaurant_rounded,
+      MesaEstado.reservada => Icons.event_busy_rounded,
+      MesaEstado.porLimpiar => Icons.cleaning_services_rounded,
+    };
 
-    return GlassCard(
+    return GlassItemCard(
+      icon: icono,
+      title: mesa.nombre,
+      statusColor: colorEstado,
       onTap: onTap,
       onLongPress: onLongPress,
-      showStatusBar: true,
-      statusColor: colorEstado,
-      padding: const EdgeInsets.all(14),
-      margin: const EdgeInsets.only(bottom: 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(12),
+      trailingWidget: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Nombre ──
-          Text(
-            mesa.nombre,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: colorScheme.onSurface,
-              letterSpacing: -0.2,
+          StatusBadge(
+            label: MesasNotifier.etiquetaEstado(mesa.estado),
+            color: colorEstado,
+            size: StatusBadgeSize.small,
+          ),
+          if (mesa.estaUnida) ...[
+            const SizedBox(height: 4),
+            StatusBadge(
+              label: 'Unida',
+              color: colorScheme.outline,
+              size: StatusBadgeSize.small,
             ),
+          ],
+        ],
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            mesa.zonaEfectiva,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 6),
-
-          // ── Estado + Zona ──
-          Row(
-            children: [
-              StatusBadge(
-                label: MesasNotifier.etiquetaEstado(mesa.estado),
-                color: colorEstado,
-                size: StatusBadgeSize.small,
-              ),
-              const SizedBox(width: 6),
-              if (mesa.estaUnida)
-                StatusBadge(
-                  label: 'Unida',
-                  color: colorScheme.outline,
-                  size: StatusBadgeSize.small,
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // ── Zona + capacidad ──
-          Row(
-            children: [
-              Icon(
-                Icons.place_outlined,
-                size: 13,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  mesa.zonaEfectiva,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Icon(
-                Icons.people_alt_outlined,
-                size: 13,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 3),
-              Text(
-                '${mesa.capacidad} pax',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-
-          // ── Tiempo de ocupación ──
+          const SizedBox(height: 4),
+          Text('${mesa.capacidad} pax'),
           if (mesa.estado == MesaEstado.ocupada &&
               mesa.ocupadaDesde != null) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  Icons.schedule_rounded,
-                  size: 13,
-                  color: colorOcupada,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _duracion(mesa.ocupadaDesde!),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colorOcupada,
-                  ),
-                ),
-              ],
+            const SizedBox(height: 4),
+            Text(
+              _duracion(mesa.ocupadaDesde!),
+              style: TextStyle(
+                color: colorOcupada,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ],

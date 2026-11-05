@@ -107,9 +107,8 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
                   child: GlassSearchBar(
                     hint: 'Buscar por nombre, código o marca…',
                     controller: _searchController,
-                    onChanged: (v) => ref
-                        .read(wholesaleFilterProvider.notifier)
-                        .setSearch(v),
+                    onChanged: (v) =>
+                        ref.read(wholesaleFilterProvider.notifier).setSearch(v),
                     accentColor: colorScheme.primary,
                   ),
                 ),
@@ -582,7 +581,8 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
       if (kDebugMode) {
         debugPrint(
           '🛒 Agregado: ${producto.nombre} · '
-          '${result.cantidad} ${result.unidadEmpaque == 'unidad' ? 'u.' : 'bultos'}',
+          '${result.cantidad.toStringAsFixed(result.cantidad % 1 == 0 ? 0 : 3)} '
+          '${result.unidadEmpaque == 'unidad' ? 'u.' : 'bultos'}',
         );
       }
 
@@ -599,7 +599,7 @@ class _WholesaleScreenState extends ConsumerState<WholesaleScreen> {
               Expanded(
                 child: Text(
                   '${producto.nombre} agregado · '
-                  '${result.cantidad} '
+                  '${result.cantidad.toStringAsFixed(result.cantidad % 1 == 0 ? 0 : 3)} '
                   '${result.unidadEmpaque == 'unidad' ? 'u.' : 'bultos'}',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),

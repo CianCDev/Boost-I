@@ -141,7 +141,8 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
             _detalleFila('Zona', mesa.zonaEfectiva),
             _detalleFila('Capacidad', '${mesa.capacidad} pax'),
             _detalleFila('Estado', MesasNotifier.etiquetaEstado(mesa.estado)),
-            if (mesa.estaUnida) _detalleFila('Unida a', 'Mesa ID ${mesa.unidaConMesaId}'),
+            if (mesa.estaUnida)
+              _detalleFila('Unida a', 'Mesa ID ${mesa.unidaConMesaId}'),
           ],
         ),
         actions: [
@@ -243,6 +244,7 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
     final esMobile = ResponsiveHelper.isMobile(context);
 
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
       appBar: CustomAppBar(
         title: 'Salón',
         showBackButton: true,
@@ -262,9 +264,7 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
                 state.zonaFiltro == null
                     ? Icons.filter_alt_outlined
                     : Icons.filter_alt_rounded,
-                color: state.zonaFiltro == null
-                    ? null
-                    : MesaCard.colorLibre,
+                color: state.zonaFiltro == null ? null : MesaCard.colorLibre,
               ),
               onSelected: notifier.filtrarPorZona,
               itemBuilder: (_) => [
@@ -350,12 +350,12 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
       builder: (context, constraints) {
         final columnas = _columnasPara(constraints.maxWidth);
         return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columnas,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.25,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 1.4,
           ),
           itemCount: mesas.length,
           itemBuilder: (context, i) {
@@ -485,7 +485,8 @@ class _DialogoMesaLibre extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: () => Navigator.pop(context, AccionMesaLibre.cancelar),
+                onPressed: () =>
+                    Navigator.pop(context, AccionMesaLibre.cancelar),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(

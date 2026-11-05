@@ -487,11 +487,11 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
     final modulosDestacados = seccionesConPermisos
         .expand((seccion) => seccion.options)
         .where((opcion) => const {
-          'punto_venta',
-          'mesas',
-          'caja_operativa',
-          'inventario',
-        }.contains(opcion.id))
+              'punto_venta',
+              'mesas',
+              'caja_operativa',
+              'inventario',
+            }.contains(opcion.id))
         .toList(growable: false);
     _modulosDestacadosCache = modulosDestacados;
 
@@ -518,117 +518,117 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
           showBackButton: false,
           gradient: gradient,
           actions: [
-          // Local activo. INFO only, no clickeable: el hot-switch vive en
-          // el side panel. Va antes del spinner para que el nombre quede
-          // en posición estable y el spinner no lo desplace al syncar.
-          const Padding(
-            padding: EdgeInsets.only(right: 12),
-            child: Center(
-              child: LocalActivoChip(variante: LocalActivoVariante.appBar),
-            ),
-          ),
-          if (_sincronizando)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+            // Local activo. INFO only, no clickeable: el hot-switch vive en
+            // el side panel. Va antes del spinner para que el nombre quede
+            // en posición estable y el spinner no lo desplace al syncar.
+            const Padding(
+              padding: EdgeInsets.only(right: 12),
               child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white.withValues(alpha: 0.8),
+                child: LocalActivoChip(variante: LocalActivoVariante.appBar),
+              ),
+            ),
+            if (_sincronizando)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
                   ),
                 ),
               ),
+          ],
+        ),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            // ── Blobs de fondo premium (aurora suave) ──
+            AnimatedBuilder(
+              animation: _blobController,
+              builder: (context, _) {
+                final t = _blobController.value * 2 * math.pi;
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+                final cMint = const Color(0xFF10B981);
+                final cElectric = const Color(0xFF06B6D4);
+                final cLilac = const Color(0xFF8B5CF6);
+                final alphaStrong = isDark ? 0.20 : 0.14;
+                final alphaSoft = isDark ? 0.14 : 0.10;
+                final alphaFaint = isDark ? 0.08 : 0.06;
+
+                return Stack(
+                  children: [
+                    // 1 · arriba-izquierda (mint, más fuerte)
+                    Positioned(
+                      top: -140 + 40 * math.sin(t),
+                      left: -110 + 50 * math.cos(t * 0.9),
+                      child: _MenuBlob(
+                        size: 460,
+                        color: cMint.withValues(alpha: alphaStrong),
+                        blur: 100,
+                      ),
+                    ),
+                    // 2 · arriba-derecha (electric)
+                    Positioned(
+                      top: -100 + 45 * math.cos(t * 0.8),
+                      right: -140 + 55 * math.sin(t * 1.1),
+                      child: _MenuBlob(
+                        size: 520,
+                        color: cElectric.withValues(alpha: alphaSoft),
+                        blur: 110,
+                      ),
+                    ),
+                    // 3 · abajo-centro (lilac)
+                    Positioned(
+                      bottom: -180 + 50 * math.sin(t * 1.3),
+                      left: 140 + 80 * math.cos(t * 0.7),
+                      child: _MenuBlob(
+                        size: 440,
+                        color: cLilac.withValues(alpha: alphaSoft),
+                        blur: 100,
+                      ),
+                    ),
+                    // 4 · medio-derecha (mint, tenue)
+                    Positioned(
+                      top: 260 + 50 * math.sin(t * 0.6),
+                      right: -160 + 40 * math.cos(t * 1.2),
+                      child: _MenuBlob(
+                        size: 380,
+                        color: cMint.withValues(alpha: alphaFaint),
+                        blur: 90,
+                      ),
+                    ),
+                    // 5 · medio-izquierda (electric, tenue)
+                    Positioned(
+                      top: 540 + 35 * math.cos(t * 0.9),
+                      left: -180 + 60 * math.sin(t * 0.8),
+                      child: _MenuBlob(
+                        size: 340,
+                        color: cElectric.withValues(alpha: alphaFaint),
+                        blur: 90,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
-        ],
-      ),
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // ── Blobs de fondo premium (aurora suave) ──
-          AnimatedBuilder(
-            animation: _blobController,
-            builder: (context, _) {
-              final t = _blobController.value * 2 * math.pi;
-              final isDark = Theme.of(context).brightness == Brightness.dark;
-              final cMint = const Color(0xFF10B981);
-              final cElectric = const Color(0xFF06B6D4);
-              final cLilac = const Color(0xFF8B5CF6);
-              final alphaStrong = isDark ? 0.20 : 0.14;
-              final alphaSoft = isDark ? 0.14 : 0.10;
-              final alphaFaint = isDark ? 0.08 : 0.06;
 
-              return Stack(
-                children: [
-                  // 1 · arriba-izquierda (mint, más fuerte)
-                  Positioned(
-                    top: -140 + 40 * math.sin(t),
-                    left: -110 + 50 * math.cos(t * 0.9),
-                    child: _MenuBlob(
-                      size: 460,
-                      color: cMint.withValues(alpha: alphaStrong),
-                      blur: 100,
-                    ),
-                  ),
-                  // 2 · arriba-derecha (electric)
-                  Positioned(
-                    top: -100 + 45 * math.cos(t * 0.8),
-                    right: -140 + 55 * math.sin(t * 1.1),
-                    child: _MenuBlob(
-                      size: 520,
-                      color: cElectric.withValues(alpha: alphaSoft),
-                      blur: 110,
-                    ),
-                  ),
-                  // 3 · abajo-centro (lilac)
-                  Positioned(
-                    bottom: -180 + 50 * math.sin(t * 1.3),
-                    left: 140 + 80 * math.cos(t * 0.7),
-                    child: _MenuBlob(
-                      size: 440,
-                      color: cLilac.withValues(alpha: alphaSoft),
-                      blur: 100,
-                    ),
-                  ),
-                  // 4 · medio-derecha (mint, tenue)
-                  Positioned(
-                    top: 260 + 50 * math.sin(t * 0.6),
-                    right: -160 + 40 * math.cos(t * 1.2),
-                    child: _MenuBlob(
-                      size: 380,
-                      color: cMint.withValues(alpha: alphaFaint),
-                      blur: 90,
-                    ),
-                  ),
-                  // 5 · medio-izquierda (electric, tenue)
-                  Positioned(
-                    top: 540 + 35 * math.cos(t * 0.9),
-                    left: -180 + 60 * math.sin(t * 0.8),
-                    child: _MenuBlob(
-                      size: 340,
-                      color: cElectric.withValues(alpha: alphaFaint),
-                      blur: 90,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-
-          RefreshIndicator(
-            onRefresh: _sincronizarConProgreso,
-            child: _buildBody(
-              secciones,
-              modulosDestacados,
-              isMobile,
-              isTablet,
-              colorScheme,
-        )),
-        ],
+            RefreshIndicator(
+                onRefresh: _sincronizarConProgreso,
+                child: _buildBody(
+                  secciones,
+                  modulosDestacados,
+                  isMobile,
+                  isTablet,
+                  colorScheme,
+                )),
+          ],
+        ),
       ),
-    ),
-  );
+    );
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -854,24 +854,52 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
             Expanded(
               child: SizedBox(
                 height: isMobile ? 176 : 194,
-                child: PageView.builder(
-                  controller: _modulePageController,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: modules.length,
-                  onPageChanged: (index) {
-                    if (_modulePageIndex != index) {
-                      setState(() => _modulePageIndex = index);
-                    }
-                    _reiniciarAutoPlay();
-                  },
-                  itemBuilder: (context, index) {
-                    final option = modules[index];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: _FeaturedModuleCard(
-                        option: option,
-                        onTap: option.onTap,
-                      ),
+                child: AnimatedBuilder(
+                  animation: _modulePageController,
+                  builder: (context, child) {
+                    return PageView.builder(
+                      controller: _modulePageController,
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: modules.length,
+                      onPageChanged: (index) {
+                        if (_modulePageIndex != index) {
+                          setState(() => _modulePageIndex = index);
+                        }
+                        _reiniciarAutoPlay();
+                      },
+                      itemBuilder: (context, index) {
+                        final currentPage = _modulePageController.hasClients
+                            ? _modulePageController.page ??
+                                _modulePageController.initialPage.toDouble()
+                            : _modulePageController.initialPage.toDouble();
+                        final delta = (index - currentPage).abs();
+                        final progress = delta.clamp(0.0, 1.0);
+                        final scale = 1 - 0.15 * progress;
+                        final opacity = 1 - 0.5 * progress;
+                        final option = modules[index];
+
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween<double>(end: scale),
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeInOut,
+                            builder: (context, animatedScale, child) {
+                              return Opacity(
+                                opacity: opacity,
+                                child: Transform.scale(
+                                  scale: animatedScale,
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: _FeaturedModuleCard(
+                              option: option,
+                              onTap: option.onTap,
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),

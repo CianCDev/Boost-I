@@ -42,6 +42,7 @@ import '../../utils/duracion_utils.dart';
 import '../../widgets/appbar.dart';
 import '../../widgets/caja/panel_cobro_comanda.dart';
 import '../../widgets/common/glass_card.dart';
+import '../../widgets/common/glass_item_card.dart';
 import '../../widgets/common/segmented_toggle.dart';
 import '../../widgets/common/status_badge.dart';
 import '../../widgets/common/time_badge.dart';
@@ -214,9 +215,7 @@ class _CajaScreenState extends ConsumerState<CajaScreen> {
           ivaHabilitado: comanda.ivaHabilitado,
         );
 
-    final cobrado = await ref
-        .read(catalogActionsProvider)
-        .mostrarModalCobro(
+    final cobrado = await ref.read(catalogActionsProvider).mostrarModalCobro(
           context,
           ref.read(usuarioActualProvider),
           comanda: comanda,
@@ -257,12 +256,11 @@ class _CajaScreenState extends ConsumerState<CajaScreen> {
     final tickets = ref.watch(comandasProvider.select((s) => s.ticketsEnCola));
 
     final porMesa = _comandasPorMesa(comandas);
-    final porCobrar = comandas
-        .where((c) => ComandaCobroUtils.listaParaCobrar(c))
-        .toList()
-      // `createdAt` NO es nullable en la entidad: el `?? DateTime.now()`
-      // anterior era código muerto que el analyzer marcaba.
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final porCobrar =
+        comandas.where((c) => ComandaCobroUtils.listaParaCobrar(c)).toList()
+          // `createdAt` NO es nullable en la entidad: el `?? DateTime.now()`
+          // anterior era código muerto que el analyzer marcaba.
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
     final libres =
         mesasState.mesas.where((m) => m.estado == MesaEstado.libre).length;
@@ -537,9 +535,9 @@ class _MesasTab extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: columnas,
-                  mainAxisExtent: 176,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
+                  mainAxisExtent: 192,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
                 ),
                 itemCount: mesas.length,
                 itemBuilder: (_, i) {
@@ -580,77 +578,62 @@ class _MesaCajaCard extends StatelessWidget {
     };
 
     final c = comanda;
+    final meseroNombre = c?.meseroNombre;
     final porCobrar = c != null && ComandaCobroUtils.listaParaCobrar(c);
+    final colorIcono = porCobrar ? const Color(0xFFF97316) : colorEstado;
+    final icono = porCobrar
+        ? Icons.payments_rounded
+        : switch (mesa.estado) {
+            MesaEstado.libre => Icons.event_available_rounded,
+            MesaEstado.ocupada => Icons.table_restaurant_rounded,
+            MesaEstado.reservada => Icons.event_busy_rounded,
+            MesaEstado.porLimpiar => Icons.cleaning_services_rounded,
+          };
 
-    return GlassCard(
+    return GlassItemCard(
+      icon: icono,
+      title: mesa.nombre,
+      statusColor: colorIcono,
       onTap: onTap,
-      showStatusBar: true,
-      statusColor: porCobrar ? const Color(0xFF10B981) : colorEstado,
-      isHighlighted: porCobrar,
-      highlightColor: const Color(0xFF10B981),
-      padding: const EdgeInsets.all(14),
-      margin: EdgeInsets.zero,
-      child: Column(
+      padding: const EdgeInsets.all(12),
+      trailingWidget: StatusBadge(
+        label: porCobrar
+            ? 'Por cobrar'
+            : MesasNotifier.etiquetaEstado(mesa.estado),
+        color: colorIcono,
+        size: StatusBadgeSize.small,
+      ),
+      subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  mesa.nombre,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    letterSpacing: -0.2,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              StatusBadge(
-                label: MesasNotifier.etiquetaEstado(mesa.estado),
-                color: colorEstado,
-                size: StatusBadgeSize.small,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
           Text(
             '${mesa.zonaEfectiva} · ${mesa.capacidad} pax',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const Spacer(),
           if (c == null)
             Text(
               'Sin comanda',
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
             )
           else ...[
+            Text('${c.comensales} comensales'),
+            Text(
+              'Mesero: ${meseroNombre != null && meseroNombre.isNotEmpty ? meseroNombre : 'Sin asignar'}',
+            ),
             Text(
               '\$${c.total.toStringAsFixed(2)}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 22,
+                fontSize: 16,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Theme.of(context).colorScheme.onSurface
+                    : Colors.black87,
               ),
             ),
-            const SizedBox(height: 6),
             Wrap(
               spacing: 6,
               runSpacing: 4,
               children: [
-                if (porCobrar)
-                  const _MiniChip(
-                    label: 'Por cobrar',
-                    color: Color(0xFF10B981),
-                  ),
                 if (ComandaCobroUtils.enCocina(c) > 0)
                   _MiniChip(
                     label: '${ComandaCobroUtils.enCocina(c)} en cocina',

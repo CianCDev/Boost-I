@@ -19,6 +19,7 @@ import '../providers/catalog_provider.dart';
 import '../providers/catalog/recent_products_provider.dart';
 import '../providers/bcv_provider.dart';
 import '../providers/remote_scanner_provider.dart';
+import '../providers/scale_provider.dart';
 import '../providers/usuario_provider.dart';
 import '../providers/panel/panel_provider.dart';
 import '../widgets/catalog/category_chips.dart';
@@ -37,7 +38,6 @@ import '../widgets/catalog/product_list_tile.dart';
 import '../widgets/printer_selection_widget.dart';
 import '../widgets/shared/barcode_scanner_dialog.dart';
 import '../utils/responsive_helper.dart';
-import '../services/scale_service.dart';
 import '../providers/themes/app_colors.dart';
 
 final refreshCatalogCounterProvider = StateProvider<int>((ref) => 0);
@@ -59,13 +59,12 @@ class InventoryCatalogScreen extends ConsumerStatefulWidget {
 
 class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     with SingleTickerProviderStateMixin {
-  final ScaleService _scaleService = ScaleService();
+  late final _scaleService = ref.read(scaleServiceProvider);
   final PanelProvider _panelProvider = PanelProvider();
   final PanelController _panelController = PanelController();
   late AnimationController _animationController;
   final FocusNode _searchFocusNode = FocusNode();
 
-  StreamSubscription<double>? _weightSubscription;
   Timer? _pollingTimer;
 
   /// Códigos que llegan del celular por Supabase Realtime (escáner remoto).
@@ -100,8 +99,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
       duration: const Duration(milliseconds: 300),
     )..forward();
 
-    _scaleService.connect();
-    _weightSubscription = _scaleService.weightStream.listen((_) {});
+    unawaited(_scaleService.connect());
 
     HardwareKeyboard.instance.addHandler(_manejarTecladoFisico);
 
@@ -125,8 +123,6 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     HardwareKeyboard.instance.removeHandler(_manejarTecladoFisico);
     _pollingTimer?.cancel();
     _remoteScannerSub?.cancel();
-    _scaleService.dispose();
-    _weightSubscription?.cancel();
     _searchFocusNode.dispose();
     _animationController.dispose();
     super.dispose();

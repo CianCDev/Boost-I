@@ -29,8 +29,7 @@ class WholesaleCartLine extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final cs = theme.colorScheme;
 
-    final tieneDescuento =
-        item.tieneDescuentoAuto || item.tieneDescuentoManual;
+    final tieneDescuento = item.tieneDescuentoAuto || item.tieneDescuentoManual;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -205,12 +204,15 @@ class WholesaleCartLine extends StatelessWidget {
 
   String _labelCantidad() {
     if (item.unidadEmpaque == 'unidad') {
-      return '${item.cantidad} u.';
+      return '${_formatearCantidad(item.cantidad)} u.';
     }
     // Bulto / caja
     final bultos = item.cantidad ~/ item.unidadesPorEmpaque;
-    return '$bultos ${item.unidadEmpaque}s (${item.cantidad} u.)';
+    return '$bultos ${item.unidadEmpaque}s (${_formatearCantidad(item.cantidad)} u.)';
   }
+
+  String _formatearCantidad(double cantidad) =>
+      cantidad.toStringAsFixed(cantidad % 1 == 0 ? 0 : 3);
 
   Widget _buildTierBadge() {
     Color color;
