@@ -106,6 +106,10 @@ class _WholesaleQuantityDialogState
           }
         }
       });
+
+      // 🔧 Conectar la balanza para que el stream empiece a emitir pesos.
+      // Sin connect(), el puerto serie nunca se abre y el peso nunca llega.
+      _scaleService.connect();
     }
 
     _cantidadFocus.addListener(() {
@@ -129,6 +133,7 @@ class _WholesaleQuantityDialogState
   @override
   void dispose() {
     _weightSubscription?.cancel();
+    _scaleService.disconnect();
     _cantidadController.dispose();
     _cantidadFocus.dispose();
     super.dispose();
