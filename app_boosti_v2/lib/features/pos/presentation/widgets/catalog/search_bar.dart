@@ -68,7 +68,9 @@ class CatalogSearchBar extends ConsumerWidget {
                 ),
                 suffixIcon: Consumer(
                   builder: (context, ref, child) {
-                    final busqueda = ref.watch(catalogProvider).busqueda;
+                    final busqueda = ref.watch(
+                      catalogProvider.select((state) => state.busqueda),
+                    );
                     if (busqueda.isNotEmpty) {
                       return IconButton(
                         icon: Icon(Icons.clear_rounded,
@@ -123,7 +125,7 @@ class CatalogSearchBar extends ConsumerWidget {
   }
 }
 
-// ✅ Extrayendo el botón resolvemos el problema de "Dead Code" 
+// ✅ Extrayendo el botón resolvemos el problema de "Dead Code"
 // al mantener el estado persistente durante el ciclo de vida del widget.
 class _ScanButton extends StatefulWidget {
   final VoidCallback onPressed;

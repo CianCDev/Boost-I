@@ -238,7 +238,24 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(mesasProvider);
+    final mesasData = ref.watch(
+      mesasProvider.select(
+        (state) => (
+          mesas: state.mesas,
+          zonas: state.zonas,
+          isLoading: state.isLoading,
+          zonaFiltro: state.zonaFiltro,
+          localId: state.localId,
+        ),
+      ),
+    );
+    final state = MesasState(
+      mesas: mesasData.mesas,
+      zonas: mesasData.zonas,
+      isLoading: mesasData.isLoading,
+      zonaFiltro: mesasData.zonaFiltro,
+      localId: mesasData.localId,
+    );
     final notifier = ref.read(mesasProvider.notifier);
     final colorScheme = Theme.of(context).colorScheme;
     final esMobile = ResponsiveHelper.isMobile(context);

@@ -150,8 +150,9 @@ class ProductosNotifier extends StateNotifier<ProductosState> {
         return false;
       }
       if (a[i].unidadesPorBulto != b[i].unidadesPorBulto) return false;
-      if (a[i].costoUnitarioPromedio != b[i].costoUnitarioPromedio)
+      if (a[i].costoUnitarioPromedio != b[i].costoUnitarioPromedio) {
         return false;
+      }
     }
     return true;
   }

@@ -11,7 +11,15 @@ class CategoryChips extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(catalogProvider);
+    final state = ref.watch(
+      catalogProvider.select(
+        (state) => (
+          categorias: state.categorias,
+          categoriaSeleccionada: state.categoriaSeleccionada,
+          filtroTipo: state.filtroTipo,
+        ),
+      ),
+    );
     // El filtro Todos / Productos / Platos solo tiene sentido en
     // restaurante: ahí conviven ingredientes y platos con receta.
     final esRestaurante =

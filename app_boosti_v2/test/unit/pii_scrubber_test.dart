@@ -1,3 +1,7 @@
+// Sentry 9.x deprecates reading `extra`, but it is the API under test for
+// legacy event data that the PII scrubber must continue to sanitize.
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:app_boosti_v2/core/security/pii_scrubber.dart';
@@ -53,7 +57,8 @@ void main() {
     test('token JWT', () {
       const jwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'
           '.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk';
-      expect(PiiScrubber.scrub('token $jwt usado'), equals('token [JWT] usado'));
+      expect(
+          PiiScrubber.scrub('token $jwt usado'), equals('token [JWT] usado'));
     });
 
     test('credencial nueva de Supabase', () {
@@ -109,7 +114,8 @@ void main() {
 
   group('PiiScrubber.scrubEvent', () {
     test('limpia el texto del throwable', () {
-      final ev = SentryEvent(throwable: 'Error en J-12345678-9: pago rechazado');
+      final ev =
+          SentryEvent(throwable: 'Error en J-12345678-9: pago rechazado');
       final out = PiiScrubber.scrubEvent(ev);
       expect(out.throwable, 'Error en [RIF]: pago rechazado');
     });
@@ -147,13 +153,16 @@ void main() {
     });
 
     test('no toca una lista de enteros', () {
-      final ev = SentryEvent(extra: {'ids': [1, 2, 3]});
+      final ev = SentryEvent(extra: {
+        'ids': [1, 2, 3]
+      });
       final out = PiiScrubber.scrubEvent(ev);
       expect(out.extra!['ids'], [1, 2, 3]);
     });
 
     test('limpia el mensaje principal', () {
-      final ev = SentryEvent(message: SentryMessage('fallo con RIF J-99999999-9'));
+      final ev =
+          SentryEvent(message: SentryMessage('fallo con RIF J-99999999-9'));
       final out = PiiScrubber.scrubEvent(ev);
       expect(out.message?.formatted, 'fallo con RIF [RIF]');
     });

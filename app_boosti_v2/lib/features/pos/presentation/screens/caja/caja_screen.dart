@@ -251,7 +251,20 @@ class _CajaScreenState extends ConsumerState<CajaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final mesasState = ref.watch(mesasProvider);
+    final mesasData = ref.watch(
+      mesasProvider.select(
+        (state) => (
+          mesas: state.mesas,
+          zonas: state.zonas,
+          isLoading: state.isLoading,
+        ),
+      ),
+    );
+    final mesasState = MesasState(
+      mesas: mesasData.mesas,
+      zonas: mesasData.zonas,
+      isLoading: mesasData.isLoading,
+    );
     final comandas = ref.watch(comandasProvider.select((s) => s.comandas));
     final tickets = ref.watch(comandasProvider.select((s) => s.ticketsEnCola));
 

@@ -176,8 +176,9 @@ class WholesalePricingService {
       }
 
       if (cantidad < r.cantidadMinima) return false;
-      if (r.cantidadMaxima != null && cantidad > r.cantidadMaxima!)
+      if (r.cantidadMaxima != null && cantidad > r.cantidadMaxima!) {
         return false;
+      }
 
       return true;
     }).toList()

@@ -79,6 +79,9 @@ class PiiScrubber {
       level: event.level,
       culprit: event.culprit,
       tags: event.tags,
+      // Sentry 9.x deprecates `extra`, but it remains necessary here to
+      // scrub legacy event data before sending it.
+      // ignore: deprecated_member_use
       extra: _scrubExtra(event.extra),
       fingerprint: event.fingerprint,
       user: event.user,
@@ -171,8 +174,9 @@ class PiiScrubber {
       final salida = <String, dynamic>{};
       v.forEach((clave, valor) {
         final k = '$clave';
-        salida[k] =
-            _claveSensible(k) ? _redactado : _limpiaValor(valor, profundidad + 1);
+        salida[k] = _claveSensible(k)
+            ? _redactado
+            : _limpiaValor(valor, profundidad + 1);
       });
       return salida;
     }
@@ -194,9 +198,19 @@ class PiiScrubber {
   }
 
   static const _clavesSensible = <String>[
-    'password', 'contrasena', 'passwd', 'secret', 'token', 'apikey',
-    'anonkey', 'publishablekey', 'privatekey', 'authorization',
-    'dsn', 'cookie', 'bearer',
+    'password',
+    'contrasena',
+    'passwd',
+    'secret',
+    'token',
+    'apikey',
+    'anonkey',
+    'publishablekey',
+    'privatekey',
+    'authorization',
+    'dsn',
+    'cookie',
+    'bearer',
   ];
 
   /// Los patrones, en orden: los mas especificos primero.
@@ -205,17 +219,20 @@ class PiiScrubber {
   /// se comeria el RIF y el telefono si fuera el primero.
   static final List<_Patron> _patrones = [
     // JWT: tres segmentos base64url separados por punto.
-    _Patron(RegExp(r'\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}'),
+    _Patron(
+        RegExp(r'\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}'),
         '[JWT]'),
 
     // Credencial nueva de Supabase: sb_publishable_ / sb_secret_.
-    _Patron(RegExp(r'\bsb_(?:publishable|secret)_[A-Za-z0-9_-]+'), '[CREDENCIAL]'),
+    _Patron(
+        RegExp(r'\bsb_(?:publishable|secret)_[A-Za-z0-9_-]+'), '[CREDENCIAL]'),
 
     // Clave anonima antigua de Supabase.
     _Patron(RegExp(r'\bey[A-Za-z0-9]{20,}\b'), '[CLAVE]'),
 
     // JSON con clave sensible. Se conservan las comillas y el separador.
-    _Patron.grupos(RegExp(
+    _Patron.grupos(
+        RegExp(
             r'("(?:password|contrasena|secret|token|apikey|anon_?key)"\s*:\s*")[^"]*(")'),
         r'$1[REDACTADO]$2'),
 
@@ -236,7 +253,8 @@ class PiiScrubber {
     // falla en cuanto el numero no empieza por "+58": "0412-1234567" se
     // escapa entero. Un grupo que puede faltar entero se escribe
     // `(?:\+?58)?`, no con los cuantificadores sueltos.
-    _Patron(RegExp(r'(?:\+?58[\s.-]?)?\b0?4(?:1[24-9]|2[46]|5[01])'
+    _Patron(
+        RegExp(r'(?:\+?58[\s.-]?)?\b0?4(?:1[24-9]|2[46]|5[01])'
             r'[\s.-]?\d{3}[\s.-]?\d{4}\b'),
         '[TELEFONO]'),
 

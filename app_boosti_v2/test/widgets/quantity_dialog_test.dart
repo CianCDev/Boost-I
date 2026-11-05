@@ -97,9 +97,8 @@ void main() {
   group('QuantityDialog', () {
     testWidgets('muestra el nombre del producto en el header', (tester) async {
       await openDialog(tester);
-      // El widget renderiza 'Agregar ${producto.nombre}' (quantity_dialog.dart:201),
-      // no solo el nombre. El finder tiene que reflejarlo.
-      expect(find.text('Agregar Coca-Cola 2L'), findsOneWidget);
+      expect(find.text('Agregar al carrito'), findsOneWidget);
+      expect(find.text('Coca-Cola 2L'), findsOneWidget);
       expect(find.text('Agregar al Carrito'), findsOneWidget);
     });
 
@@ -130,15 +129,16 @@ void main() {
         (tester) async {
       await openDialog(tester);
 
-      expect(find.text('Total: \$5.00'), findsOneWidget);
+      expect(find.text('Total'), findsOneWidget);
+      expect(find.text('\$5.00'), findsNWidgets(2));
 
       await tester.enterText(cantidadField(), '22');
       await tester.pump();
-      expect(find.text('Total: \$110.00'), findsOneWidget);
+      expect(find.text('\$110.00'), findsNWidgets(2));
 
       await tester.enterText(precioField(), '3.50');
       await tester.pump();
-      expect(find.text('Total: \$77.00'), findsOneWidget);
+      expect(find.text('\$77.00'), findsNWidgets(2));
     });
 
     testWidgets('el peso recibido actualiza cantidad, total y carrito',
@@ -162,7 +162,7 @@ void main() {
         '2.500',
       );
       expect(tester.widget<TextField>(precioField()).controller?.text, '5.00');
-      expect(find.text('Total: \$12.50'), findsOneWidget);
+      expect(find.text('\$12.50'), findsNWidgets(2));
 
       await tester.tap(find.text('Agregar al Carrito'));
       await tester.pump();

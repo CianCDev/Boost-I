@@ -66,6 +66,8 @@ class ProductThumbnail extends StatelessWidget {
                 imageUrl!.trim(),
                 width: size,
                 height: size,
+                cacheWidth:
+                    (size * MediaQuery.devicePixelRatioOf(context)).round(),
                 fit: BoxFit.contain,
                 loadingBuilder: (context, child, progreso) {
                   if (progreso == null) return child;

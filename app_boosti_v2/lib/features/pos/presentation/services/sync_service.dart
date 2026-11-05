@@ -3419,8 +3419,9 @@ class SyncService {
 
       final permitidos = <String>{};
       for (final row in rpc) {
-        if (row is Map && row['id'] is String)
+        if (row is Map && row['id'] is String) {
           permitidos.add(row['id'] as String);
+        }
       }
 
       if (permitidos.isEmpty) return;
@@ -3715,8 +3716,9 @@ class SyncService {
       final locales = await _isarService.obtenerLocales(soloActivos: false);
       final Map<String, int> uuidToIsarId = {};
       for (final local in locales) {
-        if (local.supabaseId != null)
+        if (local.supabaseId != null) {
           uuidToIsarId[local.supabaseId!] = local.id;
+        }
       }
 
       for (final data in response) {
@@ -3877,8 +3879,9 @@ class SyncService {
       final locales = await _isarService.obtenerLocales(soloActivos: false);
       final Map<String, int> uuidToIsarId = {};
       for (final local in locales) {
-        if (local.supabaseId != null)
+        if (local.supabaseId != null) {
           uuidToIsarId[local.supabaseId!] = local.id;
+        }
       }
 
       for (final data in response) {

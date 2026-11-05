@@ -133,10 +133,9 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 500),
-        padding: const EdgeInsets.all(24),
+        constraints: const BoxConstraints(maxWidth: 520),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           borderRadius: BorderRadius.circular(24),
@@ -148,39 +147,31 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 20,
-              spreadRadius: -2,
-              offset: const Offset(0, 8),
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 24,
+              spreadRadius: -4,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
         child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildHeader(isDark),
-              const SizedBox(height: 20),
-              Text(
-                widget.producto.esPesado
-                    ? 'El peso se actualiza automáticamente desde la balanza:'
-                    : 'Ingresa la cantidad deseada (unidades):',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.white70 : Colors.black54,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildCantidadField(isDark),
-              const SizedBox(height: 12),
-              _buildPrecioField(isDark),
-              const SizedBox(height: 12),
-              _buildTotal(isDark),
-              const SizedBox(height: 28),
-              _buildBotones(isDark, colorScheme),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(isDark),
+                const SizedBox(height: 20),
+                _buildCantidadField(isDark),
+                const SizedBox(height: 16),
+                _buildPrecioField(isDark),
+                const SizedBox(height: 16),
+                _buildTotal(isDark),
+                const SizedBox(height: 24),
+                _buildBotones(isDark, colorScheme),
+              ],
+            ),
           ),
         ),
       ),
@@ -206,15 +197,30 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
         ),
         const SizedBox(width: 14),
         Expanded(
-          child: Text(
-            'Agregar ${widget.producto.nombre}',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: isDark ? Colors.white : Colors.black87,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Agregar al carrito',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF10B981),
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                widget.producto.nombre,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
         if (widget.producto.esPesado && _weightSubscription != null)
@@ -345,10 +351,6 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
           color: isDark ? Colors.white70 : Colors.black54,
         ),
         prefixIcon: const Icon(Icons.attach_money, color: Color(0xFF10B981)),
-        prefixText: '\$ ',
-        prefixStyle: TextStyle(
-          color: isDark ? Colors.white70 : Colors.black54,
-        ),
         filled: true,
         fillColor: isDark
             ? Colors.black.withValues(alpha: 0.25)
@@ -377,80 +379,180 @@ class _QuantityDialogState extends ConsumerState<QuantityDialog> {
   }
 
   Widget _buildTotal(bool isDark) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Text(
-        'Total: \$${(_cantidadActual * _precioUnitario).toStringAsFixed(2)}',
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w800,
-          color: isDark ? Colors.white : Colors.black87,
+    const accent = Color(0xFF10B981);
+    final total = _cantidadActual * _precioUnitario;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: isDark ? 0.08 : 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.3),
+          width: 1.2,
         ),
       ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.sell_rounded, size: 14, color: accent),
+              const SizedBox(width: 6),
+              Text(
+                'Precio por unidad',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: accent,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '\$${_precioUnitario.toStringAsFixed(2)} / ${widget.producto.esPesado ? 'kg' : 'unid'}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(color: accent.withValues(alpha: 0.2), height: 1),
+          const SizedBox(height: 12),
+          _resumenRow('Subtotal', '\$${total.toStringAsFixed(2)}', isDark),
+          const SizedBox(height: 12),
+          Divider(color: accent.withValues(alpha: 0.2), height: 1),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Text(
+                'Total',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '\$${total.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: accent,
+                  letterSpacing: -0.4,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resumenRow(String label, String value, bool isDark) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: isDark ? Colors.white70 : Colors.black54,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildBotones(bool isDark, ColorScheme colorScheme) {
     final habilitado = !_procesando && _formValido;
-    return Wrap(
-      alignment: WrapAlignment.end,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 8,
-      runSpacing: 8,
+    return Row(
       children: [
-        TextButton(
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            foregroundColor: isDark ? Colors.white70 : Colors.black54,
-            backgroundColor: isDark
-                ? Colors.white.withValues(alpha: 0.05)
-                : Colors.black.withValues(alpha: 0.02),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : Colors.black.withValues(alpha: 0.05),
-                width: 1,
+        Expanded(
+          child: TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              foregroundColor: isDark ? Colors.white70 : Colors.black54,
+              backgroundColor: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.02),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.05),
+                ),
               ),
             ),
-          ),
-          onPressed: () {
-            _weightSubscription?.cancel();
-            FocusManager.instance.primaryFocus?.unfocus();
-            Navigator.of(context).pop();
-          },
-          child: const Text(
-            'Cancelar',
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            onPressed: () {
+              _weightSubscription?.cancel();
+              FocusManager.instance.primaryFocus?.unfocus();
+              Navigator.of(context).pop();
+            },
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+            ),
           ),
         ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: habilitado
-                ? const Color(0xFF10B981)
-                : colorScheme.surfaceContainerHighest,
-            foregroundColor:
-                habilitado ? Colors.white : colorScheme.onSurfaceVariant,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: habilitado ? 4 : 0,
-          ),
-          onPressed: habilitado ? _agregar : null,
-          child: _procesando
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 2,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: habilitado
+                  ? const Color(0xFF10B981)
+                  : colorScheme.surfaceContainerHighest,
+              foregroundColor:
+                  habilitado ? Colors.white : colorScheme.onSurfaceVariant,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              elevation: habilitado ? 3 : 0,
+            ),
+            onPressed: habilitado ? _agregar : null,
+            child: _procesando
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_shopping_cart_rounded, size: 18),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Agregar al Carrito',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                )
-              : const Text(
-                  'Agregar al Carrito',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                ),
+          ),
         ),
       ],
     );

@@ -17,20 +17,27 @@ class IvaToggleButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cartState = ref.watch(cartProvider);
+    final ivaState = ref.watch(
+      cartProvider.select(
+        (state) => (
+          habilitado: state.ivaHabilitado,
+          porcentaje: state.configIva.porcentajeIva,
+          pais: state.configIva.codigoPais,
+        ),
+      ),
+    );
     final notifier = ref.read(cartProvider.notifier);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final ivaActivo = cartState.ivaHabilitado;
-    final porcentaje = cartState.configIva.porcentajeIva;
-    final pais = cartState.configIva.codigoPais;
+    final ivaActivo = ivaState.habilitado;
+    final porcentaje = ivaState.porcentaje;
+    final pais = ivaState.pais;
     final porcentajeTexto = (porcentaje * 100).toStringAsFixed(0);
 
     // Colores según estado
     final Color acento = ivaActivo ? primaryGreen : Colors.grey;
-    final Color texto = ivaActivo
-        ? primaryGreen
-        : (isDark ? Colors.white70 : Colors.black54);
+    final Color texto =
+        ivaActivo ? primaryGreen : (isDark ? Colors.white70 : Colors.black54);
 
     return Tooltip(
       message: ivaActivo

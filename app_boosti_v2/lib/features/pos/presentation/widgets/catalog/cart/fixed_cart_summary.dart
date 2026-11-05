@@ -21,7 +21,14 @@ class FixedCartSummary extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cartState = ref.watch(cartProvider);
+    final cartState = ref.watch(
+      cartProvider.select(
+        (state) => (
+          total: state.total,
+          itemCount: state.items.length,
+        ),
+      ),
+    );
     final bcvTasa = ref.watch(bcvProvider).tasa;
     final isTablet = ResponsiveHelper.isTablet(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -33,7 +40,7 @@ class FixedCartSummary extends ConsumerWidget {
         ? Colors.white.withValues(alpha: 0.15)
         : primaryGreen.withValues(alpha: 0.30);
 
-    final hasItems = cartState.items.isNotEmpty;
+    final hasItems = cartState.itemCount > 0;
 
     // R.2 Fase 1: solo restaurante añade el chip de arriba.
     final esRestaurante = ref.watch(featureFlagsProvider).requiereMesa;
@@ -61,9 +68,10 @@ class FixedCartSummary extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (esRestaurante) const MesaChip(
-              margin: EdgeInsets.only(bottom: 6),
-            ),
+            if (esRestaurante)
+              const MesaChip(
+                margin: EdgeInsets.only(bottom: 6),
+              ),
             Row(
               children: [
                 // ── Totales ──
@@ -114,7 +122,7 @@ class FixedCartSummary extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${cartState.items.length}',
+                      '${cartState.itemCount}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: isTablet ? 18 : 14,
@@ -136,8 +144,8 @@ class FixedCartSummary extends ConsumerWidget {
                       backgroundColor:
                           hasItems ? primaryGreen : Colors.grey.shade400,
                       foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
-                          horizontal: isTablet ? 24 : 16),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: isTablet ? 24 : 16),
                       minimumSize: Size(0, isTablet ? 56 : 44),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
