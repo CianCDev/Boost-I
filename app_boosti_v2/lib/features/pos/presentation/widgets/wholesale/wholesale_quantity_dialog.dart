@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../data/Local/entities/config_descuento_mayorista_entity.dart';
 import '../../../data/Local/entities/producto_entity.dart';
 import '../../providers/isar_provider.dart';
 import '../../providers/scale_provider.dart';
@@ -83,6 +84,7 @@ class _WholesaleQuantityDialogState
 
   // Cache del precio resuelto
   PrecioResuelto? _precioActual;
+  List<ConfigDescuentoMayoristaEntity> _reglasVolumen = const [];
 
   @override
   void initState() {
@@ -106,7 +108,7 @@ class _WholesaleQuantityDialogState
               text: nuevo,
               selection: TextSelection.collapsed(offset: nuevo.length),
             );
-            _recalcularPrecio();
+            _actualizarPrecio(nuevo);
           }
         }
       });
@@ -125,8 +127,8 @@ class _WholesaleQuantityDialogState
       }
     });
 
-    // Primera resolución de precio
-    _recalcularPrecio();
+    _actualizarPrecio(_cantidadController.text);
+    unawaited(_cargarReglasVolumen());
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -162,28 +164,36 @@ class _WholesaleQuantityDialogState
     }
   }
 
-  /// Recalcula el precio para la cantidad actual.
-  Future<void> _recalcularPrecio() async {
-    final unidades = _unidadesTotales;
-    if (unidades <= 0) {
-      if (mounted) setState(() => _precioActual = null);
-      return;
-    }
-
+  Future<void> _cargarReglasVolumen() async {
     try {
       final isar = ref.read(isarServiceProvider);
-      final reglas = await isar.obtenerConfigDescuentos(soloActivos: true);
-
-      final precio = WholesalePricingService.resolver(
-        producto: widget.producto,
-        cantidad: unidades,
-        reglasVolumen: reglas,
-      );
-
-      if (mounted) setState(() => _precioActual = precio);
+      _reglasVolumen = await isar.obtenerConfigDescuentos(soloActivos: true);
+      if (mounted) _actualizarPrecio(_cantidadController.text);
     } catch (e) {
-      debugPrint('⚠️ Error recalculando precio: $e');
+      debugPrint('⚠️ Error cargando descuentos mayoristas: $e');
     }
+  }
+
+  void _actualizarPrecio(String textoCantidad) {
+    final cantidad = double.tryParse(textoCantidad) ?? 0;
+    final unidades = cantidad <= 0
+        ? 0.0
+        : switch (_unidadEmpaque) {
+            'bulto' || 'caja' => cantidad *
+                (widget.producto.unidadesPorBulto > 0
+                    ? widget.producto.unidadesPorBulto
+                    : 1),
+            _ => cantidad,
+          };
+    final precio = unidades <= 0
+        ? null
+        : WholesalePricingService.resolver(
+            producto: widget.producto,
+            cantidad: unidades,
+            reglasVolumen: _reglasVolumen,
+          );
+
+    if (mounted) setState(() => _precioActual = precio);
   }
 
   // ──────────────── Build ────────────────
@@ -396,7 +406,7 @@ class _WholesaleQuantityDialogState
         onTap: () {
           if (_unidadEmpaque == value) return;
           setState(() => _unidadEmpaque = value);
-          _recalcularPrecio();
+          _actualizarPrecio(_cantidadController.text);
         },
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
@@ -465,7 +475,7 @@ class _WholesaleQuantityDialogState
           esPesado ? RegExp(r'^\d*\.?\d{0,3}') : RegExp(r'^\d*'),
         ),
       ],
-      onChanged: (_) => _recalcularPrecio(),
+      onChanged: _actualizarPrecio,
       onTap: () {
         if (esPesado && _usandoPesoAutomatico) {
           setState(() => _usandoPesoAutomatico = false);

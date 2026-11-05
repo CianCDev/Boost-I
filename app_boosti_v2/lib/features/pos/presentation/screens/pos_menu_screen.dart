@@ -718,7 +718,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
   // TARJETA DE MÓDULO DESTACADO (carrusel)
   // ════════════════════════════════════════════════════════════════
 
-  Widget _FeaturedModuleCard({
+  Widget _buildFeaturedModuleCard({
     required MenuOption option,
     required VoidCallback onTap,
   }) {
@@ -893,7 +893,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
                                 ),
                               );
                             },
-                            child: _FeaturedModuleCard(
+                            child: _buildFeaturedModuleCard(
                               option: option,
                               onTap: option.onTap,
                             ),
