@@ -34,6 +34,14 @@ class WholesaleCartScreen extends ConsumerStatefulWidget {
 }
 
 class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
+  final _editCantidadController = TextEditingController();
+
+  @override
+  void dispose() {
+    _editCantidadController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final cartState = ref.watch(wholesaleCartProvider);
@@ -484,10 +492,8 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
     BuildContext context,
     WholesaleCartItem item,
   ) async {
-    final controller = TextEditingController(
-      text: item.cantidad.toStringAsFixed(
-        item.cantidad % 1 == 0 ? 0 : 3,
-      ),
+    _editCantidadController.text = item.cantidad.toStringAsFixed(
+      item.cantidad % 1 == 0 ? 0 : 3,
     );
     final formKey = GlobalKey<FormState>();
     final esPesable = item.producto.esPesado;
@@ -507,7 +513,7 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
         content: Form(
           key: formKey,
           child: TextFormField(
-            controller: controller,
+            controller: _editCantidadController,
             autofocus: true,
             keyboardType: TextInputType.numberWithOptions(decimal: esPesable),
             inputFormatters: [
@@ -530,7 +536,7 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
             onFieldSubmitted: (_) {
               if (formKey.currentState?.validate() ?? false) {
                 Navigator.of(dialogContext)
-                    .pop(double.tryParse(controller.text));
+                    .pop(double.tryParse(_editCantidadController.text));
               }
             },
           ),
@@ -544,7 +550,7 @@ class _WholesaleCartScreenState extends ConsumerState<WholesaleCartScreen> {
             onPressed: () {
               if (formKey.currentState?.validate() ?? false) {
                 Navigator.of(dialogContext)
-                    .pop(double.tryParse(controller.text));
+                    .pop(double.tryParse(_editCantidadController.text));
               }
             },
             style: ElevatedButton.styleFrom(

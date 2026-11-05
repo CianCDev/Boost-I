@@ -37,6 +37,10 @@ class _PersonnelManagementDialogState
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _pinController = TextEditingController();
+  final _editNombreController = TextEditingController();
+  final _editEmailController = TextEditingController();
+  final _editPasswordController = TextEditingController();
+  final _editPinController = TextEditingController();
 
   String _rolSeleccionado = 'cajero';
   bool _guardando = false;
@@ -74,6 +78,10 @@ class _PersonnelManagementDialogState
     _emailController.dispose();
     _passwordController.dispose();
     _pinController.dispose();
+    _editNombreController.dispose();
+    _editEmailController.dispose();
+    _editPasswordController.dispose();
+    _editPinController.dispose();
     super.dispose();
   }
 
@@ -282,8 +290,8 @@ class _PersonnelManagementDialogState
         ..rol = _rolSeleccionado
         ..estado = 'inactivo'
         ..activo = true
-        ..supabaseId = supabaseUuid            // ← null para cajeros
-        ..sincronizado = supabaseUuid != null  // ← cajeros quedan pendientes
+        ..supabaseId = supabaseUuid // ← null para cajeros
+        ..sincronizado = supabaseUuid != null // ← cajeros quedan pendientes
         ..tenantId = tenantId
         ..cajaAsignada = '';
 
@@ -347,11 +355,11 @@ class _PersonnelManagementDialogState
   }
 
   Future<void> _editarUsuario(UsuarioEntity usuario) async {
-    final nombreController = TextEditingController(text: usuario.nombre);
-    final emailController = TextEditingController(text: usuario.email ?? '');
-    final passwordController = TextEditingController();
+    _editNombreController.text = usuario.nombre;
+    _editEmailController.text = usuario.email ?? '';
+    _editPasswordController.clear();
     // PIN vacío al editar para no cargar el hash SHA-256 de 64 chars.
-    final pinController = TextEditingController();
+    _editPinController.clear();
     String rolSeleccionado = usuario.rol;
 
     final formKey = GlobalKey<FormState>();
@@ -388,7 +396,7 @@ class _PersonnelManagementDialogState
                       accentColor: _colorPrimary,
                       children: [
                         PersonaTextField(
-                          controller: nombreController,
+                          controller: _editNombreController,
                           label: 'Nombre *',
                           icon: Icons.person_outline_rounded,
                           accentColor: _colorPrimary,
@@ -399,7 +407,7 @@ class _PersonnelManagementDialogState
                         ),
                         const SizedBox(height: 14),
                         PersonaTextField(
-                          controller: emailController,
+                          controller: _editEmailController,
                           label: 'Correo electrónico *',
                           icon: Icons.email_rounded,
                           accentColor: _colorPrimary,
@@ -428,7 +436,7 @@ class _PersonnelManagementDialogState
                       children: [
                         // ── Password con toggle (usa InputDecoration custom) ──
                         TextFormField(
-                          controller: passwordController,
+                          controller: _editPasswordController,
                           enabled: !editando,
                           obscureText: obscureEditPassword,
                           onChanged: (_) => setStateDialog(() {}),
@@ -436,8 +444,8 @@ class _PersonnelManagementDialogState
                           decoration: InputDecoration(
                             labelText: 'Nueva contraseña (opcional)',
                             hintText: 'Dejar vacío para no cambiarla',
-                            labelStyle: TextStyle(
-                                color: colorScheme.onSurfaceVariant),
+                            labelStyle:
+                                TextStyle(color: colorScheme.onSurfaceVariant),
                             hintStyle: TextStyle(
                               color: colorScheme.onSurfaceVariant
                                   .withValues(alpha: 0.6),
@@ -456,8 +464,8 @@ class _PersonnelManagementDialogState
                                 color: colorScheme.onSurfaceVariant,
                               ),
                               onPressed: () => setStateDialog(
-                                () => obscureEditPassword =
-                                    !obscureEditPassword,
+                                () =>
+                                    obscureEditPassword = !obscureEditPassword,
                               ),
                             ),
                             filled: true,
@@ -484,25 +492,25 @@ class _PersonnelManagementDialogState
                                 horizontal: 16, vertical: 16),
                           ),
                         ),
-                        if (passwordController.text.isNotEmpty) ...[
+                        if (_editPasswordController.text.isNotEmpty) ...[
                           const SizedBox(height: 8),
                           _PasswordStrengthIndicator(
-                            password: passwordController.text,
+                            password: _editPasswordController.text,
                             strength: _getPasswordStrength(
-                                passwordController.text),
+                                _editPasswordController.text),
                             score:
-                                _getPasswordScore(passwordController.text),
-                            color: _getPasswordColor(
-                                _getPasswordStrength(passwordController.text)),
-                            icon: _getPasswordIcon(
-                                _getPasswordStrength(passwordController.text)),
+                                _getPasswordScore(_editPasswordController.text),
+                            color: _getPasswordColor(_getPasswordStrength(
+                                _editPasswordController.text)),
+                            icon: _getPasswordIcon(_getPasswordStrength(
+                                _editPasswordController.text)),
                           ),
                         ],
                         const SizedBox(height: 14),
 
                         // ── PIN (opcional al editar) ──
                         PersonaTextField(
-                          controller: pinController,
+                          controller: _editPinController,
                           label: 'Nuevo PIN (opcional)',
                           icon: Icons.pin_rounded,
                           accentColor: _colorPrimary,
@@ -536,8 +544,8 @@ class _PersonnelManagementDialogState
                           ),
                           decoration: InputDecoration(
                             labelText: 'Rol',
-                            labelStyle: TextStyle(
-                                color: colorScheme.onSurfaceVariant),
+                            labelStyle:
+                                TextStyle(color: colorScheme.onSurfaceVariant),
                             prefixIcon: const Icon(
                               Icons.assignment_ind_rounded,
                               color: _colorPrimary,
@@ -594,8 +602,7 @@ class _PersonnelManagementDialogState
                               ? null
                               : (val) {
                                   if (val != null) {
-                                    setStateDialog(
-                                        () => rolSeleccionado = val);
+                                    setStateDialog(() => rolSeleccionado = val);
                                   }
                                 },
                         ),
@@ -614,8 +621,9 @@ class _PersonnelManagementDialogState
                         setStateDialog(() => editando = true);
 
                         try {
-                          final newPassword = passwordController.text.trim();
-                          final newPin = pinController.text.trim();
+                          final newPassword =
+                              _editPasswordController.text.trim();
+                          final newPin = _editPinController.text.trim();
 
                           if (newPassword.isNotEmpty) {
                             final strength = _getPasswordStrength(newPassword);
@@ -624,8 +632,7 @@ class _PersonnelManagementDialogState
                                 context: dialogContext,
                                 builder: (ctx) => AlertDialog(
                                   shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(16)),
+                                      borderRadius: BorderRadius.circular(16)),
                                   title: const Text('Contraseña débil'),
                                   content: const Text(
                                       'La nueva contraseña es débil. ¿Deseas continuar de todos modos?'),
@@ -640,8 +647,7 @@ class _PersonnelManagementDialogState
                                         backgroundColor: _colorWarning,
                                         foregroundColor: Colors.white,
                                       ),
-                                      onPressed: () =>
-                                          Navigator.pop(ctx, true),
+                                      onPressed: () => Navigator.pop(ctx, true),
                                       child: const Text('Continuar'),
                                     ),
                                   ],
@@ -654,8 +660,8 @@ class _PersonnelManagementDialogState
                             }
                           }
 
-                          usuario.nombre = nombreController.text.trim();
-                          usuario.email = emailController.text.trim();
+                          usuario.nombre = _editNombreController.text.trim();
+                          usuario.email = _editEmailController.text.trim();
                           usuario.rol = rolSeleccionado;
 
                           // ════════════════════════════════════════════
@@ -682,8 +688,7 @@ class _PersonnelManagementDialogState
                               'nombre': usuario.nombre,
                               'rol': usuario.rol,
                               'email': usuario.email,
-                              'updated_at':
-                                  DateTime.now().toIso8601String(),
+                              'updated_at': DateTime.now().toIso8601String(),
                             };
                             // Solo envía el PIN si fue modificado
                             if (newPin.isNotEmpty) {
@@ -695,8 +700,7 @@ class _PersonnelManagementDialogState
                                 .eq('id', usuario.supabaseId!);
                           }
 
-                          await _syncService
-                              .sincronizarUsuariosASupabase();
+                          await _syncService.sincronizarUsuariosASupabase();
 
                           if (!mounted) return;
                           Navigator.pop(dialogContext);
@@ -811,8 +815,7 @@ class _PersonnelManagementDialogState
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Eliminar Usuario'),
         content: Text(
             '¿Estás seguro de eliminar a "${usuario.nombre}"? Esta acción no se puede deshacer.'),
@@ -867,8 +870,7 @@ class _PersonnelManagementDialogState
 
     for (var u in usuarios) {
       if (u.email == null || u.email!.isEmpty) {
-        if (u.nombre.contains('Administrador') ||
-            u.nombre.contains('Admin')) {
+        if (u.nombre.contains('Administrador') || u.nombre.contains('Admin')) {
           debugPrint(
               '⚠️ Admin sin email: ${u.nombre} (ID: ${u.id}) - asignar email manualmente.');
           continue;
@@ -880,8 +882,7 @@ class _PersonnelManagementDialogState
 
       if (u.supabaseId != null && u.supabaseId!.isNotEmpty) {
         try {
-          await Supabase.instance.client.auth.admin
-              .getUserById(u.supabaseId!);
+          await Supabase.instance.client.auth.admin.getUserById(u.supabaseId!);
         } catch (e) {
           u.supabaseId = null;
           await _isarService.guardarUsuario(u);
@@ -902,10 +903,8 @@ class _PersonnelManagementDialogState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        content: Text(msg,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
         backgroundColor: color,
         duration: const Duration(seconds: 3),
       ),
@@ -1133,8 +1132,7 @@ class _PersonnelManagementDialogState
                   enabled: !_guardando,
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return 'Requerido';
-                    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$')
-                        .hasMatch(v.trim())) {
+                    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(v.trim())) {
                       return 'Email inválido';
                     }
                     return null;
@@ -1159,11 +1157,9 @@ class _PersonnelManagementDialogState
                   style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     labelText: 'Contraseña * (mínimo 6 caracteres)',
-                    labelStyle:
-                        TextStyle(color: colorScheme.onSurfaceVariant),
-                    prefixIcon:
-                        const Icon(Icons.lock_outline_rounded,
-                            color: _colorPrimary),
+                    labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+                    prefixIcon: const Icon(Icons.lock_outline_rounded,
+                        color: _colorPrimary),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -1172,8 +1168,8 @@ class _PersonnelManagementDialogState
                         size: 20,
                         color: colorScheme.onSurfaceVariant,
                       ),
-                      onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                     filled: true,
                     fillColor: colorScheme.brightness == Brightness.dark
@@ -1186,8 +1182,8 @@ class _PersonnelManagementDialogState
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide(
-                        color: colorScheme.outlineVariant
-                            .withValues(alpha: 0.5),
+                        color:
+                            colorScheme.outlineVariant.withValues(alpha: 0.5),
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
@@ -1208,10 +1204,8 @@ class _PersonnelManagementDialogState
                   const SizedBox(height: 8),
                   _PasswordStrengthIndicator(
                     password: _passwordController.text,
-                    strength:
-                        _getPasswordStrength(_passwordController.text),
-                    score:
-                        _getPasswordScore(_passwordController.text),
+                    strength: _getPasswordStrength(_passwordController.text),
+                    score: _getPasswordScore(_passwordController.text),
                     color: _getPasswordColor(
                         _getPasswordStrength(_passwordController.text)),
                     icon: _getPasswordIcon(
@@ -1308,8 +1302,7 @@ class _PersonnelManagementDialogState
           value: 'cajero',
           child: Row(
             children: [
-              Icon(Icons.person_rounded,
-                  color: Color(0xFF10B981), size: 18),
+              Icon(Icons.person_rounded, color: Color(0xFF10B981), size: 18),
               SizedBox(width: 8),
               Text('Cajero'),
             ],
@@ -1337,8 +1330,7 @@ class _PersonnelManagementDialogState
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             children: [
-              const Icon(Icons.people_rounded,
-                  color: _colorPrimary, size: 18),
+              const Icon(Icons.people_rounded, color: _colorPrimary, size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1381,8 +1373,7 @@ class _PersonnelManagementDialogState
                       padding: const EdgeInsets.only(bottom: 8),
                       physics: const BouncingScrollPhysics(),
                       itemCount: _usuarios.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 8),
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, i) => _buildUserCard(
                         _usuarios[i],
                         isMobile,
@@ -1444,16 +1435,15 @@ class _PersonnelManagementDialogState
   ) {
     final isAdmin = usuario.rol == 'admin';
     final isActive = usuario.estado == 'activo';
-    final isSynced = usuario.supabaseId != null &&
-        usuario.supabaseId!.isNotEmpty;
+    final isSynced =
+        usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty;
 
     final rolColor = isAdmin ? const Color(0xFF3B82F6) : _colorSuccess;
     final estadoColor = isActive ? _colorSuccess : colorScheme.outline;
     final estadoLabel = isActive ? 'Activo' : 'Inactivo';
 
-    final inicial = usuario.nombre.isNotEmpty
-        ? usuario.nombre[0].toUpperCase()
-        : '?';
+    final inicial =
+        usuario.nombre.isNotEmpty ? usuario.nombre[0].toUpperCase() : '?';
 
     return Container(
       padding: const EdgeInsets.all(14),

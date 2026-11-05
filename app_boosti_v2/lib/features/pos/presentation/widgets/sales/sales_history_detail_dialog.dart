@@ -26,6 +26,7 @@ class SalesHistoryDetailDialog extends ConsumerStatefulWidget {
 class _SalesHistoryDetailDialogState
     extends ConsumerState<SalesHistoryDetailDialog> {
   final IsarService _isarService = IsarService();
+  final _motivoAnulacionController = TextEditingController();
   late Future<List<DetalleVentaEntity>> _detallesFuture;
   bool _anulada = false;
 
@@ -40,6 +41,12 @@ class _SalesHistoryDetailDialogState
     super.initState();
     _detallesFuture = _cargarDetalles();
     _verificarAnulacion();
+  }
+
+  @override
+  void dispose() {
+    _motivoAnulacionController.dispose();
+    super.dispose();
   }
 
   Future<void> _verificarAnulacion() async {
@@ -91,7 +98,8 @@ class _SalesHistoryDetailDialogState
       'Divisas': Icons.currency_exchange_rounded,
     };
     final Color colorMetodo = coloresMetodo[venta.metodoPago] ?? Colors.grey;
-    final IconData iconMetodo = iconosMetodo[venta.metodoPago] ?? Icons.more_horiz_rounded;
+    final IconData iconMetodo =
+        iconosMetodo[venta.metodoPago] ?? Icons.more_horiz_rounded;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
@@ -159,13 +167,15 @@ class _SalesHistoryDetailDialogState
                                   gradient: LinearGradient(
                                     colors: [
                                       colorScheme.primary,
-                                      colorScheme.primary.withValues(alpha: 0.6),
+                                      colorScheme.primary
+                                          .withValues(alpha: 0.6),
                                     ],
                                   ),
                                   borderRadius: BorderRadius.circular(14),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: colorScheme.primary.withValues(alpha: 0.3),
+                                      color: colorScheme.primary
+                                          .withValues(alpha: 0.3),
                                       blurRadius: 12,
                                       offset: const Offset(0, 4),
                                     ),
@@ -182,7 +192,8 @@ class _SalesHistoryDetailDialogState
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Tooltip(
-                                    message: 'ID completo: ${venta.ventaIdString}',
+                                    message:
+                                        'ID completo: ${venta.ventaIdString}',
                                     child: Text(
                                       'Venta #${_shortId(venta.ventaIdString)}',
                                       style: TextStyle(
@@ -249,14 +260,16 @@ class _SalesHistoryDetailDialogState
                                     borderRadius: BorderRadius.circular(12),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.08),
+                                        color: Colors.black
+                                            .withValues(alpha: 0.08),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
                                     ],
                                   ),
                                   labelColor: colorScheme.primary,
-                                  unselectedLabelColor: colorScheme.onSurfaceVariant,
+                                  unselectedLabelColor:
+                                      colorScheme.onSurfaceVariant,
                                   labelStyle: TextStyle(
                                     fontSize: isLargeScreen ? 15 : 13,
                                     fontWeight: FontWeight.w600,
@@ -266,8 +279,12 @@ class _SalesHistoryDetailDialogState
                                     fontWeight: FontWeight.w500,
                                   ),
                                   tabs: const [
-                                    Tab(icon: Icon(Icons.shopping_bag_outlined), text: 'Productos'),
-                                    Tab(icon: Icon(Icons.summarize_outlined), text: 'Resumen'),
+                                    Tab(
+                                        icon: Icon(Icons.shopping_bag_outlined),
+                                        text: 'Productos'),
+                                    Tab(
+                                        icon: Icon(Icons.summarize_outlined),
+                                        text: 'Resumen'),
                                   ],
                                 ),
                               ),
@@ -275,7 +292,8 @@ class _SalesHistoryDetailDialogState
                               Expanded(
                                 child: TabBarView(
                                   children: [
-                                    _buildProductosTab(detalles, isLargeScreen, colorScheme, isDark),
+                                    _buildProductosTab(detalles, isLargeScreen,
+                                        colorScheme, isDark),
                                     _buildResumenTab(
                                       venta,
                                       detalles,
@@ -306,23 +324,28 @@ class _SalesHistoryDetailDialogState
                       ] else ...[
                         const SizedBox(height: 12),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444).withValues(alpha: 0.10),
+                            color:
+                                const Color(0xFFEF4444).withValues(alpha: 0.10),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: const Color(0xFFEF4444).withValues(alpha: 0.4),
+                              color: const Color(0xFFEF4444)
+                                  .withValues(alpha: 0.4),
                             ),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.block_rounded, size: 18, color: Color(0xFFEF4444)),
+                              const Icon(Icons.block_rounded,
+                                  size: 18, color: Color(0xFFEF4444)),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   'Esta venta fue anulada. El stock fue restaurado.',
                                   style: TextStyle(
-                                    color: const Color(0xFFEF4444).withValues(alpha: 0.9),
+                                    color: const Color(0xFFEF4444)
+                                        .withValues(alpha: 0.9),
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -469,7 +492,8 @@ class _SalesHistoryDetailDialogState
                         children: [
                           // Producto
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -489,10 +513,13 @@ class _SalesHistoryDetailDialogState
                                     if (tieneDescuento) ...[
                                       const SizedBox(width: 6),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
-                                          borderRadius: BorderRadius.circular(4),
+                                          color: const Color(0xFFF59E0B)
+                                              .withValues(alpha: 0.2),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
                                         ),
                                         child: Text(
                                           'Dscto.',
@@ -506,7 +533,8 @@ class _SalesHistoryDetailDialogState
                                     ],
                                   ],
                                 ),
-                                if (tieneDescuento && item.precioOriginal != null) ...[
+                                if (tieneDescuento &&
+                                    item.precioOriginal != null) ...[
                                   const SizedBox(height: 2),
                                   Row(
                                     children: [
@@ -514,8 +542,10 @@ class _SalesHistoryDetailDialogState
                                         '\$${item.precioOriginal!.toStringAsFixed(2)}',
                                         style: TextStyle(
                                           fontSize: 11,
-                                          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-                                          decoration: TextDecoration.lineThrough,
+                                          color: colorScheme.onSurfaceVariant
+                                              .withValues(alpha: 0.5),
+                                          decoration:
+                                              TextDecoration.lineThrough,
                                         ),
                                       ),
                                       const SizedBox(width: 6),
@@ -535,7 +565,8 @@ class _SalesHistoryDetailDialogState
                           ),
                           // Cantidad
                           _buildBodyCell(
-                            item.cantidad.toStringAsFixed(item.cantidad % 1 == 0 ? 0 : 3),
+                            item.cantidad.toStringAsFixed(
+                                item.cantidad % 1 == 0 ? 0 : 3),
                             isLargeScreen,
                             colorScheme,
                           ),
@@ -579,7 +610,8 @@ class _SalesHistoryDetailDialogState
     bool isDark,
   ) {
     final isMobile = !isLargeScreen;
-    final tieneDescuentoGlobal = venta.tieneDescuentoEspecial == true && venta.montoDescuentoTotal > 0;
+    final tieneDescuentoGlobal =
+        venta.tieneDescuentoEspecial == true && venta.montoDescuentoTotal > 0;
 
     return SingleChildScrollView(
       child: Column(
@@ -612,7 +644,9 @@ class _SalesHistoryDetailDialogState
                     children: [
                       _buildInfoRow(
                         label: 'Cliente',
-                        value: venta.documento == 0 ? 'N/A' : venta.documento.toString(),
+                        value: venta.documento == 0
+                            ? 'N/A'
+                            : venta.documento.toString(),
                         icon: Icons.person_outline,
                         colorScheme: colorScheme,
                       ),
@@ -646,7 +680,9 @@ class _SalesHistoryDetailDialogState
                     children: [
                       _buildInfoCard(
                         label: 'Cliente',
-                        value: venta.documento == 0 ? 'N/A' : venta.documento.toString(),
+                        value: venta.documento == 0
+                            ? 'N/A'
+                            : venta.documento.toString(),
                         icon: Icons.person_outline,
                         colorScheme: colorScheme,
                       ),
@@ -741,12 +777,15 @@ class _SalesHistoryDetailDialogState
                     ),
                     if (tieneDescuentoGlobal)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                          color:
+                              const Color(0xFFF59E0B).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                            color:
+                                const Color(0xFFF59E0B).withValues(alpha: 0.3),
                             width: 1,
                           ),
                         ),
@@ -896,7 +935,8 @@ class _SalesHistoryDetailDialogState
     );
   }
 
-  Widget _buildHeaderCell(String texto, bool isLargeScreen, ColorScheme colorScheme) {
+  Widget _buildHeaderCell(
+      String texto, bool isLargeScreen, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Text(
@@ -950,9 +990,8 @@ class _SalesHistoryDetailDialogState
             color: esDestacado
                 ? const Color(0xFF38BDF8)
                 : (esTotal ? Colors.white : Colors.white70),
-            fontSize: esTotal
-                ? (isLargeScreen ? 14 : 13)
-                : (isLargeScreen ? 13 : 11),
+            fontSize:
+                esTotal ? (isLargeScreen ? 14 : 13) : (isLargeScreen ? 13 : 11),
             fontWeight: esTotal ? FontWeight.w700 : FontWeight.w500,
             letterSpacing: esTotal ? 0.5 : 0,
           ),
@@ -963,9 +1002,8 @@ class _SalesHistoryDetailDialogState
             color: esDestacado
                 ? const Color(0xFF38BDF8)
                 : (esTotal ? const Color(0xFF34D399) : Colors.white),
-            fontSize: esTotal
-                ? (isLargeScreen ? 22 : 18)
-                : (isLargeScreen ? 16 : 14),
+            fontSize:
+                esTotal ? (isLargeScreen ? 22 : 18) : (isLargeScreen ? 16 : 14),
             fontWeight: esTotal ? FontWeight.w800 : FontWeight.w600,
           ),
         ),
@@ -1011,14 +1049,14 @@ class _SalesHistoryDetailDialogState
 
   Future<void> _anularVenta(BuildContext context) async {
     // ── 1. Pedir motivo ──
-    final motivoCtrl = TextEditingController();
+    _motivoAnulacionController.clear();
     final motivo = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Anular venta'),
         content: TextField(
-          controller: motivoCtrl,
+          controller: _motivoAnulacionController,
           autofocus: true,
           maxLines: 3,
           decoration: const InputDecoration(
@@ -1033,7 +1071,7 @@ class _SalesHistoryDetailDialogState
           ),
           ElevatedButton(
             onPressed: () {
-              final txt = motivoCtrl.text.trim();
+              final txt = _motivoAnulacionController.text.trim();
               if (txt.isEmpty) return;
               Navigator.pop(ctx, txt);
             },
@@ -1071,7 +1109,8 @@ class _SalesHistoryDetailDialogState
     if (ventaId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Esta venta no tiene UUID asignado. Sincroniza primero.'),
+          content:
+              Text('Esta venta no tiene UUID asignado. Sincroniza primero.'),
           backgroundColor: Color(0xFFEF4444),
         ),
       );

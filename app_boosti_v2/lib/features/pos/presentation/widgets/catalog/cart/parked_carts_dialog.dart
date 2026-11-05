@@ -40,6 +40,7 @@ class _ParkedCartsDialogState extends ConsumerState<ParkedCartsDialog> {
   static const _colorWarning = Color(0xFFF59E0B);
 
   final _searchController = TextEditingController();
+  final _renameController = TextEditingController();
   String _query = '';
   _FiltroEstado _filtro = _FiltroEstado.todos;
 
@@ -57,6 +58,7 @@ class _ParkedCartsDialogState extends ConsumerState<ParkedCartsDialog> {
   @override
   void dispose() {
     _searchController.dispose();
+    _renameController.dispose();
     super.dispose();
   }
 
@@ -121,8 +123,7 @@ class _ParkedCartsDialogState extends ConsumerState<ParkedCartsDialog> {
             DialogHeader(
               icon: Icons.pause_circle_outline_rounded,
               title: 'Carritos en espera',
-              subtitle:
-                  '${state.count}/$kMaxCarritosEnEspera · '
+              subtitle: '${state.count}/$kMaxCarritosEnEspera · '
                   'Puedes atender hasta $kMaxCarritosEnEspera personas a la vez',
               color: _colorPrimary,
             ),
@@ -434,7 +435,7 @@ class _ParkedCartsDialogState extends ConsumerState<ParkedCartsDialog> {
   }
 
   Future<void> _renombrar(CartSessionEntity s) async {
-    final controller = TextEditingController(text: s.nombre);
+    _renameController.text = s.nombre;
     final nuevo = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -443,7 +444,7 @@ class _ParkedCartsDialogState extends ConsumerState<ParkedCartsDialog> {
         ),
         title: const Text('Renombrar carrito'),
         content: TextField(
-          controller: controller,
+          controller: _renameController,
           autofocus: true,
           decoration: const InputDecoration(
             labelText: 'Nombre',
@@ -456,7 +457,7 @@ class _ParkedCartsDialogState extends ConsumerState<ParkedCartsDialog> {
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
+            onPressed: () => Navigator.pop(ctx, _renameController.text),
             style: ElevatedButton.styleFrom(
               backgroundColor: _colorPrimary,
               foregroundColor: Colors.white,
@@ -503,9 +504,7 @@ class _SessionCard extends StatelessWidget {
   /// Nombres de los productos guardados en la sesión.
   /// Fuente única: `CartSessionEntity.itemsNombres`.
   List<String> _previewNombres() {
-    return session.itemsNombres
-        .where((n) => n.trim().isNotEmpty)
-        .toList();
+    return session.itemsNombres.where((n) => n.trim().isNotEmpty).toList();
   }
 
   @override
@@ -689,8 +688,8 @@ class _SessionCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
             decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest
-                  .withValues(alpha: 0.55),
+              color:
+                  colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: colorScheme.outlineVariant.withValues(alpha: 0.4),
@@ -727,8 +726,7 @@ class _SessionCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
             decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest
-                  .withValues(alpha: 0.4),
+              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(

@@ -28,6 +28,13 @@ class ZonasDialog extends ConsumerStatefulWidget {
 
 class _ZonasDialogState extends ConsumerState<ZonasDialog> {
   bool _ocupado = false;
+  final _nombreZonaController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nombreZonaController.dispose();
+    super.dispose();
+  }
 
   Future<void> _crear() async {
     final nombre = await _pedirNombre(titulo: 'Nueva zona');
@@ -48,9 +55,8 @@ class _ZonasDialogState extends ConsumerState<ZonasDialog> {
     if (nombre == null || nombre == zona.nombre) return;
 
     setState(() => _ocupado = true);
-    final ok = await ref
-        .read(mesasProvider.notifier)
-        .renombrarZona(zona.id, nombre);
+    final ok =
+        await ref.read(mesasProvider.notifier).renombrarZona(zona.id, nombre);
     if (!mounted) return;
     setState(() => _ocupado = false);
     if (!ok) _mostrarError();
@@ -114,13 +120,13 @@ class _ZonasDialogState extends ConsumerState<ZonasDialog> {
     required String titulo,
     String inicial = '',
   }) {
-    final ctrl = TextEditingController(text: inicial);
+    _nombreZonaController.text = inicial;
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(titulo),
         content: TextField(
-          controller: ctrl,
+          controller: _nombreZonaController,
           autofocus: true,
           textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(
@@ -140,7 +146,7 @@ class _ZonasDialogState extends ConsumerState<ZonasDialog> {
           ),
           FilledButton(
             onPressed: () {
-              final t = ctrl.text.trim();
+              final t = _nombreZonaController.text.trim();
               if (t.isEmpty) return;
               Navigator.of(ctx).pop(t);
             },

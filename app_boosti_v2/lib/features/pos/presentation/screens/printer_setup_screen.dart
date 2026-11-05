@@ -15,8 +15,17 @@ class PrinterSetupScreen extends StatefulWidget {
 
 class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   final PrinterService _printerService = PrinterService();
+  final _networkIpController = TextEditingController();
+  final _networkNameController = TextEditingController();
   List<PrinterDevice> _foundPrinters = [];
   bool _isScanning = false;
+
+  @override
+  void dispose() {
+    _networkIpController.dispose();
+    _networkNameController.dispose();
+    super.dispose();
+  }
 
   Future<void> _checkPermissions() async {
     final bluetoothScan = await Permission.bluetoothScan.request();
@@ -77,8 +86,8 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
   }
 
   void _showAddNetworkPrinterDialog() {
-    final ipController = TextEditingController();
-    final nameController = TextEditingController();
+    _networkIpController.clear();
+    _networkNameController.clear();
 
     showDialog(
       context: context,
@@ -88,7 +97,7 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: nameController,
+              controller: _networkNameController,
               decoration: const InputDecoration(
                 labelText: 'Nombre de la impresora',
                 hintText: 'Ej: Impresora Oficina',
@@ -96,7 +105,7 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: ipController,
+              controller: _networkIpController,
               decoration: const InputDecoration(
                 labelText: 'Dirección IP',
                 hintText: 'Ej: 192.168.1.100',
@@ -117,12 +126,12 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
           ),
           TextButton(
             onPressed: () {
-              if (ipController.text.isNotEmpty) {
+              if (_networkIpController.text.isNotEmpty) {
                 final printer = PrinterDevice(
-                  name: nameController.text.isNotEmpty
-                      ? nameController.text
+                  name: _networkNameController.text.isNotEmpty
+                      ? _networkNameController.text
                       : 'Impresora Red',
-                  address: ipController.text.trim(),
+                  address: _networkIpController.text.trim(),
                   type: PrinterType.network,
                   port: 9100,
                 );
@@ -184,7 +193,8 @@ class _PrinterSetupScreenState extends State<PrinterSetupScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.bluetooth_searching),
-                    label: Text(_isScanning ? 'Buscando...' : 'Buscar Bluetooth'),
+                    label:
+                        Text(_isScanning ? 'Buscando...' : 'Buscar Bluetooth'),
                   ),
                 ),
                 const SizedBox(width: 12),

@@ -54,6 +54,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   final _puntoBsController = TextEditingController();
   final _referenciaController = TextEditingController();
   final _tasaManualController = TextEditingController();
+  final _manualRateDialogController = TextEditingController();
 
   // ===== Focus =====
   final _efectivoUsdFocus = FocusNode();
@@ -126,6 +127,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     _puntoBsController.dispose();
     _referenciaController.dispose();
     _tasaManualController.dispose();
+    _manualRateDialogController.dispose();
     _clienteSearchController.dispose();
     _clienteFocus.dispose();
     _efectivoUsdFocus.dispose();
@@ -176,15 +178,15 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     }
   }
 
- double _calcularTasaActiva(Map<String, double> tasas) {
-  if (_monedaSeleccionada == 'Manual') {
-    final manual = double.tryParse(_tasaManualController.text) ?? 0;
-    return manual > 0 ? manual : 0;   // ← 0 en lugar de 1.0
+  double _calcularTasaActiva(Map<String, double> tasas) {
+    if (_monedaSeleccionada == 'Manual') {
+      final manual = double.tryParse(_tasaManualController.text) ?? 0;
+      return manual > 0 ? manual : 0; // ← 0 en lugar de 1.0
+    }
+    final t = tasas[_monedaSeleccionada];
+    if (t != null && t > 0) return t;
+    return 0; // ← 0 en lugar de 1.0
   }
-  final t = tasas[_monedaSeleccionada];
-  if (t != null && t > 0) return t;
-  return 0;   // ← 0 en lugar de 1.0
-}
 
   double _totalRecibidoUsd(double tasa) {
     switch (_metodoIndex) {
@@ -224,8 +226,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   void _pagarExactoPunto(double tasa) {
     if (tasa <= 0) return;
     setState(() {
-      _puntoBsController.text =
-          (widget.totalAPagar * tasa).toStringAsFixed(2);
+      _puntoBsController.text = (widget.totalAPagar * tasa).toStringAsFixed(2);
     });
   }
 
@@ -238,10 +239,10 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     final vueltoUsd = diferencia > 0 ? diferencia : 0.0;
 
     if (tasa <= 0) {
-    _showSnack('No hay tasa BCV válida. Ingresa una manualmente.',
-        isError: true);
-    return;
-  }
+      _showSnack('No hay tasa BCV válida. Ingresa una manualmente.',
+          isError: true);
+      return;
+    }
 
     if (totalRecibido < (widget.totalAPagar - _eps)) return;
 
@@ -279,21 +280,21 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   }
 
   void _showSnack(String msg, {bool isError = false}) {
-  if (!mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(msg),
-      backgroundColor: isError ? _colorDanger : null,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ),
-  );
-}
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? _colorDanger : null,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
 
   // ======================================================
   // Abrir formulario de cliente
   // ======================================================
- Future<void> _abrirFormularioCliente() async {
+  Future<void> _abrirFormularioCliente() async {
     final nuevoCliente = await ClienteFormDialog.mostrar(context);
     if (!mounted) return;
 
@@ -434,7 +435,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                       _buildHeader(
+                      _buildHeader(
                         theme: theme,
                         colorScheme: colorScheme,
                         isMobile: isMobile,
@@ -517,11 +518,12 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                       ),
                       const SizedBox(height: 18),
                       _buildBotones(
-                          pagoCompleto: pagoCompleto && puedeCobrar,   // ← AND con puedeCobrar
-                          tasaValida: tasaValida,
-                          colorMetodo: _colorMetodo,
-                          colorScheme: colorScheme,
-                          isMobile: isMobile,
+                        pagoCompleto: pagoCompleto &&
+                            puedeCobrar, // ← AND con puedeCobrar
+                        tasaValida: tasaValida,
+                        colorMetodo: _colorMetodo,
+                        colorScheme: colorScheme,
+                        isMobile: isMobile,
                       ),
                     ],
                   ),
@@ -626,8 +628,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(iconoActual,
-                        color: colorScheme.primary,
-                        size: isMobile ? 18 : 20),
+                        color: colorScheme.primary, size: isMobile ? 18 : 20),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
@@ -844,9 +845,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
             curve: Curves.easeOutCubic,
             padding: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(
-              color: selected
-                  ? color
-                  : (hovering ? hoverBg : Colors.transparent),
+              color:
+                  selected ? color : (hovering ? hoverBg : Colors.transparent),
               borderRadius: BorderRadius.circular(10),
               boxShadow: selected
                   ? [
@@ -945,8 +945,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
         : Column(
             children: List.generate(cards.length, (i) {
               return Padding(
-                padding: EdgeInsets.only(
-                    bottom: i == cards.length - 1 ? 0 : 10),
+                padding:
+                    EdgeInsets.only(bottom: i == cards.length - 1 ? 0 : 10),
                 child: _buildMetodoCardVertical(
                   index: i,
                   info: cards[i],
@@ -1074,8 +1074,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color:
-                            selected ? Colors.white : colorScheme.onSurface,
+                        color: selected ? Colors.white : colorScheme.onSurface,
                       ),
                     ),
                     Text(
@@ -1181,11 +1180,9 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
   }) {
     switch (_metodoIndex) {
       case 0:
-        return _buildEfectivoFields(
-            tasaValida, isMobile, colorScheme, isDark);
+        return _buildEfectivoFields(tasaValida, isMobile, colorScheme, isDark);
       case 1:
-        return _buildPagoMovilFields(
-            tasaValida, isMobile, colorScheme, isDark);
+        return _buildPagoMovilFields(tasaValida, isMobile, colorScheme, isDark);
       case 2:
         return _buildPuntoFields(tasaValida, isMobile, colorScheme, isDark);
       default:
@@ -1388,15 +1385,15 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     final clientes = ref.watch(clientesProvider);
     final query = _clienteSearchController.text.trim().toLowerCase();
     final matches = query.isEmpty
-      ? <ClienteEntity>[]
-      : clientes
-          .where((c) =>
-              c.nombre.toLowerCase().contains(query) ||
-              c.documentoFormateado.toLowerCase().contains(query) ||
-              (c.rif ?? '').toLowerCase().contains(query) ||
-              (c.telefono ?? '').toLowerCase().contains(query))
-          .take(8)
-          .toList();
+        ? <ClienteEntity>[]
+        : clientes
+            .where((c) =>
+                c.nombre.toLowerCase().contains(query) ||
+                c.documentoFormateado.toLowerCase().contains(query) ||
+                (c.rif ?? '').toLowerCase().contains(query) ||
+                (c.telefono ?? '').toLowerCase().contains(query))
+            .take(8)
+            .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1457,8 +1454,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
         const SizedBox(height: 12),
 
         if (_clienteSeleccionado != null)
-          _buildClienteCard(_clienteSeleccionado!, colorScheme, isDark,
-              colorMetodo)
+          _buildClienteCard(
+              _clienteSeleccionado!, colorScheme, isDark, colorMetodo)
         else if (matches.isNotEmpty)
           _buildClienteLista(matches, colorScheme, isDark, colorMetodo)
         else
@@ -1547,7 +1544,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      cliente.documentoDisplay,   // ← "V-12345678" o "Sin documento"
+                      cliente
+                          .documentoDisplay, // ← "V-12345678" o "Sin documento"
                       style: TextStyle(
                         fontSize: 11,
                         color: colorScheme.onSurfaceVariant,
@@ -1640,7 +1638,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
     );
   }
 
- Widget _buildClienteLista(
+  Widget _buildClienteLista(
     List<ClienteEntity> clientes,
     ColorScheme colorScheme,
     bool isDark,
@@ -1885,9 +1883,7 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
               Icon(icon, size: 16, color: textColor),
               const SizedBox(width: 6),
               Text(
-                esExacto
-                    ? 'PAGO EXACTO'
-                    : (hayVuelto ? 'VUELTO' : 'FALTANTE'),
+                esExacto ? 'PAGO EXACTO' : (hayVuelto ? 'VUELTO' : 'FALTANTE'),
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -1997,8 +1993,8 @@ class _CobrarDialogState extends ConsumerState<CobrarDialog> {
         FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
       ],
       onChanged: onChanged,
-      style: TextStyle(
-          fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+      style:
+          TextStyle(fontWeight: FontWeight.w600, color: colorScheme.onSurface),
       decoration: InputDecorationHelper.build(
         context: context,
         label: label,
@@ -2187,18 +2183,30 @@ class _MetodoInfo {
 // ══════════════════════════════════════════════════════════════
 // Banner de advertencia de tasa BCV
 // ══════════════════════════════════════════════════════════════
-class _AvisoTasaBcv extends ConsumerWidget {
+class _AvisoTasaBcv extends ConsumerStatefulWidget {
   const _AvisoTasaBcv();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AvisoTasaBcv> createState() => _AvisoTasaBcvState();
+}
+
+class _AvisoTasaBcvState extends ConsumerState<_AvisoTasaBcv> {
+  final _manualRateDialogController = TextEditingController();
+
+  @override
+  void dispose() {
+    _manualRateDialogController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final bcv = ref.watch(bcvProvider);
     final mensaje = bcv.mensajeAdvertencia;
     if (mensaje == null) return const SizedBox.shrink();
 
     final esCritico = bcv.sinTasa;
-    final color =
-        esCritico ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
+    final color = esCritico ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
@@ -2211,9 +2219,7 @@ class _AvisoTasaBcv extends ConsumerWidget {
       child: Row(
         children: [
           Icon(
-            esCritico
-                ? Icons.error_outline
-                : Icons.warning_amber_rounded,
+            esCritico ? Icons.error_outline : Icons.warning_amber_rounded,
             color: color,
             size: 20,
           ),
@@ -2230,7 +2236,8 @@ class _AvisoTasaBcv extends ConsumerWidget {
           ),
           if (bcv.sinTasa || bcv.tasaObsoleta)
             TextButton(
-              onPressed: () => _pedirTasaManual(context, ref),
+              onPressed: () =>
+                  _pedirTasaManual(context, ref, _manualRateDialogController),
               child: const Text('Ingresar'),
             ),
         ],
@@ -2239,20 +2246,21 @@ class _AvisoTasaBcv extends ConsumerWidget {
   }
 }
 
-Future<void> _pedirTasaManual(BuildContext context, WidgetRef ref) async {
-  final controller = TextEditingController(
-    text: ref.read(bcvProvider).tieneTasa
-        ? ref.read(bcvProvider).tasa.toStringAsFixed(2)
-        : '',
-  );
+Future<void> _pedirTasaManual(
+  BuildContext context,
+  WidgetRef ref,
+  TextEditingController controller,
+) async {
+  controller.text = ref.read(bcvProvider).tieneTasa
+      ? ref.read(bcvProvider).tasa.toStringAsFixed(2)
+      : '';
   final valor = await showDialog<double>(
     context: context,
     builder: (_) => AlertDialog(
       title: const Text('Tasa BCV manual'),
       content: TextField(
         controller: controller,
-        keyboardType:
-            const TextInputType.numberWithOptions(decimal: true),
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
         decoration: const InputDecoration(
           labelText: 'Bolívares por 1 USD',
           prefixText: 'Bs. ',
@@ -2265,8 +2273,7 @@ Future<void> _pedirTasaManual(BuildContext context, WidgetRef ref) async {
         ),
         FilledButton(
           onPressed: () {
-            final v =
-                double.tryParse(controller.text.replaceAll(',', '.'));
+            final v = double.tryParse(controller.text.replaceAll(',', '.'));
             Navigator.pop(context, v);
           },
           child: const Text('Guardar'),

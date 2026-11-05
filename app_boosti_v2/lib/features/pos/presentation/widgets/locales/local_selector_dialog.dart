@@ -38,11 +38,20 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
   bool _creandoLocal = false;
   String? _errorMessage;
   String? _cambiandoTenantId;
+  final _nombreCrearController = TextEditingController();
+  final _direccionCrearController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _cargarLocales();
+  }
+
+  @override
+  void dispose() {
+    _nombreCrearController.dispose();
+    _direccionCrearController.dispose();
+    super.dispose();
   }
 
   Future<void> _cargarLocales() async {
@@ -118,9 +127,8 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
         content: Text(
           error ?? '✅ Local cambiado a "${local.nombre}" correctamente',
         ),
-        backgroundColor: error != null
-            ? const Color(0xFFEF4444)
-            : const Color(0xFF10B981),
+        backgroundColor:
+            error != null ? const Color(0xFFEF4444) : const Color(0xFF10B981),
         duration: const Duration(seconds: 4),
       ),
     );
@@ -130,11 +138,11 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
   // CREAR NUEVO LOCAL — Llama a la función SQL vía RPC
   // ============================================================
   Future<void> _mostrarFormularioCrearLocal() async {
-    final nombreCtrl = TextEditingController();
-    final direccionCtrl = TextEditingController();
+    _nombreCrearController.clear();
+    _direccionCrearController.clear();
     final formKey = GlobalKey<FormState>();
 
-    final confirmar = await showDialog<bool>(
+    final confirmar = await showDialog<({String nombre, String direccion})>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A4E),
@@ -161,7 +169,7 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextFormField(
-                controller: nombreCtrl,
+                controller: _nombreCrearController,
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
@@ -179,7 +187,7 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                controller: direccionCtrl,
+                controller: _direccionCrearController,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
                   labelText: 'Dirección (opcional)',
@@ -213,7 +221,13 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
             ),
             onPressed: () {
               if (formKey.currentState!.validate()) {
-                Navigator.pop(ctx, true);
+                Navigator.pop(
+                  ctx,
+                  (
+                    nombre: _nombreCrearController.text.trim(),
+                    direccion: _direccionCrearController.text.trim(),
+                  ),
+                );
               }
             },
             child: const Text('Crear local'),
@@ -222,7 +236,7 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
       ),
     );
 
-    if (confirmar != true) return;
+    if (confirmar == null) return;
 
     setState(() => _creandoLocal = true);
 
@@ -232,8 +246,8 @@ class _LocalSelectorDialogState extends ConsumerState<LocalSelectorDialog> {
       await Supabase.instance.client.rpc(
         'crear_nuevo_local_para_usuario',
         params: {
-          'p_nombre': nombreCtrl.text.trim(),
-          'p_direccion': direccionCtrl.text.trim(),
+          'p_nombre': confirmar.nombre,
+          'p_direccion': confirmar.direccion,
         },
       );
 

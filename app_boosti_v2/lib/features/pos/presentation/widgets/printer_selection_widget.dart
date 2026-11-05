@@ -26,10 +26,19 @@ class PrinterSelectionDialog extends ConsumerStatefulWidget {
 class _PrinterSelectionDialogState
     extends ConsumerState<PrinterSelectionDialog> {
   final PrinterService _printerService = PrinterService();
+  final _networkIpController = TextEditingController();
+  final _networkNameController = TextEditingController();
   PrinterType _printerType = PrinterType.bluetooth;
   final List<PrinterDevice> _devices = [];
   bool _isScanning = false;
   String? _selectedAddress;
+
+  @override
+  void dispose() {
+    _networkIpController.dispose();
+    _networkNameController.dispose();
+    super.dispose();
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // PLATAFORMA
@@ -141,8 +150,8 @@ class _PrinterSelectionDialogState
   // ═══════════════════════════════════════════════════════════════════
 
   void _showAddNetworkPrinterDialog() {
-    final ipController = TextEditingController();
-    final nameController = TextEditingController();
+    _networkIpController.clear();
+    _networkNameController.clear();
 
     showDialog(
       context: context,
@@ -154,7 +163,7 @@ class _PrinterSelectionDialogState
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                controller: nameController,
+                controller: _networkNameController,
                 decoration: const InputDecoration(
                   labelText: 'Nombre',
                   hintText: 'Ej: Impresora Oficina',
@@ -163,7 +172,7 @@ class _PrinterSelectionDialogState
               ),
               const SizedBox(height: 12),
               TextField(
-                controller: ipController,
+                controller: _networkIpController,
                 decoration: const InputDecoration(
                   labelText: 'Dirección IP',
                   hintText: 'Ej: 192.168.1.100',
@@ -186,12 +195,12 @@ class _PrinterSelectionDialogState
           ),
           ElevatedButton(
             onPressed: () {
-              if (ipController.text.isNotEmpty) {
+              if (_networkIpController.text.isNotEmpty) {
                 final printer = PrinterDevice(
-                  name: nameController.text.isNotEmpty
-                      ? nameController.text
+                  name: _networkNameController.text.isNotEmpty
+                      ? _networkNameController.text
                       : 'Impresora Red',
-                  address: ipController.text.trim(),
+                  address: _networkIpController.text.trim(),
                   type: PrinterType.network,
                   port: 9100,
                 );
@@ -397,9 +406,8 @@ class _PrinterSelectionDialogState
           )
         : Icon(isNetworkMode ? Icons.add_rounded : Icons.search_rounded);
 
-    final label = _isScanning
-        ? 'Buscando...'
-        : (isNetworkMode ? 'Agregar' : 'Buscar');
+    final label =
+        _isScanning ? 'Buscando...' : (isNetworkMode ? 'Agregar' : 'Buscar');
 
     if (isCompact) {
       return IconButton.filled(
@@ -410,9 +418,8 @@ class _PrinterSelectionDialogState
           foregroundColor: Colors.white,
           padding: const EdgeInsets.all(12),
         ),
-        tooltip: isNetworkMode
-            ? 'Agregar impresora de red'
-            : 'Buscar impresoras',
+        tooltip:
+            isNetworkMode ? 'Agregar impresora de red' : 'Buscar impresoras',
       );
     }
 
@@ -591,8 +598,8 @@ class _PrinterSelectionDialogState
                               ),
                               const SizedBox(height: 16),
                               Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 8),
                                 child: Text(
                                   _emptyStateText(),
                                   textAlign: TextAlign.center,
@@ -615,8 +622,7 @@ class _PrinterSelectionDialogState
                                 device.type == PrinterType.bluetooth;
 
                             return Card(
-                              margin:
-                                  const EdgeInsets.symmetric(vertical: 4),
+                              margin: const EdgeInsets.symmetric(vertical: 4),
                               elevation: isSelected ? 0 : 1,
                               color: isSelected
                                   ? Colors.green.withValues(alpha: 0.08)
@@ -640,8 +646,7 @@ class _PrinterSelectionDialogState
                                   decoration: BoxDecoration(
                                     color: isBluetooth
                                         ? Colors.blue.withValues(alpha: 0.1)
-                                        : Colors.orange
-                                            .withValues(alpha: 0.1),
+                                        : Colors.orange.withValues(alpha: 0.1),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
