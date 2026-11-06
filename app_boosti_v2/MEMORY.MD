@@ -1419,9 +1419,14 @@ Ratificado en los commits: TODO:270 (chip "Sin estación" en KDS, ya existía en
   confirmación.
 - Flujo: valida ≥6 caracteres y coincidencia → `signInWithPassword` con el
   email de la sesión para verificar la actual → `updateUser(password)`.
-- El tile **"Cambiar Contraseña de Empresa"** solo se muestra si
-  `usuario.rol == 'admin'`, en la sección *Cuenta* de
-  `user_settings_screen.dart`. El `SnackBar` de éxito se dispara allí.
+- El tile **"Cambiar Contraseña de Empresa"** solo se muestra si el usuario
+  es administrador, en la sección *Cuenta* de `user_settings_screen.dart`.
+  El gate usa el helper canónico `Permissions.isAdmin(UserRole)` (definido
+  en `domain/permissions/roles.dart`), nunca `rol == 'admin'` directo.
+- Defensa en profundidad: `_cambiarContrasenaEmpresa` vuelve a validar el
+  rol antes de abrir el diálogo, y `ChangeCompanyPasswordDialog.show`
+  retorna `false` si recibe un usuario que no es admin.
+- El `SnackBar` de éxito se dispara allí.
 - Log de auditoría `CAMBIO_CONTRASENA_EMPRESA` (nunca guarda la clave).
 - `signInWithPassword` re-emite `SIGNED_IN`; `app.dart` solo reacciona a
   `tokenRefreshed` y `signedOut`, así que la re-autenticación no expulsa
