@@ -37,7 +37,7 @@ on:
       release_version:
         description: 'Versión de release ya publicada (solo para patch)'
         required: false
-        default: '1.1.5+11'
+        default: '1.1.7+13'
 
 jobs:
   build-android:
