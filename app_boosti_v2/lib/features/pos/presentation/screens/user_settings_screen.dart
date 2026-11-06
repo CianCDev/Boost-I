@@ -10,6 +10,7 @@ import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/local_entity.dart';
 import '../../data/Local/entities/suscripcion_entity.dart';
 import '../../data/Local/entities/usuario_entity.dart';
+import '../../domain/permissions/roles.dart';
 import '../providers/auth_provider.dart';
 import '../providers/business_mode_provider.dart';
 import '../providers/local_actual_provider.dart';
@@ -211,7 +212,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
   }
 
   Future<void> _cambiarPin(UsuarioEntity usuario) async {
-    final esAdmin = usuario.rol == 'admin';
+    final esAdmin = Permissions.isAdmin(UserRole.fromString(usuario.rol));
 
     if (esAdmin) {
       await showDialog(
@@ -241,7 +242,19 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
   }
 
   /// Abre el diálogo de cambio de contraseña de la cuenta de empresa.
+  ///
+  /// Solo el administrador del local puede cambiar la contraseña de empresa.
   Future<void> _cambiarContrasenaEmpresa(UsuarioEntity usuario) async {
+    if (!Permissions.isAdmin(UserRole.fromString(usuario.rol))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Solo un administrador puede cambiar la contraseña de empresa.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final actualizado = await ChangeCompanyPasswordDialog.show(
       context,
       email: usuario.email,
@@ -415,7 +428,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
     final isTablet = ResponsiveHelper.isTablet(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final esAdmin = usuario.rol == 'admin';
+    final esAdmin = Permissions.isAdmin(UserRole.fromString(usuario.rol));
 
     final double maxWidth =
         isMobile ? double.infinity : (isTablet ? 900 : 1100);
@@ -640,7 +653,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                         ),
                       ),
 
-                      if (usuario.rol == 'admin') ...[
+                      if (esAdmin) ...[
                         const SizedBox(height: 12),
                         _buildInteractiveCard(
                           isDark: isDark,

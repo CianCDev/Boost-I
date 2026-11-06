@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/Local/entities/log_entity.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
+import '../../domain/permissions/roles.dart';
 import '../utils/responsive_helper.dart';
 import 'common/dialog_header.dart';
 import 'common/glass_dialog.dart';
@@ -31,11 +32,19 @@ class ChangeCompanyPasswordDialog extends StatefulWidget {
   });
 
   /// Helper estático para mostrar el diálogo y saber si hubo cambio.
+  ///
+  /// Defensa en profundidad: si se conoce el usuario y no es administrador,
+  /// el diálogo no se abre.
   static Future<bool> show(
     BuildContext context, {
     String? email,
     UsuarioEntity? usuario,
   }) async {
+    if (usuario != null &&
+        !Permissions.isAdmin(UserRole.fromString(usuario.rol))) {
+      return false;
+    }
+
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,

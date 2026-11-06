@@ -164,6 +164,10 @@ class Permissions {
   // MÓDULO: CONFIGURACIÓN
   // ══════════════════════════════════════════════════════════════
 
+  /// Comprobación canónica de administrador. Usar en lugar de comparar
+  /// `rol == 'admin'` directo.
+  static bool isAdmin(UserRole r) => r == UserRole.admin;
+
   static bool canAccessSettings(UserRole r) => r == UserRole.admin;
 
   static bool canManageLocales(UserRole r) => r == UserRole.admin;
