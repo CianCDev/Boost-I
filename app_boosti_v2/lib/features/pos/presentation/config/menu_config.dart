@@ -10,6 +10,7 @@ import '../screens/caja/caja_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/departamentos/departamentos_screen.dart';
 import '../screens/empleados/employees_screen.dart';
+import '../screens/inventory_catalog_screen.dart';
 import '../screens/gastos_screen.dart';
 import '../screens/locales/locales_screen.dart';
 import '../screens/lotes_screen.dart';
@@ -217,6 +218,7 @@ class MenuBuilder {
     required Future<void> Function() onCrearBackup,
     required Future<void> Function() onSincronizar,
     required int ventasPendientesSync,
+    bool abrirCatalogoAlSeleccionar = false,
 
     /// R.3.2 · Platos en cola de cocina, para el badge de la opción
     /// `'kds'`.
@@ -231,13 +233,9 @@ class MenuBuilder {
       // ─────────────────────────────────────────────────────────────
       // INICIO
       //
-      // Va primero a propósito: el POS es la acción que más se usa, y
-      // antes no existía forma de volver a él desde este menú.
-      //
-      // `PosMenuScreen` se empuja con `Navigator.push` SOBRE el POS
-      // (`catalog_app_bar.dart:174` y `main_pos_screen.dart:1569`), así
-      // que `Navigator.pop()` devuelve al POS sin crear una ruta nueva.
-      // Es la opción menos invasiva: no toca la pila de navegación.
+      // Si el menú se abrió desde el catálogo, volver atrás conserva esa
+      // pantalla. Si se abrió desde el menú principal, hay que abrir el
+      // catálogo en lugar de regresar al dashboard.
       // ─────────────────────────────────────────────────────────────
       MenuSection(
         title: 'INICIO',
@@ -249,7 +247,14 @@ class MenuBuilder {
             title: 'Punto de venta',
             subtitle: 'Vender productos y cobrar',
             color: const Color(0xFF10B981),
-            onTap: () => Navigator.pop(context),
+            onTap: abrirCatalogoAlSeleccionar
+                ? () => Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const InventoryCatalogScreen(),
+                      ),
+                    )
+                : () => Navigator.pop(context),
           ),
         ],
       ),

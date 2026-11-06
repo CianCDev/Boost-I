@@ -1708,7 +1708,9 @@ List<_QuickAccessItem> _quickItemsForRole(UserRole role, FeatureFlags flags) {
       title: 'Menú completo',
       subtitle: 'Todas las opciones del sistema',
       color: const Color(0xFF64748B),
-      screenBuilder: () => const PosMenuScreen(),
+      screenBuilder: () => const PosMenuScreen(
+        abrirCatalogoAlSeleccionar: true,
+      ),
     ));
   }
 

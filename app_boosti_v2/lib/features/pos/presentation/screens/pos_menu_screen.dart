@@ -31,7 +31,12 @@ import 'empleados/employees_screen.dart';
 import 'login_screen.dart';
 
 class PosMenuScreen extends ConsumerStatefulWidget {
-  const PosMenuScreen({super.key});
+  final bool abrirCatalogoAlSeleccionar;
+
+  const PosMenuScreen({
+    super.key,
+    this.abrirCatalogoAlSeleccionar = false,
+  });
 
   @override
   ConsumerState<PosMenuScreen> createState() => _PosMenuScreenState();
@@ -453,6 +458,7 @@ class _PosMenuScreenState extends ConsumerState<PosMenuScreen>
       onSincronizar: _sincronizarConProgreso,
       ventasPendientesSync: _ventasPendientesSync,
       kdsBadge: kdsBadge,
+      abrirCatalogoAlSeleccionar: widget.abrirCatalogoAlSeleccionar,
     );
 
     // Filtrar por permisos + feature flags
