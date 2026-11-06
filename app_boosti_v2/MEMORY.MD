@@ -9,7 +9,7 @@
 
 ## Pila Técnica y Versiones Base
 - **Flutter SDK:** 3.47.2 (Channel stable)
-- **Versión de la app:** `1.1.6+12` (`pubspec.yaml`)
+- **Versión de la app:** `1.1.7+13` (`pubspec.yaml`; pendiente de release OTA)
 - **Release Android publicado:** `1.1.6+12` (release `937576`, 2026-10-30).
   El release anterior `1.1.5+11` (`912633`) sigue activo con sus patches
   #1 y #2. Los patches **no cruzan** de release: para pasar de `1.1.5+11`
@@ -1409,3 +1409,66 @@ Ratificado en los commits: TODO:270 (chip "Sin estación" en KDS, ya existía en
   *asset changes* (`MaterialIcons-Regular.otf`). Ya está corregido en
   `0e5a790` con `--allow-asset-diffs` en
   `shorebird-windows.yml:129`; el run fallido era sobre `0997ff9`.
+
+## Contraseña de empresa + optimización pre-release (2026-11-05)
+
+### Cambio de contraseña de empresa (Flutter)
+
+- Nuevo diálogo `widgets/change_company_password_dialog.dart`
+  (`ChangeCompanyPasswordDialog.show`) con 3 campos: actual, nueva y
+  confirmación.
+- Flujo: valida ≥6 caracteres y coincidencia → `signInWithPassword` con el
+  email de la sesión para verificar la actual → `updateUser(password)`.
+- El tile **"Cambiar Contraseña de Empresa"** solo se muestra si
+  `usuario.rol == 'admin'`, en la sección *Cuenta* de
+  `user_settings_screen.dart`. El `SnackBar` de éxito se dispara allí.
+- Log de auditoría `CAMBIO_CONTRASENA_EMPRESA` (nunca guarda la clave).
+- `signInWithPassword` re-emite `SIGNED_IN`; `app.dart` solo reacciona a
+  `tokenRefreshed` y `signedOut`, así que la re-autenticación no expulsa
+  al usuario.
+
+### Auth web (Next.js / Netlify)
+
+- Restauradas `app/auth/login`, `app/auth/forgot-password` y
+  `app/auth/reset-password` (todas `'use client'`), más
+  `lib/supabase/client.ts` con `createBrowserClient`.
+- `forgot-password` usa `redirectTo` explícito de producción:
+  `https://boostisoftware.netlify.app/auth/reset-password`.
+- `@supabase/ssr` y `@supabase/supabase-js` declarados en `package.json`
+  y `package-lock.json` (antes estaban solo en `node_modules`, Netlify no
+  los instalaba).
+- `npm run build` (export estático) genera las 22 rutas; las de auth
+  salen como `out/auth/<ruta>.html` (Netlify las resuelve sin extensión).
+
+### Rendimiento: Historial de Ventas y Cierre de Caja
+
+- **Causa raíz**: ambas pantallas esperaban
+  `SyncService.descargarVentasDesdeSupabase()` antes de leer Isar, y esa
+  descarga hacía **N+1** (una query a `detalle_ventas` por venta).
+- `descargarVentasDesdeSupabase` ahora agrupa los IDs en lotes de 150 y
+  consulta `detalle_ventas` con `.inFilter(...)` + `.range(...)` (paginado
+  de 1000 por el límite de PostgREST). Se eliminó una re-lectura local por
+  venta antes de guardar detalles.
+- `sales_history_screen._cargarVentas()` pinta primero Isar y lanza el
+  sync con `unawaited`; al terminar recarga la lista.
+- `cash_closing_provider._cargarDatos()` calcula el corte local primero y
+  sincroniza/refresca en segundo plano con `unawaited`.
+- `salon_screen` e `inventory_catalog_screen` usan
+  `scrollCacheExtent: const ScrollCacheExtent.pixels(500)` (Flutter 3.47
+  deprecó `cacheExtent`; se importa `ScrollCacheExtent` desde
+  `package:flutter/rendering.dart`).
+- `GlassDialog` envuelve su `BackdropFilter` en `RepaintBoundary`.
+
+### Calidad de esta tanda
+
+- `flutter analyze`: **No issues found!**
+- `flutter test`: **+988 ~1 -3**. Los 3 fallos son **preexistentes y
+  ajenos** a estos cambios:
+  1. `asignacion_estaciones_test`: `ProductoEntity.toJson` ya incluye
+     `departamento_id` (el test espera que no).
+  2. `asignacion_estaciones_test`: `fromJson` castea
+     `departamento_id` a `String?` pero el test inyecta un `int`.
+  3. `rebuild_audit_test`: `MissingPluginException` de
+     `connectivity_plus` (falta mock en el test de widget).
+- Pendiente del owner: disparar el release OTA (no se ejecutó Shorebird).
+

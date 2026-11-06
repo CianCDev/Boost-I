@@ -66,12 +66,28 @@ class _SalesHistoryScreenState extends State<SalesHistoryScreen> {
   // ============================================================
   Future<void> _cargarVentas() async {
     setState(() => _isLoading = true);
-    try {
-      // Sincronizar desde Supabase (si falla, continuamos con datos locales)
-      try {
-        await SyncService().descargarVentasDesdeSupabase();
-      } catch (_) {}
 
+    // 1) Pintar de inmediato con lo que ya está en Isar (apertura rápida
+    //    incluso sin internet).
+    await _cargarVentasLocales();
+
+    // 2) Traer novedades de Supabase sin bloquear la pantalla. Al terminar
+    //    se vuelve a leer Isar y se refresca la lista si hay cambios.
+    unawaited(_sincronizarYRefrescar());
+  }
+
+  Future<void> _sincronizarYRefrescar() async {
+    try {
+      await SyncService().descargarVentasDesdeSupabase();
+      if (!mounted) return;
+      await _cargarVentasLocales();
+    } catch (_) {
+      // Sin conexión o error de sync: se mantiene la vista local.
+    }
+  }
+
+  Future<void> _cargarVentasLocales() async {
+    try {
       final ventas = await _isarService.obtenerVentas();
       ventas.sort((a, b) {
         final fechaA = a.fecha ?? DateTime.fromMillisecondsSinceEpoch(0);

@@ -1,158 +1,83 @@
 import Link from 'next/link';
 import PageLayout from '../components/PageLayout';
 
+const sections = [
+  {
+    title: '1. IDENTIFICACIÓN DEL PRESTADOR',
+    content: 'El presente contrato es celebrado entre Yan David Camacaro Delgado, titular de la Cédula de Identidad N° V-30.155.457 y RIF personal, con domicilio en Valencia, Estado Carabobo, Venezuela, en adelante "El Prestador" o "JAHTLABS"; y la persona natural o jurídica que contrata el servicio, en adelante "El Cliente".\n\nCorreo de contacto: jahtlabs@gmail.com',
+  },
+  {
+    title: '2. OBJETO Y ACEPTACIÓN',
+    content: 'El Prestador otorga al Cliente una licencia de uso no exclusiva, no transferible y revocable sobre el software Boosti POS (en adelante, "El Software").\n\nLa aceptación de estos términos es un requisito obligatorio e indelegable para el uso del Software. Al marcar la casilla de aceptación en la aplicación, el Cliente declara haber leído, entendido y aceptado la totalidad de estas cláusulas.',
+  },
+  {
+    title: '3. LICENCIA DE USO Y PROPIEDAD INTELECTUAL',
+    content: '3.1. El Software, su código fuente, diseño, arquitectura, logotipos y documentación son propiedad intelectual exclusiva de JAHTLABS. El Cliente no adquiere ningún derecho de propiedad sobre el código o la marca.\n\n3.2. El Cliente se compromete a no realizar ingeniería inversa, descompilar, modificar, sublicenciar, alquilar o revender el Software sin autorización expresa y por escrito del Prestador.\n\n3.3. Propiedad de los Datos: Todos los datos operativos ingresados por el Cliente (inventario, ventas, clientes, empleados, etc.) son propiedad exclusiva del Cliente. El Prestador no reclama ningún derecho sobre dicha información.',
+  },
+  {
+    title: '4. PLANES, PRECIOS Y FACTURACIÓN',
+    content: 'El Software opera bajo un modelo de suscripción (SaaS) y un plan de licencia vitalicia, detallados a continuación:\n\n• Plan Básico: Quince dólares ($15 USD) mensuales. Sujeto a los límites funcionales establecidos en la app.\n• Plan Pro: Treinta dólares ($30 USD) mensuales. Incluye funcionalidades avanzadas y mayor capacidad.\n• Plan Enterprise (Vitalicio): Doscientos veinte dólares ($220 USD) en un pago único. Otorga acceso total e ilimitado, participación como tester en versiones beta, y descuentos en el ecosistema de apps de JAHTLABS.\n\n4.1. Prueba Gratuita (Trial): El Cliente dispone de un período de prueba de quince (15) días. Al finalizar este período, o si no se registra el pago correspondiente, el sistema se bloqueará automáticamente hasta que se regularice la situación.\n\n4.2. Métodos de Pago: El Prestador acepta pagos en Divisas, Pago Móvil y Binance. Los montos y tasas de cambio se regirán por lo estipulado en el momento de la facturación.\n\n4.3. Política de Reembolso: No se realizarán reembolsos por períodos ya facturados o servicios prestados. El Cliente puede cancelar su suscripción en cualquier momento, pero mantendrá acceso hasta el final del ciclo pagado.',
+  },
+  {
+    title: '5. SOPORTE TÉCNICO (SLA)',
+    content: 'El Prestador brindará soporte técnico a través de WhatsApp, Telegram y Correo Electrónico.\n\n• Horario de atención: Lunes a Sábado, de 9:00 AM a 5:00 PM (Hora local de Venezuela).\n• Tiempo de respuesta: Hasta cuarenta y ocho (48) horas hábiles.\n\nNo se garantiza la resolución inmediata de incidencias, sino el acuse de recibo y el inicio del diagnóstico dentro del plazo estipulado.',
+  },
+  {
+    title: '6. PRIVACIDAD Y PROTECCIÓN DE DATOS',
+    content: '6.1. Aislamiento de Datos: El Software garantiza el aislamiento de la información por cada local (Tenant). El Prestador asegura que los datos de un Cliente no serán accesibles por otros Clientes.\n\n6.2. Rol del Prestador: El Prestador actúa únicamente como proveedor de infraestructura tecnológica y no tiene acceso a los datos operativos del negocio, salvo estrictamente para fines de diagnóstico técnico o soporte, previa autorización del Cliente.\n\n6.3. Sincronización: El Cliente reconoce y acepta que el Software utiliza una arquitectura Offline-First que sincroniza los datos locales con la nube (Supabase) para garantizar la continuidad del servicio.',
+  },
+  {
+    title: '7. OBLIGACIONES Y RESPONSABILIDAD DEL CLIENTE',
+    content: 'El Cliente es el único y exclusivo responsable de:\n\n• La legalidad de los datos que ingresa en el Software.\n• El cumplimiento de sus obligaciones fiscales y contables ante el SENIAT u organismos competentes. El Software es una herramienta de gestión y no sustituye la facturación fiscal ni emite documentos fiscales.\n• Mantener la confidencialidad de sus credenciales de acceso y las de su personal.\n• La veracidad de la información ingresada (precios, inventario, datos de clientes).',
+  },
+  {
+    title: '8. LIMITACIÓN DE RESPONSABILIDAD',
+    content: '8.1. Exclusión de Garantías: El Software se proporciona "TAL CUAL" y "SEGÚN DISPONIBILIDAD". El Prestador no garantiza que el uso del Software sea ininterrumpido o libre de errores.\n\n8.2. Daños Indirectos: En la máxima medida permitida por la ley venezolana, el Prestador no será responsable por daños indirectos, incidentales, especiales, consecuenciales o punitivos, ni por lucro cesante, pérdida de datos, pérdida de negocios o interrupción de la actividad comercial.\n\n8.3. Límite de Responsabilidad: La responsabilidad total y acumulada del Prestador frente al Cliente por cualquier reclamo derivado de este contrato, no excederá el monto total efectivamente pagado por el Cliente al Prestador durante los doce (12) meses anteriores al evento que dio origen al reclamo. En el caso del Plan Enterprise, el límite será el monto del pago único realizado.\n\n8.4. Fuerza Mayor: El Prestador no será responsable por fallos derivados de cortes de energía eléctrica, fallas en el servicio de internet del Cliente, caídas de servicios de terceros (Supabase, proveedores de nube) o eventos de fuerza mayor.',
+  },
+  {
+    title: '9. MODIFICACIONES Y TERMINACIÓN',
+    content: '9.1. El Prestador se reserva el derecho de actualizar estos Términos y Condiciones. Los cambios sustanciales serán notificados con treinta (30) días de anticipación, y el Cliente deberá aceptarlos al próximo inicio de sesión.\n\n9.2. El Prestador podrá suspender el servicio de forma inmediata ante el uso indebido del Software, intentos de hackeo, o falta de pago.',
+  },
+  {
+    title: '10. LEGISLACIÓN APLICABLE Y JURISDICCIÓN',
+    content: 'Este contrato se rige por las leyes de la República Bolivariana de Venezuela. Cualquier controversia derivada del presente contrato será resuelta en los tribunales competentes de la ciudad de Valencia, Estado Carabobo.',
+  },
+];
+
 export default function TerminosPage() {
   return (
     <PageLayout>
-    <div className="min-h-screen text-white">
-      <main className="max-w-3xl mx-auto px-6 py-32 lg:py-40">
-        <div className="text-center mb-12">
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 text-indigo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-            </svg>
+      <div className="min-h-screen text-white">
+        <main className="max-w-3xl mx-auto px-6 py-32 lg:py-40">
+          <div className="text-center mb-12">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 text-indigo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+            </div>
+            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4">
+              Términos y Condiciones de Servicio y EULA — Boosti POS
+            </h1>
+            <p className="text-white/60">EULA oficial · Última actualización: 5 de noviembre de 2026</p>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4">
-            Términos y Condiciones de BoostI POS
-          </h1>
-          <p className="text-white/60">Última actualización: Noviembre 2026</p>
-        </div>
 
-        <div className="space-y-10 text-white/60 leading-relaxed">
-          {/* 1 */}
-          <section>
-            <h2 className="text-xl font-bold text-white mb-3">1. Aceptación de los Términos</h2>
+          <div className="space-y-10 text-white/60 leading-relaxed">
+            {sections.map((section) => (
+              <section key={section.title}>
+                <h2 className="text-xl font-bold text-white mb-3">{section.title}</h2>
+                <p className="whitespace-pre-line">{section.content}</p>
+              </section>
+            ))}
             <p>
-              Al crear una cuenta y utilizar BoostI POS (el &quot;Servicio&quot;), operado por JAH Lab (la
-              &quot;Compañía&quot;), usted acepta cumplir y estar sujeto a estos Términos y Condiciones. Si no está
-              de acuerdo con alguna parte de estos términos, no debe utilizar el Servicio.
+              Para consultas, también puede visitar nuestra{' '}
+              <Link href="/contacto" className="text-electric hover:text-indigo transition-colors duration-300 ease-in-out">
+                página de contacto
+              </Link>.
             </p>
-          </section>
-
-          {/* 2 */}
-          <section>
-            <h2 className="text-xl font-bold text-white mb-3">2. Cuentas de Usuario</h2>
-            <p>
-              Para acceder a la mayoría de las funciones del Servicio, debe registrar una cuenta. Usted es
-              responsable de mantener la confidencialidad de su cuenta y contraseña, y acepta la
-              responsabilidad de todas las actividades que ocurran bajo su cuenta. Usted se compromete a
-              proporcionar información precisa, completa y actualizada.
-            </p>
-          </section>
-
-          {/* 3 */}
-          <section>
-            <h2 className="text-xl font-bold text-white mb-3">3. Contenido del Usuario</h2>
-            <p>
-              Nuestro Servicio le permite publicar, cargar y almacenar información (como datos de inventario,
-              ventas, imágenes de productos, etc.). Usted conserva todos sus derechos sobre dicho contenido. Al
-              cargar contenido, nos otorga una licencia mundial, no exclusiva y libre de regalías para alojar,
-              usar y mostrar dicho contenido con el único fin de operar y mejorar el Servicio.
-            </p>
-          </section>
-
-          {/* 4 */}
-          <section>
-            <h2 className="text-xl font-bold text-white mb-3">4. Suscripciones, Pagos y Compras</h2>
-            <ul className="space-y-4 mt-3">
-              <li>
-                <strong className="text-white">Suscripciones:</strong> Ofrecemos planes de suscripción
-                recurrentes. Al suscribirse, acepta pagar las tarifas aplicables según el plan seleccionado
-                (mensual o anual). Los pagos son no reembolsables, salvo que la ley aplicable exija lo
-                contrario.
-              </li>
-              <li>
-                <strong className="text-white">Compras y Productos:</strong> El Servicio permite a los usuarios
-                realizar compras únicas de bienes o servicios. Las transacciones se procesan de forma segura, y
-                el usuario es responsable de proporcionar métodos de pago válidos.
-              </li>
-              <li>
-                <strong className="text-white">Compras dentro de la App:</strong> Cualquier compra de funciones
-                adicionales o módulos dentro de la aplicación está sujeta a estos mismos términos.
-              </li>
-              <li>
-                <strong className="text-white">Prueba Gratuita:</strong> Podemos ofrecer períodos de prueba. Al
-                finalizar el período de prueba, se le cobrará automáticamente la tarifa de suscripción a menos
-                que cancele antes.
-              </li>
-            </ul>
-          </section>
-
-          {/* 5 */}
-          <section>
-            <h2 className="text-xl font-bold text-white mb-3">5. Propiedad Intelectual</h2>
-            <p>
-              El Servicio y su contenido original (excluyendo el contenido que usted proporcione), las
-              características y la funcionalidad son y seguirán siendo propiedad exclusiva de JAH Lab y BoostI
-              POS. Nuestras marcas comerciales, logotipos y diseño visual no pueden ser copiados, imitados o
-              utilizados sin nuestro permiso previo por escrito.
-            </p>
-          </section>
-
-          {/* 6 */}
-          <section>
-            <h2 className="text-xl font-bold text-white mb-3">6. Comentarios y Sugerencias</h2>
-            <p>
-              Si nos proporciona comentarios, sugerencias o ideas (Feedback), usted acepta que podemos
-              utilizarlos sin compensación o crédito hacia usted. Nos reservamos el derecho de implementar
-              cualquier feedback que consideremos útil para mejorar el Servicio.
-            </p>
-          </section>
-
-          {/* 7 */}
-          <section>
-            <h2 className="text-xl font-bold text-white mb-3">7. Promociones y Concursos</h2>
-            <p>
-              Ocasionalmente, podemos ofrecer promociones, concursos o sorteos. Todos estos estarán regidos por
-              reglas específicas que se le proporcionarán en el momento de la promoción, las cuales se
-              consideran parte de estos Términos.
-            </p>
-          </section>
-
-          {/* 8 */}
-          <section>
-            <h2 className="text-xl font-bold text-white mb-3">8. Limitación de Responsabilidad</h2>
-            <p>
-              En ningún caso JAH Lab, ni sus directores, empleados o socios, serán responsables de daños
-              indirectos, incidentales, especiales o consecuentes derivados del uso o la imposibilidad de usar
-              el Servicio (incluyendo, sin limitación, pérdida de datos o ganancias).
-            </p>
-          </section>
-
-          {/* 9 */}
-          <section>
-            <h2 className="text-xl font-bold text-white mb-3">9. Modificaciones</h2>
-            <p>
-              Nos reservamos el derecho de modificar o reemplazar estos Términos en cualquier momento. Si los
-              cambios son importantes, le notificaremos con al menos 30 días de antelación antes de que los
-              nuevos términos entren en vigencia.
-            </p>
-          </section>
-
-          {/* 10 */}
-          <section>
-            <h2 className="text-xl font-bold text-white mb-3">10. Contacto</h2>
-            <p className="mb-3">Si tiene alguna pregunta sobre estos Términos y Condiciones, puede contactarnos:</p>
-            <ul className="space-y-2">
-              <li>
-                Por correo electrónico:{' '}
-                <a href="mailto:jahtlabs@gmail.com" className="text-electric hover:text-indigo transition-colors duration-300 ease-in-out">
-                  jahtlabs@gmail.com
-                </a>
-              </li>
-              <li>
-                A través de nuestro sitio web:{' '}
-                <Link href="/contacto" className="text-electric hover:text-indigo transition-colors duration-300 ease-in-out">
-                  Página de contacto
-                </Link>{' '}
-                en boostipos.com
-              </li>
-            </ul>
-          </section>
-        </div>
-      </main>
-    </div>
+          </div>
+        </main>
+      </div>
     </PageLayout>
   );
 }

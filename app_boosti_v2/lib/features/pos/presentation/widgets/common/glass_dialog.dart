@@ -32,50 +32,52 @@ class GlassDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       elevation: 0,
       insetPadding: insetPadding,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: maxWidth,
-              maxHeight: screen.height * maxHeightFactor,
-            ),
-            decoration: BoxDecoration(
-              // ✅ Alpha baja para que el blur se perciba:
-              // 0.95 → parecía opaco, el vidrio no se veía.
-              color: isDark
-                  ? const Color(0xFF1A1A1A).withValues(alpha: 0.72)
-                  : Colors.white.withValues(alpha: 0.78),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.12)
-                    : Colors.white.withValues(alpha: 0.9),
-                width: 1.5,
+      child: RepaintBoundary(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: maxWidth,
+                maxHeight: screen.height * maxHeightFactor,
               ),
-              boxShadow: [
-                // Resplandor del acento
-                BoxShadow(
-                  color: accentColor.withValues(alpha: 0.18),
-                  blurRadius: 50,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 12),
+              decoration: BoxDecoration(
+                // ✅ Alpha baja para que el blur se perciba:
+                // 0.95 → parecía opaco, el vidrio no se veía.
+                color: isDark
+                    ? const Color(0xFF1A1A1A).withValues(alpha: 0.72)
+                    : Colors.white.withValues(alpha: 0.78),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : Colors.white.withValues(alpha: 0.9),
+                  width: 1.5,
                 ),
-                // Sombra profunda
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.12),
-                  blurRadius: 30,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+                boxShadow: [
+                  // Resplandor del acento
+                  BoxShadow(
+                    color: accentColor.withValues(alpha: 0.18),
+                    blurRadius: 50,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 12),
+                  ),
+                  // Sombra profunda
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.12),
+                    blurRadius: 30,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: scrollable
+                  ? SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: child,
+                    )
+                  : child,
             ),
-            child: scrollable
-                ? SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    child: child,
-                  )
-                : child,
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 // lib/features/pos/presentation/screens/salon/salon_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app_boosti_v2/features/pos/data/Local/entities/mesa_entity.dart';
@@ -368,6 +369,7 @@ class _SalonScreenState extends ConsumerState<SalonScreen> {
         final columnas = _columnasPara(constraints.maxWidth);
         return GridView.builder(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+          scrollCacheExtent: const ScrollCacheExtent.pixels(500),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columnas,
             mainAxisSpacing: 8,

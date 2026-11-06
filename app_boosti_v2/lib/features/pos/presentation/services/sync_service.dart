@@ -2233,34 +2233,65 @@ class SyncService {
       debugPrint('🔄 Descargando ${response.length} ventas desde Supabase...');
       int insertadas = 0, actualizadas = 0;
 
+      // ── Detalles en UNA sola consulta por lote ──────────────────────
+      // Antes se lanzaba una consulta a `detalle_ventas` por CADA venta
+      // (N+1). Con historiales grandes eso bloqueaba la apertura de
+      // Historial de Ventas y Cierre de Caja durante minutos. Ahora se
+      // agrupan los IDs y se consultan por lotes de 150.
+      final ventaIds = response
+          .map((v) => v['id'] as String? ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList(growable: false);
+
+      final detallesPorVenta = <String, List<DetalleVentaEntity>>{};
+      const loteSize = 150;
+      const pageSize = 1000;
+      for (var i = 0; i < ventaIds.length; i += loteSize) {
+        final fin = (i + loteSize < ventaIds.length)
+            ? i + loteSize
+            : ventaIds.length;
+        final lote = ventaIds.sublist(i, fin);
+
+        // PostgREST devuelve como máximo 1000 filas por request; se pagina
+        // para no perder detalles en lotes con muchas líneas.
+        var desde = 0;
+        while (true) {
+          final detallesResponse = await _supabase
+              .from('detalle_ventas')
+              .select()
+              .eq('tenant_id', tenantUuid)
+              .inFilter('venta_id_tk', lote)
+              .range(desde, desde + pageSize - 1);
+
+          for (final d in detallesResponse) {
+            final ventaFk = d['venta_id_tk'] as String? ?? '';
+            if (ventaFk.isEmpty) continue;
+            (detallesPorVenta[ventaFk] ??= <DetalleVentaEntity>[]).add(
+              DetalleVentaEntity()
+                ..ventaIdFk = ventaFk
+                ..productoId = _toInt(d['producto_id'])
+                ..nombreProducto = d['nombre_producto'] ?? ''
+                ..precioUnidad = _toDouble(d['precio_unidad'])
+                ..cantidad = _toDouble(d['cantidad'])
+                ..subtotal = _toDouble(d['subtotal'])
+                ..precioOriginal = d['precio_original'] == null
+                    ? null
+                    : _toDouble(d['precio_original'])
+                ..esDescuentoEspecial = d['es_descuento_especial'] ?? false,
+            );
+          }
+
+          if (detallesResponse.length < pageSize) break;
+          desde += pageSize;
+        }
+      }
+
       for (var data in response) {
         final String ventaIdString = data['id'] as String? ?? '';
         if (ventaIdString.isEmpty) continue;
 
-        // 🔥 Consulta con 'venta_id_tk' (columna renombrada). El filtro
-        // de tenant es defensivo: la venta ya venía filtrada, pero la
-        // columna existe y cuesta nada.
-        final detallesResponse = await _supabase
-            .from('detalle_ventas')
-            .select()
-            .eq('tenant_id', tenantUuid)
-            .eq('venta_id_tk', ventaIdString);
-
-        // 🔥 Leer los campos de descuento desde Supabase
-        final detalles = detallesResponse.map<DetalleVentaEntity>((d) {
-          final detalle = DetalleVentaEntity()
-            ..ventaIdFk = ventaIdString
-            ..productoId = _toInt(d['producto_id']) // 🔥 Leer producto_id
-            ..nombreProducto = d['nombre_producto'] ?? ''
-            ..precioUnidad = _toDouble(d['precio_unidad'])
-            ..cantidad = _toDouble(d['cantidad'])
-            ..subtotal = _toDouble(d['subtotal'])
-            ..precioOriginal = d['precio_original'] == null
-                ? null
-                : _toDouble(d['precio_original'])
-            ..esDescuentoEspecial = d['es_descuento_especial'] ?? false;
-          return detalle;
-        }).toList();
+        final detalles =
+            detallesPorVenta[ventaIdString] ?? const <DetalleVentaEntity>[];
 
         final existing =
             await _isarService.obtenerVentaPorIdString(ventaIdString);
@@ -2293,13 +2324,11 @@ class SyncService {
         }
 
         if (detalles.isNotEmpty) {
-          final ventaLocal =
-              await _isarService.obtenerVentaPorIdString(ventaIdString);
-          if (ventaLocal != null) {
-            await _isarService.guardarDetallesVenta(ventaIdString, detalles);
-            debugPrint(
-                '📦 ${detalles.length} detalles guardados para venta $ventaIdString');
-          }
+          // `guardarVenta` ya persistió la venta, así que no hace falta
+          // re-consultarla por `idSupabase` antes de guardar los detalles.
+          await _isarService.guardarDetallesVenta(ventaIdString, detalles);
+          debugPrint(
+              '📦 ${detalles.length} detalles guardados para venta $ventaIdString');
         }
       }
       debugPrint('✅ $insertadas ventas insertadas, $actualizadas actualizadas');

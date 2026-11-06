@@ -10,12 +10,12 @@
 > (LOPDP, Código de Comercio, normas de la SENIAT) requieren validación
 > con un abogado en Venezuela antes de firmar nada.
 
-> **Estado de los T&C (2026-10-20).** Hasta que el abogado revise y confirme
-> los textos, lo que se presenta al cliente es un **acuerdo entre las partes**,
-> no un contrato validado legalmente. Los siete marcadores `[REVISAR: ...]`
-> de `legal_texts.dart` siguen abiertos y se resuelven con el abogado, no en
-> el código. La aceptación ya queda registrada (local + Supabase), así que
-> cuando llegue la versión definitiva hay evidencia de quién aceptó y cuándo.
+> **Estado del EULA (2026-11-05).** La versión oficial vigente es
+> `2026-11-05`; está publicada en `docs/LEGAL/terminos.md`, en la pantalla de
+> aceptación de la app y en la página web `/terminos`. Su designación como
+> oficial no equivale a una revisión jurídica: debe validarse con un abogado
+> antes de tratarlo como asesoría o garantía de cumplimiento legal. La
+> aceptación queda versionada y registrada localmente y en Supabase.
 
 ---
 
@@ -348,9 +348,9 @@ salida de la pantalla de aceptación sin volver al registro.
 |---|---|---|
 | 1 | **Licencias de las 4 animaciones** | §4.1. Bloqueante para cliente corporativo |
 | 2 | **Registro de la marca** ante la OCI | §6.1. Costo diferido por decisión del dueño |
-| 3 | **Validación jurídica de los textos** | Los marcadores `[REVISAR: ...]` son puntos abiertos |
+| 3 | **Validación jurídica de los textos** | El EULA oficial `2026-11-05` y la política de privacidad requieren revisión jurídica |
 | 4 | ~~Aplicar la migración `20261018000001`~~ | **Aplicada el 2026-10-20.** Verificada en remoto: la tabla `legal_acceptance` responde y la RPC `registrar_legal_acceptance` existe (rechaza al rol anónimo con 401, mientras una función inexistente da 404) |
-| 5 | **Publicar los documentos** en la web de JAHTLABS | Hoy solo viven dentro de la app |
+| 5 | **Publicar los documentos** en la web de JAHTLABS | El EULA está actualizado en `/terminos`; la política `/privacidad` requiere revisión frente al borrador interno |
 | 6 | **Un resto de `Arial-Bold`** en el manual | Un peso sin declaración exacta cae al fallback del stack |
 
 ### 7.2 Importante
@@ -362,18 +362,17 @@ salida de la pantalla de aceptación sin volver al registro.
 | 9 | Política de retención y borrado de datos del cliente |
 | 10 | Shorebird: pedir el DPA firmado cuando se pueda pagar el plan de equipo |
 
-### 7.3 Marcadores `[REVISAR]` dentro de los textos legales
+### 7.3 Pendientes de revisión dentro de los textos legales
 
 Estos los tiene que resolver el abogado, **no** el código:
 
 | Sección | Qué hay que definir |
 |---|---|
-| T&C 4 | Precio de cada plan indexado + política de ajustes con aviso previo |
-| T&C 7 | Validación del límite de responsabilidad contra normativa y práctica del sector |
-| T&C 8 | Nivel de servicio concreto: horas de respuesta, horario, días hábiles |
-| T&C 12 | Jurisdicción confirmada y si se prefiere arbitraje |
 | Privacidad 5 | Nombre y ubicación del proveedor de nube |
 | Privacidad 7 | Plazo de conservación en años + procedimiento de eliminación o anonimización |
+
+El EULA oficial no contiene marcadores pendientes de completar, pero su
+contenido completo sigue sujeto a revisión jurídica.
 
 ---
 

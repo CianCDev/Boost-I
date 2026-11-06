@@ -21,6 +21,7 @@ import '../utils/responsive_helper.dart';
 import '../widgets/admin_validation_dialog.dart';
 import '../widgets/appbar.dart';
 import '../widgets/cambiar_pin_dialog.dart';
+import '../widgets/change_company_password_dialog.dart';
 import '../widgets/common/exportar_datos_dialog.dart';
 import '../widgets/common/logo_upload_field.dart';
 import 'login_screen.dart';
@@ -237,6 +238,24 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
         ),
       );
     }
+  }
+
+  /// Abre el diálogo de cambio de contraseña de la cuenta de empresa.
+  Future<void> _cambiarContrasenaEmpresa(UsuarioEntity usuario) async {
+    final actualizado = await ChangeCompanyPasswordDialog.show(
+      context,
+      email: usuario.email,
+      usuario: usuario,
+    );
+
+    if (!mounted || !actualizado) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Contraseña de empresa actualizada correctamente.'),
+        backgroundColor: Color(0xFF10B981),
+      ),
+    );
   }
 
   Future<void> _cerrarSesion() async {
@@ -620,6 +639,25 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                           trailing: Icons.arrow_forward_ios_rounded,
                         ),
                       ),
+
+                      if (usuario.rol == 'admin') ...[
+                        const SizedBox(height: 12),
+                        _buildInteractiveCard(
+                          isDark: isDark,
+                          entryIndex: 6,
+                          onTap: () => _cambiarContrasenaEmpresa(usuario),
+                          accentColor: const Color(0xFF8B5CF6),
+                          child: _buildTile(
+                            icon: Icons.password_rounded,
+                            iconColor: const Color(0xFF8B5CF6),
+                            title: 'Cambiar Contraseña de Empresa',
+                            subtitle: 'Acceso a la nube de Boosti POS',
+                            isDark: isDark,
+                            isMobile: isMobile,
+                            trailing: Icons.arrow_forward_ios_rounded,
+                          ),
+                        ),
+                      ],
 
                       SizedBox(height: sectionSpacing),
 

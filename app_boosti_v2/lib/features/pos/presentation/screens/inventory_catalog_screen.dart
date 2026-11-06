@@ -6,6 +6,7 @@ import 'package:app_boosti_v2/features/pos/domain/models/product_item.dart';
 import 'package:app_boosti_v2/features/pos/presentation/providers/catalog/catalog_actions.dart';
 import 'package:app_boosti_v2/features/pos/presentation/widgets/catalog/catalog_app_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:provider/provider.dart' as provider;
@@ -746,6 +747,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
     if (isLoading && productosFiltrados.isEmpty) {
       return GridView.builder(
         padding: const EdgeInsets.all(16),
+        scrollCacheExtent: const ScrollCacheExtent.pixels(500),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
           childAspectRatio: childAspectRatio,
@@ -866,6 +868,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                             gridChild: GridView.builder(
                               key: const ValueKey('grid'),
                               padding: const EdgeInsets.only(bottom: 40),
+                              scrollCacheExtent: const ScrollCacheExtent.pixels(500),
                               gridDelegate:
                                   SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: crossAxisCount,
@@ -899,6 +902,7 @@ class _InventoryCatalogScreenState extends ConsumerState<InventoryCatalogScreen>
                             listChild: ListView.builder(
                               key: const ValueKey('list'),
                               padding: const EdgeInsets.only(bottom: 40),
+                              scrollCacheExtent: const ScrollCacheExtent.pixels(500),
                               itemCount: productosFiltrados.length,
                               itemBuilder: (context, index) {
                                 final producto = productosFiltrados[index];

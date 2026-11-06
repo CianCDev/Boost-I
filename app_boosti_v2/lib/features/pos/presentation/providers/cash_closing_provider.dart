@@ -1,4 +1,6 @@
 // lib/features/pos/presentation/providers/cash_closing_provider.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_boosti_v2/features/pos/presentation/services/cash_register_service.dart';
@@ -55,15 +57,11 @@ class CashClosingNotifier extends StateNotifier<CashClosingState> {
     _cargarDatos();
   }
 
-  // Cargar datos iniciales (con descarga previa)
+  // Cargar datos iniciales: resumen local inmediato + sync en segundo plano.
   Future<void> _cargarDatos() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      // 1. Sincronizar ventas desde Supabase
-      final sync = _ref.read(syncServiceProvider);
-      await sync.descargarVentasDesdeSupabase();
-
-      // 2. Calcular resumen del día
+      // 1. Calcular el resumen con lo que ya está en Isar (sin esperar red).
       final resumen = await _cashService.calcularCorteDelDia();
 
       // Guarda estándar: el notifier puede haberse dispuesto durante el await.
@@ -74,12 +72,33 @@ class CashClosingNotifier extends StateNotifier<CashClosingState> {
         lastUpdated: DateTime.now(),
         error: null,
       );
+
+      // 2. Sincronizar en segundo plano y refrescar si llegaron ventas.
+      unawaited(_sincronizarYRefrescar());
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
       );
+    }
+  }
+
+  /// Descarga ventas de Supabase sin bloquear la UI y recalcula el corte.
+  Future<void> _sincronizarYRefrescar() async {
+    try {
+      final sync = _ref.read(syncServiceProvider);
+      await sync.descargarVentasDesdeSupabase();
+      if (!mounted) return;
+
+      final resumen = await _cashService.calcularCorteDelDia();
+      if (!mounted) return;
+      state = state.copyWith(
+        resumen: resumen,
+        lastUpdated: DateTime.now(),
+      );
+    } catch (_) {
+      // Sin conexión o error de sync: se conserva el resumen local.
     }
   }
 

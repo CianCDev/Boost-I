@@ -48,8 +48,7 @@ void main() {
           '{"version":"2020-01-01","usuarioId":"usuario-1","aceptadoEn":"2020-01-01T00:00:00.000Z"}');
 
       final store = LegalAcceptanceStore(prefs);
-      expect(store.leer('usuario-1'), isNotNull,
-          reason: 'el registro existe');
+      expect(store.leer('usuario-1'), isNotNull, reason: 'el registro existe');
       expect(store.yaAcepto('usuario-1'), isFalse,
           reason: 'pero la version no coincide, hay que volver a pedirla');
     });
@@ -108,7 +107,10 @@ void main() {
     });
 
     test('ambas listas de secciones estan ordenadas y sin huecos', () {
-      for (final lista in [LegalTerminos.secciones, LegalPrivacidad.secciones]) {
+      for (final lista in [
+        LegalTerminos.secciones,
+        LegalPrivacidad.secciones
+      ]) {
         expect(lista, isNotEmpty);
         for (var i = 0; i < lista.length; i++) {
           expect(lista[i].titulo, startsWith('${i + 1}.'),
@@ -119,23 +121,29 @@ void main() {
     });
 
     test('ninguna seccion tiene el cuerpo vacio', () {
-      for (final lista in [LegalTerminos.secciones, LegalPrivacidad.secciones]) {
+      for (final lista in [
+        LegalTerminos.secciones,
+        LegalPrivacidad.secciones
+      ]) {
         for (final s in lista) {
           expect(s.cuerpo.trim(), isNotEmpty, reason: s.titulo);
         }
       }
     });
 
-    test('los terminos mencionan la politica de privacidad', () {
-      // Sin esta referencia cruzada, el aviso de privacidad queda como
-      // documento suelto y no como parte del contrato.
+    test('los terminos contienen las condiciones del EULA oficial vigente', () {
       final todo = LegalTerminos.secciones.map((s) => s.cuerpo).join(' ');
-      expect(todo, contains('politica de privacidad'));
-      expect(todo.toLowerCase(), contains('lopdp'));
+      expect(kLegalVersion, '2026-11-05');
+      expect(LegalTerminos.secciones, hasLength(10));
+      expect(todo, contains('jahtlabs@gmail.com'));
+      expect(todo, contains('Offline-First'));
+      expect(todo, contains('doce (12) meses'));
+      expect(todo, contains('Valencia, Estado Carabobo'));
     });
 
     test('la politica declara los derechos del titular', () {
-      final titulos = LegalPrivacidad.secciones.map((s) => s.titulo).join(' | ');
+      final titulos =
+          LegalPrivacidad.secciones.map((s) => s.titulo).join(' | ');
       expect(titulos.toLowerCase(), contains('derechos del titular'));
       expect(titulos.toLowerCase(), contains('conservacion'));
       expect(titulos.toLowerCase(), contains('seguridad'));
