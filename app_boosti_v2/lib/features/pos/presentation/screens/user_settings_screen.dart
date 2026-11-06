@@ -25,6 +25,7 @@ import '../widgets/cambiar_pin_dialog.dart';
 import '../widgets/change_company_password_dialog.dart';
 import '../widgets/common/exportar_datos_dialog.dart';
 import '../widgets/common/logo_upload_field.dart';
+import '../widgets/gestion_personal_dialog.dart';
 import 'login_screen.dart';
 import 'configuracion_modo_negocio_screen.dart';
 
@@ -241,6 +242,19 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
     }
   }
 
+  Future<void> _gestionarPinesUsuarios() async {
+    final usuario = ref.read(usuarioActualProvider);
+    if (usuario == null ||
+        !Permissions.canManageUserPins(UserRole.fromString(usuario.rol))) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => const PersonnelManagementDialog(pinOnly: true),
+    );
+  }
+
   /// Abre el diálogo de cambio de contraseña de la cuenta de empresa.
   ///
   /// Solo el administrador del local puede cambiar la contraseña de empresa.
@@ -248,7 +262,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
     if (!Permissions.isAdmin(UserRole.fromString(usuario.rol))) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Solo un administrador puede cambiar la contraseña de empresa.'),
+          content: Text(
+              'Solo un administrador puede cambiar la contraseña de empresa.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -429,6 +444,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final esAdmin = Permissions.isAdmin(UserRole.fromString(usuario.rol));
+    final esAdminOSupervisor =
+        Permissions.isAdminOrSupervisor(UserRole.fromString(usuario.rol));
 
     final double maxWidth =
         isMobile ? double.infinity : (isTablet ? 900 : 1100);
@@ -652,6 +669,25 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen>
                           trailing: Icons.arrow_forward_ios_rounded,
                         ),
                       ),
+
+                      if (esAdminOSupervisor) ...[
+                        const SizedBox(height: 12),
+                        _buildInteractiveCard(
+                          isDark: isDark,
+                          entryIndex: 5,
+                          onTap: _gestionarPinesUsuarios,
+                          accentColor: const Color(0xFF0EA5E9),
+                          child: _buildTile(
+                            icon: Icons.pin_rounded,
+                            iconColor: const Color(0xFF0EA5E9),
+                            title: 'Gestionar PINes de usuarios',
+                            subtitle: 'Cambiar el PIN de acceso del personal',
+                            isDark: isDark,
+                            isMobile: isMobile,
+                            trailing: Icons.arrow_forward_ios_rounded,
+                          ),
+                        ),
+                      ],
 
                       if (esAdmin) ...[
                         const SizedBox(height: 12),

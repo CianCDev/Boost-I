@@ -29,14 +29,22 @@ enum UserRole {
   /// Nombre legible para UI.
   String get label {
     switch (this) {
-      case UserRole.admin:      return 'Administrador';
-      case UserRole.supervisor: return 'Supervisor';
-      case UserRole.rrhh:       return 'Recursos Humanos';
-      case UserRole.cajero:     return 'Cajero';
-      case UserRole.auditor:    return 'Auditor';
-      case UserRole.almacen:    return 'Almacén';
-      case UserRole.dev:        return 'Desarrollo';
-      case UserRole.soporte:    return 'Soporte';
+      case UserRole.admin:
+        return 'Administrador';
+      case UserRole.supervisor:
+        return 'Supervisor';
+      case UserRole.rrhh:
+        return 'Recursos Humanos';
+      case UserRole.cajero:
+        return 'Cajero';
+      case UserRole.auditor:
+        return 'Auditor';
+      case UserRole.almacen:
+        return 'Almacén';
+      case UserRole.dev:
+        return 'Desarrollo';
+      case UserRole.soporte:
+        return 'Soporte';
     }
   }
 }
@@ -100,7 +108,7 @@ class Permissions {
   static bool canManageSchedules(UserRole r) =>
       r == UserRole.admin || r == UserRole.rrhh;
 
-       /// Puede acceder al módulo de Ventas al Mayor.
+  /// Puede acceder al módulo de Ventas al Mayor.
   ///
   /// Solo admin, supervisor y cajero. Otros roles quedan fuera.
   static bool canAccessWholesale(UserRole role) {
@@ -114,9 +122,7 @@ class Permissions {
   // ══════════════════════════════════════════════════════════════
 
   static bool canAccessPos(UserRole r) =>
-      r == UserRole.admin ||
-      r == UserRole.supervisor ||
-      r == UserRole.cajero;
+      r == UserRole.admin || r == UserRole.supervisor || r == UserRole.cajero;
 
   static bool canVoidSale(UserRole r) =>
       r == UserRole.admin || r == UserRole.supervisor;
@@ -125,9 +131,7 @@ class Permissions {
       r == UserRole.admin || r == UserRole.supervisor;
 
   static bool canOpenCashRegister(UserRole r) =>
-      r == UserRole.admin ||
-      r == UserRole.supervisor ||
-      r == UserRole.cajero;
+      r == UserRole.admin || r == UserRole.supervisor || r == UserRole.cajero;
 
   // ══════════════════════════════════════════════════════════════
   // MÓDULO: INVENTARIO
@@ -168,6 +172,13 @@ class Permissions {
   /// `rol == 'admin'` directo.
   static bool isAdmin(UserRole r) => r == UserRole.admin;
 
+  static bool isSupervisor(UserRole r) => r == UserRole.supervisor;
+
+  static bool isAdminOrSupervisor(UserRole r) => isAdmin(r) || isSupervisor(r);
+
+  /// Permite gestionar PINes de usuarios sin conceder permisos de admin.
+  static bool canManageUserPins(UserRole r) => isAdminOrSupervisor(r);
+
   static bool canAccessSettings(UserRole r) => r == UserRole.admin;
 
   static bool canManageLocales(UserRole r) => r == UserRole.admin;
@@ -202,7 +213,7 @@ enum EmployeesOnlyRoute { employees }
 extension UsuarioRolX on dynamic {
   // El `dynamic` permite usarlo con UsuarioEntity sin import circular.
   // En su lugar, puedes importar UsuarioEntity arriba y tipar bien.
-  
+
   UserRole get rolEnum => UserRole.fromString(this.rol as String?);
   bool get esAdmin => rolEnum == UserRole.admin;
   bool get esSupervisor => rolEnum == UserRole.supervisor;

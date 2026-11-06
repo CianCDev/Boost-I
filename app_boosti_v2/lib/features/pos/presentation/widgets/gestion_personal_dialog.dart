@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/Local/entities/isar_service.dart';
 import '../../data/Local/entities/usuario_entity.dart';
 import '../../data/Local/entities/log_entity.dart';
+import '../../domain/permissions/roles.dart';
 import '../services/sync_service.dart';
 import '../utils/responsive_helper.dart';
 import '../utils/pin_hasher.dart';
@@ -21,7 +22,12 @@ import 'common/persona_form_template.dart';
 import 'common/status_badge.dart';
 
 class PersonnelManagementDialog extends ConsumerStatefulWidget {
-  const PersonnelManagementDialog({super.key});
+  final bool pinOnly;
+
+  const PersonnelManagementDialog({
+    super.key,
+    this.pinOnly = false,
+  });
 
   @override
   ConsumerState<PersonnelManagementDialog> createState() =>
@@ -67,8 +73,18 @@ class _PersonnelManagementDialogState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _cargarUsuarios();
+    _tabController = TabController(length: widget.pinOnly ? 1 : 2, vsync: this);
+    if (!widget.pinOnly || _puedeGestionarPines) {
+      _cargarUsuarios();
+    } else {
+      _cargando = false;
+    }
+  }
+
+  bool get _puedeGestionarPines {
+    final usuario = ref.read(usuarioActualProvider);
+    return usuario != null &&
+        Permissions.canManageUserPins(UserRole.fromString(usuario.rol));
   }
 
   @override
@@ -87,12 +103,6 @@ class _PersonnelManagementDialogState
 
   // ═══════════════════════════════════════════════════════════════
   // UTILIDADES
-  // ═══════════════════════════════════════════════════════════════
-  //
-  // 🎯 NOTA: El hasheo del PIN vive exclusivamente en `PinHasher`.
-  //    NO duplicar la lógica aquí. Un solo punto de verdad evita
-  //    discrepancias de formato (`sha256:hash:salt`).
-  //
   // ═══════════════════════════════════════════════════════════════
 
   String _getPasswordStrength(String password) {
@@ -225,34 +235,9 @@ class _PersonnelManagementDialogState
             'No hay tenant activo. Vuelve a iniciar sesión antes de crear usuarios.');
       }
 
-      // ═══════════════════════════════════════════════════════════════
-      // 🎯 FIX: Hashear con PinHasher (formato `sha256:hash:salt`).
-      //
-      //   Antes se usaba un hash local `sha256(pin)` SIN salt ni prefijo,
-      //   lo que causaba que IsarService lo re-hasheara (doble hash) y
-      //   el PIN nunca coincidiera en el login.
-      //
-      //   Con PinHasher.hashWithNewSalt():
-      //     - El formato es el correcto desde el primer momento.
-      //     - IsarService.guardarUsuario() detecta `isHashed() == true`
-      //       y NO vuelve a hashear.
-      //     - Supabase recibe el MISMO hash por metadata, manteniendo
-      //       coherencia entre Isar y la nube.
-      // ═══════════════════════════════════════════════════════════════
       final pinPlano = _pinController.text.trim();
       final pinHasheadoDefinitivo = PinHasher.hashWithNewSalt(pinPlano);
 
-      // ═══════════════════════════════════════════════════════════════
-      // 🎯 Modelo A: solo los ADMIN van a auth.users.
-      //
-      //   - Admin → signUp en auth.users. Necesita email/password porque
-      //             es la única identidad con la que se emite el JWT que
-      //             sincroniza TODO el tenant.
-      //
-      //   - Cajero → SOLO se guarda en Isar. Cuando haya conexión, el
-      //              sync lo inserta directamente en public.usuarios con
-      //              su propio UUID (generado por la DB). No toca auth.
-      // ═══════════════════════════════════════════════════════════════
       final esAdmin = _rolSeleccionado == 'admin';
       final haySesion = supabase.auth.currentSession != null;
 
@@ -270,7 +255,7 @@ class _PersonnelManagementDialogState
           data: {
             'nombre': _nombreController.text.trim(),
             'rol': 'admin',
-            'pin': pinHasheadoDefinitivo, // ← hash con formato correcto
+            'pin': pinHasheadoDefinitivo,
             'tenant_id': tenantId,
           },
         );
@@ -280,18 +265,17 @@ class _PersonnelManagementDialogState
         }
         supabaseUuid = response.user!.id;
       }
-      // Para cajeros: supabaseUuid queda null → no toca auth.users.
 
       final nuevoUsuario = UsuarioEntity()
         ..nombre = _nombreController.text.trim()
         ..email = _emailController.text.trim()
         ..password = password
-        ..pin = pinHasheadoDefinitivo // ← hash con formato correcto
+        ..pin = pinHasheadoDefinitivo
         ..rol = _rolSeleccionado
         ..estado = 'inactivo'
         ..activo = true
-        ..supabaseId = supabaseUuid // ← null para cajeros
-        ..sincronizado = supabaseUuid != null // ← cajeros quedan pendientes
+        ..supabaseId = supabaseUuid
+        ..sincronizado = supabaseUuid != null
         ..tenantId = tenantId
         ..cajaAsignada = '';
 
@@ -355,10 +339,11 @@ class _PersonnelManagementDialogState
   }
 
   Future<void> _editarUsuario(UsuarioEntity usuario) async {
+    if (widget.pinOnly) return;
+
     _editNombreController.text = usuario.nombre;
     _editEmailController.text = usuario.email ?? '';
     _editPasswordController.clear();
-    // PIN vacío al editar para no cargar el hash SHA-256 de 64 chars.
     _editPinController.clear();
     String rolSeleccionado = usuario.rol;
 
@@ -587,6 +572,17 @@ class _PersonnelManagementDialogState
                               ),
                             ),
                             DropdownMenuItem(
+                              value: 'supervisor',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.supervisor_account_rounded,
+                                      color: Color(0xFF8B5CF6), size: 18),
+                                  SizedBox(width: 8),
+                                  Text('Supervisor'),
+                                ],
+                              ),
+                            ),
+                            DropdownMenuItem(
                               value: 'cajero',
                               child: Row(
                                 children: [
@@ -664,15 +660,6 @@ class _PersonnelManagementDialogState
                           usuario.email = _editEmailController.text.trim();
                           usuario.rol = rolSeleccionado;
 
-                          // ════════════════════════════════════════════
-                          // 🎯 FIX: usar PinHasher directamente.
-                          //
-                          //   Antes: usuario.pin = _hashPin(newPin);  ← sin salt
-                          //   Ahora: PinHasher.hashWithNewSalt(newPin) ← correcto
-                          //
-                          //   IsarService.guardarUsuario detecta `isHashed()`
-                          //   y NO re-hashea. Un solo formato en todos lados.
-                          // ════════════════════════════════════════════
                           if (newPin.isNotEmpty) {
                             usuario.pin = PinHasher.hashWithNewSalt(newPin);
                           }
@@ -722,6 +709,102 @@ class _PersonnelManagementDialogState
         },
       ),
     );
+  }
+
+  Future<void> _cambiarPinUsuario(UsuarioEntity usuario) async {
+    if (!widget.pinOnly || !_puedeGestionarPines) return;
+
+    final actor = ref.read(usuarioActualProvider);
+    final actorRole =
+        actor == null ? UserRole.cajero : UserRole.fromString(actor.rol);
+
+    if (Permissions.isSupervisor(actorRole) &&
+        (usuario.id == actor?.id ||
+            UserRole.fromString(usuario.rol) == UserRole.admin)) {
+      _snack(
+        'Un supervisor no puede cambiar su propio PIN ni el de un administrador desde esta pantalla.',
+        _colorWarning,
+      );
+      return;
+    }
+
+    final pinController = TextEditingController();
+    try {
+      final formKey = GlobalKey<FormState>();
+      final confirmado = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Cambiar PIN de ${usuario.nombre}'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: pinController,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              maxLength: 4,
+              decoration: const InputDecoration(
+                labelText: 'Nuevo PIN',
+                counterText: '',
+              ),
+              validator: (value) {
+                final pin = value?.trim() ?? '';
+                if (pin.length != 4 || int.tryParse(pin) == null) {
+                  return 'Debe ser 4 dígitos numéricos';
+                }
+                return null;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(dialogContext, true);
+                }
+              },
+              child: const Text('Guardar PIN'),
+            ),
+          ],
+        ),
+      );
+      if (confirmado != true) return;
+
+      usuario.pin = PinHasher.hashWithNewSalt(pinController.text.trim());
+      await _isarService.guardarUsuario(usuario);
+
+      final supabaseId = usuario.supabaseId;
+      if (supabaseId != null && supabaseId.isNotEmpty) {
+        await Supabase.instance.client
+            .from('usuarios')
+            .update({'pin': usuario.pin}).eq('id', supabaseId);
+      }
+
+      await _syncService.sincronizarUsuariosASupabase();
+
+      await _isarService.guardarLog(
+        LogEntity()
+          ..accion = 'CAMBIAR_PIN_USUARIO'
+          ..usuarioNombre = actor?.nombre ?? 'Usuario'
+          ..usuarioRol = actor?.rol ?? ''
+          ..detalles = 'PIN actualizado para usuario ID ${usuario.id}'
+          ..fecha = DateTime.now()
+          ..sincronizado = false,
+      );
+
+      if (!mounted) return;
+      _snack('PIN actualizado correctamente', _colorSuccess);
+      await _cargarUsuarios();
+    } catch (e) {
+      if (!mounted) return;
+      _snack('No se pudo actualizar el PIN: $e', _colorDanger);
+    } finally {
+      pinController.dispose();
+    }
   }
 
   Widget _buildEditHeader(
@@ -806,6 +889,8 @@ class _PersonnelManagementDialogState
   // ═══════════════════════════════════════════════════════════════
 
   Future<void> _eliminarUsuario(UsuarioEntity usuario) async {
+    if (widget.pinOnly) return;
+
     final usuarioActual = ref.read(usuarioActualProvider);
     if (usuarioActual != null && usuarioActual.id == usuario.id) {
       _snack('⚠️ No puedes eliminar tu propio usuario.', _colorWarning);
@@ -944,13 +1029,19 @@ class _PersonnelManagementDialogState
 
             // ═══ CONTENIDO ═══
             Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildFormTab(isMobile, colorScheme),
-                  _buildListTab(isMobile, colorScheme),
-                ],
-              ),
+              child: widget.pinOnly && !_puedeGestionarPines
+                  ? const Center(
+                      child: Text('No tienes permiso para gestionar PINes.'),
+                    )
+                  : TabBarView(
+                      controller: _tabController,
+                      children: widget.pinOnly
+                          ? [_buildListTab(isMobile, colorScheme)]
+                          : [
+                              _buildFormTab(isMobile, colorScheme),
+                              _buildListTab(isMobile, colorScheme),
+                            ],
+                    ),
             ),
           ],
         ),
@@ -999,7 +1090,7 @@ class _PersonnelManagementDialogState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Gestión de Personal',
+                widget.pinOnly ? 'Gestión de PINes' : 'Gestión de Personal',
                 style: TextStyle(
                   fontSize: isMobile ? 18 : 20,
                   fontWeight: FontWeight.w800,
@@ -1010,7 +1101,9 @@ class _PersonnelManagementDialogState
               ),
               const SizedBox(height: 2),
               Text(
-                'Administración de accesos al sistema POS',
+                widget.pinOnly
+                    ? 'Actualizar PIN de usuarios del sistema POS'
+                    : 'Administración de accesos al sistema POS',
                 style: TextStyle(
                   fontSize: 12.5,
                   color: colorScheme.onSurfaceVariant,
@@ -1075,20 +1168,29 @@ class _PersonnelManagementDialogState
           fontSize: 13,
         ),
         splashBorderRadius: BorderRadius.circular(10),
-        tabs: const [
-          Tab(
-            height: 40,
-            icon: Icon(Icons.person_add_rounded, size: 16),
-            iconMargin: EdgeInsets.zero,
-            text: 'Datos',
-          ),
-          Tab(
-            height: 40,
-            icon: Icon(Icons.people_rounded, size: 16),
-            iconMargin: EdgeInsets.zero,
-            text: 'Lista',
-          ),
-        ],
+        tabs: widget.pinOnly
+            ? const [
+                Tab(
+                  height: 40,
+                  icon: Icon(Icons.pin_rounded, size: 16),
+                  iconMargin: EdgeInsets.zero,
+                  text: 'Usuarios',
+                ),
+              ]
+            : const [
+                Tab(
+                  height: 40,
+                  icon: Icon(Icons.person_add_rounded, size: 16),
+                  iconMargin: EdgeInsets.zero,
+                  text: 'Datos',
+                ),
+                Tab(
+                  height: 40,
+                  icon: Icon(Icons.people_rounded, size: 16),
+                  iconMargin: EdgeInsets.zero,
+                  text: 'Lista',
+                ),
+              ],
       ),
     );
   }
@@ -1299,6 +1401,17 @@ class _PersonnelManagementDialogState
           ),
         ),
         DropdownMenuItem(
+          value: 'supervisor',
+          child: Row(
+            children: [
+              Icon(Icons.supervisor_account_rounded,
+                  color: Color(0xFF8B5CF6), size: 18),
+              SizedBox(width: 8),
+              Text('Supervisor'),
+            ],
+          ),
+        ),
+        DropdownMenuItem(
           value: 'cajero',
           child: Row(
             children: [
@@ -1322,6 +1435,17 @@ class _PersonnelManagementDialogState
   // ═══════════════════════════════════════════════════════════════
 
   Widget _buildListTab(bool isMobile, ColorScheme colorScheme) {
+    final actor = ref.read(usuarioActualProvider);
+    final actorRole =
+        actor == null ? UserRole.cajero : UserRole.fromString(actor.rol);
+    final usuarios = widget.pinOnly
+        ? _usuarios.where((usuario) {
+            if (usuario.id == actor?.id) return false;
+            return !Permissions.isSupervisor(actorRole) ||
+                UserRole.fromString(usuario.rol) != UserRole.admin;
+          }).toList(growable: false)
+        : _usuarios;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1334,7 +1458,9 @@ class _PersonnelManagementDialogState
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'USUARIOS REGISTRADOS · ${_usuarios.length}',
+                  widget.pinOnly
+                      ? 'USUARIOS · ${usuarios.length}'
+                      : 'USUARIOS REGISTRADOS · ${_usuarios.length}',
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
@@ -1343,14 +1469,16 @@ class _PersonnelManagementDialogState
                   ),
                 ),
               ),
-              _MiniActionButton(
-                icon: Icons.cleaning_services_rounded,
-                color: _colorWarning,
-                tooltip: 'Limpiar usuarios huérfanos',
-                onTap: _limpiarUsuariosHuerfanos,
-                colorScheme: colorScheme,
-              ),
-              const SizedBox(width: 6),
+              if (!widget.pinOnly) ...[
+                _MiniActionButton(
+                  icon: Icons.cleaning_services_rounded,
+                  color: _colorWarning,
+                  tooltip: 'Limpiar usuarios huérfanos',
+                  onTap: _limpiarUsuariosHuerfanos,
+                  colorScheme: colorScheme,
+                ),
+                const SizedBox(width: 6),
+              ],
               _MiniActionButton(
                 icon: Icons.refresh_rounded,
                 color: _colorPrimary,
@@ -1367,15 +1495,18 @@ class _PersonnelManagementDialogState
         Expanded(
           child: _cargando
               ? const Center(child: CircularProgressIndicator())
-              : _usuarios.isEmpty
-                  ? _buildEmptyUsuarios(colorScheme)
+              : usuarios.isEmpty
+                  ? _buildEmptyUsuarios(
+                      colorScheme,
+                      pinOnly: widget.pinOnly,
+                    )
                   : ListView.separated(
                       padding: const EdgeInsets.only(bottom: 8),
                       physics: const BouncingScrollPhysics(),
-                      itemCount: _usuarios.length,
+                      itemCount: usuarios.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, i) => _buildUserCard(
-                        _usuarios[i],
+                        usuarios[i],
                         isMobile,
                         colorScheme,
                       ),
@@ -1385,7 +1516,10 @@ class _PersonnelManagementDialogState
     );
   }
 
-  Widget _buildEmptyUsuarios(ColorScheme colorScheme) {
+  Widget _buildEmptyUsuarios(
+    ColorScheme colorScheme, {
+    bool pinOnly = false,
+  }) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1413,7 +1547,9 @@ class _PersonnelManagementDialogState
           ),
           const SizedBox(height: 4),
           Text(
-            'Crea el primero desde la pestaña "Datos"',
+            pinOnly
+                ? 'No hay otros usuarios disponibles para cambiarles el PIN.'
+                : 'Crea el primero desde la pestaña "Datos"',
             style: TextStyle(
               fontSize: 12.5,
               color: colorScheme.onSurfaceVariant,
@@ -1433,12 +1569,18 @@ class _PersonnelManagementDialogState
     bool isMobile,
     ColorScheme colorScheme,
   ) {
-    final isAdmin = usuario.rol == 'admin';
+    final role = UserRole.fromString(usuario.rol);
+    final isAdmin = Permissions.isAdmin(role);
+    final isSupervisor = Permissions.isSupervisor(role);
     final isActive = usuario.estado == 'activo';
     final isSynced =
         usuario.supabaseId != null && usuario.supabaseId!.isNotEmpty;
 
-    final rolColor = isAdmin ? const Color(0xFF3B82F6) : _colorSuccess;
+    final rolColor = isAdmin
+        ? const Color(0xFF3B82F6)
+        : isSupervisor
+            ? const Color(0xFF8B5CF6)
+            : _colorSuccess;
     final estadoColor = isActive ? _colorSuccess : colorScheme.outline;
     final estadoLabel = isActive ? 'Activo' : 'Inactivo';
 
@@ -1537,8 +1679,14 @@ class _PersonnelManagementDialogState
                     _infoPill(
                       icon: isAdmin
                           ? Icons.admin_panel_settings_rounded
-                          : Icons.person_rounded,
-                      label: isAdmin ? 'Admin' : 'Cajero',
+                          : isSupervisor
+                              ? Icons.supervisor_account_rounded
+                              : Icons.person_rounded,
+                      label: isAdmin
+                          ? 'Administrador'
+                          : isSupervisor
+                              ? 'Supervisor'
+                              : role.label,
                       color: rolColor,
                       colorScheme: colorScheme,
                     ),
@@ -1584,21 +1732,31 @@ class _PersonnelManagementDialogState
           const SizedBox(width: 8),
 
           // ── Acciones ──
-          _MiniActionButton(
-            icon: Icons.edit_outlined,
-            color: const Color(0xFF3B82F6),
-            tooltip: 'Editar',
-            onTap: () => _editarUsuario(usuario),
-            colorScheme: colorScheme,
-          ),
-          const SizedBox(width: 6),
-          _MiniActionButton(
-            icon: Icons.delete_outline_rounded,
-            color: _colorDanger,
-            tooltip: 'Eliminar',
-            onTap: () => _eliminarUsuario(usuario),
-            colorScheme: colorScheme,
-          ),
+          if (widget.pinOnly)
+            _MiniActionButton(
+              icon: Icons.pin_rounded,
+              color: const Color(0xFF0EA5E9),
+              tooltip: 'Cambiar PIN',
+              onTap: () => _cambiarPinUsuario(usuario),
+              colorScheme: colorScheme,
+            )
+          else ...[
+            _MiniActionButton(
+              icon: Icons.edit_outlined,
+              color: const Color(0xFF3B82F6),
+              tooltip: 'Editar',
+              onTap: () => _editarUsuario(usuario),
+              colorScheme: colorScheme,
+            ),
+            const SizedBox(width: 6),
+            _MiniActionButton(
+              icon: Icons.delete_outline_rounded,
+              color: _colorDanger,
+              tooltip: 'Eliminar',
+              onTap: () => _eliminarUsuario(usuario),
+              colorScheme: colorScheme,
+            ),
+          ],
         ],
       ),
     );

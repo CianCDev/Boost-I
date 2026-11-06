@@ -29,7 +29,26 @@ void main() {
 
       // Rol ausente o desconocido cae en `cajero`, que no es admin.
       expect(Permissions.isAdmin(UserRole.fromString(null)), isFalse);
-      expect(Permissions.isAdmin(UserRole.fromString('rol-inexistente')), isFalse);
+      expect(
+          Permissions.isAdmin(UserRole.fromString('rol-inexistente')), isFalse);
+    });
+  });
+
+  group('Permisos de supervisor', () {
+    test('parsea supervisor sin degradarlo a cajero', () {
+      expect(UserRole.fromString('supervisor'), UserRole.supervisor);
+      expect(UserRole.fromString('Supervisor'), UserRole.supervisor);
+      expect(Permissions.isSupervisor(UserRole.supervisor), isTrue);
+      expect(Permissions.isSupervisor(UserRole.cajero), isFalse);
+    });
+
+    test('admin o supervisor pueden gestionar PINes, no la contraseña empresa',
+        () {
+      expect(Permissions.isAdminOrSupervisor(UserRole.admin), isTrue);
+      expect(Permissions.isAdminOrSupervisor(UserRole.supervisor), isTrue);
+      expect(Permissions.canManageUserPins(UserRole.supervisor), isTrue);
+      expect(Permissions.isAdmin(UserRole.supervisor), isFalse);
+      expect(Permissions.canAccessSettings(UserRole.supervisor), isFalse);
     });
   });
 }
